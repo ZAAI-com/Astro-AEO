@@ -1,0 +1,6 @@
+# Broken Site
+
+## Home
+
+- [Home](/index.md): exists
+- [Ghost](/ghost.md): missing target

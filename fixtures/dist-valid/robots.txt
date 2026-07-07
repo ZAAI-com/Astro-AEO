@@ -1,0 +1,5 @@
+User-agent: Googlebot
+Allow: /
+
+Sitemap: https://valid.example.com/sitemap-index.xml
+# llms.txt: https://valid.example.com/llms.txt

@@ -1,0 +1,7 @@
+# Valid Site
+
+> A valid fixture.
+
+## Home
+
+- [Home](/index.md): Home page content.

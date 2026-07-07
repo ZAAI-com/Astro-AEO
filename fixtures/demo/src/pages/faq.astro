@@ -1,0 +1,22 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { FaqJsonLd, BreadcrumbJsonLd, SpeakableJsonLd } from '../../../../components/index.js';
+
+const faqs = [
+  { question: 'What is AEO?', answer: 'Answer Engine Optimization: making your content easy for AI answer engines to read and cite.' },
+  { question: 'Does astro-aeo need configuration?', answer: 'No. It works with zero config and exposes options when you want them.' },
+];
+---
+
+<Layout title="FAQ" description="Frequently asked questions.">
+  <FaqJsonLd slot="head" items={faqs} />
+  <BreadcrumbJsonLd slot="head" />
+  <SpeakableJsonLd slot="head" />
+  <h1>FAQ</h1>
+  {faqs.map((f) => (
+    <section>
+      <h2>{f.question}</h2>
+      <p>{f.answer}</p>
+    </section>
+  ))}
+</Layout>

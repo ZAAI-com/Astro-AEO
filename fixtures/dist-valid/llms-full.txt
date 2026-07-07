@@ -1,0 +1,13 @@
+# Valid Site
+
+> A valid fixture.
+
+---
+
+# Home
+
+URL: https://valid.example.com/
+
+Home page content.
+
+---
