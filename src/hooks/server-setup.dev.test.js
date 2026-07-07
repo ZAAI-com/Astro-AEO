@@ -1,11 +1,18 @@
 import { test, expect, describe, beforeAll, afterAll } from 'vitest';
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const DEMO = join(REPO, 'fixtures', 'demo');
 const PORT = 4329;
+
+// Resolve Astro's CLI entry from its own bin field so this works across major
+// versions (Astro 5 ships astro.js, Astro 7 ships bin/astro.mjs).
+const astroDir = join(REPO, 'node_modules', 'astro');
+const astroBinField = JSON.parse(readFileSync(join(astroDir, 'package.json'), 'utf8')).bin;
+const astroBin = join(astroDir, typeof astroBinField === 'string' ? astroBinField : astroBinField.astro);
 // 127.0.0.1, not "localhost": Node's fetch resolves localhost to ::1, but the
 // Astro dev server binds IPv4, so localhost would never connect under Vitest.
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -39,7 +46,7 @@ beforeAll(async () => {
   server = spawn(
     'node',
     // --host 127.0.0.1 pins the dev server to IPv4 loopback so it matches BASE.
-    [join(REPO, 'node_modules', 'astro', 'bin', 'astro.mjs'), 'dev', '--root', DEMO, '--host', '127.0.0.1', '--port', String(PORT)],
+    [astroBin, 'dev', '--root', DEMO, '--host', '127.0.0.1', '--port', String(PORT)],
     { cwd: REPO, stdio: 'ignore', env: childEnv },
   );
   await waitForReady();

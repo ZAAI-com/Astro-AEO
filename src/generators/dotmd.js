@@ -4,9 +4,11 @@ import { dirname } from 'node:path';
 
 // Matches a markdown alternate <link> regardless of whether rel= or type=
 // appears first, so an existing (possibly hand-authored) link is detected in
-// either attribute order.
-const MARKDOWN_ALTERNATE_RE =
-  /<link\b(?=[^>]*\brel=(["'])alternate\1)(?=[^>]*\btype=(["'])text\/markdown\2)[^>]*>/i;
+// either attribute order. Requires BOTH rel="alternate" and type="text/markdown"
+// so a bare type="text/markdown" link is not mistaken for an alternate.
+const MARKDOWN_ALTERNATE_SOURCE =
+  '<link\\b(?=[^>]*\\brel=(["\'])alternate\\1)(?=[^>]*\\btype=(["\'])text/markdown\\2)[^>]*>';
+const MARKDOWN_ALTERNATE_RE = new RegExp(MARKDOWN_ALTERNATE_SOURCE, 'i');
 
 /**
  * True when the HTML already contains a markdown alternate link (any attribute
@@ -16,6 +18,17 @@ const MARKDOWN_ALTERNATE_RE =
  */
 export function hasMarkdownAlternateLink(html) {
   return MARKDOWN_ALTERNATE_RE.test(html);
+}
+
+/**
+ * All markdown alternate <link> tags in the HTML (any attribute order). Shares
+ * the canonical pattern with hasMarkdownAlternateLink so callers that need to
+ * count links (e.g. the validator) cannot drift from the injector's definition.
+ * @param {string} html
+ * @returns {RegExpMatchArray | string[]}
+ */
+export function matchMarkdownAlternateLinks(html) {
+  return html.match(new RegExp(MARKDOWN_ALTERNATE_SOURCE, 'gi')) || [];
 }
 
 /**

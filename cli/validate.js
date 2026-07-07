@@ -1,6 +1,7 @@
 // @ts-check
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { matchMarkdownAlternateLinks } from '../src/generators/dotmd.js';
 
 /**
  * @typedef {object} Finding
@@ -89,7 +90,10 @@ export function validateDist(distDir, opts = {}) {
     const robotsMeta = html.match(/<meta\s+[^>]*name=(["'])robots\1[^>]*content=(["'])([\s\S]*?)\2/i);
     if (robotsMeta && /\bnoindex\b/i.test(robotsMeta[3])) continue;
     pagesChecked++;
-    const links = html.match(/<link\b[^>]*type=(["'])text\/markdown\1[^>]*>/gi) || [];
+    // Require rel="alternate" (not just type="text/markdown") so this matches the
+    // injector in src/generators/dotmd.js and a bare MIME-typed link is not
+    // counted as a valid alternate.
+    const links = matchMarkdownAlternateLinks(html);
     const rel = toHref(distDir, htmlFile).replace(/\.html$/, '').replace(/\/index$/, '') || '/';
     if (aeoMeta && /\bno-llms\b/i.test(aeoMeta[3])) {
       optedOut.add(rel === '/' ? '/index.md' : `${rel}.md`);
