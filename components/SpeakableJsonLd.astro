@@ -1,0 +1,24 @@
+---
+import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
+
+/**
+ * Speakable JSON-LD for voice assistants. Drop-in with no props; defaults to
+ * the <main> region and the current canonical URL.
+ */
+const { cssSelector = ['main'], url } = Astro.props;
+
+const canonical =
+  url || (Astro.site ? new URL(Astro.url.pathname, Astro.site).toString() : Astro.url.pathname);
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebPage',
+  url: canonical,
+  speakable: {
+    '@type': 'SpeakableSpecification',
+    cssSelector: Array.isArray(cssSelector) ? cssSelector : [cssSelector],
+  },
+};
+---
+
+<script type="application/ld+json" set:html={serializeJsonLd(jsonLd)} />

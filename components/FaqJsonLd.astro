@@ -1,0 +1,21 @@
+---
+import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
+
+/**
+ * FAQPage JSON-LD. Pass a list of question/answer pairs.
+ * @typedef {{ question: string; answer: string }} FaqItem
+ */
+const { items = [] } = Astro.props;
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: items.map((item) => ({
+    '@type': 'Question',
+    name: item.question,
+    acceptedAnswer: { '@type': 'Answer', text: item.answer },
+  })),
+};
+---
+
+{items.length > 0 && <script type="application/ld+json" set:html={serializeJsonLd(jsonLd)} />}

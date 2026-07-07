@@ -1,0 +1,28 @@
+---
+import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
+
+/**
+ * Article JSON-LD for blog posts and dated content.
+ * @typedef {{ name: string; url?: string }} Author
+ */
+const { headline, datePublished, dateModified, author, image, description, url } = Astro.props;
+
+const canonical =
+  url || (Astro.site ? new URL(Astro.url.pathname, Astro.site).toString() : Astro.url.pathname);
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline,
+  ...(description && { description }),
+  ...(datePublished && { datePublished }),
+  ...(dateModified && { dateModified }),
+  ...(image && { image }),
+  mainEntityOfPage: canonical,
+  ...(author && {
+    author: { '@type': 'Person', name: author.name, ...(author.url && { url: author.url }) },
+  }),
+};
+---
+
+{headline && <script type="application/ld+json" set:html={serializeJsonLd(jsonLd)} />}
