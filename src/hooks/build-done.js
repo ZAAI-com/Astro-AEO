@@ -53,7 +53,7 @@ export async function onBuildDone(config, options, env) {
   if (config.llmsTxt.enabled) logger.info('astro-aeo: emitted /llms.txt');
   if (config.llmsFullTxt.enabled) logger.info('astro-aeo: emitted /llms-full.txt');
 
-  emitRobotsTxt(dir, config, env.siteUrl, logger);
+  emitRobotsTxt(dir, config, env.siteUrl, logger, env.base);
   if (config.robotsTxt.enabled) logger.info('astro-aeo: emitted /robots.txt');
 
   emitDomainProfile(dir, config, env.siteUrl);

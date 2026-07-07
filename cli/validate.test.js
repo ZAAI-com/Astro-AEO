@@ -32,4 +32,12 @@ describe('validateDist', () => {
     expect(r.ok).toBe(false);
     expect(r.errors[0].code).toBe('no-dist');
   });
+
+  test('.md companion of a no-llms page is not flagged as orphan', () => {
+    const r = validateDist(join(FIX, 'dist-nollms'));
+    expect(r.ok).toBe(true);
+    const warnCodes = r.warnings.map((w) => w.code);
+    // secret.md is intentionally absent from llms.txt (page has aeo=no-llms)
+    expect(warnCodes).not.toContain('orphan-md');
+  });
 });

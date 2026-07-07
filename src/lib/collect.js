@@ -71,7 +71,7 @@ export function collectPages(rawPages, config, ctx) {
     if (meta.aeoTokens.has('skip')) continue;
 
     const markdown = htmlToMarkdown(html, td);
-    const url = `${ctx.siteUrl}${urlPath(pathname, ctx.trailingSlash)}`;
+    const url = absoluteUrl(ctx.siteUrl, ctx.base, pathname, ctx.trailingSlash);
     const mdHref = mdHrefFor(pathname, ctx.base);
     const mdPath = pathname === '/' ? join(distRoot, 'index.md') : join(distRoot, `${pathname}.md`);
 
@@ -119,6 +119,20 @@ export function resolveHtmlPath(distRoot, pathname, buildFormat) {
 function urlPath(pathname, trailingSlash) {
   if (pathname === '/') return '/';
   return trailingSlash === 'never' ? pathname : `${pathname}/`;
+}
+
+/**
+ * Absolute URL for a page: origin + base + trailing-slash-normalized path. Used
+ * by both the build collector and the dev middleware so their `url` fields match.
+ * @param {string} origin         Site origin (or dev origin) without trailing slash.
+ * @param {string} base           Astro base path (e.g. "" or "/docs").
+ * @param {string} pathname
+ * @param {'always'|'never'|'ignore'} trailingSlash
+ * @returns {string}
+ */
+export function absoluteUrl(origin, base, pathname, trailingSlash) {
+  const b = base && base !== '/' ? base.replace(/\/$/, '') : '';
+  return `${origin}${b}${urlPath(pathname, trailingSlash)}`;
 }
 
 /**

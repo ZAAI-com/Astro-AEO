@@ -1,6 +1,24 @@
 // @ts-check
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, resolve, sep } from 'node:path';
+
+/**
+ * Resolve `filepath` against `projectRoot` and refuse paths that escape it. A
+ * bare `startsWith` would let a sibling directory sharing the root's name prefix
+ * through (e.g. "/proj" vs "/proj-secrets"), so require an exact match or a real
+ * path-separator boundary.
+ * @param {string} projectRoot
+ * @param {string} filepath
+ * @returns {string} absolute path inside the project root
+ */
+export function resolveWithinRoot(projectRoot, filepath) {
+  const root = resolve(projectRoot);
+  const outPath = resolve(root, filepath);
+  if (outPath !== root && !outPath.startsWith(root + sep)) {
+    throw new Error(`astro-aeo: urlMap.outputFilepath escapes the project root: ${filepath}`);
+  }
+  return outPath;
+}
 
 /**
  * Write a Markdown table of every page to a file under the project root
@@ -14,11 +32,7 @@ import { dirname, resolve } from 'node:path';
 export function emitUrlMap(pages, config, projectRoot, generatedAt) {
   if (!config.urlMap.enabled) return;
 
-  const outPath = resolve(projectRoot, config.urlMap.outputFilepath);
-  // Refuse to write outside the project root.
-  if (!outPath.startsWith(resolve(projectRoot))) {
-    throw new Error(`astro-aeo: urlMap.outputFilepath escapes the project root: ${config.urlMap.outputFilepath}`);
-  }
+  const outPath = resolveWithinRoot(projectRoot, config.urlMap.outputFilepath);
 
   const stamp = generatedAt.toISOString().slice(0, 19).replace('T', ' at ');
   const lines = [

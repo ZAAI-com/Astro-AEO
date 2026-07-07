@@ -75,17 +75,10 @@ export function validateDist(distDir, opts = {}) {
     }
   }
 
-  // --- orphan .md files ---
-  if (existsSync(llmsPath)) {
-    for (const md of mdFiles) {
-      const withBase = `${base}${md}`;
-      if (!referenced.has(md) && !referenced.has(withBase)) {
-        warnings.push({ level: 'warn', code: 'orphan-md', message: `.md file not referenced by llms.txt: ${md}`, file: md });
-      }
-    }
-  }
-
   // --- per-page alternate link ---
+  // Track .md companions of pages that opted out of llms.txt (no-llms): their
+  // .md is intentionally unreferenced, so it must not be flagged as orphaned.
+  const optedOut = new Set();
   let pagesChecked = 0;
   for (const htmlFile of htmlFiles) {
     const html = readFileSync(htmlFile, 'utf8');
@@ -98,10 +91,23 @@ export function validateDist(distDir, opts = {}) {
     pagesChecked++;
     const links = html.match(/<link\b[^>]*type=(["'])text\/markdown\1[^>]*>/gi) || [];
     const rel = toHref(distDir, htmlFile).replace(/\.html$/, '').replace(/\/index$/, '') || '/';
+    if (aeoMeta && /\bno-llms\b/i.test(aeoMeta[3])) {
+      optedOut.add(rel === '/' ? '/index.md' : `${rel}.md`);
+    }
     if (links.length === 0) {
       warnings.push({ level: 'warn', code: 'no-alternate-link', message: `no markdown alternate link: ${rel}`, file: rel });
     } else if (links.length > 1) {
       warnings.push({ level: 'warn', code: 'duplicate-alternate-link', message: `multiple markdown alternate links: ${rel}`, file: rel });
+    }
+  }
+
+  // --- orphan .md files ---
+  if (existsSync(llmsPath)) {
+    for (const md of mdFiles) {
+      const withBase = `${base}${md}`;
+      if (!referenced.has(md) && !referenced.has(withBase) && !optedOut.has(md)) {
+        warnings.push({ level: 'warn', code: 'orphan-md', message: `.md file not referenced by llms.txt: ${md}`, file: md });
+      }
     }
   }
 

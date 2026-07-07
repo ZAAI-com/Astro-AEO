@@ -71,6 +71,12 @@ export interface LlmsTxtOptions {
   includeDescriptions?: boolean;
   /** Append " _(updated YYYY-MM-DD)_" per entry. Default: false. */
   showLastmod?: boolean;
+  /**
+   * List pages that opt out of a .md companion (`<meta name="aeo" content="no-dotmd">`)
+   * in llms.txt, linking to the HTML page instead of a `.md`. Default: false
+   * (such pages are omitted, so llms.txt never links a missing `.md`).
+   */
+  includeNoDotmd?: boolean;
 }
 
 export interface LlmsFullTxtOptions {

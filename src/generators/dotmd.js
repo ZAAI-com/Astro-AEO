@@ -2,6 +2,22 @@
 import { writeFileSync, readFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
+// Matches a markdown alternate <link> regardless of whether rel= or type=
+// appears first, so an existing (possibly hand-authored) link is detected in
+// either attribute order.
+const MARKDOWN_ALTERNATE_RE =
+  /<link\b(?=[^>]*\brel=(["'])alternate\1)(?=[^>]*\btype=(["'])text\/markdown\2)[^>]*>/i;
+
+/**
+ * True when the HTML already contains a markdown alternate link (any attribute
+ * order).
+ * @param {string} html
+ * @returns {boolean}
+ */
+export function hasMarkdownAlternateLink(html) {
+  return MARKDOWN_ALTERNATE_RE.test(html);
+}
+
 /**
  * Write .md companion files and inject <link rel="alternate" type="text/markdown">
  * into each page's <head>.
@@ -59,14 +75,13 @@ function injectAlternateLink(page, mode) {
     return;
   }
 
-  const existing = /<link\b[^>]*rel=(["'])alternate\1[^>]*type=(["'])text\/markdown\2[^>]*>/i;
-  const hasExisting = existing.test(html);
+  const hasExisting = hasMarkdownAlternateLink(html);
   const tag = `<link rel="alternate" type="text/markdown" href="${page.mdHref}">`;
 
   let updated;
   if (hasExisting) {
     if (mode !== 'always') return; // 'auto': leave the existing link untouched
-    updated = html.replace(existing, tag);
+    updated = html.replace(MARKDOWN_ALTERNATE_RE, tag);
   } else {
     if (!html.includes('</head>')) return;
     updated = html.replace('</head>', `${tag}</head>`);

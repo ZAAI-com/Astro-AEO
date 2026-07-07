@@ -49,6 +49,12 @@ describe('demo build outputs', () => {
     expect(llms).not.toContain('/private/secret.md');
   });
 
+  test('no-dotmd page has no .md companion and is omitted from llms.txt', () => {
+    // no-md.astro carries meta aeo=no-dotmd; includeNoDotmd defaults to false.
+    expect(existsSync(join(DIST, 'no-md.md'))).toBe(false);
+    expect(read('llms.txt')).not.toContain('/no-md.md');
+  });
+
   test('llms-full.txt inlines page bodies with separators', () => {
     const full = read('llms-full.txt');
     expect(full).toContain('# First Post');

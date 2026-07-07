@@ -46,9 +46,10 @@ export function extractDescription(html) {
     /<meta\s+[^>]*name=(["'])description\1[^>]*content=(["'])([\s\S]*?)\2/i,
   );
   if (match) return decodeEntities(match[3]);
-  // content may precede name
+  // content may precede name. Keep the capture within a single tag ([^>]*?) so
+  // it cannot bleed from an earlier meta tag's content= attribute.
   const alt = html.match(
-    /<meta\s+[^>]*content=(["'])([\s\S]*?)\1[^>]*name=(["'])description\3/i,
+    /<meta\s+[^>]*content=(["'])([^>]*?)\1[^>]*name=(["'])description\3/i,
   );
   return alt ? decodeEntities(alt[2]) : '';
 }
@@ -126,13 +127,15 @@ export function extractPageMeta(html, strip = (t) => t) {
  * @returns {string}
  */
 export function decodeEntities(s) {
+  // Decode `&amp;` LAST so an escaped entity like `&amp;lt;` (literal "&lt;")
+  // is not double-decoded into "<".
   return s
-    .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#0?39;/g, "'")
     .replace(/&apos;/g, "'")
     .replace(/&#x27;/gi, "'")
-    .replace(/&nbsp;/g, ' ');
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&');
 }

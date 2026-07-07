@@ -74,7 +74,7 @@ function runValidate(args) {
   if (parsed.values.json) {
     process.stdout.write(`${formatJson(result)}\n`);
   } else {
-    process.stdout.write(`${formatReport(result, { quiet: parsed.values.quiet })}\n`);
+    process.stdout.write(`${formatReport(result, { quiet: parsed.values.quiet, strict: parsed.values.strict })}\n`);
   }
 
   if (!result.ok) process.exit(1);

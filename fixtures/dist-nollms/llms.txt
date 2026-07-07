@@ -1,0 +1,7 @@
+# Nollms Site
+
+> Fixture for the no-llms orphan case.
+
+## Home
+
+- [Home](/index.md): Home page content.

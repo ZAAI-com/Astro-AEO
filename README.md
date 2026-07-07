@@ -89,6 +89,7 @@ aeo({
     defaultSection: 'Pages',       // section for unmatched pages, or false to drop them
     includeDescriptions: true,
     showLastmod: false,
+    includeNoDotmd: false,         // list no-dotmd pages (linking to HTML) instead of omitting them
   },
 
   llmsFullTxt: {

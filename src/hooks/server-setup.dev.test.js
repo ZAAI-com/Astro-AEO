@@ -75,4 +75,12 @@ describe('dev server AEO endpoints', () => {
     expect(body).toContain('## Home');
     expect(body).toContain('dev preview');
   });
+
+  test('excluded pages are not served as .md nor listed in llms.txt', async () => {
+    // The demo config excludes /private/** from AEO output.
+    const md = await fetch(`${BASE}/private/secret.md`);
+    expect(md.status).toBe(404);
+    const llms = await (await fetch(`${BASE}/llms.txt`)).text();
+    expect(llms).not.toContain('/private/secret');
+  });
 });

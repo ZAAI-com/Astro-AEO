@@ -4,7 +4,9 @@ import { extractPageMeta, makeTitleStripper } from '../lib/page-meta.js';
 import { resolveSiteMeta } from '../config.js';
 import { buildRobotsTxt } from '../generators/robots-txt.js';
 import { buildDomainProfile } from '../generators/domain-profile.js';
-import { groupSections } from '../generators/llms-txt.js';
+import { groupSections, isLlmsEligible, llmsEntryHref } from '../generators/llms-txt.js';
+import { absoluteUrl, mdHrefFor } from '../lib/collect.js';
+import { isIncluded } from '../lib/match.js';
 
 /**
  * Create a Connect/Vite middleware that serves the AEO text outputs live in
@@ -45,7 +47,7 @@ export function createAeoMiddleware(deps) {
     const origin = req.headers.host ? `${proto}://${req.headers.host}` : null;
 
     if (pathname === '/robots.txt' && config.robotsTxt.enabled) {
-      return send(res, 200, 'text/plain; charset=utf-8', buildRobotsTxt(config, siteUrl), method);
+      return send(res, 200, 'text/plain; charset=utf-8', buildRobotsTxt(config, siteUrl, base), method);
     }
 
     if (pathname === '/.well-known/domain-profile.json' && config.domainProfile.enabled) {
@@ -77,9 +79,12 @@ export function createAeoMiddleware(deps) {
    * Fetch a page's HTML from the running dev server and collect its meta.
    * @param {string} origin
    * @param {string} pageUrlPath  Page path, e.g. "/about" or "/".
-   * @returns {Promise<{ pathname: string; url: string; title: string; description: string; markdown: string; aeoTokens: Set<string> } | null>}
+   * @returns {Promise<{ pathname: string; url: string; mdHref: string; title: string; description: string; markdown: string; aeoTokens: Set<string> } | null>}
    */
   async function fetchPage(origin, pageUrlPath) {
+    // Mirror the build's include/exclude filter (collectPages) so excluded pages
+    // are never served as .md or listed in llms.txt during `astro dev`.
+    if (!isIncluded(pageUrlPath, { include: config.include, exclude: config.exclude })) return null;
     const urlPath = pageUrlPath === '/' ? '/' : trailingSlash === 'never' ? pageUrlPath : `${pageUrlPath}/`;
     let html;
     try {
@@ -96,7 +101,8 @@ export function createAeoMiddleware(deps) {
     if (config.respectNoindex && meta.noindex) return null;
     return {
       pathname: pageUrlPath,
-      url: `${siteUrl || origin}${urlPath}`,
+      url: absoluteUrl(siteUrl || origin, base, pageUrlPath, trailingSlash),
+      mdHref: mdHrefFor(pageUrlPath, base),
       title: meta.title,
       description: meta.description,
       markdown: htmlToMarkdown(html, td),
@@ -152,7 +158,7 @@ export function createAeoMiddleware(deps) {
       return lines.join('\n');
     }
 
-    const eligible = collected.filter((p) => !p.aeoTokens.has('no-llms'));
+    const eligible = collected.filter((p) => isLlmsEligible(p, config));
     const groups = groupSections(
       /** @type {any} */ (eligible),
       config.llmsTxt.sections,
@@ -164,7 +170,7 @@ export function createAeoMiddleware(deps) {
     for (const group of groups) {
       lines.push(`## ${group.title}`, '');
       for (const p of group.pages) {
-        let line = `- [${p.title}](${basePrefix}${p.pathname === '/' ? '/index.md' : `${p.pathname}.md`})`;
+        let line = `- [${p.title}](${llmsEntryHref(p, config)})`;
         if (config.llmsTxt.includeDescriptions && p.description) line += `: ${p.description}`;
         lines.push(line);
       }

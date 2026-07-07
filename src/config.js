@@ -51,6 +51,7 @@ export function resolveConfig(userConfig = {}, logger) {
       defaultSection: llmsTxt.defaultSection ?? 'Pages',
       includeDescriptions: llmsTxt.includeDescriptions ?? true,
       showLastmod: llmsTxt.showLastmod ?? false,
+      includeNoDotmd: llmsTxt.includeNoDotmd ?? false,
     },
     llmsFullTxt: {
       enabled: userConfig.llmsFullTxt?.enabled ?? true,

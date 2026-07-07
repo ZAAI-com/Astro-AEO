@@ -7,6 +7,7 @@ import {
   extractNoindex,
   extractModifiedTime,
   isRedirectStub,
+  decodeEntities,
 } from './page-meta.js';
 
 describe('makeTitleStripper', () => {
@@ -48,6 +49,24 @@ describe('extractTitle / extractDescription', () => {
   test('description with content before name', () => {
     const h = '<meta content="Reversed order" name="description">';
     expect(extractDescription(h)).toBe('Reversed order');
+  });
+
+  test('content-first description does not bleed across earlier meta tags', () => {
+    const h =
+      '<meta name="viewport" content="width=device-width">' +
+      '<meta content="Real page description" name="description">';
+    expect(extractDescription(h)).toBe('Real page description');
+  });
+});
+
+describe('decodeEntities', () => {
+  test('decodes named entities', () => {
+    expect(decodeEntities('Tom &amp; Jerry &lt;3')).toBe('Tom & Jerry <3');
+  });
+
+  test('does not double-decode an escaped entity', () => {
+    // "&amp;lt;" is the HTML encoding of the literal text "&lt;"
+    expect(decodeEntities('&amp;lt;')).toBe('&lt;');
   });
 });
 

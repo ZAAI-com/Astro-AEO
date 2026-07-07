@@ -69,7 +69,7 @@ export function groupSections(pages, sections, defaultSection) {
  */
 export function emitLlmsTxt(pages, distDir, config, siteName, siteDescription) {
   if (!config.llmsTxt.enabled) return;
-  const eligible = pages.filter((p) => !p.aeoTokens.has('no-llms'));
+  const eligible = pages.filter((p) => isLlmsEligible(p, config));
   const groups = groupSections(eligible, config.llmsTxt.sections, config.llmsTxt.defaultSection);
 
   const lines = [`# ${siteName}`, ''];
@@ -85,12 +85,38 @@ export function emitLlmsTxt(pages, distDir, config, siteName, siteDescription) {
 }
 
 /**
+ * Whether a page should appear in llms.txt. Pages with `no-llms` are always
+ * dropped; pages with `no-dotmd` are dropped unless `llmsTxt.includeNoDotmd` is
+ * on (they have no .md companion to link, so by default they are omitted rather
+ * than left with a dangling link).
+ * @param {{ aeoTokens: Set<string> }} p
+ * @param {import('../index.js').ResolvedAeoConfig} config
+ * @returns {boolean}
+ */
+export function isLlmsEligible(p, config) {
+  if (p.aeoTokens.has('no-llms')) return false;
+  if (p.aeoTokens.has('no-dotmd') && !config.llmsTxt.includeNoDotmd) return false;
+  return true;
+}
+
+/**
+ * The llms.txt link target for a page: its `.md` companion, or (for a
+ * `no-dotmd` page listed via `includeNoDotmd`) its HTML URL.
+ * @param {{ aeoTokens: Set<string>; mdHref: string; url: string }} p
+ * @param {import('../index.js').ResolvedAeoConfig} config
+ * @returns {string}
+ */
+export function llmsEntryHref(p, config) {
+  return p.aeoTokens.has('no-dotmd') ? p.url : p.mdHref;
+}
+
+/**
  * @param {import('../lib/collect.js').PageInfo} p
  * @param {import('../index.js').ResolvedAeoConfig} config
  * @returns {string}
  */
 function entryLine(p, config) {
-  let line = `- [${p.title}](${p.mdHref})`;
+  let line = `- [${p.title}](${llmsEntryHref(p, config)})`;
   if (config.llmsTxt.includeDescriptions && p.description) line += `: ${p.description}`;
   if (config.llmsTxt.showLastmod && p.lastModified) {
     line += ` _(updated ${p.lastModified.toISOString().slice(0, 10)})_`;
