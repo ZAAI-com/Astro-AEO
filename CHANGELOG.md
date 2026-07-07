@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
-## 0.5.0
+## 0.6.0
 
 Initial public release. Feature parity with Jekyll-AEO, plus Astro-only extras.
 
