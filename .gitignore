@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.astro/
+fixtures/demo/dist/
+fixtures/demo/.astro/
+fixtures/demo/node_modules/
+*.log
+.DS_Store
+*.tsbuildinfo

@@ -1,0 +1,4 @@
+# esbuild (pulled in by Astro and Vitest) needs its install script to run.
+# pnpm blocks dependency build scripts by default; approve esbuild explicitly.
+allowBuilds:
+  esbuild: true
