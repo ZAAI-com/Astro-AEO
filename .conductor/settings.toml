@@ -1,0 +1,24 @@
+#:schema https://conductor.build/schemas/settings.repo.schema.json
+
+[scripts]
+setup = "bash .conductor/scripts/setup.sh"
+archive = "bash .conductor/scripts/archive.sh"
+# Demo runs on a per-workspace CONDUCTOR_PORT in its own worktree with no shared
+# local resource, so multiple workspaces can run at the same time.
+run_mode = "concurrent"
+
+# Live-preview the demo Astro site (serves llms.txt, robots.txt, .md companions).
+[scripts.run.demo]
+command = "bash .conductor/scripts/run-demo.sh"
+default = true
+icon = "globe"
+
+# Vitest in watch mode: colocated unit + CLI tests.
+[scripts.run.test]
+command = "bash .conductor/scripts/run-test.sh"
+icon = "test-tube"
+
+# One-shot type check (tsc --noEmit against JSDoc types).
+[scripts.run.typecheck]
+command = "bash .conductor/scripts/run-typecheck.sh"
+icon = "wrench"

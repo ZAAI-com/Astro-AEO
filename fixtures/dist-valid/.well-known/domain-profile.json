@@ -1,0 +1,6 @@
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "Valid Site",
+  "url": "https://valid.example.com"
+}

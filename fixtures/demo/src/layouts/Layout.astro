@@ -1,0 +1,22 @@
+---
+const { title, description, aeo } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} | Demo Site</title>
+    {description && <meta name="description" content={description} />}
+    {aeo && <meta name="aeo" content={aeo} />}
+    <slot name="head" />
+  </head>
+  <body>
+    <nav><a href="/">Home</a></nav>
+    <main>
+      <slot />
+    </main>
+    <footer>Demo footer, not part of the markdown.</footer>
+  </body>
+</html>

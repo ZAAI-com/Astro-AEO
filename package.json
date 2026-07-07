@@ -1,0 +1,84 @@
+{
+  "name": "astro-aeo",
+  "version": "0.6.0",
+  "description": "Answer Engine Optimization for Astro: .md companion pages, llms.txt, llms-full.txt, robots.txt AI-bot policies, domain-profile.json, JSON-LD components, and a validator CLI.",
+  "type": "module",
+  "license": "MIT",
+  "author": "ZAAI (https://zaai.com)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ZAAI-com/Astro-AEO.git"
+  },
+  "homepage": "https://github.com/ZAAI-com/Astro-AEO#readme",
+  "bugs": {
+    "url": "https://github.com/ZAAI-com/Astro-AEO/issues"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./components": {
+      "types": "./components/index.d.ts",
+      "default": "./components/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "astro-aeo": "./bin/astro-aeo.js"
+  },
+  "files": [
+    "src",
+    "components",
+    "bin",
+    "cli",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "!**/*.test.js",
+    "!**/*.test.ts"
+  ],
+  "engines": {
+    "node": ">=20.3.0"
+  },
+  "packageManager": "pnpm@11.0.9",
+  "keywords": [
+    "astro",
+    "astro-integration",
+    "astro-component",
+    "withastro",
+    "aeo",
+    "geo",
+    "seo",
+    "llms.txt",
+    "llms",
+    "answer-engines",
+    "generative-engine-optimization",
+    "robots.txt",
+    "json-ld",
+    "schema.org",
+    "markdown"
+  ],
+  "peerDependencies": {
+    "astro": ">=5.0.0"
+  },
+  "dependencies": {
+    "turndown": "^7.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/turndown": "^5.0.5",
+    "astro": "^7.0.3",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:dev": "vitest run --config vitest.dev.config.js",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "demo:dev": "astro dev --root fixtures/demo",
+    "demo:build": "astro build --root fixtures/demo",
+    "demo:validate": "node bin/astro-aeo.js validate fixtures/demo/dist"
+  }
+}

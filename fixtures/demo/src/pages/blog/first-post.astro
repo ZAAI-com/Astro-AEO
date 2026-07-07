@@ -1,0 +1,16 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { ArticleJsonLd } from '../../../../../components/index.js';
+---
+
+<Layout title="First Post" description="The first demo blog post.">
+  <ArticleJsonLd
+    slot="head"
+    headline="First Post"
+    datePublished="2026-01-10"
+    author={{ name: 'Demo Author' }}
+  />
+  <meta slot="head" property="article:modified_time" content="2026-02-15T00:00:00Z" />
+  <h1>First Post</h1>
+  <p>Body of the first post. It lands in the Blog section of llms.txt.</p>
+</Layout>

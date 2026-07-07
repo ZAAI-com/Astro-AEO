@@ -1,0 +1,52 @@
+---
+import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
+
+/**
+ * BreadcrumbList JSON-LD.
+ *
+ * Pass `items` explicitly, or omit them to auto-derive the trail from the
+ * current URL. `labels` overrides the humanized label for a given slug; set
+ * `includeHome={false}` to drop the leading Home crumb.
+ *
+ * @typedef {{ name: string; url: string }} Crumb
+ */
+const { items, labels = {}, includeHome = true } = Astro.props;
+
+const site = Astro.site ? Astro.site.toString().replace(/\/$/, '') : '';
+
+/** @param {string} slug */
+function humanize(slug) {
+  if (labels[slug]) return labels[slug];
+  return slug
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** @type {Crumb[]} */
+let crumbs;
+if (Array.isArray(items)) {
+  crumbs = items;
+} else {
+  const segments = Astro.url.pathname.split('/').filter(Boolean);
+  crumbs = [];
+  if (includeHome) crumbs.push({ name: 'Home', url: `${site}/` });
+  let acc = '';
+  for (const seg of segments) {
+    acc += `/${seg}`;
+    crumbs.push({ name: humanize(seg), url: `${site}${acc}/` });
+  }
+}
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: crumbs.map((c, i) => ({
+    '@type': 'ListItem',
+    position: i + 1,
+    name: c.name,
+    item: c.url,
+  })),
+};
+---
+
+{crumbs.length > 0 && <script type="application/ld+json" set:html={serializeJsonLd(jsonLd)} />}

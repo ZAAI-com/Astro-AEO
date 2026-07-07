@@ -1,0 +1,24 @@
+---
+import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
+
+/**
+ * Organization JSON-LD. Typically placed once, on the homepage.
+ */
+const { name, url, logo, sameAs, contactEmail } = Astro.props;
+
+const resolvedUrl = url || (Astro.site ? Astro.site.toString() : undefined);
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name,
+  ...(resolvedUrl && { url: resolvedUrl }),
+  ...(logo && { logo }),
+  ...(Array.isArray(sameAs) && sameAs.length > 0 && { sameAs }),
+  ...(contactEmail && {
+    contactPoint: { '@type': 'ContactPoint', email: contactEmail, contactType: 'customer support' },
+  }),
+};
+---
+
+{name && <script type="application/ld+json" set:html={serializeJsonLd(jsonLd)} />}

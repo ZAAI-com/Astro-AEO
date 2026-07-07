@@ -1,0 +1,10 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { BreadcrumbJsonLd } from '../../../../components/index.js';
+---
+
+<Layout title="About" description="About the demo site.">
+  <BreadcrumbJsonLd slot="head" />
+  <h1>About</h1>
+  <p>The about page. Its title suffix "| Demo Site" is stripped by astro-aeo.</p>
+</Layout>

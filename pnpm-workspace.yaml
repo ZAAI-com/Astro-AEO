@@ -1,0 +1,8 @@
+# esbuild (pulled in by Astro and Vitest) needs its install script to run.
+# pnpm blocks dependency build scripts by default; approve esbuild explicitly.
+# sharp is pulled in by Astro 5/6 (image service); it ships prebuilt binaries
+# and the demo build does not need its script, so decline it (false) rather
+# than leaving it undecided, which makes `pnpm add astro@5|6` exit non-zero.
+allowBuilds:
+  esbuild: true
+  sharp: false

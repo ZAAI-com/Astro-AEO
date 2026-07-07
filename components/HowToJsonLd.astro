@@ -1,0 +1,27 @@
+---
+import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
+
+/**
+ * HowTo JSON-LD. Provide a name and ordered steps.
+ * @typedef {{ name: string; text: string; url?: string; image?: string }} HowToStep
+ */
+const { name, description, totalTime, steps = [] } = Astro.props;
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'HowTo',
+  name,
+  ...(description && { description }),
+  ...(totalTime && { totalTime }),
+  step: steps.map((s, i) => ({
+    '@type': 'HowToStep',
+    position: i + 1,
+    name: s.name,
+    text: s.text,
+    ...(s.url && { url: s.url }),
+    ...(s.image && { image: s.image }),
+  })),
+};
+---
+
+{name && steps.length > 0 && <script type="application/ld+json" set:html={serializeJsonLd(jsonLd)} />}
