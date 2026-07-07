@@ -91,6 +91,6 @@ Keep these four in sync so behavior, types, and docs match:
 
 ## CI and compatibility
 
-`.github/workflows/S1-Test.yml` runs the suite against Astro 5, 6, and 7 and smoke-tests the
+`.github/workflows/W1-Test.yml` runs the suite against Astro 5, 6, and 7 and smoke-tests the
 published artifact on Node 20, 22, and 24. Keep the code compatible with Node >=20.3 and Astro
 >=5.

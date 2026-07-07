@@ -1,9 +1,10 @@
-name: S2-Release
+name: W2-Release
 
 on:
   push:
     # Version tags without a leading "v", e.g. 0.6.0
     tags: ['[0-9]*.[0-9]*.[0-9]*']
+  workflow_dispatch:
 
 permissions:
   contents: read
