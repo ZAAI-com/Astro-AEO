@@ -40,16 +40,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['24']
+        node: ['20', '22', '24']
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+      # Install with a pnpm-capable Node: pnpm@11 needs Node >=22.13 (node:sqlite)
+      # and cannot run on the Node 20 leg. Install here, then switch to the matrix
+      # Node below to exercise the published artifact on that runtime.
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
+          node-version: '24'
           cache: 'pnpm'
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
       - name: Smoke import under Node
         run: node -e "import('./src/index.js').then(m => { if (typeof m.default !== 'function') process.exit(1) })"
       - name: CLI runs under Node

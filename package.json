@@ -39,7 +39,7 @@
     "!**/*.test.ts"
   ],
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=20.3.0"
   },
   "packageManager": "pnpm@11.0.9",
   "keywords": [
