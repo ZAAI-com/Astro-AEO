@@ -35,7 +35,7 @@ bun add astro-aeo
 # npm install astro-aeo
 ```
 
-Astro-AEO requires Astro 5 or newer. It ships as plain ESM with no build step, so it also works as a git dependency:
+Astro-AEO requires Astro 5 or newer and Node 20.3+. It ships as plain ESM with no build step, so it also works as a git dependency:
 
 ```jsonc
 // package.json
@@ -43,6 +43,8 @@ Astro-AEO requires Astro 5 or newer. It ships as plain ESM with no build step, s
   "astro-aeo": "github:ZAAI-com/Astro-AEO"
 }
 ```
+
+Prefer an AI-assisted install? Paste [`docs/SETUP_PROMPT.md`](docs/SETUP_PROMPT.md) into Claude Code, Cursor, or a similar assistant pointed at your Astro project and it will install and configure Astro-AEO for you.
 
 ## Quick Start
 
@@ -201,14 +203,18 @@ Last-modified dates come from `<meta property="article:modified_time">` when pre
 
 ```bash
 pnpm install
-pnpm test            # colocated unit + CLI + build e2e tests (Vitest)
-pnpm run test:dev    # dev-server e2e (spawns astro dev)
-pnpm run typecheck   # tsc --noEmit against JSDoc types
-pnpm run demo:dev    # run the demo site in fixtures/demo
-pnpm run demo:build  # build the demo site
+pnpm test              # colocated unit + CLI + build e2e tests (Vitest)
+pnpm run test:watch    # Vitest in watch mode
+pnpm run test:dev      # dev-server e2e (spawns astro dev)
+pnpm run typecheck     # tsc --noEmit against JSDoc types
+pnpm run demo:dev      # run the demo site in fixtures/demo
+pnpm run demo:build    # build the demo site
+pnpm run demo:validate # run the validator CLI on the demo build
 ```
 
 Tests are colocated next to the source they cover as `*.test.js`. The package is authored as plain ESM JavaScript with JSDoc types and a hand-written `index.d.ts`, so it needs no build step and installs cleanly as a git dependency.
+
+Working on this repo with an AI agent? See [`.claude/CLAUDE.md`](.claude/CLAUDE.md) for the architecture, conventions, and test workflow. Notable changes are tracked in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## License
 
