@@ -11,9 +11,15 @@ const DIST = join(DEMO, 'dist');
 /** @param {string} p */
 const read = (p) => readFileSync(join(DIST, p), 'utf8');
 
+// Resolve Astro's CLI entry from its own bin field so this works across major
+// versions (Astro 5 ships astro.js, Astro 7 ships bin/astro.mjs).
+const astroDir = join(REPO, 'node_modules', 'astro');
+const astroBinField = JSON.parse(readFileSync(join(astroDir, 'package.json'), 'utf8')).bin;
+const astroBin = join(astroDir, typeof astroBinField === 'string' ? astroBinField : astroBinField.astro);
+
 beforeAll(() => {
   // Build under Node (the runtime real consumers use), not the Bun test runner.
-  execFileSync('node', [join(REPO, 'node_modules', 'astro', 'bin', 'astro.mjs'), 'build', '--root', DEMO], {
+  execFileSync('node', [astroBin, 'build', '--root', DEMO], {
     cwd: REPO,
     stdio: 'ignore',
   });

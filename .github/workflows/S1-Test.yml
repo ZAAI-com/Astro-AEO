@@ -13,19 +13,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        astro: ['5', '7']
+        astro: ['5', '6', '7']
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'pnpm'
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Pin Astro version for this leg
         if: matrix.astro != '7'
-        run: pnpm add -D astro@${{ matrix.astro }} --no-frozen-lockfile
+        run: pnpm add -D astro@${{ matrix.astro }}
       - name: Typecheck
         run: pnpm run typecheck
       - name: Unit, CLI and build e2e tests
@@ -40,7 +40,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['20', '22']
+        node: ['24']
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
