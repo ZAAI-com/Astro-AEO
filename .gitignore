@@ -7,3 +7,11 @@ fixtures/demo/node_modules/
 *.log
 .DS_Store
 *.tsbuildinfo
+
+# Environment variables (Astro loads .env*; never commit secrets)
+.env
+.env.*
+!.env.example
+
+# Test coverage output (vitest --coverage)
+coverage/
