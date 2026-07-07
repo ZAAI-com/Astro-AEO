@@ -1,0 +1,56 @@
+name: S1-Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: test (astro ${{ matrix.astro }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        astro: ['5', '7']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Pin Astro version for this leg
+        if: matrix.astro != '7'
+        run: pnpm add -D astro@${{ matrix.astro }} --no-frozen-lockfile
+      - name: Typecheck
+        run: pnpm run typecheck
+      - name: Unit, CLI and build e2e tests
+        run: pnpm test
+      - name: Dev-server e2e (astro 7 leg only)
+        if: matrix.astro == '7'
+        run: pnpm run test:dev
+
+  node-compat:
+    name: node ${{ matrix.node }} compat
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Smoke import under Node
+        run: node -e "import('./src/index.js').then(m => { if (typeof m.default !== 'function') process.exit(1) })"
+      - name: CLI runs under Node
+        run: node bin/astro-aeo.js validate fixtures/dist-valid
