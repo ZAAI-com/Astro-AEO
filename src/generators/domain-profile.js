@@ -18,10 +18,25 @@ export function buildDomainProfile(config, siteUrl) {
     name: dp.name,
     ...(dp.description && { description: dp.description }),
     ...(website && { url: website }),
-    ...(dp.contact && { email: dp.contact }),
+    ...contactFields(dp.email),
     ...(dp.logo && { logo: dp.logo }),
     ...(dp.sameAs && dp.sameAs.length && { sameAs: dp.sameAs }),
   };
+}
+
+/**
+ * Map a contact value to the right schema.org property by shape: an http(s) URL
+ * becomes a `contactPoint`, a value containing "@" becomes `email`, and anything
+ * else becomes `telephone`. http is checked first so a contact URL containing
+ * "@" is not misread as an email.
+ * @param {string} value
+ * @returns {Record<string, unknown>}
+ */
+function contactFields(value) {
+  if (!value) return {};
+  if (/^https?:\/\//i.test(value)) return { contactPoint: { '@type': 'ContactPoint', url: value } };
+  if (value.includes('@')) return { email: value };
+  return { telephone: value };
 }
 
 /**

@@ -69,4 +69,39 @@ describe('validateDist', () => {
       expect(r.warnings.map((w) => w.code)).not.toContain('no-alternate-link');
     });
   });
+
+  describe('robots.txt wildcard-group validation', () => {
+    /** @type {string} */
+    let tmp;
+
+    afterEach(() => {
+      if (tmp) rmSync(tmp, { recursive: true, force: true });
+    });
+
+    /** @param {string} robots */
+    const buildDist = (robots) => {
+      tmp = mkdtempSync(join(tmpdir(), 'aeo-validate-'));
+      writeFileSync(
+        join(tmp, 'index.html'),
+        '<html><head><link rel="alternate" type="text/markdown" href="/index.md"></head><body>x</body></html>',
+      );
+      writeFileSync(join(tmp, 'robots.txt'), robots);
+      return tmp;
+    };
+
+    test('named groups without a wildcard warn', () => {
+      const r = validateDist(buildDist('User-agent: Googlebot\nAllow: /\n'));
+      expect(r.warnings.map((w) => w.code)).toContain('robots-no-wildcard');
+    });
+
+    test('a wildcard group silences the warning', () => {
+      const r = validateDist(buildDist('User-agent: *\nAllow: /\n\nUser-agent: Googlebot\nAllow: /\n'));
+      expect(r.warnings.map((w) => w.code)).not.toContain('robots-no-wildcard');
+    });
+
+    test('disallow-only without a wildcard warns', () => {
+      const r = validateDist(buildDist('User-agent: GPTBot\nDisallow: /\n'));
+      expect(r.warnings.map((w) => w.code)).toContain('robots-no-wildcard');
+    });
+  });
 });

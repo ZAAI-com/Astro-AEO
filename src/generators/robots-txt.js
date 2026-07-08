@@ -12,13 +12,18 @@ import { fileURLToPath } from 'node:url';
  * @returns {string}
  */
 export function buildRobotsTxt(config, siteUrl, base = '') {
-  const { allow, disallow, includeSitemap, sitemapPath, includeLlmsTxt, extraLines } = config.robotsTxt;
+  const { universalAllow, allow, disallow, includeSitemap, sitemapPath, includeLlmsTxt, extraLines } = config.robotsTxt;
   const b = base && base !== '/' ? base.replace(/\/$/, '') : '';
   const lines = [];
 
+  // Lead with an explicit open policy for unlisted crawlers, unless the user
+  // opted out or already declared a "*" group in allow/disallow (which would
+  // duplicate it).
+  const hasWildcard = allow.includes('*') || disallow.includes('*');
+  if (universalAllow && !hasWildcard) lines.push('User-agent: *', 'Allow: /', '');
+
   for (const bot of allow) lines.push(`User-agent: ${bot}`, 'Allow: /', '');
   for (const bot of disallow) lines.push(`User-agent: ${bot}`, 'Disallow: /', '');
-  if (allow.length === 0 && disallow.length === 0) lines.push('User-agent: *', 'Allow: /', '');
 
   if (includeSitemap && siteUrl) lines.push(`Sitemap: ${siteUrl}${b}${sitemapPath}`);
   if (includeLlmsTxt && config.llmsTxt.enabled && siteUrl) {

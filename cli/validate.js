@@ -152,16 +152,27 @@ function validateLlmsTxt(llms, out) {
  * @param {{ warnings: Finding[] }} out
  */
 function validateRobots(robots, out) {
+  const userAgents = [];
   for (const raw of robots.split('\n')) {
     const line = raw.trim();
     if (!line || line.startsWith('#')) continue;
     if (!/^(User-agent|Allow|Disallow|Sitemap|Crawl-delay|Host)\s*:/i.test(line)) {
       out.warnings.push({ level: 'warn', code: 'robots-unknown-line', message: `unrecognized robots.txt line: ${line}`, file: 'robots.txt' });
     }
+    const ua = line.match(/^User-agent\s*:\s*(.+)$/i);
+    if (ua) userAgents.push(ua[1].trim());
     const m = line.match(/^Sitemap\s*:\s*(.+)$/i);
     if (m && !/^https?:\/\//i.test(m[1].trim())) {
       out.warnings.push({ level: 'warn', code: 'robots-relative-sitemap', message: `Sitemap URL should be absolute: ${m[1].trim()}`, file: 'robots.txt' });
     }
+  }
+  if (userAgents.length > 0 && !userAgents.includes('*')) {
+    out.warnings.push({
+      level: 'warn',
+      code: 'robots-no-wildcard',
+      message: 'robots.txt names specific user-agents but has no User-agent: * group; unlisted crawlers rely on the implicit-allow default. Add a User-agent: * group to state the policy explicitly.',
+      file: 'robots.txt',
+    });
   }
 }
 

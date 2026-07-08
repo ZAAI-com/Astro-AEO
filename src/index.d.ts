@@ -96,9 +96,24 @@ export interface UrlMapOptions {
 export interface RobotsTxtOptions {
   /** Generate /robots.txt. Default: false. */
   enabled?: boolean;
-  /** User-agents to allow ("User-agent: X" + "Allow: /"). */
+  /**
+   * Emit a leading "User-agent: *" + "Allow: /" group regardless of any named
+   * allow/disallow groups, so unlisted crawlers see an explicit open policy.
+   * Default: true. Suppressed automatically when "*" already appears in `allow`
+   * or `disallow`, to avoid a duplicate wildcard group.
+   */
+  universalAllow?: boolean;
+  /**
+   * User-agents to allow ("User-agent: X" + "Allow: /"). Named groups no longer
+   * suppress the universal "User-agent: *" group; that is controlled by
+   * `universalAllow`.
+   */
   allow?: string[];
-  /** User-agents to block ("User-agent: X" + "Disallow: /"). */
+  /**
+   * User-agents to block ("User-agent: X" + "Disallow: /"). Named groups no
+   * longer suppress the universal "User-agent: *" group; that is controlled by
+   * `universalAllow`.
+   */
   disallow?: string[];
   /** Emit a "Sitemap:" line. Default: true. */
   includeSitemap?: boolean;
@@ -117,6 +132,14 @@ export interface DomainProfileOptions {
   description?: string;
   /** Defaults to the Astro `site` URL. */
   website?: string;
+  /**
+   * Primary contact, emitted into the schema.org profile by value shape: an
+   * http(s) URL becomes a `contactPoint` (`{ '@type': 'ContactPoint', url }`),
+   * a value containing "@" becomes `email`, and anything else becomes
+   * `telephone`.
+   */
+  email?: string;
+  /** @deprecated Renamed to `email`. Still honored with a warning. */
   contact?: string;
   logo?: string;
   /** Related profile URLs (schema.org sameAs). */

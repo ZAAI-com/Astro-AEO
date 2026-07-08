@@ -29,6 +29,11 @@ export function resolveConfig(userConfig = {}, logger) {
   const robotsTxt = userConfig.robotsTxt ?? {};
   const domainProfile = userConfig.domainProfile ?? {};
 
+  const domainProfileEmail = domainProfile.email ?? domainProfile.contact ?? '';
+  if (domainProfile.contact !== undefined && logger) {
+    logger.warn('astro-aeo: `domainProfile.contact` is deprecated, use `domainProfile.email`');
+  }
+
   return {
     include: userConfig.include ?? ['**'],
     exclude: userConfig.exclude ?? [],
@@ -63,6 +68,7 @@ export function resolveConfig(userConfig = {}, logger) {
     },
     robotsTxt: {
       enabled: robotsTxt.enabled ?? false,
+      universalAllow: robotsTxt.universalAllow ?? true,
       allow: robotsTxt.allow ?? [],
       disallow: robotsTxt.disallow ?? [],
       includeSitemap: robotsTxt.includeSitemap ?? true,
@@ -75,7 +81,10 @@ export function resolveConfig(userConfig = {}, logger) {
       name: domainProfile.name ?? '',
       description: domainProfile.description ?? '',
       website: domainProfile.website ?? '',
-      contact: domainProfile.contact ?? '',
+      email: domainProfileEmail,
+      // Kept in sync with `email` so the deprecated alias still reads back the
+      // resolved value (mirrors `dotmd.dotmdMetadata` -> `frontmatter`).
+      contact: domainProfileEmail,
       logo: domainProfile.logo ?? '',
       sameAs: domainProfile.sameAs ?? [],
       entityType: domainProfile.entityType ?? 'Organization',
@@ -98,13 +107,46 @@ const KNOWN_KEYS = new Set([
 ]);
 
 /**
+ * Known keys of each nested config section, used to catch nested typos (e.g.
+ * `robotsTxt.sitemaPath`). Deprecated aliases (`dotmd.dotmdMetadata`,
+ * `domainProfile.contact`) are listed so they are recognized, not flagged.
+ * @type {Record<string, Set<string>>}
+ */
+const KNOWN_NESTED_KEYS = {
+  site: new Set(['name', 'description']),
+  dotmd: new Set(['enabled', 'linkTag', 'includeLastModified', 'frontmatter', 'dotmdMetadata']),
+  llmsTxt: new Set(['enabled', 'sections', 'defaultSection', 'includeDescriptions', 'showLastmod', 'includeNoDotmd']),
+  llmsFullTxt: new Set(['enabled', 'mode']),
+  urlMap: new Set(['enabled', 'outputFilepath']),
+  robotsTxt: new Set(['enabled', 'universalAllow', 'allow', 'disallow', 'includeSitemap', 'sitemapPath', 'includeLlmsTxt', 'extraLines']),
+  domainProfile: new Set(['enabled', 'name', 'description', 'website', 'email', 'contact', 'logo', 'sameAs', 'entityType']),
+};
+
+/**
+ * @param {unknown} v
+ * @returns {v is Record<string, unknown>}
+ */
+function isPlainObject(v) {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+/**
  * @param {Record<string, unknown>} userConfig
  * @param {{ warn: (m: string) => void }} [logger]
  */
 function warnUnknownKeys(userConfig, logger) {
   if (!logger) return;
   for (const key of Object.keys(userConfig)) {
-    if (!KNOWN_KEYS.has(key)) logger.warn(`astro-aeo: unknown config key "${key}" (ignored)`);
+    if (!KNOWN_KEYS.has(key)) {
+      logger.warn(`astro-aeo: unknown config key "${key}" (ignored)`);
+      continue;
+    }
+    const known = KNOWN_NESTED_KEYS[key];
+    const value = userConfig[key];
+    if (!known || !isPlainObject(value)) continue;
+    for (const nested of Object.keys(value)) {
+      if (!known.has(nested)) logger.warn(`astro-aeo: unknown config key "${key}.${nested}" (ignored)`);
+    }
   }
 }
 

@@ -101,6 +101,7 @@ aeo({
 
   robotsTxt: {
     enabled: false,
+    universalAllow: true,              // lead with "User-agent: * / Allow: /" (suppressed if '*' is named below)
     allow: ['Googlebot', 'OAI-SearchBot', 'ChatGPT-User', 'Claude-SearchBot', 'PerplexityBot'],
     disallow: ['GPTBot', 'ClaudeBot', 'Google-Extended'],
     includeSitemap: true,
@@ -114,7 +115,7 @@ aeo({
     name: 'Your Site',
     description: 'What your site is about.',
     website: 'https://yoursite.com',   // defaults to the Astro `site`
-    contact: 'hello@yoursite.com',
+    email: 'hello@yoursite.com',       // '@' -> email, http(s) -> contactPoint, else telephone
     logo: 'https://yoursite.com/logo.png',
     sameAs: ['https://github.com/you'],
     entityType: 'Organization',        // Organization | Person | Blog | ...
@@ -143,6 +144,57 @@ llmsTxt: {
 ```
 
 Globs are segment-aware: `*` stays inside one path segment, `**` crosses segments and matches the base (`/blog/**` matches `/blog` and `/blog/post`). `/error` matches `/error` but not `/error-log`.
+
+### The universal robots.txt group
+
+`robotsTxt.universalAllow` (default `true`) makes `robots.txt` lead with a `User-agent: *` / `Allow: /` group, so unlisted crawlers see an explicit open policy even when you also name specific bots in `allow`/`disallow`. It is suppressed automatically if you list `'*'` yourself (no duplicate group). Set it to `false` for a named-bots-only policy.
+
+### domainProfile contact
+
+`domainProfile.email` is routed into the schema.org profile by value shape: an `http(s)` URL becomes a `contactPoint` (`{ '@type': 'ContactPoint', url }`), a value containing `@` becomes `email`, and anything else becomes `telephone`. The old `contact` key is a deprecated alias for `email`; it still works but emits a one-time warning.
+
+### Serving .md companions
+
+The `.md` companions are advertised as `type="text/markdown"`, but at build time they are plain static assets, and many hosts serve unknown extensions as `text/plain`, `application/octet-stream`, or a download. To keep answer engines consuming them as Markdown in production, set `Content-Type: text/markdown; charset=utf-8` for `*.md`:
+
+**Render** (`render.yaml`):
+
+```yaml
+headers:
+  - path: /*.md
+    name: Content-Type
+    value: text/markdown; charset=utf-8
+```
+
+**Netlify / Cloudflare Pages** (`public/_headers`):
+
+```
+/*.md
+  Content-Type: text/markdown; charset=utf-8
+```
+
+**Vercel** (`vercel.json`):
+
+```json
+{
+  "headers": [
+    {
+      "source": "/(.*)\\.md",
+      "headers": [{ "key": "Content-Type", "value": "text/markdown; charset=utf-8" }]
+    }
+  ]
+}
+```
+
+**nginx**:
+
+```nginx
+location ~ \.md$ {
+    default_type text/markdown;
+    charset utf-8;
+    charset_types text/markdown;
+}
+```
 
 ## Per-Page Options
 
