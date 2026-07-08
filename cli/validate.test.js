@@ -13,6 +13,7 @@ describe('validateDist', () => {
     const r = validateDist(join(FIX, 'dist-valid'));
     expect(r.ok).toBe(true);
     expect(r.errors).toEqual([]);
+    expect(r.warnings).toEqual([]);
     expect(r.pagesChecked).toBe(1);
   });
 
@@ -102,6 +103,95 @@ describe('validateDist', () => {
     test('disallow-only without a wildcard warns', () => {
       const r = validateDist(buildDist('User-agent: GPTBot\nDisallow: /\n'));
       expect(r.warnings.map((w) => w.code)).toContain('robots-no-wildcard');
+    });
+  });
+
+  describe('on-page audit validation', () => {
+    /** @type {string} */
+    let tmp;
+
+    afterEach(() => {
+      if (tmp) rmSync(tmp, { recursive: true, force: true });
+    });
+
+    /**
+     * @param {string} head
+     * @param {string} [body]
+     */
+    const buildDist = (head, body = '<main><p>Fixture page.</p></main>') => {
+      tmp = mkdtempSync(join(tmpdir(), 'aeo-validate-'));
+      writeFileSync(join(tmp, 'index.html'), `<html><head>${head}</head><body>${body}</body></html>`);
+      return tmp;
+    };
+
+    const cleanHead = [
+      '<title>Valid Test Page With Metadata Set</title>',
+      '<meta name="robots" content="index,follow">',
+      '<meta property="og:title" content="Valid Test Page With Metadata Set">',
+      '<meta property="og:description" content="A focused validation fixture with complete social metadata for crawler previews.">',
+      '<meta property="og:image" content="https://example.com/og-image.png">',
+      '<meta name="twitter:card" content="summary_large_image">',
+      '<link rel="alternate" type="text/markdown" href="/index.md">',
+    ].join('');
+
+    /** @param {{ errors: { code: string }[]; warnings: { code: string }[] }} result */
+    const codes = (result) => [...result.errors, ...result.warnings].map((f) => f.code);
+
+    test('a complete page has none of the new audit findings', () => {
+      const r = validateDist(buildDist(cleanHead, '<main><img src="/hero.png" alt="Hero image"></main>'));
+      expect(codes(r)).not.toContain('title-length');
+      expect(codes(r)).not.toContain('img-missing-alt');
+      expect(codes(r)).not.toContain('og-title-length');
+      expect(codes(r)).not.toContain('og-description-length');
+      expect(codes(r)).not.toContain('twitter-card-type');
+      expect(codes(r)).not.toContain('og-image-missing');
+      expect(codes(r)).not.toContain('og-image-relative');
+      expect(codes(r)).not.toContain('robots-meta-missing');
+    });
+
+    test('short and missing titles warn', () => {
+      const shortTitle = validateDist(buildDist(cleanHead.replace('Valid Test Page With Metadata Set', 'Short')));
+      expect(codes(shortTitle)).toContain('title-length');
+
+      const missingTitle = validateDist(buildDist(cleanHead.replace('<title>Valid Test Page With Metadata Set</title>', '')));
+      expect(codes(missingTitle)).toContain('title-length');
+    });
+
+    test('images without alt attributes error, but decorative empty alt is valid', () => {
+      const missingAlt = validateDist(buildDist(cleanHead, '<main><img src="/hero.png"><img src="/logo.png" alt=""></main>'));
+      expect(missingAlt.errors.map((e) => e.code)).toContain('img-missing-alt');
+
+      const emptyAlt = validateDist(buildDist(cleanHead, '<main><img src="/decor.png" alt=""></main>'));
+      expect(emptyAlt.errors.map((e) => e.code)).not.toContain('img-missing-alt');
+    });
+
+    test('Open Graph title and description lengths warn when opted in', () => {
+      const head = cleanHead
+        .replace('content="Valid Test Page With Metadata Set"', 'content="Tiny"')
+        .replace(
+          'content="A focused validation fixture with complete social metadata for crawler previews."',
+          'content="Too short."',
+        );
+      const r = validateDist(buildDist(head));
+      expect(codes(r)).toContain('og-title-length');
+      expect(codes(r)).toContain('og-description-length');
+    });
+
+    test('social image and card quality warnings fire when Open Graph is present', () => {
+      const wrongCard = validateDist(buildDist(cleanHead.replace('summary_large_image', 'summary')));
+      expect(codes(wrongCard)).toContain('twitter-card-type');
+
+      const missingImage = validateDist(buildDist(cleanHead.replace('<meta property="og:image" content="https://example.com/og-image.png">', '')));
+      expect(codes(missingImage)).toContain('og-image-missing');
+
+      const relativeImage = validateDist(buildDist(cleanHead.replace('https://example.com/og-image.png', '/og-image.png')));
+      expect(codes(relativeImage)).toContain('og-image-relative');
+    });
+
+    test('robots meta is an advisory page warning', () => {
+      const r = validateDist(buildDist(cleanHead.replace('<meta name="robots" content="index,follow">', '')));
+      expect(codes(r)).toContain('robots-meta-missing');
+      expect(r.ok).toBe(true);
     });
   });
 });

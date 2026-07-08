@@ -239,7 +239,7 @@ npx astro-aeo validate            # validates ./dist
 npx astro-aeo validate dist --strict --json
 ```
 
-Checks: `llms.txt` follows the spec and every referenced `.md` exists; `llms-full.txt` is present and separated; each page has exactly one Markdown alternate link; `robots.txt` parses and its `Sitemap` is absolute; `domain-profile.json` is valid and has `@context`, `@type`, and `name`.
+Checks: `llms.txt` follows the spec and every referenced `.md` exists; `llms-full.txt` is present and separated; each page has exactly one Markdown alternate link; page titles, image alt attributes, robots meta tags, Open Graph previews, and Twitter card type pass basic crawler checks; `robots.txt` parses and its `Sitemap` is absolute; `domain-profile.json` is valid and has `@context`, `@type`, and `name`.
 
 Exit codes: `0` pass, `1` validation errors (or warnings with `--strict`), `2` usage or IO error.
 

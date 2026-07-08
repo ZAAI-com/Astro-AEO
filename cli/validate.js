@@ -2,6 +2,7 @@
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { matchMarkdownAlternateLinks } from '../src/generators/dotmd.js';
+import { extractMetaContent, extractTitle } from '../src/lib/page-meta.js';
 
 /**
  * @typedef {object} Finding
@@ -87,14 +88,18 @@ export function validateDist(distDir, opts = {}) {
     // Skip pages that deliberately opt out of AEO outputs.
     const aeoMeta = html.match(/<meta\s+[^>]*name=(["'])aeo\1[^>]*content=(["'])([\s\S]*?)\2/i);
     if (aeoMeta && /\b(skip|no-dotmd)\b/i.test(aeoMeta[3])) continue;
-    const robotsMeta = html.match(/<meta\s+[^>]*name=(["'])robots\1[^>]*content=(["'])([\s\S]*?)\2/i);
-    if (robotsMeta && /\bnoindex\b/i.test(robotsMeta[3])) continue;
+    const robotsMeta = extractMetaContent(html, { name: 'robots' });
+    if (robotsMeta && /\bnoindex\b/i.test(robotsMeta)) continue;
     pagesChecked++;
     // Require rel="alternate" (not just type="text/markdown") so this matches the
     // injector in src/generators/dotmd.js and a bare MIME-typed link is not
     // counted as a valid alternate.
     const links = matchMarkdownAlternateLinks(html);
     const rel = toHref(distDir, htmlFile).replace(/\.html$/, '').replace(/\/index$/, '') || '/';
+    validateTitleLength(html, rel, { warnings });
+    validateImageAlt(html, rel, { errors });
+    validateSocialMeta(html, rel, { warnings });
+    validateRobotsMeta(html, rel, { warnings });
     if (aeoMeta && /\bno-llms\b/i.test(aeoMeta[3])) {
       optedOut.add(rel === '/' ? '/index.md' : `${rel}.md`);
     }
@@ -145,6 +150,119 @@ function validateLlmsTxt(llms, out) {
   if (!hasSection && !hasEntry) {
     out.warnings.push({ level: 'warn', code: 'llms-empty', message: 'llms.txt has no sections or entries', file: 'llms.txt' });
   }
+}
+
+/**
+ * @param {string} html
+ * @param {string} rel
+ * @param {{ warnings: Finding[] }} out
+ */
+function validateTitleLength(html, rel, out) {
+  const title = extractTitle(html);
+  if (!title) {
+    out.warnings.push({ level: 'warn', code: 'title-length', message: `title is missing or empty: ${rel}`, file: rel });
+    return;
+  }
+  if (title.length < 30 || title.length > 60) {
+    out.warnings.push({
+      level: 'warn',
+      code: 'title-length',
+      message: `title length should be 30-60 characters (found ${title.length}): ${rel}`,
+      file: rel,
+    });
+  }
+}
+
+/**
+ * @param {string} html
+ * @param {string} rel
+ * @param {{ errors: Finding[] }} out
+ */
+function validateImageAlt(html, rel, out) {
+  const missingAlt = findImagesMissingAlt(html);
+  if (missingAlt > 0) {
+    out.errors.push({
+      level: 'error',
+      code: 'img-missing-alt',
+      message: `${missingAlt} image${missingAlt === 1 ? '' : 's'} missing alt attribute: ${rel}`,
+      file: rel,
+    });
+  }
+}
+
+/**
+ * @param {string} html
+ * @param {string} rel
+ * @param {{ warnings: Finding[] }} out
+ */
+function validateSocialMeta(html, rel, out) {
+  const ogTitle = extractMetaContent(html, { property: 'og:title' });
+  if (ogTitle === undefined) return;
+
+  const title = ogTitle.trim();
+  if (title.length < 10 || title.length > 70) {
+    out.warnings.push({
+      level: 'warn',
+      code: 'og-title-length',
+      message: `og:title length should be 10-70 characters (found ${title.length}): ${rel}`,
+      file: rel,
+    });
+  }
+
+  const ogDescription = extractMetaContent(html, { property: 'og:description' });
+  if (ogDescription !== undefined) {
+    const description = ogDescription.trim();
+    if (description.length < 50 || description.length > 200) {
+      out.warnings.push({
+        level: 'warn',
+        code: 'og-description-length',
+        message: `og:description length should be 50-200 characters (found ${description.length}): ${rel}`,
+        file: rel,
+      });
+    }
+  }
+
+  const twitterCard = extractMetaContent(html, { name: 'twitter:card' });
+  if (twitterCard !== undefined && twitterCard.trim().toLowerCase() !== 'summary_large_image') {
+    out.warnings.push({
+      level: 'warn',
+      code: 'twitter-card-type',
+      message: `twitter:card should be summary_large_image: ${rel}`,
+      file: rel,
+    });
+  }
+
+  const ogImage = extractMetaContent(html, { property: 'og:image' });
+  if (ogImage === undefined) {
+    out.warnings.push({ level: 'warn', code: 'og-image-missing', message: `og:image is missing: ${rel}`, file: rel });
+  } else if (!/^https?:\/\//i.test(ogImage.trim())) {
+    out.warnings.push({ level: 'warn', code: 'og-image-relative', message: `og:image should be an absolute URL: ${rel}`, file: rel });
+  }
+}
+
+/**
+ * @param {string} html
+ * @param {string} rel
+ * @param {{ warnings: Finding[] }} out
+ */
+function validateRobotsMeta(html, rel, out) {
+  if (extractMetaContent(html, { name: 'robots' }) === undefined) {
+    out.warnings.push({ level: 'warn', code: 'robots-meta-missing', message: `robots meta tag is missing: ${rel}`, file: rel });
+  }
+}
+
+/**
+ * @param {string} html
+ * @returns {number}
+ */
+function findImagesMissingAlt(html) {
+  let count = 0;
+  const imgRe = /<img\b[^>]*>/gi;
+  let match;
+  while ((match = imgRe.exec(html))) {
+    if (!/(?:^|\s)alt\s*=/i.test(match[0])) count++;
+  }
+  return count;
 }
 
 /**
