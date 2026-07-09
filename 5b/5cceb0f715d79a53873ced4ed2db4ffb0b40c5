@@ -1,0 +1,21 @@
+CHANGELOG.md
+  s_2f3795b4d776c7::t_5673e557883a79 14-16
+package.json
+  s_2f3795b4d776c7::t_aac01db50cda32 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5b5cceb0f715d79a53873ced4ed2db4ffb0b40c5",
+  "prompts": {},
+  "sessions": {
+    "s_2f3795b4d776c7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f31f9643-3e9a-49d6-a613-6644a7cc1cd1",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
