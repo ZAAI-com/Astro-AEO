@@ -21,7 +21,7 @@ All notable changes to this project are documented here. This project follows [S
 
 ### Deprecated
 
-- `domainProfile.contact` is renamed to `domainProfile.email`. The old key still works but emits a one-time warning.
+- `domainProfile.contact` is renamed to `domainProfile.email`. The old key still works but emits a deprecation warning.
 
 ## 0.6.0
 

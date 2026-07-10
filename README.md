@@ -149,9 +149,9 @@ Globs are segment-aware: `*` stays inside one path segment, `**` crosses segment
 
 `robotsTxt.universalAllow` (default `true`) makes `robots.txt` lead with a `User-agent: *` / `Allow: /` group, so unlisted crawlers see an explicit open policy even when you also name specific bots in `allow`/`disallow`. It is suppressed automatically if you list `'*'` yourself (no duplicate group). Set it to `false` for a named-bots-only policy.
 
-### domainProfile contact
+### domainProfile email
 
-`domainProfile.email` is routed into the schema.org profile by value shape: an `http(s)` URL becomes a `contactPoint` (`{ '@type': 'ContactPoint', url }`), a value containing `@` becomes `email`, and anything else becomes `telephone`. The old `contact` key is a deprecated alias for `email`; it still works but emits a one-time warning.
+`domainProfile.email` is routed into the schema.org profile by value shape: an `http(s)` URL becomes a `contactPoint` (`{ '@type': 'ContactPoint', url }`), a value containing `@` becomes `email`, and anything else becomes `telephone`. The old `contact` key is a deprecated alias for `email`; it still works but emits a deprecation warning.
 
 ### Serving .md companions
 
@@ -168,7 +168,7 @@ headers:
 
 **Netlify / Cloudflare Pages** (`public/_headers`):
 
-```
+```text
 /*.md
   Content-Type: text/markdown; charset=utf-8
 ```

@@ -89,6 +89,14 @@ describe('extractMetaContent', () => {
   test('returns undefined for absent tags', () => {
     expect(extractMetaContent('<meta name="viewport" content="width=device-width">', { name: 'robots' })).toBeUndefined();
   });
+
+  test('returns undefined for a matched tag with no content attribute', () => {
+    expect(extractMetaContent('<meta name="robots">', { name: 'robots' })).toBeUndefined();
+  });
+
+  test('reads unquoted attribute values', () => {
+    expect(extractMetaContent('<meta name=robots content=noindex>', { name: 'robots' })).toBe('noindex');
+  });
 });
 
 describe('decodeEntities', () => {
