@@ -2,6 +2,7 @@ import { test, expect, describe } from 'vitest';
 import {
   makeTitleStripper,
   extractTitle,
+  extractMetaContent,
   extractDescription,
   extractAeoTokens,
   extractNoindex,
@@ -56,6 +57,50 @@ describe('extractTitle / extractDescription', () => {
       '<meta name="viewport" content="width=device-width">' +
       '<meta content="Real page description" name="description">';
     expect(extractDescription(h)).toBe('Real page description');
+  });
+});
+
+describe('extractMetaContent', () => {
+  test('reads name-first meta tags', () => {
+    const h = '<meta name="robots" content="index,follow">';
+    expect(extractMetaContent(h, { name: 'robots' })).toBe('index,follow');
+  });
+
+  test('reads content before name with single quotes and decodes entities', () => {
+    const h = "<meta content='A &amp; B page' name='description'>";
+    expect(extractMetaContent(h, { name: 'description' })).toBe('A & B page');
+  });
+
+  test('reads property-first meta tags', () => {
+    const h = '<meta property="og:title" content="Open Graph Title">';
+    expect(extractMetaContent(h, { property: 'og:title' })).toBe('Open Graph Title');
+  });
+
+  test('reads content before property', () => {
+    const h = '<meta content="Social description" property="og:description">';
+    expect(extractMetaContent(h, { property: 'og:description' })).toBe('Social description');
+  });
+
+  test('returns an empty string for present tags with empty content', () => {
+    const h = '<meta property="og:title" content="">';
+    expect(extractMetaContent(h, { property: 'og:title' })).toBe('');
+  });
+
+  test('returns undefined for absent tags', () => {
+    expect(extractMetaContent('<meta name="viewport" content="width=device-width">', { name: 'robots' })).toBeUndefined();
+  });
+
+  test('returns undefined for a matched tag with no content attribute', () => {
+    expect(extractMetaContent('<meta name="robots">', { name: 'robots' })).toBeUndefined();
+  });
+
+  test('reads unquoted attribute values', () => {
+    expect(extractMetaContent('<meta name=robots content=noindex>', { name: 'robots' })).toBe('noindex');
+  });
+
+  test('does not truncate on a ">" inside a quoted attribute value', () => {
+    const h = '<meta property="og:title" content="A > B comparison">';
+    expect(extractMetaContent(h, { property: 'og:title' })).toBe('A > B comparison');
   });
 });
 

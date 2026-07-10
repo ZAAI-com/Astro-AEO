@@ -25,6 +25,38 @@ describe('resolveConfig', () => {
     resolveConfig({ nope: 1 }, { warn: (m) => warnings.push(m) });
     expect(warnings.some((w) => w.includes('nope'))).toBe(true);
   });
+
+  test('robotsTxt.universalAllow defaults to true and is overridable', () => {
+    expect(resolveConfig().robotsTxt.universalAllow).toBe(true);
+    expect(resolveConfig({ robotsTxt: { universalAllow: false } }).robotsTxt.universalAllow).toBe(false);
+  });
+
+  test('domainProfile.email resolves; contact aliases into email with a warning', () => {
+    expect(resolveConfig({ domainProfile: { email: 'hi@x.com' } }).domainProfile.email).toBe('hi@x.com');
+    const warnings = [];
+    const c = resolveConfig({ domainProfile: { contact: 'hi@x.com' } }, { warn: (m) => warnings.push(m) });
+    expect(c.domainProfile.email).toBe('hi@x.com');
+    expect(warnings.some((w) => w.includes('domainProfile.contact'))).toBe(true);
+  });
+
+  test('nested typos warn with a dotted path', () => {
+    const warnings = [];
+    resolveConfig({ robotsTxt: { sitemaPath: '/x' } }, { warn: (m) => warnings.push(m) });
+    expect(warnings.some((w) => w.includes('robotsTxt.sitemaPath'))).toBe(true);
+  });
+
+  test('a valid nested config produces no warnings', () => {
+    const warnings = [];
+    resolveConfig(
+      {
+        robotsTxt: { enabled: true, universalAllow: false, allow: ['Googlebot'] },
+        domainProfile: { enabled: true, name: 'Acme', email: 'hi@acme.dev' },
+        dotmd: { frontmatter: true },
+      },
+      { warn: (m) => warnings.push(m) },
+    );
+    expect(warnings).toEqual([]);
+  });
 });
 
 describe('resolveSiteMeta fallback chain', () => {

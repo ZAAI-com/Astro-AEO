@@ -27,7 +27,7 @@ export default defineConfig({
         enabled: true,
         name: 'Astro-AEO Demo',
         description: 'A tiny site that exercises astro-aeo.',
-        contact: 'hello@example.com',
+        email: 'hello@example.com',
         entityType: 'Organization',
       },
     }),

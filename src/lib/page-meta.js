@@ -37,6 +37,35 @@ export function extractTitle(html, strip = (t) => t) {
 }
 
 /**
+ * Extract a content value from a matching <meta> tag.
+ * @param {string} html
+ * @param {{ name?: string; property?: string }} query
+ * @returns {string | undefined}
+ */
+export function extractMetaContent(html, query) {
+  const targetName = query.name?.toLowerCase();
+  const targetProperty = query.property?.toLowerCase();
+  if (!targetName && !targetProperty) return undefined;
+
+  // Quote-aware so a ">" inside a quoted attribute value (valid HTML5) does not
+  // truncate the tag, e.g. `content="A > B"`.
+  const tagRe = /<meta\b(?:"[^"]*"|'[^']*'|[^>"'])*>/gi;
+  let tagMatch;
+  while ((tagMatch = tagRe.exec(html))) {
+    const attrs = extractAttributes(tagMatch[0]);
+    const name = attrs.get('name')?.toLowerCase();
+    const property = attrs.get('property')?.toLowerCase();
+    const matchesName = targetName ? name === targetName : false;
+    const matchesProperty = targetProperty ? property === targetProperty : false;
+    if (matchesName || matchesProperty) {
+      const content = attrs.get('content');
+      return content === undefined ? undefined : decodeEntities(content);
+    }
+  }
+  return undefined;
+}
+
+/**
  * Extract the meta description.
  * @param {string} html
  * @returns {string}
@@ -138,4 +167,21 @@ export function decodeEntities(s) {
     .replace(/&#x27;/gi, "'")
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&');
+}
+
+/**
+ * Parse a tag's attributes into a name -> value map. Handles double-quoted,
+ * single-quoted, and unquoted values (e.g. `content=noindex`, terminating at
+ * whitespace or `>`). Boolean attributes with no `=` are skipped.
+ * @param {string} tag
+ * @returns {Map<string, string>}
+ */
+function extractAttributes(tag) {
+  const attrs = new Map();
+  const attrRe = /([^\s=/<>"']+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/g;
+  let match;
+  while ((match = attrRe.exec(tag))) {
+    attrs.set(match[1].toLowerCase(), match[2] ?? match[3] ?? match[4] ?? '');
+  }
+  return attrs;
 }
