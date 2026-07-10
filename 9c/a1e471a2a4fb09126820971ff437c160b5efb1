@@ -1,0 +1,28 @@
+src/lib/page-meta.js
+  s_47263472fa4e50::t_b372ebf5054011 171-173,177,179,182
+  s_47263472fa4e50::t_f496cc4780ae2a 40
+  s_47263472fa4e50::t_5451310e46629d 53,60
+CHANGELOG.md
+  s_47263472fa4e50::t_bb9336c370bbad 24
+src/lib/page-meta.test.js
+  s_47263472fa4e50::t_f859cc5ac54b51 92-99
+README.md
+  s_47263472fa4e50::t_f06bc0fbeacb12 171
+  s_47263472fa4e50::t_4bb1913b83ece3 152,154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9ca1e471a2a4fb09126820971ff437c160b5efb1",
+  "prompts": {},
+  "sessions": {
+    "s_47263472fa4e50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3977f5d0-c714-4c4d-9024-df7c13e07271",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
