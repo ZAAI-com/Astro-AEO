@@ -147,7 +147,7 @@ Globs are segment-aware: `*` stays inside one path segment, `**` crosses segment
 
 ### The universal robots.txt group
 
-`robotsTxt.universalAllow` (default `true`) makes `robots.txt` lead with a `User-agent: *` / `Allow: /` group, so unlisted crawlers see an explicit open policy even when you also name specific bots in `allow`/`disallow`. It is suppressed automatically if you list `'*'` yourself (no duplicate group). Set it to `false` for a named-bots-only policy.
+`robotsTxt.universalAllow` (default `true`) makes `robots.txt` lead with a `User-agent: *` / `Allow: /` group, so unlisted crawlers see an explicit open policy even when you also name specific bots in `allow`/`disallow`. It is suppressed automatically if you already declare a `User-agent: *` group yourself (via `allow`, `disallow`, or `extraLines`), so there is no duplicate group. Set it to `false` for a named-bots-only policy.
 
 ### domainProfile email
 

@@ -89,7 +89,8 @@ export function validateDist(distDir, opts = {}) {
     const aeoMeta = html.match(/<meta\s+[^>]*name=(["'])aeo\1[^>]*content=(["'])([\s\S]*?)\2/i);
     if (aeoMeta && /\b(skip|no-dotmd)\b/i.test(aeoMeta[3])) continue;
     const robotsMeta = extractMetaContent(html, { name: 'robots' });
-    if (robotsMeta && /\bnoindex\b/i.test(robotsMeta)) continue;
+    // "none" is equivalent to "noindex, nofollow", so treat it as opting out too.
+    if (robotsMeta && /\b(?:noindex|none)\b/i.test(robotsMeta)) continue;
     pagesChecked++;
     // Require rel="alternate" (not just type="text/markdown") so this matches the
     // injector in src/generators/dotmd.js and a bare MIME-typed link is not
@@ -257,7 +258,9 @@ function validateRobotsMeta(html, rel, out) {
  */
 function findImagesMissingAlt(html) {
   let count = 0;
-  const imgRe = /<img\b[^>]*>/gi;
+  // Quote-aware so a ">" inside a quoted attribute value does not truncate the
+  // tag and cause a false missing-alt error.
+  const imgRe = /<img\b(?:"[^"]*"|'[^']*'|[^>"'])*>/gi;
   let match;
   while ((match = imgRe.exec(html))) {
     if (!/(?:^|\s)alt\s*=/i.test(match[0])) count++;
@@ -272,7 +275,9 @@ function findImagesMissingAlt(html) {
 function validateRobots(robots, out) {
   const userAgents = [];
   for (const raw of robots.split('\n')) {
-    const line = raw.trim();
+    // Strip inline comments ("#" to end of line) so directive values like
+    // "User-agent: * # default" parse as "*", not "* # default".
+    const line = raw.replace(/\s+#.*$/, '').trim();
     if (!line || line.startsWith('#')) continue;
     if (!/^(User-agent|Allow|Disallow|Sitemap|Crawl-delay|Host)\s*:/i.test(line)) {
       out.warnings.push({ level: 'warn', code: 'robots-unknown-line', message: `unrecognized robots.txt line: ${line}`, file: 'robots.txt' });

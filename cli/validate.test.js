@@ -104,14 +104,21 @@ describe('validateDist', () => {
       const r = validateDist(buildDist('User-agent: GPTBot\nDisallow: /\n'));
       expect(r.warnings.map((w) => w.code)).toContain('robots-no-wildcard');
     });
+
+    test('an inline comment after "User-agent: *" is not mistaken for a named agent', () => {
+      const r = validateDist(buildDist('User-agent: * # default crawlers\nAllow: /\n\nUser-agent: Googlebot\nAllow: /\n'));
+      expect(r.warnings.map((w) => w.code)).not.toContain('robots-no-wildcard');
+    });
   });
 
   describe('on-page audit validation', () => {
-    /** @type {string} */
-    let tmp;
+    // Track every temp dir so tests that call buildDist more than once still get
+    // all of them cleaned up (a single `tmp` would leak the earlier ones).
+    /** @type {string[]} */
+    const tmps = [];
 
     afterEach(() => {
-      if (tmp) rmSync(tmp, { recursive: true, force: true });
+      while (tmps.length) rmSync(/** @type {string} */ (tmps.pop()), { recursive: true, force: true });
     });
 
     /**
@@ -119,7 +126,8 @@ describe('validateDist', () => {
      * @param {string} [body]
      */
     const buildDist = (head, body = '<main><p>Fixture page.</p></main>') => {
-      tmp = mkdtempSync(join(tmpdir(), 'aeo-validate-'));
+      const tmp = mkdtempSync(join(tmpdir(), 'aeo-validate-'));
+      tmps.push(tmp);
       writeFileSync(join(tmp, 'index.html'), `<html><head>${head}</head><body>${body}</body></html>`);
       return tmp;
     };
@@ -192,6 +200,19 @@ describe('validateDist', () => {
       const r = validateDist(buildDist(cleanHead.replace('<meta name="robots" content="index,follow">', '')));
       expect(codes(r)).toContain('robots-meta-missing');
       expect(r.ok).toBe(true);
+    });
+
+    test('a robots "none" directive opts the page out of auditing like noindex', () => {
+      const r = validateDist(
+        buildDist(cleanHead.replace('content="index,follow"', 'content="none"'), '<main><img src="/hero.png"></main>'),
+      );
+      expect(r.pagesChecked).toBe(0);
+      expect(r.errors.map((e) => e.code)).not.toContain('img-missing-alt');
+    });
+
+    test('a ">" inside an image attribute value does not cause a false missing-alt error', () => {
+      const r = validateDist(buildDist(cleanHead, '<main><img title="1 > 2" alt="Chart" src="/hero.png"></main>'));
+      expect(r.errors.map((e) => e.code)).not.toContain('img-missing-alt');
     });
   });
 });

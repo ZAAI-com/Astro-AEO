@@ -17,9 +17,12 @@ export function buildRobotsTxt(config, siteUrl, base = '') {
   const lines = [];
 
   // Lead with an explicit open policy for unlisted crawlers, unless the user
-  // opted out or already declared a "*" group in allow/disallow (which would
-  // duplicate it).
-  const hasWildcard = allow.includes('*') || disallow.includes('*');
+  // opted out or already declared a "*" group in allow/disallow/extraLines
+  // (which would duplicate it).
+  const hasWildcard =
+    allow.includes('*') ||
+    disallow.includes('*') ||
+    extraLines.some((line) => /^user-agent:\s*\*(?:\s|$)/i.test(line.trim()));
   if (universalAllow && !hasWildcard) lines.push('User-agent: *', 'Allow: /', '');
 
   for (const bot of allow) lines.push(`User-agent: ${bot}`, 'Allow: /', '');

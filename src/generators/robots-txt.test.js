@@ -68,6 +68,14 @@ describe('buildRobotsTxt', () => {
     expect(out.match(/User-agent: \*/g)).toHaveLength(1);
   });
 
+  test('a "User-agent: *" in extraLines suppresses the duplicate universal group', () => {
+    const config = resolveConfig({
+      robotsTxt: { enabled: true, allow: ['Googlebot'], extraLines: ['User-agent: *', 'Disallow: /private'] },
+    });
+    const out = buildRobotsTxt(config, 'https://x.com');
+    expect(out.match(/User-agent: \*/g)).toHaveLength(1);
+  });
+
   test('universal allow coexists with a named disallow', () => {
     const config = resolveConfig({ robotsTxt: { enabled: true, disallow: ['GPTBot'] } });
     const out = buildRobotsTxt(config, 'https://x.com');

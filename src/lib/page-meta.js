@@ -47,7 +47,9 @@ export function extractMetaContent(html, query) {
   const targetProperty = query.property?.toLowerCase();
   if (!targetName && !targetProperty) return undefined;
 
-  const tagRe = /<meta\b[^>]*>/gi;
+  // Quote-aware so a ">" inside a quoted attribute value (valid HTML5) does not
+  // truncate the tag, e.g. `content="A > B"`.
+  const tagRe = /<meta\b(?:"[^"]*"|'[^']*'|[^>"'])*>/gi;
   let tagMatch;
   while ((tagMatch = tagRe.exec(html))) {
     const attrs = extractAttributes(tagMatch[0]);

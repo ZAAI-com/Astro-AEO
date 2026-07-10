@@ -97,6 +97,11 @@ describe('extractMetaContent', () => {
   test('reads unquoted attribute values', () => {
     expect(extractMetaContent('<meta name=robots content=noindex>', { name: 'robots' })).toBe('noindex');
   });
+
+  test('does not truncate on a ">" inside a quoted attribute value', () => {
+    const h = '<meta property="og:title" content="A > B comparison">';
+    expect(extractMetaContent(h, { property: 'og:title' })).toBe('A > B comparison');
+  });
 });
 
 describe('decodeEntities', () => {

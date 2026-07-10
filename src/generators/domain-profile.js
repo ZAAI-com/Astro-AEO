@@ -28,12 +28,13 @@ export function buildDomainProfile(config, siteUrl) {
  * Map a contact value to the right schema.org property by shape: an http(s) URL
  * becomes a `contactPoint`, a value containing "@" becomes `email`, and anything
  * else becomes `telephone`. http is checked first so a contact URL containing
- * "@" is not misread as an email.
- * @param {string} value
+ * "@" is not misread as an email. Non-string values (a config mistake) are
+ * ignored rather than throwing.
+ * @param {unknown} value
  * @returns {Record<string, unknown>}
  */
 function contactFields(value) {
-  if (!value) return {};
+  if (typeof value !== 'string' || !value) return {};
   if (/^https?:\/\//i.test(value)) return { contactPoint: { '@type': 'ContactPoint', url: value } };
   if (value.includes('@')) return { email: value };
   return { telephone: value };
