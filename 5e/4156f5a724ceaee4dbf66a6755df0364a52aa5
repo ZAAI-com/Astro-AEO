@@ -1,0 +1,67 @@
+src/index.js
+  s_f4ba175eb3c418::t_12a6f3addedf1d 25-27,34-37,39-56
+  s_f4ba175eb3c418::t_a21a2fb6cb8d91 100
+  s_f4ba175eb3c418::t_e4501dcdb43fd2 85
+  s_f4ba175eb3c418::t_fa24c0d6d5b312 3,5
+src/config.js
+  s_f4ba175eb3c418::t_3bd3ed4c9d6133 72-73
+  s_f4ba175eb3c418::t_0fda1ea26c021d 114
+  s_f4ba175eb3c418::t_dfa73db67a4941 74
+  s_f4ba175eb3c418::t_816d6cfe3878a2 131
+  s_f4ba175eb3c418::t_9bc24597a4dbe7 69-71
+  s_f4ba175eb3c418::t_ff2ffee688ac07 75
+package.json
+  s_f4ba175eb3c418::t_3758c95e8486eb 3-4
+  s_f4ba175eb3c418::t_0fc8a932b62116 66
+src/lib/sitemap.js
+  s_f4ba175eb3c418::t_2282e7fd1b15be 1-41
+README.md
+  s_f4ba175eb3c418::t_f25df61955f83e 22
+  s_f4ba175eb3c418::t_72869567b2b65f 3
+  s_f4ba175eb3c418::t_85309267b6db55 69
+  s_f4ba175eb3c418::t_243753adc72f46 137-151,155-156
+  s_f4ba175eb3c418::t_f0de118fb2db4f 129-133
+  s_f4ba175eb3c418::t_fb0c5c3ea9d680 134-136
+src/hooks/build-done.js
+  s_f4ba175eb3c418::t_b902b519f73898 57
+  s_f4ba175eb3c418::t_77f290d1c8b2e5 18
+src/generators/robots-txt.test.js
+  s_f4ba175eb3c418::t_71e3d49e4656e6 79-93
+src/hooks/server-setup.js
+  s_f4ba175eb3c418::t_5cfc1989e58905 22,28
+  s_f4ba175eb3c418::t_9e93aff298950e 51
+src/generators/robots-txt.js
+  s_f4ba175eb3c418::t_d951d685282463 34
+  s_f4ba175eb3c418::t_099a14f6101e5b 54,56,62
+  s_f4ba175eb3c418::t_bb034069116cdb 12-14,17
+src/config.test.js
+  s_f4ba175eb3c418::t_85c15521aca6ba 50-55
+  s_f4ba175eb3c418::t_c7ac722f9f4f4a 14-15
+src/index.test.js
+  s_f4ba175eb3c418::t_b45e527ddf2963 88-95
+CHANGELOG.md
+  s_f4ba175eb3c418::t_0d70d543e5c19f 5-15
+src/lib/sitemap.test.js
+  s_f4ba175eb3c418::t_3e45937f22af6a 1-33
+src/index.d.ts
+  s_f4ba175eb3c418::t_f709f068de04e4 184
+  s_f4ba175eb3c418::t_6afd1cf2306c12 128-143
+pnpm-lock.yaml
+  s_f4ba175eb3c418::t_c999c64514cd19 11-13,111-113,847-849,896-898,1456-1460,1478-1480,1872-1877,2382-2385,2443-2444,3112-3118,3129-3130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "5e4156f5a724ceaee4dbf66a6755df0364a52aa5",
+  "prompts": {},
+  "sessions": {
+    "s_f4ba175eb3c418": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ed76b458-95eb-4040-a5a5-b6ac365c5d3c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
