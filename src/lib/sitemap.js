@@ -1,4 +1,7 @@
 // @ts-check
+import { existsSync, statSync } from 'node:fs';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /**
  * Decide what astro-aeo should do about a sitemap, given whether the feature is
@@ -7,37 +10,119 @@
  *
  * astro-aeo defers to the official `@astrojs/sitemap` integration rather than
  * emitting XML itself. When the feature is on and no sitemap is present, it
- * auto-registers one (which requires `site`). The resulting `active` flag gates
- * the robots.txt `Sitemap:` line so it never points at a file that was not
- * produced.
+ * auto-registers one (which requires `site`). The resulting `expected` flag
+ * records whether an official integration should produce a sitemap; the late
+ * finalizer still verifies the file before advertising it.
  *
  * @param {object} input
  * @param {boolean} input.enabled          `config.sitemap.enabled`.
  * @param {boolean} input.hasUserSitemap   User already added `@astrojs/sitemap`.
  * @param {boolean} input.hasSite          Astro `site` is configured.
- * @returns {{ register: boolean; active: boolean; warning?: string }}
+ * @returns {{ register: boolean; expected: boolean; warning?: string }}
  *   `register`: astro-aeo should add `@astrojs/sitemap`.
- *   `active`: a sitemap will exist in the build (gates robots.txt).
+ *   `expected`: an official sitemap integration should produce a sitemap.
  *   `warning`: a one-time message to log, when the intent cannot be honored.
  */
 export function resolveSitemapPlan({ enabled, hasUserSitemap, hasSite }) {
   // Respect a user-registered sitemap; never double-register. It counts as
-  // active even when the auto-wire feature is off, so the robots.txt Sitemap
-  // line still points at the sitemap the user brought.
-  if (hasUserSitemap) return { register: false, active: true };
+  // expected even when the auto-wire feature is off. The finalizer verifies its
+  // output before the robots.txt Sitemap line is emitted.
+  if (hasUserSitemap) return { register: false, expected: true };
 
-  if (!enabled) return { register: false, active: false };
+  if (!enabled) return { register: false, expected: false };
 
   // Auto-registering @astrojs/sitemap requires a `site` URL; without it the
-  // integration would emit nothing, so we stay inactive and explain why.
+  // integration would emit nothing, so no sitemap is expected.
   if (!hasSite) {
     return {
       register: false,
-      active: false,
+      expected: false,
       warning:
         'astro-aeo: sitemap is enabled but Astro `site` is not set, so no sitemap can be generated (the robots.txt Sitemap line is omitted). Set `site` in astro.config or add `@astrojs/sitemap` yourself.',
     };
   }
 
-  return { register: true, active: true };
+  return { register: true, expected: true };
+}
+
+/**
+ * Interpret the optional public robots setting without adding another config
+ * key: omitted means automatic detection, true forces the line for runtime
+ * sitemaps, and false suppresses it.
+ *
+ * @param {boolean | undefined} includeSitemap
+ * @returns {'auto'|'always'|'never'}
+ */
+export function resolveSitemapPolicy(includeSitemap) {
+  if (includeSitemap === true) return 'always';
+  if (includeSitemap === false) return 'never';
+  return 'auto';
+}
+
+/**
+ * Resolve a root-relative sitemap URL path inside a filesystem root and report
+ * whether it names a regular file. Invalid, external, and escaping paths are
+ * treated as unavailable.
+ *
+ * @param {URL} rootDir
+ * @param {string} sitemapPath
+ * @returns {boolean}
+ */
+export function sitemapPathExists(rootDir, sitemapPath) {
+  const relativePath = sitemapPathToRelative(sitemapPath);
+  if (relativePath === null) return false;
+
+  const root = fileURLToPath(rootDir);
+  const candidate = resolve(root, relativePath);
+  const fromRoot = relative(root, candidate);
+  if (fromRoot === '..' || fromRoot.startsWith(`..${sep}`) || isAbsolute(fromRoot)) {
+    return false;
+  }
+
+  try {
+    return existsSync(candidate) && statSync(candidate).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether a configured sitemap path matches a concrete Astro route.
+ *
+ * @param {string} sitemapPath
+ * @param {string[]} routes
+ * @returns {boolean}
+ */
+export function sitemapPathMatchesRoute(sitemapPath, routes) {
+  const relativePath = sitemapPathToRelative(sitemapPath);
+  if (relativePath === null) return false;
+  const routePath = normalizeRoute(`/${relativePath}`);
+  return routes.some((route) => normalizeRoute(route) === routePath);
+}
+
+/**
+ * @param {string} sitemapPath
+ * @returns {string | null}
+ */
+function sitemapPathToRelative(sitemapPath) {
+  if (typeof sitemapPath !== 'string' || !sitemapPath.startsWith('/')) return null;
+  try {
+    const parsed = new URL(sitemapPath, 'https://astro-aeo.invalid');
+    if (parsed.origin !== 'https://astro-aeo.invalid') return null;
+    const decoded = decodeURIComponent(parsed.pathname);
+    const relativePath = decoded.replace(/^\/+/, '');
+    return relativePath || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @param {string} route
+ * @returns {string}
+ */
+function normalizeRoute(route) {
+  let normalized = route.startsWith('/') ? route : `/${route}`;
+  if (normalized.length > 1) normalized = normalized.replace(/\/$/, '');
+  return normalized;
 }

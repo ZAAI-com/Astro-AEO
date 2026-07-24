@@ -2,8 +2,13 @@
 import { fileURLToPath } from 'node:url';
 import sitemap from '@astrojs/sitemap';
 import { resolveConfig } from './config.js';
-import { resolveSitemapPlan } from './lib/sitemap.js';
-import { emitSitemapAlias } from './generators/sitemap-alias.js';
+import {
+  resolveSitemapPlan,
+  resolveSitemapPolicy,
+  sitemapPathExists,
+  sitemapPathMatchesRoute,
+} from './lib/sitemap.js';
+import { finalizeSitemapOutputs } from './generators/sitemap-finalize.js';
 import { onBuildDone } from './hooks/build-done.js';
 import { createAeoMiddleware } from './hooks/server-setup.js';
 
@@ -23,11 +28,19 @@ export default function aeo(userConfig = {}) {
   /** @type {'directory'|'file'} */
   let buildFormat = 'directory';
   let projectRoot = '';
-  // Whether a sitemap will exist in the build (user-registered or auto-added).
-  // Resolved in astro:config:setup; gates the robots.txt Sitemap line.
-  let sitemapActive = false;
+  /** @type {URL | undefined} */
+  let publicDir;
+  const sitemapPolicy = resolveSitemapPolicy(userConfig.robotsTxt?.includeSitemap);
+  const sitemapState = {
+    expected: false,
+    siteUrl: '',
+    base: '',
+    sitemapPolicy,
+  };
   /** @type {Map<string, string>} */
   const routeEntrypoints = new Map();
+  /** @type {Set<string>} */
+  const resolvedRoutePaths = new Set();
 
   return {
     name: 'astro-aeo',
@@ -46,21 +59,17 @@ export default function aeo(userConfig = {}) {
           hasSite: Boolean(astroConfig.site),
         });
         if (plan.warning) logger.warn(plan.warning);
-        sitemapActive = plan.active;
+        sitemapState.expected = plan.expected;
 
-        // Build the integrations to append in order. The sitemap alias must run
-        // AFTER @astrojs/sitemap has written its index, and Astro runs
-        // astro:build:done in integration-array order, so we append the alias
-        // integration last (aeo's own build:done runs before either of these).
+        // Astro runs build:done hooks in integration-array order. Append the
+        // finalizer after the official sitemap so it can verify real output,
+        // create the alias, and only then write robots.txt.
         const added = [];
         if (plan.register) {
           added.push(sitemap(/** @type {any} */ (config.sitemap.options)));
         }
-        // Mirror whenever a sitemap will exist (auto-registered or the user's
-        // own), independent of the sitemap feature toggle, so bringing your own
-        // sitemap still yields /sitemap.xml even with sitemap.enabled: false.
-        if (config.sitemapAlias.enabled && (sitemapActive || hasUserSitemap)) {
-          added.push(sitemapAliasIntegration(config, astroConfig.publicDir));
+        if (config.sitemapAlias.enabled || config.robotsTxt.enabled) {
+          added.push(sitemapFinalizerIntegration(config, sitemapState));
         }
         if (added.length) updateConfig({ integrations: added });
       },
@@ -73,15 +82,20 @@ export default function aeo(userConfig = {}) {
         trailingSlash = astroConfig.trailingSlash ?? 'ignore';
         buildFormat = astroConfig.build?.format === 'file' ? 'file' : 'directory';
         projectRoot = fileURLToPath(astroConfig.root);
+        publicDir = astroConfig.publicDir;
+        sitemapState.siteUrl = siteUrl;
+        sitemapState.base = base;
       },
 
       'astro:routes:resolved': ({ routes }) => {
         routeEntrypoints.clear();
+        resolvedRoutePaths.clear();
         for (const route of routes) {
           // Only static (non-parameterized) routes have a concrete pathname we
           // can map back to a source file for git last-modified.
           const pathname = /** @type {string | undefined} */ (route.pathname);
           const entrypoint = /** @type {string | undefined} */ (route.entrypoint);
+          if (pathname) resolvedRoutePaths.add(normalize(pathname));
           if (pathname && entrypoint) {
             routeEntrypoints.set(normalize(pathname), entrypoint);
           }
@@ -96,7 +110,10 @@ export default function aeo(userConfig = {}) {
             siteUrl,
             base,
             trailingSlash,
-            sitemapActive,
+            sitemapPolicy,
+            isSitemapAvailable: () =>
+              (publicDir ? sitemapPathExists(publicDir, config.robotsTxt.sitemapPath) : false) ||
+              sitemapPathMatchesRoute(config.robotsTxt.sitemapPath, [...resolvedRoutePaths]),
             getStaticPaths: () => [...routeEntrypoints.keys()],
             logger,
           }),
@@ -111,7 +128,6 @@ export default function aeo(userConfig = {}) {
           buildFormat,
           projectRoot,
           routeEntrypoints,
-          sitemapActive,
         });
       },
     },
@@ -119,24 +135,26 @@ export default function aeo(userConfig = {}) {
 }
 
 /**
- * A minimal integration whose only job is to mirror the generated sitemap index
- * to a conventional /sitemap.xml. It lives in its own integration, appended after
- * @astrojs/sitemap, because Astro runs astro:build:done in integration order and
- * the copy must happen after the sitemap file is written (aeo's own build:done
- * runs too early). Never throws; a missing/unwritable sitemap only warns.
+ * A minimal integration appended after sitemap generation. It verifies the
+ * expected index, creates the non-destructive alias, then writes robots.txt
+ * according to the configured auto/always/never policy.
  *
  * @param {ReturnType<typeof resolveConfig>} config
- * @param {URL} [publicDir]  Resolved Astro public/ dir; a static file here wins.
+ * @param {{ expected: boolean; siteUrl: string; base: string; sitemapPolicy: 'auto'|'always'|'never' }} state
  * @returns {import('astro').AstroIntegration}
  */
-function sitemapAliasIntegration(config, publicDir) {
+function sitemapFinalizerIntegration(config, state) {
   return {
-    name: 'astro-aeo/sitemap-alias',
+    name: 'astro-aeo/sitemap-finalizer',
     hooks: {
       'astro:build:done': ({ dir, logger }) => {
-        if (emitSitemapAlias(dir, config, logger, publicDir)) {
-          logger.info(`astro-aeo: emitted /${config.sitemapAlias.outputFilename}`);
-        }
+        finalizeSitemapOutputs(dir, config, {
+          siteUrl: state.siteUrl,
+          base: state.base,
+          sitemapPolicy: state.sitemapPolicy,
+          sitemapExpected: state.expected,
+          logger,
+        });
       },
     },
   };

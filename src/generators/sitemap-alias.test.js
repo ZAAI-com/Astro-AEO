@@ -78,25 +78,21 @@ describe('emitSitemapAlias', () => {
     expect(Buffer.compare(readFileSync(join(dir, 'sitemap.xml')), RAW)).toBe(0);
   });
 
-  test('output exists but no public file: overwrites our own prior output, no warning', () => {
+  test('existing output is preserved instead of overwritten', () => {
     writeFileSync(join(dir, 'sitemap-index.xml'), RAW);
     writeFileSync(join(dir, 'sitemap.xml'), Buffer.from('stale'));
     const result = emitSitemapAlias(distDir, cfg(), logger);
-    expect(result).toBe(true);
-    expect(warnings).toEqual([]);
-    expect(Buffer.compare(readFileSync(join(dir, 'sitemap.xml')), RAW)).toBe(0);
+    expect(result).toBe(false);
+    expect(warnings.some((w) => w.includes('already exists'))).toBe(true);
+    expect(readFileSync(join(dir, 'sitemap.xml')).toString()).toBe('stale');
   });
 
-  test('preserves a hand-authored public/ file instead of overwriting it', () => {
-    const pub = join(dir, 'public');
-    mkdirSync(pub);
-    writeFileSync(join(pub, 'sitemap.xml'), Buffer.from('static'));
-    // Astro copies public/ into dist before build:done, so dist also has it.
+  test('preserves a hand-authored file already copied from public/', () => {
     writeFileSync(join(dir, 'sitemap.xml'), Buffer.from('static'));
     writeFileSync(join(dir, 'sitemap-index.xml'), RAW);
-    const result = emitSitemapAlias(distDir, cfg(), logger, pathToFileURL(pub + '/'));
+    const result = emitSitemapAlias(distDir, cfg(), logger);
     expect(result).toBe(false);
-    expect(warnings.some((w) => w.includes('public/'))).toBe(true);
+    expect(warnings.some((w) => w.includes('already exists'))).toBe(true);
     expect(readFileSync(join(dir, 'sitemap.xml')).toString()).toBe('static');
   });
 

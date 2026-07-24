@@ -76,13 +76,13 @@ describe('buildRobotsTxt', () => {
     expect(out.match(/User-agent: \*/g)).toHaveLength(1);
   });
 
-  test('sitemap line is present when a sitemap is active (default)', () => {
+  test('sitemap line is present when a sitemap is available (default)', () => {
     const config = resolveConfig({ robotsTxt: { enabled: true } });
     const out = buildRobotsTxt(config, 'https://x.com', '', true);
     expect(out).toContain('Sitemap: https://x.com/sitemap-index.xml');
   });
 
-  test('sitemap line is omitted when no sitemap is active', () => {
+  test('sitemap line is omitted when no sitemap is available', () => {
     const config = resolveConfig({ robotsTxt: { enabled: true } });
     const out = buildRobotsTxt(config, 'https://x.com', '', false);
     expect(out).not.toContain('Sitemap:');

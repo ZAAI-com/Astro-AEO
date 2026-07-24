@@ -31,8 +31,10 @@ export function resolveConfig(userConfig = {}, logger) {
 
   // The @astrojs/sitemap output name is `${filenameBase}-index.xml` (filenameBase
   // defaults to 'sitemap'). Resolved once so both the sitemapAlias source and the
-  // robots.txt Sitemap path track a single source of truth. Cast to `any` because
-  // `sitemap.options` is an open Record whose values narrow to `{}`.
+  // robots.txt Sitemap path track a single source of truth. For a separately
+  // registered integration this value is the explicit shared filename hint.
+  // Cast to `any` because `sitemap.options` is an open Record whose values narrow
+  // to `{}`.
   const sitemapFilenameBase = (/** @type {any} */ (userConfig.sitemap?.options))?.filenameBase ?? 'sitemap';
 
   const domainProfileEmail = domainProfile.email ?? domainProfile.contact ?? '';
@@ -91,10 +93,12 @@ export function resolveConfig(userConfig = {}, logger) {
       universalAllow: robotsTxt.universalAllow ?? true,
       allow: robotsTxt.allow ?? [],
       disallow: robotsTxt.disallow ?? [],
+      // The optional public value is resolved to a boolean for the text builder;
+      // index.js separately preserves omission as the automatic build policy.
       includeSitemap: robotsTxt.includeSitemap ?? true,
-      // Tracks the @astrojs/sitemap output name so robots.txt never advertises a
-      // path that does not exist (e.g. a custom filenameBase). Root-relative: it
-      // is interpolated as `${siteUrl}${base}${sitemapPath}` in robots-txt.js.
+      // Tracks the @astrojs/sitemap output name. The late finalizer verifies this
+      // root-relative path before it is interpolated as
+      // `${siteUrl}${base}${sitemapPath}` in robots-txt.js.
       sitemapPath: robotsTxt.sitemapPath ?? `/${sitemapFilenameBase}-index.xml`,
       includeLlmsTxt: robotsTxt.includeLlmsTxt ?? true,
       extraLines: robotsTxt.extraLines ?? [],

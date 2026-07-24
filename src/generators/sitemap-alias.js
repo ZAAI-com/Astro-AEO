@@ -1,5 +1,5 @@
 // @ts-check
-import { copyFileSync, existsSync } from 'node:fs';
+import { constants, copyFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,9 +8,11 @@ import { fileURLToPath } from 'node:url';
  * output to a conventional filename at the output root, so /sitemap.xml resolves
  * alongside /sitemap-index.xml. base/trailingSlash are irrelevant: the source
  * already contains absolute <loc> URLs, so this is a pure byte copy, not a
- * regeneration. Never throws: a missing or unwritable sitemap must not fail the
- * build, so every failure mode is a warning + skip. Returns true only when a
- * file was actually copied, so the caller can log an honest "emitted" line.
+ * regeneration. Never overwrites an existing target: it may belong to a page
+ * endpoint, public file, or another integration. Never throws: a missing or
+ * unwritable sitemap must not fail the build, so every failure mode is a warning
+ * plus skip. Returns true only when a file was actually copied, so the caller
+ * can log an honest "emitted" line.
  *
  * Must run after @astrojs/sitemap has written its file; see the appended
  * integration in src/index.js for the ordering.
@@ -18,11 +20,9 @@ import { fileURLToPath } from 'node:url';
  * @param {URL} distDir
  * @param {import('../index.js').ResolvedAeoConfig} config
  * @param {{ warn: (m: string) => void }} [logger]
- * @param {URL} [publicDir]  Project public/ dir. A hand-authored static file here
- *   (Astro copies it into dist before build:done) is never overwritten.
  * @returns {boolean}
  */
-export function emitSitemapAlias(distDir, config, logger, publicDir) {
+export function emitSitemapAlias(distDir, config, logger) {
   if (!config.sitemapAlias.enabled) return false;
   const { sourceFilename, outputFilename } = config.sitemapAlias;
 
@@ -43,20 +43,21 @@ export function emitSitemapAlias(distDir, config, logger, publicDir) {
     return false;
   }
   if (!existsSync(srcPath)) {
-    logger?.warn(`astro-aeo: sitemapAlias could not find "${sourceFilename}" in the build output, so /${outputFilename} was not written. Ensure a sitemap is generated (needs Astro \`site\` and at least one indexable page); with a custom @astrojs/sitemap \`filenameBase\`, set \`sitemapAlias.sourceFilename\` to "<base>-index.xml".`);
+    logger?.warn(`astro-aeo: sitemapAlias could not find "${sourceFilename}" in the build output, so /${outputFilename} was not written. Ensure a sitemap is generated (needs Astro \`site\` and at least one indexable page); with a custom @astrojs/sitemap \`filenameBase\`, repeat it as \`sitemap.options.filenameBase\` or set \`sitemapAlias.sourceFilename\` explicitly.`);
     return false;
   }
 
-  // Never clobber a hand-authored public/<outputFilename> (Astro copies public/
-  // into dist before build:done). Overwriting our own prior output is fine, so
-  // we key on the source in public/, not on the presence of the dist file.
-  if (publicDir && existsSync(join(fileURLToPath(publicDir), outputFilename))) {
-    logger?.warn(`astro-aeo: a static ${outputFilename} exists in public/, leaving it in place; remove it to serve the generated sitemap index at /${outputFilename}`);
+  if (existsSync(outPath)) {
+    logger?.warn(`astro-aeo: ${outputFilename} already exists in the build output, leaving it in place; remove the existing output to serve the generated sitemap index at /${outputFilename}`);
     return false;
   }
   try {
-    copyFileSync(srcPath, outPath);
+    copyFileSync(srcPath, outPath, constants.COPYFILE_EXCL);
   } catch (err) {
+    if (isAlreadyExistsError(err)) {
+      logger?.warn(`astro-aeo: ${outputFilename} already exists in the build output, leaving it in place; remove the existing output to serve the generated sitemap index at /${outputFilename}`);
+      return false;
+    }
     logger?.warn(`astro-aeo: sitemapAlias copy failed: ${err instanceof Error ? err.message : String(err)}`);
     return false;
   }
@@ -70,4 +71,12 @@ export function emitSitemapAlias(distDir, config, logger, publicDir) {
  */
 function isPlainFilename(name) {
   return typeof name === 'string' && name.length > 0 && name !== '.' && name !== '..' && !/[\\/]/.test(name);
+}
+
+/**
+ * @param {unknown} err
+ * @returns {boolean}
+ */
+function isAlreadyExistsError(err) {
+  return typeof err === 'object' && err !== null && 'code' in err && err.code === 'EEXIST';
 }

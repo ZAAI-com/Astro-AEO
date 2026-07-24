@@ -68,7 +68,11 @@ describe('dev server AEO endpoints', () => {
   test('serves robots.txt and domain-profile.json', async () => {
     const robots = await fetch(`${BASE}/robots.txt`);
     expect(robots.status).toBe(200);
-    expect(await robots.text()).toContain('User-agent: Googlebot');
+    const robotsBody = await robots.text();
+    expect(robotsBody).toContain('User-agent: Googlebot');
+    // @astrojs/sitemap only writes during builds, so automatic mode must not
+    // advertise its build-only output from the live dev server.
+    expect(robotsBody).not.toContain('Sitemap:');
 
     const dp = await fetch(`${BASE}/.well-known/domain-profile.json`);
     expect(dp.status).toBe(200);
