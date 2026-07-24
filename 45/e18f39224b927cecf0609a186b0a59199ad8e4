@@ -1,0 +1,21 @@
+src/config.js
+  s_c5e8dd25d94e18::t_1ac19d3ee7735c 80-83
+src/lib/sitemap.js
+  s_c5e8dd25d94e18::t_2d9b93306b8518 41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "45e18f39224b927cecf0609a186b0a59199ad8e4",
+  "prompts": {},
+  "sessions": {
+    "s_c5e8dd25d94e18": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ecae799e-729c-413d-a85e-7608289f24e7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
