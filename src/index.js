@@ -1,6 +1,8 @@
 // @ts-check
 import { fileURLToPath } from 'node:url';
+import sitemap from '@astrojs/sitemap';
 import { resolveConfig } from './config.js';
+import { resolveSitemapPlan } from './lib/sitemap.js';
 import { onBuildDone } from './hooks/build-done.js';
 import { createAeoMiddleware } from './hooks/server-setup.js';
 
@@ -20,14 +22,38 @@ export default function aeo(userConfig = {}) {
   /** @type {'directory'|'file'} */
   let buildFormat = 'directory';
   let projectRoot = '';
+  // Whether a sitemap will exist in the build (user-registered or auto-added).
+  // Resolved in astro:config:setup; gates the robots.txt Sitemap line.
+  let sitemapActive = false;
   /** @type {Map<string, string>} */
   const routeEntrypoints = new Map();
 
   return {
     name: 'astro-aeo',
     hooks: {
-      'astro:config:done': ({ config: astroConfig, logger }) => {
+      // Integrations can only be added here, so resolve config early and, when
+      // the sitemap feature is on and none is present, auto-register the
+      // official @astrojs/sitemap rather than emitting XML ourselves.
+      'astro:config:setup': ({ config: astroConfig, updateConfig, logger }) => {
         config = resolveConfig(userConfig, logger);
+        const hasUserSitemap = (astroConfig.integrations ?? []).some(
+          (i) => i && i.name === '@astrojs/sitemap',
+        );
+        const plan = resolveSitemapPlan({
+          enabled: config.sitemap.enabled,
+          hasUserSitemap,
+          hasSite: Boolean(astroConfig.site),
+        });
+        if (plan.warning) logger.warn(plan.warning);
+        if (plan.register) {
+          updateConfig({ integrations: [sitemap(/** @type {any} */ (config.sitemap.options))] });
+        }
+        sitemapActive = plan.active;
+      },
+
+      'astro:config:done': ({ config: astroConfig, logger }) => {
+        // Reuse the config resolved in astro:config:setup so warnings fire once.
+        config = config ?? resolveConfig(userConfig, logger);
         siteUrl = astroConfig.site ? astroConfig.site.toString().replace(/\/$/, '') : '';
         base = astroConfig.base && astroConfig.base !== '/' ? astroConfig.base : '';
         trailingSlash = astroConfig.trailingSlash ?? 'ignore';
@@ -56,6 +82,7 @@ export default function aeo(userConfig = {}) {
             siteUrl,
             base,
             trailingSlash,
+            sitemapActive,
             getStaticPaths: () => [...routeEntrypoints.keys()],
             logger,
           }),
@@ -70,6 +97,7 @@ export default function aeo(userConfig = {}) {
           buildFormat,
           projectRoot,
           routeEntrypoints,
+          sitemapActive,
         });
       },
     },

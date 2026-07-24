@@ -85,6 +85,14 @@ describe('demo build outputs', () => {
     expect(dp['@type']).toBe('Organization');
   });
 
+  test('sitemap is auto-generated and referenced by robots.txt', () => {
+    // sitemap.enabled defaults to true and the demo sets `site` without adding
+    // @astrojs/sitemap itself, so astro-aeo auto-registers it.
+    expect(existsSync(join(DIST, 'sitemap-index.xml'))).toBe(true);
+    expect(existsSync(join(DIST, 'sitemap-0.xml'))).toBe(true);
+    expect(read('robots.txt')).toContain('Sitemap: https://demo.example.com/sitemap-index.xml');
+  });
+
   test('component-driven JSON-LD is present', () => {
     const faq = read('faq/index.html');
     expect(faq).toContain('"@type":"FAQPage"');

@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## 0.8.0
+
+### Added
+
+- `sitemap` support (default on): Astro-AEO now auto-wires the official `@astrojs/sitemap` integration when the feature is enabled, Astro `site` is set, and no sitemap is already registered. This guarantees the `robots.txt` `Sitemap:` line (which defaults to `/sitemap-index.xml`) points at a file that actually exists, instead of assuming the user set up a sitemap separately. Configure via `sitemap.enabled` (default `true`) and `sitemap.options` (forwarded verbatim to `@astrojs/sitemap`). A user-registered `@astrojs/sitemap` is detected and left untouched (no double registration).
+
+### Changed
+
+- `@astrojs/sitemap` is now a runtime dependency. Astro-AEO deliberately keeps dependencies minimal, but sitemap generation is core to SEO/AEO and the official integration handles the hard parts (index splitting past 50k URLs, i18n alternates, `lastmod`); reusing it is the strong reason to add the dependency rather than re-implement the spec.
+- `robots.txt` now emits the `Sitemap:` line only when a sitemap is actually active (user-registered or auto-added). When `sitemap.enabled` is on but Astro `site` is unset, Astro-AEO warns once and omits the line rather than advertising a missing file.
+
 ## 0.7.0
 
 ### Added

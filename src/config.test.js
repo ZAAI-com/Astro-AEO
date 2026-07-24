@@ -11,6 +11,8 @@ describe('resolveConfig', () => {
     expect(c.llmsTxt.defaultSection).toBe('Pages');
     expect(c.robotsTxt.enabled).toBe(false);
     expect(c.domainProfile.enabled).toBe(false);
+    expect(c.sitemap.enabled).toBe(true);
+    expect(c.sitemap.options).toEqual({});
   });
 
   test('dotmdMetadata is aliased to frontmatter with a warning', () => {
@@ -43,6 +45,12 @@ describe('resolveConfig', () => {
     const warnings = [];
     resolveConfig({ robotsTxt: { sitemaPath: '/x' } }, { warn: (m) => warnings.push(m) });
     expect(warnings.some((w) => w.includes('robotsTxt.sitemaPath'))).toBe(true);
+  });
+
+  test('sitemap nested typos warn with a dotted path', () => {
+    const warnings = [];
+    resolveConfig({ sitemap: { enable: true } }, { warn: (m) => warnings.push(m) });
+    expect(warnings.some((w) => w.includes('sitemap.enable'))).toBe(true);
   });
 
   test('a valid nested config produces no warnings', () => {

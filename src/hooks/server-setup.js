@@ -19,12 +19,13 @@ import { isIncluded } from '../lib/match.js';
  * @param {string} deps.siteUrl
  * @param {string} deps.base
  * @param {'always'|'never'|'ignore'} deps.trailingSlash
+ * @param {boolean} [deps.sitemapActive]  Whether a sitemap exists (gates the robots.txt Sitemap line).
  * @param {() => string[]} [deps.getStaticPaths]
  * @param {{ warn: (m: string) => void }} deps.logger
  * @returns {(req: any, res: any, next: () => void) => void}
  */
 export function createAeoMiddleware(deps) {
-  const { config, siteUrl, base, trailingSlash, getStaticPaths } = deps;
+  const { config, siteUrl, base, trailingSlash, sitemapActive = false, getStaticPaths } = deps;
   const strip = makeTitleStripper(config.stripTitleSuffix);
   const td = createTurndown();
   const basePrefix = base && base !== '/' ? base.replace(/\/$/, '') : '';
@@ -47,7 +48,7 @@ export function createAeoMiddleware(deps) {
     const origin = req.headers.host ? `${proto}://${req.headers.host}` : null;
 
     if (pathname === '/robots.txt' && config.robotsTxt.enabled) {
-      return send(res, 200, 'text/plain; charset=utf-8', buildRobotsTxt(config, siteUrl, base), method);
+      return send(res, 200, 'text/plain; charset=utf-8', buildRobotsTxt(config, siteUrl, base, sitemapActive), method);
     }
 
     if (pathname === '/.well-known/domain-profile.json' && config.domainProfile.enabled) {

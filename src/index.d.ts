@@ -125,6 +125,22 @@ export interface RobotsTxtOptions {
   extraLines?: string[];
 }
 
+export interface SitemapOptions {
+  /**
+   * Generate a sitemap. Default: true. astro-aeo defers to the official
+   * `@astrojs/sitemap` integration: when enabled and no sitemap is already
+   * registered, it auto-adds `@astrojs/sitemap` (which requires Astro `site`).
+   * The robots.txt `Sitemap:` line is only emitted when a sitemap is active.
+   */
+  enabled?: boolean;
+  /**
+   * Options forwarded verbatim to `@astrojs/sitemap` (e.g. `filter`,
+   * `changefreq`, `priority`, `lastmod`, `i18n`, `entryLimit`). Ignored when a
+   * sitemap is already registered by the user. Default: {}.
+   */
+  options?: Record<string, unknown>;
+}
+
 export interface DomainProfileOptions {
   /** Generate /.well-known/domain-profile.json. Default: false. */
   enabled?: boolean;
@@ -165,6 +181,7 @@ export interface AstroAeoConfig {
   urlMap?: UrlMapOptions;
   robotsTxt?: RobotsTxtOptions;
   domainProfile?: DomainProfileOptions;
+  sitemap?: SitemapOptions;
 }
 
 type DeepRequired<T> = T extends (...args: never[]) => unknown

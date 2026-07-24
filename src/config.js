@@ -66,6 +66,13 @@ export function resolveConfig(userConfig = {}, logger) {
       enabled: userConfig.urlMap?.enabled ?? false,
       outputFilepath: userConfig.urlMap?.outputFilepath ?? 'docs/Url-Map.md',
     },
+    sitemap: {
+      enabled: userConfig.sitemap?.enabled ?? true,
+      // Forwarded verbatim to the @astrojs/sitemap integration (filter,
+      // changefreq, priority, lastmod, i18n, entryLimit, ...). Cast because the
+      // resolved-config derivation over an open `Record` narrows `unknown` to `{}`.
+      options: /** @type {Record<string, {}>} */ (userConfig.sitemap?.options ?? {}),
+    },
     robotsTxt: {
       enabled: robotsTxt.enabled ?? false,
       universalAllow: robotsTxt.universalAllow ?? true,
@@ -104,6 +111,7 @@ const KNOWN_KEYS = new Set([
   'urlMap',
   'robotsTxt',
   'domainProfile',
+  'sitemap',
 ]);
 
 /**
@@ -120,6 +128,7 @@ const KNOWN_NESTED_KEYS = {
   urlMap: new Set(['enabled', 'outputFilepath']),
   robotsTxt: new Set(['enabled', 'universalAllow', 'allow', 'disallow', 'includeSitemap', 'sitemapPath', 'includeLlmsTxt', 'extraLines']),
   domainProfile: new Set(['enabled', 'name', 'description', 'website', 'email', 'contact', 'logo', 'sameAs', 'entityType']),
+  sitemap: new Set(['enabled', 'options']),
 };
 
 /**

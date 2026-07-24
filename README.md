@@ -1,6 +1,6 @@
 # Astro-AEO
 
-Answer Engine Optimization for Astro. One integration, zero config, nine features.
+Answer Engine Optimization for Astro. One integration, zero config, ten features.
 
 Astro-AEO makes your Astro site easy for AI search engines, assistants, and LLMs to discover, parse, and cite. It generates clean Markdown copies of every page, an `llms.txt` index, JSON-LD components, crawler policies, and domain identity metadata, all at build time with no external services and no runtime dependencies.
 
@@ -19,6 +19,7 @@ A Markdown copy of a page is roughly 20 to 30 percent smaller in tokens than its
 - **Alternate link tags**: `<link rel="alternate" type="text/markdown">` injected into every page so crawlers can find the Markdown.
 - **JSON-LD components**: `FaqJsonLd`, `HowToJsonLd`, `BreadcrumbJsonLd`, `OrganizationJsonLd`, `SpeakableJsonLd`, `ArticleJsonLd`.
 - **robots.txt**: allow search and retrieval bots, block training crawlers, with automatic `Sitemap:` and `llms.txt` hints.
+- **Sitemap**: auto-wires the official [`@astrojs/sitemap`](https://docs.astro.build/en/guides/integrations-guide/sitemap/) so a sitemap always exists and `robots.txt` points at a real file, no manual setup.
 - **domain-profile.json**: a `/.well-known/domain-profile.json` identity file for authoritative answers about your site.
 - **Validator CLI**: `npx astro-aeo validate` checks your build for common AEO mistakes.
 - **Dev-server preview**: `llms.txt`, `robots.txt`, and `.md` companions are served live in `astro dev`.
@@ -65,7 +66,7 @@ export default defineConfig({
 astro build
 ```
 
-Out of the box you get: a `.md` companion beside every page, `llms.txt` and `llms-full.txt` at the site root, and an alternate link tag on every page. Enable `robotsTxt`, `domainProfile`, and `urlMap` when you want them.
+Out of the box you get: a `.md` companion beside every page, `llms.txt` and `llms-full.txt` at the site root, an alternate link tag on every page, and a sitemap (via the auto-wired `@astrojs/sitemap`). Enable `robotsTxt`, `domainProfile`, and `urlMap` when you want them.
 
 ## Configuration
 
@@ -125,8 +126,33 @@ aeo({
     enabled: false,
     outputFilepath: 'docs/Url-Map.md',
   },
+
+  sitemap: {
+    enabled: true,                 // auto-wire @astrojs/sitemap when no sitemap is present
+    options: {},                   // forwarded to @astrojs/sitemap (filter, changefreq, priority, i18n, ...)
+  },
 });
 ```
+
+### Sitemap
+
+Astro-AEO does not generate sitemap XML itself; it defers to the official [`@astrojs/sitemap`](https://docs.astro.build/en/guides/integrations-guide/sitemap/) integration, which handles the hard parts (index splitting past 50k URLs, i18n alternates, `lastmod`). With `sitemap.enabled` (the default) and Astro `site` set, Astro-AEO auto-registers `@astrojs/sitemap` for you when you have not added it yourself, so a sitemap always exists and `robotsTxt` points at a real `/sitemap-index.xml` (the `Sitemap:` line is omitted when no sitemap is active).
+
+- Already using `@astrojs/sitemap`? Astro-AEO detects it and stays out of the way (no double registration); your configuration is used as-is.
+- Want to tune the auto-registered sitemap? Pass options straight through:
+
+```js
+aeo({
+  sitemap: {
+    options: {
+      changefreq: 'weekly',
+      filter: (page) => !page.includes('/drafts/'),
+    },
+  },
+});
+```
+
+Set `sitemap.enabled: false` to opt out entirely (then set `robotsTxt.includeSitemap: false`, or bring your own sitemap).
 
 ### Sections
 

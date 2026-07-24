@@ -15,6 +15,7 @@ import { emitUrlMap } from '../generators/url-map.js';
  * @property {'directory'|'file'} buildFormat
  * @property {string} projectRoot
  * @property {Map<string, string>} routeEntrypoints
+ * @property {boolean} sitemapActive
  */
 
 /**
@@ -53,7 +54,7 @@ export async function onBuildDone(config, options, env) {
   if (config.llmsTxt.enabled) logger.info('astro-aeo: emitted /llms.txt');
   if (config.llmsFullTxt.enabled) logger.info('astro-aeo: emitted /llms-full.txt');
 
-  emitRobotsTxt(dir, config, env.siteUrl, logger, env.base);
+  emitRobotsTxt(dir, config, env.siteUrl, logger, env.base, env.sitemapActive);
   if (config.robotsTxt.enabled) logger.info('astro-aeo: emitted /robots.txt');
 
   emitDomainProfile(dir, config, env.siteUrl);

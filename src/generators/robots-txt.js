@@ -9,9 +9,12 @@ import { fileURLToPath } from 'node:url';
  * @param {string} siteUrl  Site origin without trailing slash.
  * @param {string} [base]   Astro base path (e.g. "" or "/docs"); prefixed onto
  *                          the Sitemap and llms.txt URLs, which deploy under it.
+ * @param {boolean} [sitemapActive]  Whether a sitemap will actually exist in the
+ *                          build. When false, the Sitemap line is omitted so
+ *                          robots.txt never advertises a missing file.
  * @returns {string}
  */
-export function buildRobotsTxt(config, siteUrl, base = '') {
+export function buildRobotsTxt(config, siteUrl, base = '', sitemapActive = true) {
   const { universalAllow, allow, disallow, includeSitemap, sitemapPath, includeLlmsTxt, extraLines } = config.robotsTxt;
   const b = base && base !== '/' ? base.replace(/\/$/, '') : '';
   const lines = [];
@@ -28,7 +31,7 @@ export function buildRobotsTxt(config, siteUrl, base = '') {
   for (const bot of allow) lines.push(`User-agent: ${bot}`, 'Allow: /', '');
   for (const bot of disallow) lines.push(`User-agent: ${bot}`, 'Disallow: /', '');
 
-  if (includeSitemap && siteUrl) lines.push(`Sitemap: ${siteUrl}${b}${sitemapPath}`);
+  if (includeSitemap && sitemapActive && siteUrl) lines.push(`Sitemap: ${siteUrl}${b}${sitemapPath}`);
   if (includeLlmsTxt && config.llmsTxt.enabled && siteUrl) {
     // Not a standard robots directive; emitted as a comment as a hint for
     // humans and crawlers. Primary discovery is the per-page alternate link.
@@ -48,12 +51,13 @@ export function buildRobotsTxt(config, siteUrl, base = '') {
  * @param {string} siteUrl
  * @param {{ warn: (m: string) => void }} [logger]
  * @param {string} [base]  Astro base path, prefixed onto the emitted URLs.
+ * @param {boolean} [sitemapActive]  Whether a sitemap exists (gates the Sitemap line).
  */
-export function emitRobotsTxt(distDir, config, siteUrl, logger, base = '') {
+export function emitRobotsTxt(distDir, config, siteUrl, logger, base = '', sitemapActive = true) {
   if (!config.robotsTxt.enabled) return;
   const outPath = join(fileURLToPath(distDir), 'robots.txt');
   if (existsSync(outPath) && logger) {
     logger.warn('astro-aeo: overwriting an existing robots.txt in the build output');
   }
-  writeFileSync(outPath, buildRobotsTxt(config, siteUrl, base), 'utf8');
+  writeFileSync(outPath, buildRobotsTxt(config, siteUrl, base, sitemapActive), 'utf8');
 }
