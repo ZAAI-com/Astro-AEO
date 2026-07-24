@@ -1,0 +1,24 @@
+src/lib/sitemap.test.js
+  s_008c400e57a5e4::t_001c16d37b04ea 33-39
+src/lib/sitemap.js
+  s_008c400e57a5e4::t_f65f337704c4fc 24-26,29
+  s_008c400e57a5e4::t_aba9c6aaa2e58d 30
+.claude/CLAUDE.md
+  s_008c400e57a5e4::t_1bf5dad49164c8 95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "03bba830faeb0032c065e89e4eb5343823434498",
+  "prompts": {},
+  "sessions": {
+    "s_008c400e57a5e4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d2125331-ff4d-4556-8a65-242eaf87c487",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
