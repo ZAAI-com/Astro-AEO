@@ -17,8 +17,8 @@ The build pipeline, in the order data flows:
 
 - `src/index.js`: integration entry. Wires the Astro hooks and holds resolved config plus site
   facts (`siteUrl`, `base`, `trailingSlash`, `buildFormat`, `projectRoot`, `routeEntrypoints`).
-  Hooks used: `astro:config:done`, `astro:routes:resolved`, `astro:server:setup`,
-  `astro:build:done`.
+  Hooks used: `astro:config:setup`, `astro:config:done`, `astro:routes:resolved`,
+  `astro:server:setup`, `astro:build:done`.
 - `src/config.js`: `resolveConfig` fills every default and warns on unknown top-level keys
   (`KNOWN_KEYS`) and the deprecated `dotmd.dotmdMetadata` alias. `resolveSiteMeta` resolves the
   site name/description via the fallback chain `site.*` -> `domainProfile.*` -> home `<title>`
@@ -39,7 +39,8 @@ The build pipeline, in the order data flows:
   - `serialize-jsonld.js`: XSS-safe JSON-LD serialization used by the components.
 - `src/generators/`: one module per output, each exposes an `emit*` function.
   `dotmd.js`, `llms-txt.js` (both `llms.txt` and `llms-full.txt`), `robots-txt.js`,
-  `domain-profile.js`, `url-map.js`.
+  `domain-profile.js`, `url-map.js`, `sitemap-alias.js`, and the late
+  `sitemap-finalize.js` orchestrator.
 - `components/`: the six JSON-LD `.astro` components (`FaqJsonLd`, `HowToJsonLd`,
   `BreadcrumbJsonLd`, `OrganizationJsonLd`, `SpeakableJsonLd`, `ArticleJsonLd`) plus `index.js`
   and hand-written `index.d.ts`.
@@ -92,5 +93,5 @@ Keep these four in sync so behavior, types, and docs match:
 ## CI and compatibility
 
 `.github/workflows/W1-Test.yml` runs the suite against Astro 5, 6, and 7 and smoke-tests the
-published artifact on Node 20, 22, and 24. Keep the code compatible with Node >=20.3 and Astro
+published artifact on Node 20, 22, and 24. Keep the code compatible with Node >=20.19.5 and Astro
 >=5.

@@ -29,6 +29,14 @@ export function resolveConfig(userConfig = {}, logger) {
   const robotsTxt = userConfig.robotsTxt ?? {};
   const domainProfile = userConfig.domainProfile ?? {};
 
+  // The @astrojs/sitemap output name is `${filenameBase}-index.xml` (filenameBase
+  // defaults to 'sitemap'). Resolved once so both the sitemapAlias source and the
+  // robots.txt Sitemap path track a single source of truth. For a separately
+  // registered integration this value is the explicit shared filename hint.
+  // Cast to `any` because `sitemap.options` is an open Record whose values narrow
+  // to `{}`.
+  const sitemapFilenameBase = (/** @type {any} */ (userConfig.sitemap?.options))?.filenameBase ?? 'sitemap';
+
   const domainProfileEmail = domainProfile.email ?? domainProfile.contact ?? '';
   if (domainProfile.contact !== undefined && logger) {
     logger.warn('astro-aeo: `domainProfile.contact` is deprecated, use `domainProfile.email`');
@@ -66,13 +74,34 @@ export function resolveConfig(userConfig = {}, logger) {
       enabled: userConfig.urlMap?.enabled ?? false,
       outputFilepath: userConfig.urlMap?.outputFilepath ?? 'docs/Url-Map.md',
     },
+    sitemap: {
+      enabled: userConfig.sitemap?.enabled ?? true,
+      // Forwarded verbatim to the @astrojs/sitemap integration (filter,
+      // changefreq, priority, lastmod, i18n, entryLimit, ...). The public type is
+      // `Record<string, unknown>`, but `ResolvedAeoConfig` = `DeepRequired<...>`
+      // collapses that index signature to `Record<string, {}>`, so the cast must
+      // match the resolved assignment target, not the public type.
+      options: /** @type {Record<string, {}>} */ (userConfig.sitemap?.options ?? {}),
+    },
+    sitemapAlias: {
+      enabled: userConfig.sitemapAlias?.enabled ?? true,
+      // Default source tracks the @astrojs/sitemap output name. An explicit
+      // sourceFilename always wins.
+      sourceFilename: userConfig.sitemapAlias?.sourceFilename ?? `${sitemapFilenameBase}-index.xml`,
+      outputFilename: userConfig.sitemapAlias?.outputFilename ?? 'sitemap.xml',
+    },
     robotsTxt: {
       enabled: robotsTxt.enabled ?? false,
       universalAllow: robotsTxt.universalAllow ?? true,
       allow: robotsTxt.allow ?? [],
       disallow: robotsTxt.disallow ?? [],
+      // The optional public value is resolved to a boolean for the text builder;
+      // index.js separately preserves omission as the automatic build policy.
       includeSitemap: robotsTxt.includeSitemap ?? true,
-      sitemapPath: robotsTxt.sitemapPath ?? '/sitemap-index.xml',
+      // Tracks the @astrojs/sitemap output name. The late finalizer verifies this
+      // root-relative path before it is interpolated as
+      // `${siteUrl}${base}${sitemapPath}` in robots-txt.js.
+      sitemapPath: robotsTxt.sitemapPath ?? `/${sitemapFilenameBase}-index.xml`,
       includeLlmsTxt: robotsTxt.includeLlmsTxt ?? true,
       extraLines: robotsTxt.extraLines ?? [],
     },
@@ -104,6 +133,8 @@ const KNOWN_KEYS = new Set([
   'urlMap',
   'robotsTxt',
   'domainProfile',
+  'sitemap',
+  'sitemapAlias',
 ]);
 
 /**
@@ -120,6 +151,8 @@ const KNOWN_NESTED_KEYS = {
   urlMap: new Set(['enabled', 'outputFilepath']),
   robotsTxt: new Set(['enabled', 'universalAllow', 'allow', 'disallow', 'includeSitemap', 'sitemapPath', 'includeLlmsTxt', 'extraLines']),
   domainProfile: new Set(['enabled', 'name', 'description', 'website', 'email', 'contact', 'logo', 'sameAs', 'entityType']),
+  sitemap: new Set(['enabled', 'options']),
+  sitemapAlias: new Set(['enabled', 'sourceFilename', 'outputFilename']),
 };
 
 /**

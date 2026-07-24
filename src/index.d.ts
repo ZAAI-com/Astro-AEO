@@ -115,14 +115,61 @@ export interface RobotsTxtOptions {
    * `universalAllow`.
    */
   disallow?: string[];
-  /** Emit a "Sitemap:" line. Default: true. */
+  /**
+   * Control the "Sitemap:" line. When omitted, Astro-AEO emits it only when the
+   * configured sitemap path exists in the static build. Set true to force the
+   * line for runtime-only sitemaps, or false to suppress it.
+   */
   includeSitemap?: boolean;
-  /** Sitemap path appended to the site URL. Default: '/sitemap-index.xml'. */
+  /**
+   * Sitemap path appended to the site URL. Defaults to the `@astrojs/sitemap`
+   * output name derived from `sitemap.options.filenameBase` (so '/sitemap-index.xml'
+   * by default). Automatic robots mode verifies this path exists before emitting
+   * the Sitemap line.
+   */
   sitemapPath?: string;
   /** Emit a "# llms.txt:" comment line. Default: true. */
   includeLlmsTxt?: boolean;
   /** Extra verbatim lines appended to the end. */
   extraLines?: string[];
+}
+
+export interface SitemapOptions {
+  /**
+   * Generate a sitemap. Default: true. astro-aeo defers to the official
+   * `@astrojs/sitemap` integration: when enabled and no sitemap is already
+   * registered, it auto-adds `@astrojs/sitemap` (which requires Astro `site`).
+   * This controls auto-registration only; user-registered sitemaps remain in use
+   * when it is false.
+   */
+  enabled?: boolean;
+  /**
+   * Options forwarded verbatim to `@astrojs/sitemap` (e.g. `filter`,
+   * `changefreq`, `priority`, `lastmod`, `i18n`, `entryLimit`). When a sitemap is
+   * already registered by the user, other options are ignored but
+   * `filenameBase` remains the shared output-name hint used by the alias and
+   * robots defaults. Default: {}.
+   */
+  options?: Record<string, unknown>;
+}
+
+export interface SitemapAliasOptions {
+  /**
+   * Also emit a conventional /sitemap.xml by byte-copying the generated sitemap
+   * index, so tools that probe that path get a 200 instead of a 404. Only mirrors
+   * when the source exists, and never overwrites an existing target. Default: true.
+   */
+  enabled?: boolean;
+  /**
+   * The sitemap index filename to mirror. Default: derived from the
+   * `@astrojs/sitemap` `filenameBase` (so 'sitemap-index.xml' by default).
+   */
+  sourceFilename?: string;
+  /**
+   * The conventional filename written at the build output root when that target
+   * does not already exist. Default: 'sitemap.xml'.
+   */
+  outputFilename?: string;
 }
 
 export interface DomainProfileOptions {
@@ -165,6 +212,8 @@ export interface AstroAeoConfig {
   urlMap?: UrlMapOptions;
   robotsTxt?: RobotsTxtOptions;
   domainProfile?: DomainProfileOptions;
+  sitemap?: SitemapOptions;
+  sitemapAlias?: SitemapAliasOptions;
 }
 
 type DeepRequired<T> = T extends (...args: never[]) => unknown

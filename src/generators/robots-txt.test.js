@@ -76,6 +76,21 @@ describe('buildRobotsTxt', () => {
     expect(out.match(/User-agent: \*/g)).toHaveLength(1);
   });
 
+  test('sitemap line is present when a sitemap is available (default)', () => {
+    const config = resolveConfig({ robotsTxt: { enabled: true } });
+    const out = buildRobotsTxt(config, 'https://x.com', '', true);
+    expect(out).toContain('Sitemap: https://x.com/sitemap-index.xml');
+  });
+
+  test('sitemap line is omitted when no sitemap is available', () => {
+    const config = resolveConfig({ robotsTxt: { enabled: true } });
+    const out = buildRobotsTxt(config, 'https://x.com', '', false);
+    expect(out).not.toContain('Sitemap:');
+    // the rest of robots.txt is unaffected
+    expect(out).toContain('User-agent: *\nAllow: /');
+    expect(out).toContain('# llms.txt: https://x.com/llms.txt');
+  });
+
   test('universal allow coexists with a named disallow', () => {
     const config = resolveConfig({ robotsTxt: { enabled: true, disallow: ['GPTBot'] } });
     const out = buildRobotsTxt(config, 'https://x.com');

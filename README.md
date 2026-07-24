@@ -1,6 +1,6 @@
 # Astro-AEO
 
-Answer Engine Optimization for Astro. One integration, zero config, nine features.
+Answer Engine Optimization for Astro. One integration, zero config, ten features.
 
 Astro-AEO makes your Astro site easy for AI search engines, assistants, and LLMs to discover, parse, and cite. It generates clean Markdown copies of every page, an `llms.txt` index, JSON-LD components, crawler policies, and domain identity metadata, all at build time with no external services and no runtime dependencies.
 
@@ -19,6 +19,7 @@ A Markdown copy of a page is roughly 20 to 30 percent smaller in tokens than its
 - **Alternate link tags**: `<link rel="alternate" type="text/markdown">` injected into every page so crawlers can find the Markdown.
 - **JSON-LD components**: `FaqJsonLd`, `HowToJsonLd`, `BreadcrumbJsonLd`, `OrganizationJsonLd`, `SpeakableJsonLd`, `ArticleJsonLd`.
 - **robots.txt**: allow search and retrieval bots, block training crawlers, with automatic `Sitemap:` and `llms.txt` hints.
+- **Sitemap**: auto-wires the official [`@astrojs/sitemap`](https://docs.astro.build/en/guides/integrations-guide/sitemap/), verifies its build output before adding the `robots.txt` hint, and mirrors the index to a conventional `/sitemap.xml` when that target is free.
 - **domain-profile.json**: a `/.well-known/domain-profile.json` identity file for authoritative answers about your site.
 - **Validator CLI**: `npx astro-aeo validate` checks your build for common AEO mistakes.
 - **Dev-server preview**: `llms.txt`, `robots.txt`, and `.md` companions are served live in `astro dev`.
@@ -35,7 +36,7 @@ bun add astro-aeo
 # npm install astro-aeo
 ```
 
-Astro-AEO requires Astro 5 or newer and Node 20.3+. It ships as plain ESM with no build step, so it also works as a git dependency:
+Astro-AEO requires Astro 5 or newer and Node 20.19.5+. It ships as plain ESM with no build step, so it also works as a git dependency:
 
 ```jsonc
 // package.json
@@ -65,7 +66,7 @@ export default defineConfig({
 astro build
 ```
 
-Out of the box you get: a `.md` companion beside every page, `llms.txt` and `llms-full.txt` at the site root, and an alternate link tag on every page. Enable `robotsTxt`, `domainProfile`, and `urlMap` when you want them.
+Out of the box you get: a `.md` companion beside every page, `llms.txt` and `llms-full.txt` at the site root, an alternate link tag on every page, and a sitemap (via the auto-wired `@astrojs/sitemap`). Enable `robotsTxt`, `domainProfile`, and `urlMap` when you want them.
 
 ## Configuration
 
@@ -104,8 +105,8 @@ aeo({
     universalAllow: true,              // lead with "User-agent: * / Allow: /" (suppressed if '*' is named below)
     allow: ['Googlebot', 'OAI-SearchBot', 'ChatGPT-User', 'Claude-SearchBot', 'PerplexityBot'],
     disallow: ['GPTBot', 'ClaudeBot', 'Google-Extended'],
-    includeSitemap: true,
-    sitemapPath: '/sitemap-index.xml',
+    includeSitemap: undefined,          // omitted = auto-detect; true = force; false = omit
+    sitemapPath: '/sitemap-index.xml',  // defaults to the @astrojs/sitemap output name (tracks filenameBase)
     includeLlmsTxt: true,
     extraLines: [],
   },
@@ -125,8 +126,59 @@ aeo({
     enabled: false,
     outputFilepath: 'docs/Url-Map.md',
   },
+
+  sitemap: {
+    enabled: true,                 // auto-wire @astrojs/sitemap when no sitemap is present
+    options: {},                   // forwarded when auto-wired; filenameBase also hints user-owned output
+  },
+
+  sitemapAlias: {
+    enabled: true,                 // mirror the generated index when /sitemap.xml is free
+    sourceFilename: 'sitemap-index.xml',  // defaults to the @astrojs/sitemap filenameBase output
+    outputFilename: 'sitemap.xml', // conventional filename written at the build root
+  },
 });
 ```
+
+### Sitemap
+
+Astro-AEO does not generate sitemap XML itself; it defers to the official [`@astrojs/sitemap`](https://docs.astro.build/en/guides/integrations-guide/sitemap/) integration, which handles the hard parts (index splitting past 50k URLs, i18n alternates, `lastmod`). With `sitemap.enabled` (the default) and Astro `site` set, Astro-AEO auto-registers `@astrojs/sitemap` when you have not added it yourself. After sitemap generation finishes, Astro-AEO verifies the configured file exists before adding the `Sitemap:` line to `robots.txt`. If filtering, serialization, or an empty site produces no index, the line is omitted instead of advertising a 404.
+
+- Already using `@astrojs/sitemap`? Astro-AEO detects it and stays out of the way (no double registration); your configuration is used as-is.
+- Want to tune the auto-registered sitemap? Pass options straight through:
+
+```js
+aeo({
+  sitemap: {
+    options: {
+      changefreq: 'weekly',
+      filter: (page) => !page.includes('/drafts/'),
+    },
+  },
+});
+```
+
+Set `sitemap.enabled: false` to disable auto-registration. A user-registered sitemap is still detected and finalized.
+
+For a separately registered sitemap with a custom `filenameBase`, repeat that value in Astro-AEO as the shared output-name hint. Other `sitemap.options` are ignored when the user owns the integration, but `filenameBase` keeps the alias source and default robots path aligned:
+
+```js
+import sitemap from '@astrojs/sitemap';
+
+integrations: [
+  sitemap({ filenameBase: 'docs' }),
+  aeo({
+    sitemap: {
+      enabled: false,
+      options: { filenameBase: 'docs' },
+    },
+  }),
+],
+```
+
+By default `@astrojs/sitemap` names its index `sitemap-index.xml` (a custom `filenameBase` makes it `${filenameBase}-index.xml`), so a request for the conventional `/sitemap.xml` returns 404. With `sitemapAlias.enabled` (the default), Astro-AEO byte-copies the generated index to `/sitemap.xml` after generation. The copy is byte-identical, but it is created only when the source exists and the target does not. Any existing build output wins, including a file from `public/`, a prerendered Astro endpoint, or another integration. Remove that output if you want Astro-AEO to provide the alias instead.
+
+`robotsTxt.sitemapPath` defaults to the tracked sitemap output name (`/sitemap-index.xml`, or `/${filenameBase}-index.xml`). When `includeSitemap` is omitted, Astro-AEO automatically emits the line only if that path exists in the static build. Set `includeSitemap: true` to force the line for an SSR or runtime-only sitemap, or `false` to suppress it. In `astro dev`, automatic mode recognizes public files and concrete Astro routes but does not advertise the build-only `@astrojs/sitemap` output.
 
 ### Sections
 
