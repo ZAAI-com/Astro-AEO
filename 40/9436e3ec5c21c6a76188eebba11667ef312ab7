@@ -1,0 +1,73 @@
+fixtures/sitemap-owned/package.json
+  s_9f08dc55eb97cf::t_78eb55bce6cdbb 1-6
+src/generators/robots-txt.test.js
+  s_9f08dc55eb97cf::t_84bd34f694c28d 79,85
+src/generators/robots-txt.js
+  s_9f08dc55eb97cf::t_a0546ee15376c2 12-14,17,34,54,56,62
+src/generators/sitemap-alias.test.js
+  s_9f08dc55eb97cf::t_cd4e97ebe85a48 81,85-87,90,93,95
+fixtures/sitemap-filtered/package.json
+  s_9f08dc55eb97cf::t_78eb55bce6cdbb 1-6
+src/index.js
+  s_9f08dc55eb97cf::t_6cdbca8c4be0e4 5-11,31-39,42-43,62,64-66,71-72,85-87,92,98,113-116,138-140,143,146,148,151-157
+fixtures/sitemap-owned/src/pages/index.astro
+  s_9f08dc55eb97cf::t_78eb55bce6cdbb 1-8
+src/generators/sitemap-finalize.test.js
+  s_9f08dc55eb97cf::t_f7d9b5ce239d7b 1-40,42-43,48-111,126-141
+  s_9f08dc55eb97cf::t_44d38274d9da4d 112-125
+  s_9f08dc55eb97cf::t_0a68837d855ad3 41,44-47
+fixtures/sitemap-filtered/astro.config.mjs
+  s_9f08dc55eb97cf::t_78eb55bce6cdbb 1-12
+src/index.d.ts
+  s_9f08dc55eb97cf::t_38b86ff85ea66d 118-122,127-128,142-143,148-151,160,168-171
+src/hooks/server-setup.dev.test.js
+  s_9f08dc55eb97cf::t_8fc304f1b1ab48 71-75
+src/generators/sitemap-finalize.js
+  s_9f08dc55eb97cf::t_11d7af1618b477 1-30,32-44,46-48,50-51,57-58
+  s_9f08dc55eb97cf::t_1f91e07c199dbe 45,49,52-56
+  s_9f08dc55eb97cf::t_00c60d1d80b833 31
+src/sitemap.e2e.test.js
+  s_9f08dc55eb97cf::t_78eb55bce6cdbb 1-47
+src/generators/sitemap-alias.js
+  s_9f08dc55eb97cf::t_8ad0a7ab66eb2b 2,11-15,25,46,50-51,55,57-60,75-81
+  s_9f08dc55eb97cf::t_c31fd1e1afbf1d 82
+README.md
+  s_9f08dc55eb97cf::t_a3c09b0617a4f6 166-167
+  s_9f08dc55eb97cf::t_1c113bfd0d87f2 22,39,108,136,145,161,163-165,168-181
+  s_9f08dc55eb97cf::t_907c9cde41a07d 132
+fixtures/sitemap-owned/src/pages/sitemap.xml.js
+  s_9f08dc55eb97cf::t_78eb55bce6cdbb 1-7
+fixtures/sitemap-filtered/src/pages/index.astro
+  s_9f08dc55eb97cf::t_78eb55bce6cdbb 1-8
+CHANGELOG.md
+  s_9f08dc55eb97cf::t_ccb5133a360bcf 9-10,15
+src/config.js
+  s_9f08dc55eb97cf::t_01e1099901115a 34-37,96-97,99-101
+.claude/CLAUDE.md
+  s_9f08dc55eb97cf::t_290743ef7d2065 20-21,42-43
+src/lib/sitemap.js
+  s_9f08dc55eb97cf::t_e54693b5656cac 2,4,13-15,21,23,28-30,32,35,39,45-77,79-127
+  s_9f08dc55eb97cf::t_81691430a781c2 3,78
+src/hooks/server-setup.js
+  s_9f08dc55eb97cf::t_c36c37304252bf 22-23,29-37,60-63
+fixtures/sitemap-owned/astro.config.mjs
+  s_9f08dc55eb97cf::t_78eb55bce6cdbb 1-19
+src/lib/sitemap.test.js
+  s_9f08dc55eb97cf::t_8c5755e5399e53 1-11,14,16,19,21,24,27,33,35,38,40,43,45,47-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "409436e3ec5c21c6a76188eebba11667ef312ab7",
+  "prompts": {},
+  "sessions": {
+    "s_9f08dc55eb97cf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f94c1-f4b9-7511-ae1b-4d663b241643",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
