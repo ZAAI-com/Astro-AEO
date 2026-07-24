@@ -21,10 +21,12 @@
  *   `warning`: a one-time message to log, when the intent cannot be honored.
  */
 export function resolveSitemapPlan({ enabled, hasUserSitemap, hasSite }) {
-  if (!enabled) return { register: false, active: false };
-
-  // Respect a user-registered sitemap; never double-register.
+  // Respect a user-registered sitemap; never double-register. It counts as
+  // active even when the auto-wire feature is off, so the robots.txt Sitemap
+  // line still points at the sitemap the user brought.
   if (hasUserSitemap) return { register: false, active: true };
+
+  if (!enabled) return { register: false, active: false };
 
   // Auto-registering @astrojs/sitemap requires a `site` URL; without it the
   // integration would emit nothing, so we stay inactive and explain why.

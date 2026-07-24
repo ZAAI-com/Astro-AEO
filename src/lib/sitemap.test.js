@@ -30,4 +30,11 @@ describe('resolveSitemapPlan', () => {
     const plan = resolveSitemapPlan({ enabled: false, hasUserSitemap: false, hasSite: true });
     expect(plan).toEqual({ register: false, active: false });
   });
+
+  test('user sitemap with the feature disabled stays active (no double-register)', () => {
+    // Turning the feature off must not hide a sitemap the user registered: it is
+    // still active, so robots.txt keeps advertising it.
+    const plan = resolveSitemapPlan({ enabled: false, hasUserSitemap: true, hasSite: true });
+    expect(plan).toEqual({ register: false, active: true });
+  });
 });
