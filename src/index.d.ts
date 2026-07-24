@@ -141,6 +141,22 @@ export interface SitemapOptions {
   options?: Record<string, unknown>;
 }
 
+export interface SitemapAliasOptions {
+  /**
+   * Also emit a conventional /sitemap.xml by byte-copying the generated sitemap
+   * index, so tools that probe that path get a 200 instead of a 404. Only mirrors
+   * when a sitemap is actually active. Default: true.
+   */
+  enabled?: boolean;
+  /**
+   * The sitemap index filename to mirror. Default: derived from the
+   * `@astrojs/sitemap` `filenameBase` (so 'sitemap-index.xml' by default).
+   */
+  sourceFilename?: string;
+  /** The conventional filename written at the build output root. Default: 'sitemap.xml'. */
+  outputFilename?: string;
+}
+
 export interface DomainProfileOptions {
   /** Generate /.well-known/domain-profile.json. Default: false. */
   enabled?: boolean;
@@ -182,6 +198,7 @@ export interface AstroAeoConfig {
   robotsTxt?: RobotsTxtOptions;
   domainProfile?: DomainProfileOptions;
   sitemap?: SitemapOptions;
+  sitemapAlias?: SitemapAliasOptions;
 }
 
 type DeepRequired<T> = T extends (...args: never[]) => unknown

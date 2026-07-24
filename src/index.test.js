@@ -93,6 +93,15 @@ describe('demo build outputs', () => {
     expect(read('robots.txt')).toContain('Sitemap: https://demo.example.com/sitemap-index.xml');
   });
 
+  test('sitemapAlias mirrors the index to a conventional /sitemap.xml', () => {
+    // sitemapAlias.enabled defaults to true; its integration runs after
+    // @astrojs/sitemap, so /sitemap.xml is a byte-identical copy of the index.
+    expect(existsSync(join(DIST, 'sitemap.xml'))).toBe(true);
+    const alias = readFileSync(join(DIST, 'sitemap.xml'));
+    const index = readFileSync(join(DIST, 'sitemap-index.xml'));
+    expect(Buffer.compare(alias, index)).toBe(0);
+  });
+
   test('component-driven JSON-LD is present', () => {
     const faq = read('faq/index.html');
     expect(faq).toContain('"@type":"FAQPage"');

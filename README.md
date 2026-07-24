@@ -19,7 +19,7 @@ A Markdown copy of a page is roughly 20 to 30 percent smaller in tokens than its
 - **Alternate link tags**: `<link rel="alternate" type="text/markdown">` injected into every page so crawlers can find the Markdown.
 - **JSON-LD components**: `FaqJsonLd`, `HowToJsonLd`, `BreadcrumbJsonLd`, `OrganizationJsonLd`, `SpeakableJsonLd`, `ArticleJsonLd`.
 - **robots.txt**: allow search and retrieval bots, block training crawlers, with automatic `Sitemap:` and `llms.txt` hints.
-- **Sitemap**: auto-wires the official [`@astrojs/sitemap`](https://docs.astro.build/en/guides/integrations-guide/sitemap/) so a sitemap always exists and `robots.txt` points at a real file, no manual setup.
+- **Sitemap**: auto-wires the official [`@astrojs/sitemap`](https://docs.astro.build/en/guides/integrations-guide/sitemap/) so a sitemap always exists and `robots.txt` points at a real file, no manual setup, and mirrors it to a conventional `/sitemap.xml` so tools that probe that path resolve it.
 - **domain-profile.json**: a `/.well-known/domain-profile.json` identity file for authoritative answers about your site.
 - **Validator CLI**: `npx astro-aeo validate` checks your build for common AEO mistakes.
 - **Dev-server preview**: `llms.txt`, `robots.txt`, and `.md` companions are served live in `astro dev`.
@@ -131,6 +131,12 @@ aeo({
     enabled: true,                 // auto-wire @astrojs/sitemap when no sitemap is present
     options: {},                   // forwarded to @astrojs/sitemap (filter, changefreq, priority, i18n, ...)
   },
+
+  sitemapAlias: {
+    enabled: true,                 // also emit /sitemap.xml (mirrors the index) when a sitemap is active
+    sourceFilename: 'sitemap-index.xml',  // defaults to the @astrojs/sitemap filenameBase output
+    outputFilename: 'sitemap.xml', // conventional filename written at the build root
+  },
 });
 ```
 
@@ -153,6 +159,8 @@ aeo({
 ```
 
 Set `sitemap.enabled: false` to opt out entirely (then set `robotsTxt.includeSitemap: false`, or bring your own sitemap).
+
+`@astrojs/sitemap` only ever names its output `sitemap-index.xml`, so a request for the conventional `/sitemap.xml` returns 404, and SEO and uptime tools that probe that path first (Screaming Frog, Ahrefs, monitors) read the site as having no sitemap. With `sitemapAlias.enabled` (the default) Astro-AEO byte-copies the generated index to `/sitemap.xml` once a sitemap is active, so that path resolves with valid 200 XML. The copy is a byte-identical sitemap index (not a regeneration), so it never diverges and needs no `base`/`trailingSlash` handling. `robotsTxt.sitemapPath` is independent and still defaults to `/sitemap-index.xml`; set it to `/sitemap.xml` if you want `robots.txt` to advertise the conventional path. Set `sitemapAlias.enabled: false` to skip the copy.
 
 ### Sections
 

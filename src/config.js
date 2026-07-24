@@ -73,6 +73,16 @@ export function resolveConfig(userConfig = {}, logger) {
       // resolved-config derivation over an open `Record` narrows `unknown` to `{}`.
       options: /** @type {Record<string, {}>} */ (userConfig.sitemap?.options ?? {}),
     },
+    sitemapAlias: {
+      enabled: userConfig.sitemapAlias?.enabled ?? true,
+      // Default source tracks the @astrojs/sitemap output name, which is
+      // `${filenameBase}-index.xml` (filenameBase defaults to 'sitemap'). An
+      // explicit sourceFilename always wins.
+      sourceFilename:
+        userConfig.sitemapAlias?.sourceFilename ??
+        `${(/** @type {any} */ (userConfig.sitemap?.options))?.filenameBase ?? 'sitemap'}-index.xml`,
+      outputFilename: userConfig.sitemapAlias?.outputFilename ?? 'sitemap.xml',
+    },
     robotsTxt: {
       enabled: robotsTxt.enabled ?? false,
       universalAllow: robotsTxt.universalAllow ?? true,
@@ -112,6 +122,7 @@ const KNOWN_KEYS = new Set([
   'robotsTxt',
   'domainProfile',
   'sitemap',
+  'sitemapAlias',
 ]);
 
 /**
@@ -129,6 +140,7 @@ const KNOWN_NESTED_KEYS = {
   robotsTxt: new Set(['enabled', 'universalAllow', 'allow', 'disallow', 'includeSitemap', 'sitemapPath', 'includeLlmsTxt', 'extraLines']),
   domainProfile: new Set(['enabled', 'name', 'description', 'website', 'email', 'contact', 'logo', 'sameAs', 'entityType']),
   sitemap: new Set(['enabled', 'options']),
+  sitemapAlias: new Set(['enabled', 'sourceFilename', 'outputFilename']),
 };
 
 /**

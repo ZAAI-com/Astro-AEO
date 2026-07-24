@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import sitemap from '@astrojs/sitemap';
 import { resolveConfig } from './config.js';
 import { resolveSitemapPlan } from './lib/sitemap.js';
+import { emitSitemapAlias } from './generators/sitemap-alias.js';
 import { onBuildDone } from './hooks/build-done.js';
 import { createAeoMiddleware } from './hooks/server-setup.js';
 
@@ -45,10 +46,20 @@ export default function aeo(userConfig = {}) {
           hasSite: Boolean(astroConfig.site),
         });
         if (plan.warning) logger.warn(plan.warning);
-        if (plan.register) {
-          updateConfig({ integrations: [sitemap(/** @type {any} */ (config.sitemap.options))] });
-        }
         sitemapActive = plan.active;
+
+        // Build the integrations to append in order. The sitemap alias must run
+        // AFTER @astrojs/sitemap has written its index, and Astro runs
+        // astro:build:done in integration-array order, so we append the alias
+        // integration last (aeo's own build:done runs before either of these).
+        const added = [];
+        if (plan.register) {
+          added.push(sitemap(/** @type {any} */ (config.sitemap.options)));
+        }
+        if (config.sitemapAlias.enabled && sitemapActive) {
+          added.push(sitemapAliasIntegration(config));
+        }
+        if (added.length) updateConfig({ integrations: added });
       },
 
       'astro:config:done': ({ config: astroConfig, logger }) => {
@@ -99,6 +110,29 @@ export default function aeo(userConfig = {}) {
           routeEntrypoints,
           sitemapActive,
         });
+      },
+    },
+  };
+}
+
+/**
+ * A minimal integration whose only job is to mirror the generated sitemap index
+ * to a conventional /sitemap.xml. It lives in its own integration, appended after
+ * @astrojs/sitemap, because Astro runs astro:build:done in integration order and
+ * the copy must happen after the sitemap file is written (aeo's own build:done
+ * runs too early). Never throws; a missing/unwritable sitemap only warns.
+ *
+ * @param {ReturnType<typeof resolveConfig>} config
+ * @returns {import('astro').AstroIntegration}
+ */
+function sitemapAliasIntegration(config) {
+  return {
+    name: 'astro-aeo/sitemap-alias',
+    hooks: {
+      'astro:build:done': ({ dir, logger }) => {
+        if (emitSitemapAlias(dir, config, logger)) {
+          logger.info(`astro-aeo: emitted /${config.sitemapAlias.outputFilename}`);
+        }
       },
     },
   };

@@ -7,6 +7,7 @@ All notable changes to this project are documented here. This project follows [S
 ### Added
 
 - `sitemap` support (default on): Astro-AEO now auto-wires the official `@astrojs/sitemap` integration when the feature is enabled, Astro `site` is set, and no sitemap is already registered. This guarantees the `robots.txt` `Sitemap:` line (which defaults to `/sitemap-index.xml`) points at a file that actually exists, instead of assuming the user set up a sitemap separately. Configure via `sitemap.enabled` (default `true`) and `sitemap.options` (forwarded verbatim to `@astrojs/sitemap`). A user-registered `@astrojs/sitemap` is detected and left untouched (no double registration).
+- `sitemapAlias` support (default on when a sitemap is active): Astro-AEO byte-copies the generated sitemap index to a conventional `/sitemap.xml`, so SEO and uptime tools that probe that path (Screaming Frog, Ahrefs, monitors) resolve it instead of getting a 404. `@astrojs/sitemap` only ever names its output `sitemap-index.xml`; this mirrors it under the conventional name (the copy is a valid sitemap index, not a regeneration). Configure via `sitemapAlias.outputFilename` (default `sitemap.xml`) and `sitemapAlias.sourceFilename` (default derived from the sitemap `filenameBase`); opt out with `sitemapAlias.enabled: false`. `robotsTxt.sitemapPath` still defaults to `/sitemap-index.xml`; set it to `/sitemap.xml` to advertise the conventional path.
 
 ### Changed
 
