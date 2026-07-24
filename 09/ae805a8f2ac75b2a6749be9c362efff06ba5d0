@@ -1,0 +1,31 @@
+README.md
+  s_f0791e7c3fdf61::t_5757edc61c5b32 109
+  s_67b5a5e5fb10e3::t_5c2df724829111 163
+  s_67b5a5e5fb10e3::t_cf072208cd99f4 145
+CHANGELOG.md
+  s_67b5a5e5fb10e3::t_fc647ec948684c 9-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "09ae805a8f2ac75b2a6749be9c362efff06ba5d0",
+  "prompts": {},
+  "sessions": {
+    "s_67b5a5e5fb10e3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "005aca67-62ca-4285-8982-4ddffc765e8e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_f0791e7c3fdf61": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7d649409-d7fb-4b64-aa8e-de8ae892b645",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
