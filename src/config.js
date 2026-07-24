@@ -77,8 +77,10 @@ export function resolveConfig(userConfig = {}, logger) {
     sitemap: {
       enabled: userConfig.sitemap?.enabled ?? true,
       // Forwarded verbatim to the @astrojs/sitemap integration (filter,
-      // changefreq, priority, lastmod, i18n, entryLimit, ...). Cast because the
-      // resolved-config derivation over an open `Record` narrows `unknown` to `{}`.
+      // changefreq, priority, lastmod, i18n, entryLimit, ...). The public type is
+      // `Record<string, unknown>`, but `ResolvedAeoConfig` = `DeepRequired<...>`
+      // collapses that index signature to `Record<string, {}>`, so the cast must
+      // match the resolved assignment target, not the public type.
       options: /** @type {Record<string, {}>} */ (userConfig.sitemap?.options ?? {}),
     },
     sitemapAlias: {

@@ -38,7 +38,7 @@ export function resolveSitemapPlan({ enabled, hasUserSitemap, hasSite }) {
       register: false,
       expected: false,
       warning:
-        'astro-aeo: sitemap is enabled but Astro `site` is not set, so no sitemap can be generated (the robots.txt Sitemap line is omitted). Set `site` in astro.config or add `@astrojs/sitemap` yourself.',
+        'astro-aeo: sitemap is enabled but Astro `site` is not set, so no sitemap can be generated (the robots.txt Sitemap line is omitted). Set `site` in astro.config, or add a static sitemap to `public/`.',
     };
   }
 
