@@ -10,6 +10,7 @@ describe('resolveConfig', () => {
     expect(c.llmsTxt.enabled).toBe(true);
     expect(c.llmsTxt.defaultSection).toBe('Pages');
     expect(c.robotsTxt.enabled).toBe(false);
+    expect(c.robotsTxt.sitemapPath).toBe('/sitemap-index.xml');
     expect(c.domainProfile.enabled).toBe(false);
     expect(c.sitemap.enabled).toBe(true);
     expect(c.sitemap.options).toEqual({});
@@ -60,6 +61,14 @@ describe('resolveConfig', () => {
     expect(resolveConfig({ sitemap: { options: { filenameBase: 'sm' } } }).sitemapAlias.sourceFilename).toBe('sm-index.xml');
     // an explicit sourceFilename wins over the derived default
     expect(resolveConfig({ sitemapAlias: { sourceFilename: 'custom.xml' } }).sitemapAlias.sourceFilename).toBe('custom.xml');
+  });
+
+  test('robotsTxt.sitemapPath tracks the sitemap filenameBase so robots.txt points at a real file', () => {
+    // A custom filenameBase makes @astrojs/sitemap write `${base}-index.xml`, so the
+    // robots.txt Sitemap line must follow suit instead of the hard-coded default.
+    expect(resolveConfig({ sitemap: { options: { filenameBase: 'sm' } } }).robotsTxt.sitemapPath).toBe('/sm-index.xml');
+    // an explicit sitemapPath wins over the derived default
+    expect(resolveConfig({ sitemap: { options: { filenameBase: 'sm' } }, robotsTxt: { sitemapPath: '/x.xml' } }).robotsTxt.sitemapPath).toBe('/x.xml');
   });
 
   test('sitemapAlias nested typos warn with a dotted path', () => {

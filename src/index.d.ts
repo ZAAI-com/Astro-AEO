@@ -117,7 +117,11 @@ export interface RobotsTxtOptions {
   disallow?: string[];
   /** Emit a "Sitemap:" line. Default: true. */
   includeSitemap?: boolean;
-  /** Sitemap path appended to the site URL. Default: '/sitemap-index.xml'. */
+  /**
+   * Sitemap path appended to the site URL. Defaults to the `@astrojs/sitemap`
+   * output name derived from `sitemap.options.filenameBase` (so '/sitemap-index.xml'
+   * by default), so robots.txt points at the file that is actually produced.
+   */
   sitemapPath?: string;
   /** Emit a "# llms.txt:" comment line. Default: true. */
   includeLlmsTxt?: boolean;

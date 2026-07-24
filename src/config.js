@@ -29,6 +29,12 @@ export function resolveConfig(userConfig = {}, logger) {
   const robotsTxt = userConfig.robotsTxt ?? {};
   const domainProfile = userConfig.domainProfile ?? {};
 
+  // The @astrojs/sitemap output name is `${filenameBase}-index.xml` (filenameBase
+  // defaults to 'sitemap'). Resolved once so both the sitemapAlias source and the
+  // robots.txt Sitemap path track a single source of truth. Cast to `any` because
+  // `sitemap.options` is an open Record whose values narrow to `{}`.
+  const sitemapFilenameBase = (/** @type {any} */ (userConfig.sitemap?.options))?.filenameBase ?? 'sitemap';
+
   const domainProfileEmail = domainProfile.email ?? domainProfile.contact ?? '';
   if (domainProfile.contact !== undefined && logger) {
     logger.warn('astro-aeo: `domainProfile.contact` is deprecated, use `domainProfile.email`');
@@ -75,12 +81,9 @@ export function resolveConfig(userConfig = {}, logger) {
     },
     sitemapAlias: {
       enabled: userConfig.sitemapAlias?.enabled ?? true,
-      // Default source tracks the @astrojs/sitemap output name, which is
-      // `${filenameBase}-index.xml` (filenameBase defaults to 'sitemap'). An
-      // explicit sourceFilename always wins.
-      sourceFilename:
-        userConfig.sitemapAlias?.sourceFilename ??
-        `${(/** @type {any} */ (userConfig.sitemap?.options))?.filenameBase ?? 'sitemap'}-index.xml`,
+      // Default source tracks the @astrojs/sitemap output name. An explicit
+      // sourceFilename always wins.
+      sourceFilename: userConfig.sitemapAlias?.sourceFilename ?? `${sitemapFilenameBase}-index.xml`,
       outputFilename: userConfig.sitemapAlias?.outputFilename ?? 'sitemap.xml',
     },
     robotsTxt: {
@@ -89,7 +92,10 @@ export function resolveConfig(userConfig = {}, logger) {
       allow: robotsTxt.allow ?? [],
       disallow: robotsTxt.disallow ?? [],
       includeSitemap: robotsTxt.includeSitemap ?? true,
-      sitemapPath: robotsTxt.sitemapPath ?? '/sitemap-index.xml',
+      // Tracks the @astrojs/sitemap output name so robots.txt never advertises a
+      // path that does not exist (e.g. a custom filenameBase). Root-relative: it
+      // is interpolated as `${siteUrl}${base}${sitemapPath}` in robots-txt.js.
+      sitemapPath: robotsTxt.sitemapPath ?? `/${sitemapFilenameBase}-index.xml`,
       includeLlmsTxt: robotsTxt.includeLlmsTxt ?? true,
       extraLines: robotsTxt.extraLines ?? [],
     },
