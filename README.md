@@ -106,7 +106,7 @@ aeo({
     allow: ['Googlebot', 'OAI-SearchBot', 'ChatGPT-User', 'Claude-SearchBot', 'PerplexityBot'],
     disallow: ['GPTBot', 'ClaudeBot', 'Google-Extended'],
     includeSitemap: true,
-    sitemapPath: '/sitemap-index.xml',
+    sitemapPath: '/sitemap-index.xml',  // defaults to the @astrojs/sitemap output name (tracks filenameBase)
     includeLlmsTxt: true,
     extraLines: [],
   },
@@ -142,7 +142,7 @@ aeo({
 
 ### Sitemap
 
-Astro-AEO does not generate sitemap XML itself; it defers to the official [`@astrojs/sitemap`](https://docs.astro.build/en/guides/integrations-guide/sitemap/) integration, which handles the hard parts (index splitting past 50k URLs, i18n alternates, `lastmod`). With `sitemap.enabled` (the default) and Astro `site` set, Astro-AEO auto-registers `@astrojs/sitemap` for you when you have not added it yourself, so a sitemap always exists and `robotsTxt` points at a real `/sitemap-index.xml` (the `Sitemap:` line is omitted when no sitemap is active).
+Astro-AEO does not generate sitemap XML itself; it defers to the official [`@astrojs/sitemap`](https://docs.astro.build/en/guides/integrations-guide/sitemap/) integration, which handles the hard parts (index splitting past 50k URLs, i18n alternates, `lastmod`). With `sitemap.enabled` (the default) and Astro `site` set, Astro-AEO auto-registers `@astrojs/sitemap` for you when you have not added it yourself, so a sitemap always exists and `robotsTxt` points at a real `/sitemap-index.xml` (with the default `filenameBase`; the `Sitemap:` line is omitted when no sitemap is active).
 
 - Already using `@astrojs/sitemap`? Astro-AEO detects it and stays out of the way (no double registration); your configuration is used as-is.
 - Want to tune the auto-registered sitemap? Pass options straight through:
@@ -160,7 +160,7 @@ aeo({
 
 Set `sitemap.enabled: false` to opt out entirely (then set `robotsTxt.includeSitemap: false`, or bring your own sitemap).
 
-`@astrojs/sitemap` only ever names its output `sitemap-index.xml`, so a request for the conventional `/sitemap.xml` returns 404, and SEO and uptime tools that probe that path first (Screaming Frog, Ahrefs, monitors) read the site as having no sitemap. With `sitemapAlias.enabled` (the default) Astro-AEO byte-copies the generated index to `/sitemap.xml` whenever a sitemap exists, so that path resolves with valid 200 XML. This works whether the sitemap is auto-wired or you bring your own `@astrojs/sitemap` (even with `sitemap.enabled: false`). The copy is a byte-identical sitemap index (not a regeneration), so it never diverges and needs no `base`/`trailingSlash` handling. If you already ship a hand-authored `public/sitemap.xml`, Astro-AEO leaves it in place (remove it to serve the generated one instead). `robotsTxt.sitemapPath` is independent and still defaults to `/sitemap-index.xml`; set it to `/sitemap.xml` if you want `robots.txt` to advertise the conventional path. Set `sitemapAlias.enabled: false` to skip the copy.
+By default `@astrojs/sitemap` names its index `sitemap-index.xml` (a custom `filenameBase` makes it `${filenameBase}-index.xml`), so a request for the conventional `/sitemap.xml` returns 404, and SEO and uptime tools that probe that path first (Screaming Frog, Ahrefs, monitors) read the site as having no sitemap. With `sitemapAlias.enabled` (the default) Astro-AEO byte-copies the generated index to `/sitemap.xml` whenever a sitemap exists, so that path resolves with valid 200 XML. This works whether the sitemap is auto-wired or you bring your own `@astrojs/sitemap` (even with `sitemap.enabled: false`). The copy is a byte-identical sitemap index (not a regeneration), so it never diverges and needs no `base`/`trailingSlash` handling. If you already ship a hand-authored `public/sitemap.xml`, Astro-AEO leaves it in place (remove it to serve the generated one instead). `robotsTxt.sitemapPath` is independent and still defaults to `/sitemap-index.xml`; set it to `/sitemap.xml` if you want `robots.txt` to advertise the conventional path. If you set a custom `filenameBase`, also point `robotsTxt.sitemapPath` at `/sitemap.xml` (the alias auto-tracks the base, so `/sitemap.xml` always resolves) or at `/${filenameBase}-index.xml`, since the default `/sitemap-index.xml` would otherwise 404. Set `sitemapAlias.enabled: false` to skip the copy.
 
 ### Sections
 
