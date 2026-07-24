@@ -1,0 +1,31 @@
+src/generators/sitemap-alias.js
+  s_a626e54e18e9fb::t_5730a35c8522d3 21-22,25
+  s_a626e54e18e9fb::t_6de8181c86c875 46,49-55
+README.md
+  s_a626e54e18e9fb::t_12c714479eca82 163
+src/generators/sitemap-alias.test.js
+  s_a626e54e18e9fb::t_f608d0e75eda9a 57
+  s_a626e54e18e9fb::t_e469750bc1063a 68,73,77-87
+  s_a626e54e18e9fb::t_3a9bdeb8f7822f 88-89
+src/index.js
+  s_a626e54e18e9fb::t_491f5332231fa0 129,132,137
+  s_a626e54e18e9fb::t_7fc351dd74bc15 59-63
+CHANGELOG.md
+  s_a626e54e18e9fb::t_7cd86e57a56058 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "d76f2a5990cadbeb14b206f80a324bc4a0a7a639",
+  "prompts": {},
+  "sessions": {
+    "s_a626e54e18e9fb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f58a85ab-f376-4cbb-954e-571be23b5f10",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
