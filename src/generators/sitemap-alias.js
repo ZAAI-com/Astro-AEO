@@ -18,9 +18,11 @@ import { fileURLToPath } from 'node:url';
  * @param {URL} distDir
  * @param {import('../index.js').ResolvedAeoConfig} config
  * @param {{ warn: (m: string) => void }} [logger]
+ * @param {URL} [publicDir]  Project public/ dir. A hand-authored static file here
+ *   (Astro copies it into dist before build:done) is never overwritten.
  * @returns {boolean}
  */
-export function emitSitemapAlias(distDir, config, logger) {
+export function emitSitemapAlias(distDir, config, logger, publicDir) {
   if (!config.sitemapAlias.enabled) return false;
   const { sourceFilename, outputFilename } = config.sitemapAlias;
 
@@ -41,11 +43,16 @@ export function emitSitemapAlias(distDir, config, logger) {
     return false;
   }
   if (!existsSync(srcPath)) {
-    logger?.warn(`astro-aeo: sitemapAlias source "${sourceFilename}" not found in the build output (a custom @astrojs/sitemap filenameBase? set sitemapAlias.sourceFilename to match)`);
+    logger?.warn(`astro-aeo: sitemapAlias could not find "${sourceFilename}" in the build output, so /${outputFilename} was not written. Ensure a sitemap is generated (needs Astro \`site\` and at least one indexable page); with a custom @astrojs/sitemap \`filenameBase\`, set \`sitemapAlias.sourceFilename\` to "<base>-index.xml".`);
     return false;
   }
-  if (existsSync(outPath)) {
-    logger?.warn(`astro-aeo: overwriting an existing ${outputFilename} in the build output`);
+
+  // Never clobber a hand-authored public/<outputFilename> (Astro copies public/
+  // into dist before build:done). Overwriting our own prior output is fine, so
+  // we key on the source in public/, not on the presence of the dist file.
+  if (publicDir && existsSync(join(fileURLToPath(publicDir), outputFilename))) {
+    logger?.warn(`astro-aeo: a static ${outputFilename} exists in public/, leaving it in place; remove it to serve the generated sitemap index at /${outputFilename}`);
+    return false;
   }
   try {
     copyFileSync(srcPath, outPath);

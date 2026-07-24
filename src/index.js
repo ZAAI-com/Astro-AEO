@@ -56,8 +56,11 @@ export default function aeo(userConfig = {}) {
         if (plan.register) {
           added.push(sitemap(/** @type {any} */ (config.sitemap.options)));
         }
-        if (config.sitemapAlias.enabled && sitemapActive) {
-          added.push(sitemapAliasIntegration(config));
+        // Mirror whenever a sitemap will exist (auto-registered or the user's
+        // own), independent of the sitemap feature toggle, so bringing your own
+        // sitemap still yields /sitemap.xml even with sitemap.enabled: false.
+        if (config.sitemapAlias.enabled && (sitemapActive || hasUserSitemap)) {
+          added.push(sitemapAliasIntegration(config, astroConfig.publicDir));
         }
         if (added.length) updateConfig({ integrations: added });
       },
@@ -123,14 +126,15 @@ export default function aeo(userConfig = {}) {
  * runs too early). Never throws; a missing/unwritable sitemap only warns.
  *
  * @param {ReturnType<typeof resolveConfig>} config
+ * @param {URL} [publicDir]  Resolved Astro public/ dir; a static file here wins.
  * @returns {import('astro').AstroIntegration}
  */
-function sitemapAliasIntegration(config) {
+function sitemapAliasIntegration(config, publicDir) {
   return {
     name: 'astro-aeo/sitemap-alias',
     hooks: {
       'astro:build:done': ({ dir, logger }) => {
-        if (emitSitemapAlias(dir, config, logger)) {
+        if (emitSitemapAlias(dir, config, logger, publicDir)) {
           logger.info(`astro-aeo: emitted /${config.sitemapAlias.outputFilename}`);
         }
       },

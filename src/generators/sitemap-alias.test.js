@@ -54,7 +54,7 @@ describe('emitSitemapAlias', () => {
     const result = emitSitemapAlias(distDir, cfg(), logger);
     expect(result).toBe(false);
     expect(existsSync(join(dir, 'sitemap.xml'))).toBe(false);
-    expect(warnings.some((w) => w.includes('not found'))).toBe(true);
+    expect(warnings.some((w) => w.includes('could not find'))).toBe(true);
   });
 
   test('self-copy (source === output): returns false, warns, leaves source intact', () => {
@@ -65,13 +65,26 @@ describe('emitSitemapAlias', () => {
     expect(Buffer.compare(readFileSync(join(dir, 'sitemap.xml')), RAW)).toBe(0);
   });
 
-  test('output already exists: warns about overwrite, returns true, byte-equals source', () => {
+  test('output exists but no public file: overwrites our own prior output, no warning', () => {
     writeFileSync(join(dir, 'sitemap-index.xml'), RAW);
     writeFileSync(join(dir, 'sitemap.xml'), Buffer.from('stale'));
     const result = emitSitemapAlias(distDir, cfg(), logger);
     expect(result).toBe(true);
-    expect(warnings.some((w) => w.includes('overwriting'))).toBe(true);
+    expect(warnings).toEqual([]);
     expect(Buffer.compare(readFileSync(join(dir, 'sitemap.xml')), RAW)).toBe(0);
+  });
+
+  test('preserves a hand-authored public/ file instead of overwriting it', () => {
+    const pub = join(dir, 'public');
+    mkdirSync(pub);
+    writeFileSync(join(pub, 'sitemap.xml'), Buffer.from('static'));
+    // Astro copies public/ into dist before build:done, so dist also has it.
+    writeFileSync(join(dir, 'sitemap.xml'), Buffer.from('static'));
+    writeFileSync(join(dir, 'sitemap-index.xml'), RAW);
+    const result = emitSitemapAlias(distDir, cfg(), logger, pathToFileURL(pub + '/'));
+    expect(result).toBe(false);
+    expect(warnings.some((w) => w.includes('public/'))).toBe(true);
+    expect(readFileSync(join(dir, 'sitemap.xml')).toString()).toBe('static');
   });
 
   test('escaping sourceFilename: returns false, warns, copies nothing', () => {
