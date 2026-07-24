@@ -50,6 +50,19 @@ describe('emitSitemapAlias', () => {
     expect(Buffer.compare(readFileSync(join(dir, 'sitemap.xml')), RAW)).toBe(0);
   });
 
+  test('custom source and output filenames: byte-identical copy at custom destination, no warning', () => {
+    writeFileSync(join(dir, 'my-sitemap-index.xml'), RAW);
+    const result = emitSitemapAlias(
+      distDir,
+      cfg({ sourceFilename: 'my-sitemap-index.xml', outputFilename: 'sitemap-alias.xml' }),
+      logger,
+    );
+    expect(result).toBe(true);
+    expect(warnings).toEqual([]);
+    expect(existsSync(join(dir, 'sitemap-alias.xml'))).toBe(true);
+    expect(Buffer.compare(readFileSync(join(dir, 'sitemap-alias.xml')), RAW)).toBe(0);
+  });
+
   test('source missing: returns false, warns, writes nothing', () => {
     const result = emitSitemapAlias(distDir, cfg(), logger);
     expect(result).toBe(false);
