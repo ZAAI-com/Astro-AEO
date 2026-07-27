@@ -16,9 +16,9 @@ jobs:
       matrix:
         astro: ['5', '6', '7']
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: 'pnpm'
@@ -43,18 +43,18 @@ jobs:
       matrix:
         node: ['20', '22', '24']
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
       # Install with a pnpm-capable Node: pnpm@11 needs Node >=22.13 (node:sqlite)
       # and cannot run on the Node 20 leg. Install here, then switch to the matrix
       # Node below to exercise the published artifact on that runtime.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: 'pnpm'
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
       - name: Smoke import under Node
