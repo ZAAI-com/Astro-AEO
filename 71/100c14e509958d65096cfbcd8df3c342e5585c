@@ -1,0 +1,53 @@
+.github/workflows/W1-Test.yml
+  s_00be46aa6ea0db::t_d34631cab10027 54-55
+  s_00be46aa6ea0db::t_3b25e10e26b4f5 20-21
+  s_439dde74cb18e3::t_cb2fe2cf63038c 34-38
+.claude/CLAUDE.md
+  s_439dde74cb18e3::t_62eebe5baa19c2 95,101
+  s_439dde74cb18e3::t_5ab53a2777a503 86-87
+  s_439dde74cb18e3::t_dc14da8f5324e2 69-77
+fixtures/types-consumer/tsconfig.json
+  s_439dde74cb18e3::t_603c273cc0ae77 15
+  s_439dde74cb18e3::t_1dfa049b051c0e 1,3-14,16-19
+  s_439dde74cb18e3::t_340261200eb297 2
+package.json
+  s_439dde74cb18e3::t_848aeb4f77ae05 83
+  s_439dde74cb18e3::t_e897e1be83f3ab 75
+  s_439dde74cb18e3::t_87f5b27b6625f4 73
+fixtures/types-consumer/consumer.ts
+  s_1637377c284f6f::t_b91d5d9766bae9 1-81
+pnpm-lock.yaml
+  s_439dde74cb18e3::t_be139db5e4cddb 27-29,33-35,1613-1617,3283-3284
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "71100c14e509958d65096cfbcd8df3c342e5585c",
+  "prompts": {},
+  "sessions": {
+    "s_00be46aa6ea0db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c7aa1d3-7707-4bd1-8761-5b88f2d9bbec",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_1637377c284f6f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a88e26bf-c84c-43e5-a36a-26c238cd9a30",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_439dde74cb18e3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7889b89c-d893-4c29-87e6-c44a12d5eed7",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
