@@ -70,7 +70,9 @@
     "@types/node": "^26.1.1",
     "@types/turndown": "^5.0.6",
     "astro": "^7.1.3",
+    "astro-aeo": "link:.",
     "typescript": "^7.0.2",
+    "typescript-floor": "npm:typescript@5.5.4",
     "vitest": "^4.1.10"
   },
   "scripts": {
@@ -78,6 +80,7 @@
     "test:dev": "vitest run --config vitest.dev.config.js",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "test:types": "node node_modules/typescript-floor/bin/tsc --noEmit -p fixtures/types-consumer/tsconfig.json",
     "demo:dev": "astro dev --root fixtures/demo",
     "demo:build": "astro build --root fixtures/demo",
     "demo:validate": "node bin/astro-aeo.js validate fixtures/demo/dist"

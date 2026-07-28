@@ -66,7 +66,15 @@ The build pipeline, in the order data flows:
   the config uses long (120s) timeouts.
 - `pnpm run test:dev` runs the opt-in dev-server e2e (`*.dev.test.js`), which spawns
   `astro dev`. It is excluded from the default run.
-- `pnpm run typecheck` runs `tsc --noEmit` against the JSDoc types.
+- `pnpm run typecheck` runs `tsc --noEmit` against the JSDoc types, using the repo's own
+  (newest) TypeScript.
+- `pnpm run test:types` typechecks `fixtures/types-consumer/` against the **oldest** supported
+  TypeScript (the `typescript-floor` devDependency alias, currently 5.5). It imports the package
+  through its real `exports` map, via the `astro-aeo: link:.` self-link, so it covers the
+  hand-written `.d.ts` files the way a downstream project sees them: `pnpm run typecheck` never
+  would, since it only ever sees them through the current compiler. Extend `consumer.ts` when
+  adding or renaming a public type, and keep its `@ts-expect-error` lines: they are the
+  assertions that closed unions and unknown-option rejection still hold.
 
 ## Dev commands
 
@@ -75,7 +83,8 @@ pnpm install
 pnpm test              # unit + CLI + build e2e (Vitest)
 pnpm run test:watch    # Vitest in watch mode
 pnpm run test:dev      # dev-server e2e (spawns astro dev)
-pnpm run typecheck     # tsc --noEmit against JSDoc types
+pnpm run typecheck     # tsc --noEmit against JSDoc types (newest TypeScript)
+pnpm run test:types    # consumer .d.ts check on the oldest supported TypeScript
 pnpm run demo:dev      # run the demo site in fixtures/demo
 pnpm run demo:build    # build the demo site
 pnpm run demo:validate # run the validator CLI on the demo build
@@ -83,12 +92,13 @@ pnpm run demo:validate # run the validator CLI on the demo build
 
 ## When adding a config option
 
-Keep these four in sync so behavior, types, and docs match:
+Keep these five in sync so behavior, types, and docs match:
 
 1. `resolveConfig` defaults in `src/config.js` (and add any new top-level key to `KNOWN_KEYS`).
 2. The types in `src/index.d.ts` (and `components/index.d.ts` for component props).
 3. The Configuration block in `README.md`.
 4. A note in `CHANGELOG.md`.
+5. `fixtures/types-consumer/consumer.ts`, so the option is exercised from a consumer's side.
 
 ## CI and compatibility
 

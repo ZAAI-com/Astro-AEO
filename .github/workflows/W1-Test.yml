@@ -17,6 +17,8 @@ jobs:
         astro: ['5', '6', '7']
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
@@ -29,6 +31,11 @@ jobs:
         run: pnpm add -D astro@${{ matrix.astro }}
       - name: Typecheck
         run: pnpm run typecheck
+      # The published .d.ts files are hand-written and only ever seen by this
+      # repo's own (newest) TypeScript. This checks them the way a downstream
+      # project on an older toolchain would.
+      - name: Consumer types on the oldest supported TypeScript
+        run: pnpm run test:types
       - name: Unit, CLI and build e2e tests
         run: pnpm test
       - name: Dev-server e2e (astro 7 leg only)
@@ -44,6 +51,8 @@ jobs:
         node: ['20', '22', '24']
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@v6
       # Install with a pnpm-capable Node: pnpm@11 needs Node >=22.13 (node:sqlite)
       # and cannot run on the Node 20 leg. Install here, then switch to the matrix
