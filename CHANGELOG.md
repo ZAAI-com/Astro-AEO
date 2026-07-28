@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## 1.1.0
+
+### Added
+
+- `pnpm run test:types`: a consumer typecheck of `fixtures/types-consumer/` against the oldest
+  supported TypeScript (the `typescript-floor` devDependency alias, currently 5.5). It imports the
+  package through its real `exports` map, so the hand-written `.d.ts` files are covered the way a
+  downstream project sees them.
+
+### Changed
+
+- Dev toolchain and CI actions updated to their latest versions.
+- Maintenance release: no functional or configuration-surface changes for consumers.
+
 ## 1.0.0
 
 ### Changed

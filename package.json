@@ -1,6 +1,6 @@
 {
   "name": "astro-aeo",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Answer Engine Optimization for Astro: .md companion pages, llms.txt, llms-full.txt, robots.txt AI-bot policies, domain-profile.json, sitemap auto-wiring, JSON-LD components, and a validator CLI.",
   "type": "module",
   "license": "MIT",
