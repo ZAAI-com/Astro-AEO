@@ -1,0 +1,88 @@
+src/lib/config-migrate.test.js
+  s_a1ee465ff37919::t_cbeebf6d3908d0 1-248
+src/generators/robots-txt.js
+  s_a1ee465ff37919::t_3f7a9d76e5109a 8,50
+src/lib/collect.js
+  s_a1ee465ff37919::t_4681272aac4740 114-116,121
+  s_a1ee465ff37919::t_3f7a9d76e5109a 43
+src/generators/domain-profile.test.js
+  s_a1ee465ff37919::t_89ca3c47d13881 56
+src/lib/page-meta.js
+  s_a1ee465ff37919::t_ca886211d2d1ce 137-140
+  s_a1ee465ff37919::t_23f3715c93a401 121-127
+  s_a1ee465ff37919::t_0a93a2be22ec53 95-96,98
+  s_a1ee465ff37919::t_0c75172071f15e 111-112
+  s_a1ee465ff37919::t_513074dcf3947c 50,63-77
+  s_a1ee465ff37919::t_b9f0bc2355c0a1 86
+  s_a1ee465ff37919::t_b3d2cb1eb60075 78-79
+src/lib/page-meta.test.js
+  s_a1ee465ff37919::t_f43d58f959f97a 107-145
+src/config.test.js
+  s_a1ee465ff37919::t_89ca3c47d13881 3,15,42,45,105,115-130,133-151,160,162
+  s_a1ee465ff37919::t_b3b28fcce90230 81-104
+src/hooks/server-setup.js
+  s_a1ee465ff37919::t_1c010b73c72aed 70
+  s_a1ee465ff37919::t_3f7a9d76e5109a 18
+  s_a1ee465ff37919::t_6fce283f79f834 107-109
+  s_a1ee465ff37919::t_0b87855a7384ed 46-49
+  s_a1ee465ff37919::t_43932a0f78dbb9 8
+src/index.d.ts
+  s_a1ee465ff37919::t_8545f96f262040 275-279,296,299-313
+  s_a1ee465ff37919::t_b3caecb76bf4b1 255-258
+  s_a1ee465ff37919::t_8a352df97b9220 219-223,226-231,240,250-254,259-274,280-287,289-295,297-298
+  s_a1ee465ff37919::t_95daefe6feb5fc 198-218,224-225
+src/hooks/build-done.js
+  s_a1ee465ff37919::t_1c010b73c72aed 56
+  s_a1ee465ff37919::t_3f7a9d76e5109a 22
+src/generators/url-map.js
+  s_a1ee465ff37919::t_3f7a9d76e5109a 28
+fixtures/types-consumer/consumer.ts
+  s_a1ee465ff37919::t_26fc9cfce7b65f 81-87
+  s_a1ee465ff37919::t_52538581c4e8ea 62-68,70-80
+  s_a1ee465ff37919::t_12644318645c37 111-114
+  s_a1ee465ff37919::t_c3e7fc660022af 11,14,16
+  s_a1ee465ff37919::t_89ca3c47d13881 69
+src/generators/dotmd.js
+  s_a1ee465ff37919::t_3f7a9d76e5109a 39
+src/generators/sitemap-alias.js
+  s_a1ee465ff37919::t_3f7a9d76e5109a 21
+src/lib/config-migrate.js
+  s_a1ee465ff37919::t_cac4aebaed648d 259,262-263
+  s_a1ee465ff37919::t_ff29c3c7d9be48 1-16,18-220,222-223,225-230,232-258,260-261,264-333
+  s_a1ee465ff37919::t_9712681d614eb2 17
+  s_a1ee465ff37919::t_56a4d91a920f72 221,224,231
+src/config.js
+  s_a1ee465ff37919::t_335f7c9c1a9ac2 29
+  s_a1ee465ff37919::t_6e70fe81a576df 71-80
+  s_a1ee465ff37919::t_fc708b8aeafa16 155-159
+  s_a1ee465ff37919::t_bbc63effeeb46d 2-3
+  s_a1ee465ff37919::t_3ca2d473909a37 14-23,25-27,31,33-45,55,61
+  s_a1ee465ff37919::t_d8a3e02306d1e8 198,200,206,214
+  s_a1ee465ff37919::t_c21a9004cb0cf7 108-109
+  s_a1ee465ff37919::t_d5cb0c8237732c 28,137-138,140,143-148,150-154,160-168,171-179,181-187,190-192
+src/generators/sitemap-finalize.js
+  s_a1ee465ff37919::t_3f7a9d76e5109a 11
+src/lib/errors.js
+  s_a1ee465ff37919::t_68ee9f1400457b 1-16
+src/generators/llms-txt.js
+  s_a1ee465ff37919::t_3f7a9d76e5109a 66,93,106,115,131
+src/generators/domain-profile.js
+  s_a1ee465ff37919::t_1c010b73c72aed 8,13,51
+  s_a1ee465ff37919::t_3f7a9d76e5109a 47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "3a1978991336cb48818333cd50e47132a6a25c6f",
+  "prompts": {},
+  "sessions": {
+    "s_a1ee465ff37919": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3a101c22-71dc-45a5-948c-20c9f1c2baf8",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
