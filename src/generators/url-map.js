@@ -25,7 +25,7 @@ export function resolveWithinRoot(projectRoot, filepath) {
  * (default docs/Url-Map.md), for committing as a content audit.
  *
  * @param {import('../lib/collect.js').PageInfo[]} pages
- * @param {import('../index.js').ResolvedAeoConfig} config
+ * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @param {string} projectRoot
  * @param {Date} generatedAt
  */

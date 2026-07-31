@@ -8,7 +8,7 @@ import { sitemapPathExists } from '../lib/sitemap.js';
  * has had a chance to write its files.
  *
  * @param {URL} distDir
- * @param {import('../index.js').ResolvedAeoConfig} config
+ * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @param {object} options
  * @param {string} options.siteUrl
  * @param {string} options.base

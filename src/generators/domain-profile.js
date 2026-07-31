@@ -5,12 +5,12 @@ import { fileURLToPath } from 'node:url';
 
 /**
  * Build the domain-profile object from config.
- * @param {import('../index.js').ResolvedAeoConfig} config
+ * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @param {string} siteUrl  Site origin (fallback for website).
  * @returns {Record<string, unknown>}
  */
 export function buildDomainProfile(config, siteUrl) {
-  const dp = config.domainProfile;
+  const dp = config.site.profile;
   const website = dp.website || siteUrl;
   return {
     '@context': 'https://schema.org',
@@ -44,11 +44,11 @@ function contactFields(value) {
  * Write /.well-known/domain-profile.json (schema.org identity for the site).
  *
  * @param {URL} distDir
- * @param {import('../index.js').ResolvedAeoConfig} config
+ * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @param {string} siteUrl  Site origin without trailing slash (fallback for website).
  */
 export function emitDomainProfile(distDir, config, siteUrl) {
-  if (!config.domainProfile.enabled) return;
+  if (!config.site.profile.enabled) return;
   const wellKnownDir = join(fileURLToPath(distDir), '.well-known');
   mkdirSync(wellKnownDir, { recursive: true });
   const profile = buildDomainProfile(config, siteUrl);

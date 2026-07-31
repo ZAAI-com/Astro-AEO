@@ -47,12 +47,7 @@ export function extractMetaContent(html, query) {
   const targetProperty = query.property?.toLowerCase();
   if (!targetName && !targetProperty) return undefined;
 
-  // Quote-aware so a ">" inside a quoted attribute value (valid HTML5) does not
-  // truncate the tag, e.g. `content="A > B"`.
-  const tagRe = /<meta\b(?:"[^"]*"|'[^']*'|[^>"'])*>/gi;
-  let tagMatch;
-  while ((tagMatch = tagRe.exec(html))) {
-    const attrs = extractAttributes(tagMatch[0]);
+  for (const attrs of eachMetaTag(html)) {
     const name = attrs.get('name')?.toLowerCase();
     const property = attrs.get('property')?.toLowerCase();
     const matchesName = targetName ? name === targetName : false;
@@ -66,21 +61,29 @@ export function extractMetaContent(html, query) {
 }
 
 /**
+ * Iterate every <meta> tag in the document as an attribute map. The tag regex is
+ * quote-aware so a ">" inside a quoted attribute value (valid HTML5) does not
+ * truncate the tag, e.g. `content="A > B"`. Every meta reader below is built on
+ * this rather than a per-field regex, so attribute order and quoting style are
+ * handled once, in one place.
+ * @param {string} html
+ * @returns {Generator<Map<string, string>>}
+ */
+function* eachMetaTag(html) {
+  const tagRe = /<meta\b(?:"[^"]*"|'[^']*'|[^>"'])*>/gi;
+  let tagMatch;
+  while ((tagMatch = tagRe.exec(html))) {
+    yield extractAttributes(tagMatch[0]);
+  }
+}
+
+/**
  * Extract the meta description.
  * @param {string} html
  * @returns {string}
  */
 export function extractDescription(html) {
-  const match = html.match(
-    /<meta\s+[^>]*name=(["'])description\1[^>]*content=(["'])([\s\S]*?)\2/i,
-  );
-  if (match) return decodeEntities(match[3]);
-  // content may precede name. Keep the capture within a single tag ([^>]*?) so
-  // it cannot bleed from an earlier meta tag's content= attribute.
-  const alt = html.match(
-    /<meta\s+[^>]*content=(["'])([^>]*?)\1[^>]*name=(["'])description\3/i,
-  );
-  return alt ? decodeEntities(alt[2]) : '';
+  return extractMetaContent(html, { name: 'description' }) ?? '';
 }
 
 /**
@@ -89,10 +92,10 @@ export function extractDescription(html) {
  * @returns {Set<string>}
  */
 export function extractAeoTokens(html) {
-  const match = html.match(/<meta\s+[^>]*name=(["'])aeo\1[^>]*content=(["'])([\s\S]*?)\2/i);
-  if (!match) return new Set();
+  const content = extractMetaContent(html, { name: 'aeo' });
+  if (content === undefined) return new Set();
   return new Set(
-    match[3]
+    content
       .split(/[\s,]+/)
       .map((t) => t.trim().toLowerCase())
       .filter(Boolean),
@@ -105,8 +108,8 @@ export function extractAeoTokens(html) {
  * @returns {boolean}
  */
 export function extractNoindex(html) {
-  const match = html.match(/<meta\s+[^>]*name=(["'])robots\1[^>]*content=(["'])([\s\S]*?)\2/i);
-  return match ? /\bnoindex\b/i.test(match[3]) : false;
+  const content = extractMetaContent(html, { name: 'robots' });
+  return content === undefined ? false : /\bnoindex\b/i.test(content);
 }
 
 /**
@@ -115,11 +118,13 @@ export function extractNoindex(html) {
  * @returns {Date | undefined}
  */
 export function extractModifiedTime(html) {
-  const match = html.match(
-    /<meta\s+[^>]*(?:property|name)=(["'])article:modified_time\1[^>]*content=(["'])([\s\S]*?)\2/i,
-  );
-  if (!match) return undefined;
-  const d = new Date(match[3].trim());
+  // Either spelling is accepted: Open Graph uses `property`, some generators emit `name`.
+  const content = extractMetaContent(html, {
+    property: 'article:modified_time',
+    name: 'article:modified_time',
+  });
+  if (content === undefined) return undefined;
+  const d = new Date(content.trim());
   return Number.isNaN(d.getTime()) ? undefined : d;
 }
 
@@ -129,7 +134,10 @@ export function extractModifiedTime(html) {
  * @returns {boolean}
  */
 export function isRedirectStub(html) {
-  return /<meta\s+[^>]*http-equiv=(["'])refresh\1/i.test(html);
+  for (const attrs of eachMetaTag(html)) {
+    if (attrs.get('http-equiv')?.toLowerCase() === 'refresh') return true;
+  }
+  return false;
 }
 
 /**

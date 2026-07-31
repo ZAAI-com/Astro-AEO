@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 /**
  * Build the robots.txt body from config.
- * @param {import('../index.js').ResolvedAeoConfig} config
+ * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @param {string} siteUrl  Site origin without trailing slash.
  * @param {string} [base]   Astro base path (e.g. "" or "/docs"); prefixed onto
  *                          the Sitemap and llms.txt URLs, which deploy under it.
@@ -47,7 +47,7 @@ export function buildRobotsTxt(config, siteUrl, base = '', sitemapAvailable = tr
  * build output, e.g. copied from public/.
  *
  * @param {URL} distDir
- * @param {import('../index.js').ResolvedAeoConfig} config
+ * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @param {string} siteUrl
  * @param {{ warn: (m: string) => void }} [logger]
  * @param {string} [base]  Astro base path, prefixed onto the emitted URLs.

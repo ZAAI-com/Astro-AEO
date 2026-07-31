@@ -63,7 +63,7 @@ export function groupSections(pages, sections, defaultSection) {
  * Write /llms.txt.
  * @param {import('../lib/collect.js').PageInfo[]} pages
  * @param {URL} distDir
- * @param {import('../index.js').ResolvedAeoConfig} config
+ * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @param {string} siteName
  * @param {string} siteDescription
  */
@@ -90,7 +90,7 @@ export function emitLlmsTxt(pages, distDir, config, siteName, siteDescription) {
  * on (they have no .md companion to link, so by default they are omitted rather
  * than left with a dangling link).
  * @param {{ aeoTokens: Set<string> }} p
- * @param {import('../index.js').ResolvedAeoConfig} config
+ * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @returns {boolean}
  */
 export function isLlmsEligible(p, config) {
@@ -103,7 +103,7 @@ export function isLlmsEligible(p, config) {
  * The llms.txt link target for a page: its `.md` companion, or (for a
  * `no-dotmd` page listed via `includeNoDotmd`) its HTML URL.
  * @param {{ aeoTokens: Set<string>; mdHref: string; url: string }} p
- * @param {import('../index.js').ResolvedAeoConfig} config
+ * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @returns {string}
  */
 export function llmsEntryHref(p, config) {
@@ -112,7 +112,7 @@ export function llmsEntryHref(p, config) {
 
 /**
  * @param {import('../lib/collect.js').PageInfo} p
- * @param {import('../index.js').ResolvedAeoConfig} config
+ * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @returns {string}
  */
 function entryLine(p, config) {
@@ -128,7 +128,7 @@ function entryLine(p, config) {
  * Write /llms-full.txt (concatenated page content).
  * @param {import('../lib/collect.js').PageInfo[]} pages
  * @param {URL} distDir
- * @param {import('../index.js').ResolvedAeoConfig} config
+ * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @param {string} siteName
  * @param {string} siteDescription
  */

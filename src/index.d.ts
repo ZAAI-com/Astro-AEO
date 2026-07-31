@@ -195,7 +195,40 @@ export interface DomainProfileOptions {
   entityType?: EntityType;
 }
 
-export interface AstroAeoConfig {
+export interface ProfileOptions {
+  /** Generate /.well-known/domain-profile.json. Default: false. */
+  enabled?: boolean;
+  name?: string;
+  description?: string;
+  /** Defaults to the Astro `site` URL. */
+  website?: string;
+  /**
+   * Primary contact, emitted into the schema.org profile by value shape: an
+   * http(s) URL becomes a `contactPoint` (`{ '@type': 'ContactPoint', url }`),
+   * a value containing "@" becomes `email`, and anything else becomes
+   * `telephone`.
+   */
+  email?: string;
+  logo?: string;
+  /** Related profile URLs (schema.org sameAs). */
+  sameAs?: string[];
+  /** schema.org @type. Default: 'Organization'. */
+  entityType?: EntityType;
+}
+
+export interface SiteOptions {
+  /** Site name for llms.txt headers. Falls back to the profile name, then <title>, then hostname. */
+  name?: string;
+  /** Site description for llms.txt headers. Falls back to the profile description. */
+  description?: string;
+  /** The published domain profile at /.well-known/domain-profile.json. */
+  profile?: ProfileOptions;
+}
+
+/**
+ * The canonical configuration surface.
+ */
+export interface CanonicalAeoConfig {
   /** Path globs of pages to include. Default: ['**']. */
   include?: string[];
   /** Path globs of pages to exclude. Default: []. */
@@ -204,30 +237,80 @@ export interface AstroAeoConfig {
   respectNoindex?: boolean;
   /** Strip a trailing " | {suffix}" (or matching RegExp) from page titles. Default: false. */
   stripTitleSuffix?: string | string[] | RegExp | false;
-  /** Site name/description for llms.txt headers. Falls back to domainProfile, then <title>, then hostname. */
-  site?: { name?: string; description?: string };
+  site?: SiteOptions;
   dotmd?: DotmdOptions;
   llmsTxt?: LlmsTxtOptions;
   llmsFullTxt?: LlmsFullTxtOptions;
   urlMap?: UrlMapOptions;
   robotsTxt?: RobotsTxtOptions;
-  domainProfile?: DomainProfileOptions;
   sitemap?: SitemapOptions;
   sitemapAlias?: SitemapAliasOptions;
 }
 
-type DeepRequired<T> = T extends (...args: never[]) => unknown
-  ? T
-  : T extends readonly unknown[]
-    ? T
-    : T extends RegExp
-      ? T
-      : T extends object
-        ? { [K in keyof T]-?: DeepRequired<NonNullable<T[K]>> }
-        : T;
+/**
+ * Options carried over from 1.0. Every one keeps working through 1.x, warns once
+ * per section, and is removed in 2.0. Sections move here from `CanonicalAeoConfig`
+ * one at a time as their canonical replacement lands.
+ */
+export interface LegacyAeoConfig {
+  /** @deprecated Moved to `site.profile`. */
+  domainProfile?: DomainProfileOptions;
+}
 
-/** Fully-defaulted config produced by `resolveConfig` and consumed by generators. */
-export type ResolvedAeoConfig = DeepRequired<AstroAeoConfig>;
+export interface AstroAeoConfig extends CanonicalAeoConfig, LegacyAeoConfig {}
+
+/**
+ * Fully-defaulted config produced by `resolveConfig` and consumed by generators.
+ *
+ * Hand-written rather than derived from `AstroAeoConfig`. A derived
+ * `DeepRequired<AstroAeoConfig>` cannot express a resolved-only field, cannot drop
+ * the deprecated 1.0 tree while the public type keeps it, and collapses
+ * `Record<string, unknown>` index signatures to `Record<string, {}>`.
+ */
+export interface ResolvedAstroAeoConfig {
+  include: string[];
+  exclude: string[];
+  respectNoindex: boolean;
+  stripTitleSuffix: string | string[] | RegExp | false;
+  site: {
+    name: string;
+    description: string;
+    profile: Required<ProfileOptions>;
+  };
+  dotmd: Required<DotmdOptions>;
+  llmsTxt: Required<LlmsTxtOptions>;
+  llmsFullTxt: Required<LlmsFullTxtOptions>;
+  urlMap: Required<UrlMapOptions>;
+  robotsTxt: Required<RobotsTxtOptions>;
+  sitemap: { enabled: boolean; options: Record<string, unknown> };
+  sitemapAlias: Required<SitemapAliasOptions>;
+}
+
+/**
+ * The 1.0 resolved shape.
+ *
+ * Deliberately unreachable: `resolveConfig` is not part of the package's `exports`
+ * map, so no value of this type has ever been obtainable (the repo's own consumer
+ * fixture has to `declare` one). It is kept only so downstream annotations that
+ * name it still compile. Do not "fix" it by exporting a producer; do not widen it
+ * as the canonical shape grows. Frozen: removed in 2.0.
+ * @deprecated Renamed to `ResolvedAstroAeoConfig`.
+ */
+export interface ResolvedAeoConfig {
+  include: string[];
+  exclude: string[];
+  respectNoindex: boolean;
+  stripTitleSuffix: string | string[] | RegExp | false;
+  site: { name: string; description: string };
+  dotmd: Required<DotmdOptions>;
+  llmsTxt: Required<LlmsTxtOptions>;
+  llmsFullTxt: Required<LlmsFullTxtOptions>;
+  urlMap: Required<UrlMapOptions>;
+  robotsTxt: Required<RobotsTxtOptions>;
+  domainProfile: Required<DomainProfileOptions>;
+  sitemap: { enabled: boolean; options: Record<string, unknown> };
+  sitemapAlias: Required<SitemapAliasOptions>;
+}
 
 /**
  * Answer Engine Optimization integration for Astro.

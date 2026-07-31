@@ -104,6 +104,45 @@ describe('extractMetaContent', () => {
   });
 });
 
+describe('meta readers share the quote-aware tag scanner', () => {
+  // Each of these used to have its own per-field regex requiring quoted values in a
+  // fixed attribute order. They now go through extractMetaContent, so one fix covers all.
+  test('description survives a ">" inside the quoted value', () => {
+    expect(extractDescription('<meta name="description" content="A > B comparison">')).toBe(
+      'A > B comparison',
+    );
+  });
+
+  test('aeo tokens read from an unquoted value and reversed attribute order', () => {
+    expect(extractAeoTokens('<meta name=aeo content=no-dotmd>').has('no-dotmd')).toBe(true);
+    expect(extractAeoTokens('<meta content="no-llms" name="aeo">').has('no-llms')).toBe(true);
+  });
+
+  test('noindex reads from an unquoted value and reversed attribute order', () => {
+    expect(extractNoindex('<meta name=robots content=noindex>')).toBe(true);
+    expect(extractNoindex('<meta content="noindex, follow" name="robots">')).toBe(true);
+  });
+
+  test('modified time accepts the name= spelling and reversed order', () => {
+    const byName = extractModifiedTime('<meta name="article:modified_time" content="2026-02-15">');
+    expect(byName?.toISOString().slice(0, 10)).toBe('2026-02-15');
+    const reversed = extractModifiedTime('<meta content="2026-03-01" property="article:modified_time">');
+    expect(reversed?.toISOString().slice(0, 10)).toBe('2026-03-01');
+  });
+
+  test('modified time ignores an unparseable value', () => {
+    expect(extractModifiedTime('<meta property="article:modified_time" content="soon">')).toBeUndefined();
+  });
+
+  test('redirect stub detection accepts an unquoted http-equiv', () => {
+    expect(isRedirectStub('<meta http-equiv=refresh content="0;url=/new/">')).toBe(true);
+  });
+
+  test('a description tag with no content attribute yields an empty string', () => {
+    expect(extractDescription('<meta name="description">')).toBe('');
+  });
+});
+
 describe('decodeEntities', () => {
   test('decodes named entities', () => {
     expect(decodeEntities('Tom &amp; Jerry &lt;3')).toBe('Tom & Jerry <3');

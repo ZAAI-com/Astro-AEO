@@ -40,7 +40,7 @@ import { isIncluded, normalizePath } from './match.js';
  * directive (when respectNoindex), or it opts out via <meta name="aeo" content="skip">.
  *
  * @param {{ pathname: string }[]} rawPages
- * @param {import('../index.js').ResolvedAeoConfig} config
+ * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @param {CollectContext} ctx
  * @returns {PageInfo[]}
  */
@@ -111,12 +111,14 @@ export function resolveHtmlPath(distRoot, pathname, buildFormat) {
 }
 
 /**
- * Display path portion of the URL, honoring trailingSlash.
+ * Display path portion of the URL, honoring trailingSlash. Exported so the build
+ * collector and the dev middleware share one implementation instead of two copies
+ * that can drift.
  * @param {string} pathname
  * @param {'always'|'never'|'ignore'} trailingSlash
  * @returns {string}
  */
-function urlPath(pathname, trailingSlash) {
+export function urlPath(pathname, trailingSlash) {
   if (pathname === '/') return '/';
   return trailingSlash === 'never' ? pathname : `${pathname}/`;
 }

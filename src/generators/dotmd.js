@@ -36,7 +36,7 @@ export function matchMarkdownAlternateLinks(html) {
  * into each page's <head>.
  *
  * @param {import('../lib/collect.js').PageInfo[]} pages
- * @param {import('../index.js').ResolvedAeoConfig} config
+ * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @returns {number} count of .md files written
  */
 export function emitDotMd(pages, config) {

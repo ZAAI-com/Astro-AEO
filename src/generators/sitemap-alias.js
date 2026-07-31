@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
  * integration in src/index.js for the ordering.
  *
  * @param {URL} distDir
- * @param {import('../index.js').ResolvedAeoConfig} config
+ * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @param {{ warn: (m: string) => void }} [logger]
  * @returns {boolean}
  */

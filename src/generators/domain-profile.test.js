@@ -53,7 +53,7 @@ describe('buildDomainProfile', () => {
 
   test('a non-string email is ignored instead of throwing', () => {
     const config = resolveConfig({ domainProfile: { enabled: true, name: 'Acme' } });
-    config.domainProfile.email = /** @type {any} */ (42);
+    config.site.profile.email = /** @type {any} */ (42);
     const profile = buildDomainProfile(config, 'https://acme.dev');
     expect(profile.email).toBeUndefined();
     expect(profile.telephone).toBeUndefined();

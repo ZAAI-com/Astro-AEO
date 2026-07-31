@@ -5,7 +5,7 @@ import { resolveSiteMeta } from '../config.js';
 import { buildRobotsTxt } from '../generators/robots-txt.js';
 import { buildDomainProfile } from '../generators/domain-profile.js';
 import { groupSections, isLlmsEligible, llmsEntryHref } from '../generators/llms-txt.js';
-import { absoluteUrl, mdHrefFor } from '../lib/collect.js';
+import { absoluteUrl, mdHrefFor, urlPath } from '../lib/collect.js';
 import { isIncluded } from '../lib/match.js';
 
 /**
@@ -15,7 +15,7 @@ import { isIncluded } from '../lib/match.js';
  * fetching the dev server's own HTML.
  *
  * @param {object} deps
- * @param {import('../index.js').ResolvedAeoConfig} deps.config
+ * @param {import('../index.js').ResolvedAstroAeoConfig} deps.config
  * @param {string} deps.siteUrl
  * @param {string} deps.base
  * @param {'always'|'never'|'ignore'} deps.trailingSlash
@@ -43,6 +43,10 @@ export function createAeoMiddleware(deps) {
     const method = (req.method || 'GET').toUpperCase();
     if (method !== 'GET' && method !== 'HEAD') return next();
 
+    // Loop guard. `fetchPage` re-enters the dev server over HTTP with this header,
+    // so never handle our own self-fetch: hand it straight to Astro.
+    if (req.headers['x-astro-aeo']) return next();
+
     let pathname;
     try {
       pathname = decodeURIComponent((req.url || '/').split('?')[0]);
@@ -63,7 +67,7 @@ export function createAeoMiddleware(deps) {
       return send(res, 200, 'text/plain; charset=utf-8', buildRobotsTxt(config, siteUrl, base, sitemapAvailable), method);
     }
 
-    if (pathname === '/.well-known/domain-profile.json' && config.domainProfile.enabled) {
+    if (pathname === '/.well-known/domain-profile.json' && config.site.profile.enabled) {
       const body = JSON.stringify(buildDomainProfile(config, siteUrl), null, 2);
       return send(res, 200, 'application/json; charset=utf-8', body, method);
     }
@@ -98,10 +102,11 @@ export function createAeoMiddleware(deps) {
     // Mirror the build's include/exclude filter (collectPages) so excluded pages
     // are never served as .md or listed in llms.txt during `astro dev`.
     if (!isIncluded(pageUrlPath, { include: config.include, exclude: config.exclude })) return null;
-    const urlPath = pageUrlPath === '/' ? '/' : trailingSlash === 'never' ? pageUrlPath : `${pageUrlPath}/`;
     let html;
     try {
-      const resp = await fetch(`${origin}${basePrefix}${urlPath}`, { headers: { 'x-astro-aeo': '1' } });
+      const resp = await fetch(`${origin}${basePrefix}${urlPath(pageUrlPath, trailingSlash)}`, {
+        headers: { 'x-astro-aeo': '1' },
+      });
       if (!resp.ok) return null;
       const ct = resp.headers.get('content-type') || '';
       if (!ct.includes('html')) return null;

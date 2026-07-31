@@ -19,7 +19,7 @@ import { emitUrlMap } from '../generators/url-map.js';
 /**
  * Orchestrate all build-time outputs.
  *
- * @param {import('../index.js').ResolvedAeoConfig} config
+ * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @param {{ dir: URL; pages: { pathname: string }[]; logger: { info: (m: string) => void; warn: (m: string) => void } }} options
  * @param {BuildEnv} env
  */
@@ -53,7 +53,7 @@ export async function onBuildDone(config, options, env) {
   if (config.llmsFullTxt.enabled) logger.info('astro-aeo: emitted /llms-full.txt');
 
   emitDomainProfile(dir, config, env.siteUrl);
-  if (config.domainProfile.enabled) logger.info('astro-aeo: emitted /.well-known/domain-profile.json');
+  if (config.site.profile.enabled) logger.info('astro-aeo: emitted /.well-known/domain-profile.json');
 
   if (config.urlMap.enabled) {
     emitUrlMap(pages, config, env.projectRoot, new Date());
