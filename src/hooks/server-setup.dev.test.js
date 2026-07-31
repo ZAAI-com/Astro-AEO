@@ -94,4 +94,36 @@ describe('dev server AEO endpoints', () => {
     const llms = await (await fetch(`${BASE}/llms.txt`)).text();
     expect(llms).not.toContain('/private/secret');
   });
+
+  // The dev server and the build used to build these strings separately and had
+  // drifted apart on three settings. They now share one renderer; these assert it.
+  describe('parity with the build', () => {
+    test('.md frontmatter carries lastModified, which dev used to drop', async () => {
+      // The demo enables markdown.frontmatter, and this post declares
+      // article:modified_time. Dev previously emitted no lastModified at all.
+      const body = await (await fetch(`${BASE}/blog/first-post.md`)).text();
+      expect(body).toMatch(/^---\n/);
+      expect(body).toContain('title: "First Post"');
+      expect(body).toContain('lastModified: 2026-02-15');
+    });
+
+    test('llms.txt honours showLastModified, which dev used to ignore', async () => {
+      const body = await (await fetch(`${BASE}/llms.txt`)).text();
+      expect(body).toContain('_(updated 2026-02-15)_');
+    });
+
+    test('llms-full.txt honours the mode, which dev used to ignore', async () => {
+      const body = await (await fetch(`${BASE}/llms-full.txt`)).text();
+      // The demo leaves mode at 'all', so every eligible page is inlined.
+      expect(body).toContain('# First Post');
+      expect(body).toContain('# About');
+      expect(body).toContain('URL: https://demo.example.com/about/');
+      // no-llms-full and excluded pages stay out regardless of mode.
+      expect(body).not.toContain('/private/secret');
+    });
+
+    test('a no-dotmd page is refused as .md in dev, exactly as the build omits it', async () => {
+      expect((await fetch(`${BASE}/no-md.md`)).status).toBe(404);
+    });
+  });
 });

@@ -4,7 +4,8 @@ import { extractPageMeta, makeTitleStripper } from '../lib/page-meta.js';
 import { resolveSiteMeta } from '../config.js';
 import { buildRobotsTxt } from '../generators/robots-txt.js';
 import { buildDomainProfile } from '../generators/domain-profile.js';
-import { groupSections, isLlmsEligible, llmsEntryHref } from '../generators/llms-txt.js';
+import { renderLlmsTxt, renderLlmsFullTxt } from '../core/render/llms-txt.js';
+import { renderMarkdownDocument } from '../core/render/markdown-doc.js';
 import { absoluteUrl, mdHrefFor, urlPath } from '../lib/collect.js';
 import { isIncluded } from '../lib/match.js';
 
@@ -93,7 +94,7 @@ export function createAeoMiddleware(deps) {
    * Fetch a page's HTML from the running dev server and collect its meta.
    * @param {string} origin
    * @param {string} pageUrlPath  Page path, e.g. "/about" or "/".
-   * @returns {Promise<{ pathname: string; url: string; mdHref: string; title: string; description: string; markdown: string; aeoTokens: Set<string> } | null>}
+   * @returns {Promise<import('../core/render/llms-txt.js').LlmsPage | null>}
    */
   async function fetchPage(origin, pageUrlPath) {
     // Mirror the build's include/exclude filter (collectPages) so excluded pages
@@ -122,6 +123,11 @@ export function createAeoMiddleware(deps) {
       description: meta.description,
       markdown: htmlToMarkdown(html, td),
       aeoTokens: meta.aeoTokens,
+      // Only what the rendered page states. The build additionally falls back to
+      // git history, which needs the route-to-source map and the project root;
+      // neither is available here, so a page without `article:modified_time` has
+      // no date in dev. Documented, and the only remaining build/dev difference.
+      lastModified: config.markdown.includeLastModified ? meta.modifiedTime : undefined,
     };
   }
 
@@ -134,15 +140,7 @@ export function createAeoMiddleware(deps) {
     const pagePath = mdPath === '/index.md' ? '/' : mdPath.replace(/\.md$/, '');
     const page = await fetchPage(origin, pagePath);
     if (!page || page.aeoTokens.has('no-dotmd')) return null;
-    let body = '';
-    if (config.markdown.frontmatter) {
-      body += '---\n';
-      body += `title: ${JSON.stringify(page.title)}\n`;
-      body += `url: ${page.url}\n`;
-      if (page.description) body += `description: ${JSON.stringify(page.description)}\n`;
-      body += '---\n\n';
-    }
-    return `${body}${page.markdown}\n`;
+    return renderMarkdownDocument(page, config);
   }
 
   /**
@@ -156,42 +154,10 @@ export function createAeoMiddleware(deps) {
     const results = await Promise.all(paths.map((p) => fetchPage(origin, p)));
     const collected = /** @type {NonNullable<(typeof results)[number]>[]} */ (results.filter(Boolean));
     const home = collected.find((p) => p.pathname === '/');
-    const { name, description } = resolveSiteMeta(config, siteUrl, home?.title ?? '');
+    const siteMeta = resolveSiteMeta(config, siteUrl, home?.title ?? '');
     const note = '<!-- astro-aeo dev preview: dynamic routes are omitted; run `astro build` for the full file -->';
-
-    if (full) {
-      const eligible = collected.filter((p) => !p.aeoTokens.has('no-llms') && !p.aeoTokens.has('no-llms-full'));
-      const lines = [`# ${name}`, ''];
-      if (description) lines.push(`> ${description}`, '');
-      lines.push(note, '', '---', '');
-      for (const p of eligible) {
-        lines.push(`# ${p.title}`, '');
-        lines.push(`URL: ${p.url}`);
-        if (p.description) lines.push(`Description: ${p.description}`);
-        lines.push('', p.markdown, '', '---', '');
-      }
-      return lines.join('\n');
-    }
-
-    const eligible = collected.filter((p) => isLlmsEligible(p, config));
-    const groups = groupSections(
-      /** @type {any} */ (eligible),
-      config.corpus.index.sections,
-      config.corpus.index.defaultSection,
-    );
-    const lines = [`# ${name}`, ''];
-    if (description) lines.push(`> ${description}`, '');
-    lines.push(note, '');
-    for (const group of groups) {
-      lines.push(`## ${group.title}`, '');
-      for (const p of group.pages) {
-        let line = `- [${p.title}](${llmsEntryHref(p, config)})`;
-        if (config.corpus.index.includeDescriptions && p.description) line += `: ${p.description}`;
-        lines.push(line);
-      }
-      lines.push('');
-    }
-    return lines.join('\n');
+    const render = full ? renderLlmsFullTxt : renderLlmsTxt;
+    return render(collected, config, siteMeta, { note });
   }
 }
 

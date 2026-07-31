@@ -1,6 +1,7 @@
 // @ts-check
 import { writeFileSync, readFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { renderMarkdownDocument } from '../core/render/markdown-doc.js';
 
 // Matches a markdown alternate <link> regardless of whether rel= or type=
 // appears first, so an existing (possibly hand-authored) link is detected in
@@ -41,28 +42,13 @@ export function matchMarkdownAlternateLinks(html) {
  */
 export function emitDotMd(pages, config) {
   if (!config.markdown.enabled) return 0;
-  const { includeLastModified, frontmatter, alternateLink } = config.markdown;
+  const { alternateLink } = config.markdown;
   let written = 0;
 
   for (const page of pages) {
     if (page.aeoTokens.has('no-dotmd')) continue;
 
-    let body = '';
-    if (frontmatter) {
-      body += '---\n';
-      body += `title: ${JSON.stringify(page.title)}\n`;
-      body += `url: ${page.url}\n`;
-      if (page.description) body += `description: ${JSON.stringify(page.description)}\n`;
-      if (includeLastModified && page.lastModified) {
-        body += `lastModified: ${isoDate(page.lastModified)}\n`;
-      }
-      body += '---\n\n';
-    }
-    body += page.markdown;
-    body += '\n';
-    if (includeLastModified && page.lastModified && !frontmatter) {
-      body += `\n_Last modified: ${isoDate(page.lastModified)}_\n`;
-    }
+    const body = renderMarkdownDocument(page, config);
 
     mkdirSync(dirname(page.mdPath), { recursive: true });
     writeFileSync(page.mdPath, body, 'utf8');
@@ -100,12 +86,4 @@ function injectAlternateLink(page, mode) {
     updated = html.replace('</head>', `${tag}</head>`);
   }
   if (updated !== html) writeFileSync(page.htmlPath, updated, 'utf8');
-}
-
-/**
- * @param {Date} d
- * @returns {string}
- */
-function isoDate(d) {
-  return d.toISOString().slice(0, 10);
 }
