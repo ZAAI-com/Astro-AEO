@@ -195,6 +195,152 @@ export interface DomainProfileOptions {
   entityType?: EntityType;
 }
 
+export interface SitemapAliasCanonicalOptions {
+  /**
+   * Also emit a conventional /sitemap.xml by byte-copying the generated sitemap
+   * index, so tools that probe that path get a 200 instead of a 404. Only mirrors
+   * when the source exists, and never overwrites an existing build output. Default: true.
+   */
+  enabled?: boolean;
+  /**
+   * The sitemap index filename to mirror. Default: derived from the
+   * `@astrojs/sitemap` `filenameBase` (so 'sitemap-index.xml' by default).
+   */
+  sourceFilename?: string;
+  /**
+   * The conventional filename written at the build output root when that target
+   * does not already exist. Default: 'sitemap.xml'.
+   */
+  outputFilename?: string;
+}
+
+export interface DiscoverySitemapOptions {
+  /**
+   * How astro-aeo relates to `@astrojs/sitemap`. Default: 'auto'.
+   * - 'auto': auto-register `@astrojs/sitemap` when none is present (requires Astro `site`).
+   * - 'external': do not auto-register, but keep using a sitemap the project registers itself.
+   * - 'disabled': no auto-registration, no alias, and no robots.txt Sitemap line.
+   */
+  mode?: 'auto' | 'external' | 'disabled';
+  /**
+   * Options forwarded verbatim to `@astrojs/sitemap` (e.g. `filter`, `changefreq`,
+   * `priority`, `lastmod`, `i18n`, `entryLimit`). When a sitemap is already
+   * registered by the project, other options are ignored but `filenameBase`
+   * remains the shared output-name hint used by the alias and robots defaults.
+   * Default: {}.
+   */
+  options?: Record<string, unknown>;
+  alias?: SitemapAliasCanonicalOptions;
+}
+
+export interface DiscoveryRobotsOptions {
+  /** Generate /robots.txt. Default: false. */
+  enabled?: boolean;
+  /**
+   * Emit a leading "User-agent: *" + "Allow: /" group regardless of any named
+   * allow/disallow groups, so unlisted crawlers see an explicit open policy.
+   * Default: true. Suppressed automatically when "*" already appears in `allow`
+   * or `disallow`, to avoid a duplicate wildcard group.
+   */
+  universalAllow?: boolean;
+  /** User-agents to allow ("User-agent: X" + "Allow: /"). */
+  allow?: string[];
+  /** User-agents to block ("User-agent: X" + "Disallow: /"). */
+  disallow?: string[];
+  /**
+   * Control the "Sitemap:" line. Omitted emits it only when the configured
+   * sitemap path exists in the static build; true forces the line for
+   * runtime-only sitemaps; false suppresses it.
+   */
+  includeSitemap?: boolean;
+  /**
+   * Sitemap path appended to the site URL. Defaults to the `@astrojs/sitemap`
+   * output name derived from `discovery.sitemap.options.filenameBase`.
+   */
+  sitemapPath?: string;
+  /** Emit a "# llms.txt:" comment line. Default: true. */
+  includeLlmsTxt?: boolean;
+  /** Extra verbatim lines appended to the end. */
+  extraLines?: string[];
+}
+
+export interface DiscoveryOptions {
+  sitemap?: DiscoverySitemapOptions;
+  robots?: DiscoveryRobotsOptions;
+}
+
+/** How the robots.txt "Sitemap:" line is decided. Resolved from the optional tri-state. */
+export type SitemapPolicy = 'auto' | 'always' | 'never';
+
+export interface CorpusIndexOptions {
+  /** Generate /llms.txt. Default: true. */
+  enabled?: boolean;
+  /** Ordered section rules (first match wins). Default: a single "Pages" catch-all after "Home". */
+  sections?: SectionRule[];
+  /** Section title for pages matching no rule, or false to drop them. Default: 'Pages'. */
+  defaultSection?: string | false;
+  /** Append "{title}: {description}" when a description exists. Default: true. */
+  includeDescriptions?: boolean;
+  /** Append " _(updated YYYY-MM-DD)_" per entry. Default: false. */
+  showLastModified?: boolean;
+  /**
+   * List pages that opt out of a .md companion (`<meta name="aeo" content="no-dotmd">`),
+   * linking to the HTML page instead of a `.md`. Default: false (such pages are
+   * omitted, so llms.txt never links a missing `.md`).
+   */
+  includeHtmlOnly?: boolean;
+}
+
+export interface CorpusFullOptions {
+  /** Generate /llms-full.txt. Default: true. */
+  enabled?: boolean;
+  /** Which pages to inline. Default: 'all'. */
+  mode?: 'all' | 'index' | 'first-page-only';
+}
+
+export interface CorpusUrlMapOptions {
+  /** Generate a URL map file. Default: false. */
+  enabled?: boolean;
+  /** Path relative to the project root. Default: 'docs/Url-Map.md'. */
+  outputFilepath?: string;
+}
+
+export interface CorpusOptions {
+  /** The /llms.txt index. */
+  index?: CorpusIndexOptions;
+  /** The /llms-full.txt full-text corpus. */
+  full?: CorpusFullOptions;
+  /** A committed URL map, written to the project root rather than the build output. */
+  urlMap?: CorpusUrlMapOptions;
+}
+
+export interface MarkdownOptions {
+  /** Generate .md companion pages. Default: true. */
+  enabled?: boolean;
+  /**
+   * Inject <link rel="alternate" type="text/markdown"> into each page's <head>.
+   * - 'auto' (default): inject only if the page has no such link yet.
+   * - 'always': replace any existing markdown-alternate link with the canonical one.
+   * - 'never': do not touch the HTML.
+   */
+  alternateLink?: 'auto' | 'always' | 'never';
+  /** Append a "Last modified" line to .md files (from git or article:modified_time). Default: true. */
+  includeLastModified?: boolean;
+  /** Prepend YAML frontmatter (title, url, description, optional lastModified) to .md files. Default: false. */
+  frontmatter?: boolean;
+}
+
+export interface PagesOptions {
+  /** Path globs of pages to include. Default: ['**']. */
+  include?: string[];
+  /** Path globs of pages to exclude. Default: []. */
+  exclude?: string[];
+  /** Skip pages carrying <meta name="robots" content="noindex">. Default: true. */
+  respectNoindex?: boolean;
+  /** Strip a trailing " | {suffix}" (or matching RegExp) from page titles. Default: false. */
+  stripTitleSuffix?: string | string[] | RegExp | false;
+}
+
 export interface ProfileOptions {
   /** Generate /.well-known/domain-profile.json. Default: false. */
   enabled?: boolean;
@@ -229,22 +375,11 @@ export interface SiteOptions {
  * The canonical configuration surface.
  */
 export interface CanonicalAeoConfig {
-  /** Path globs of pages to include. Default: ['**']. */
-  include?: string[];
-  /** Path globs of pages to exclude. Default: []. */
-  exclude?: string[];
-  /** Skip pages carrying <meta name="robots" content="noindex">. Default: true. */
-  respectNoindex?: boolean;
-  /** Strip a trailing " | {suffix}" (or matching RegExp) from page titles. Default: false. */
-  stripTitleSuffix?: string | string[] | RegExp | false;
   site?: SiteOptions;
-  dotmd?: DotmdOptions;
-  llmsTxt?: LlmsTxtOptions;
-  llmsFullTxt?: LlmsFullTxtOptions;
-  urlMap?: UrlMapOptions;
-  robotsTxt?: RobotsTxtOptions;
-  sitemap?: SitemapOptions;
-  sitemapAlias?: SitemapAliasOptions;
+  pages?: PagesOptions;
+  markdown?: MarkdownOptions;
+  corpus?: CorpusOptions;
+  discovery?: DiscoveryOptions;
 }
 
 /**
@@ -253,6 +388,28 @@ export interface CanonicalAeoConfig {
  * one at a time as their canonical replacement lands.
  */
 export interface LegacyAeoConfig {
+  /** @deprecated Moved to `pages.include`. */
+  include?: string[];
+  /** @deprecated Moved to `pages.exclude`. */
+  exclude?: string[];
+  /** @deprecated Moved to `pages.respectNoindex`. */
+  respectNoindex?: boolean;
+  /** @deprecated Moved to `pages.stripTitleSuffix`. */
+  stripTitleSuffix?: string | string[] | RegExp | false;
+  /** @deprecated Moved to `markdown`. */
+  dotmd?: DotmdOptions;
+  /** @deprecated Moved to `corpus.index`. */
+  llmsTxt?: LlmsTxtOptions;
+  /** @deprecated Moved to `corpus.full`. */
+  llmsFullTxt?: LlmsFullTxtOptions;
+  /** @deprecated Moved to `corpus.urlMap`. */
+  urlMap?: UrlMapOptions;
+  /** @deprecated Moved to `discovery.robots`. */
+  robotsTxt?: RobotsTxtOptions;
+  /** @deprecated Moved to `discovery.sitemap`. `enabled: false` maps to `mode: 'external'`. */
+  sitemap?: SitemapOptions;
+  /** @deprecated Moved to `discovery.sitemap.alias`. */
+  sitemapAlias?: SitemapAliasOptions;
   /** @deprecated Moved to `site.profile`. */
   domainProfile?: DomainProfileOptions;
 }
@@ -268,22 +425,33 @@ export interface AstroAeoConfig extends CanonicalAeoConfig, LegacyAeoConfig {}
  * `Record<string, unknown>` index signatures to `Record<string, {}>`.
  */
 export interface ResolvedAstroAeoConfig {
-  include: string[];
-  exclude: string[];
-  respectNoindex: boolean;
-  stripTitleSuffix: string | string[] | RegExp | false;
   site: {
     name: string;
     description: string;
     profile: Required<ProfileOptions>;
   };
-  dotmd: Required<DotmdOptions>;
-  llmsTxt: Required<LlmsTxtOptions>;
-  llmsFullTxt: Required<LlmsFullTxtOptions>;
-  urlMap: Required<UrlMapOptions>;
-  robotsTxt: Required<RobotsTxtOptions>;
-  sitemap: { enabled: boolean; options: Record<string, unknown> };
-  sitemapAlias: Required<SitemapAliasOptions>;
+  pages: Required<PagesOptions>;
+  markdown: Required<MarkdownOptions>;
+  corpus: {
+    index: Required<CorpusIndexOptions>;
+    full: Required<CorpusFullOptions>;
+    urlMap: Required<CorpusUrlMapOptions>;
+  };
+  discovery: {
+    sitemap: {
+      mode: 'auto' | 'external' | 'disabled';
+      options: Record<string, unknown>;
+      alias: Required<SitemapAliasCanonicalOptions>;
+    };
+    robots: Required<DiscoveryRobotsOptions> & {
+      /**
+       * Resolved from the optional `includeSitemap` tri-state. Resolved-only: it
+       * has no public counterpart, which is why the resolved config is
+       * hand-written rather than derived from the public shape.
+       */
+      sitemapPolicy: SitemapPolicy;
+    };
+  };
 }
 
 /**

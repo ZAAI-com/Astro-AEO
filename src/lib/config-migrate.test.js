@@ -8,6 +8,7 @@ import {
   isPlainObject,
   liftLegacy,
   mergeLegacy,
+  printMigration,
   setPath,
   truncate,
 } from './config-migrate.js';
@@ -171,6 +172,18 @@ describe('mergeLegacy', () => {
     expect(corpus).toContain('are deprecated');
   });
 
+  test('the warning agrees in number with however many 1.0 blocks it names', () => {
+    const one = mergeLegacy({ dotmd: { linkTag: 'never' } }, throwing).warnings[0];
+    expect(one).toContain('`dotmd` is deprecated');
+
+    const many = mergeLegacy({ llmsTxt: { showLastmod: true }, urlMap: { enabled: true } }, throwing).warnings[0];
+    expect(many).toContain('`llmsTxt`, `urlMap` are deprecated');
+
+    // The top-level scalars have no 1.0 block name, and their label is plural.
+    const scalars = mergeLegacy({ include: ['**'] }, throwing).warnings[0];
+    expect(scalars).toContain('the top-level page options are deprecated');
+  });
+
   test('canonical-only input produces no warnings', () => {
     const { merged, warnings } = mergeLegacy({ markdown: { alternateLink: 'never' } }, throwing);
     expect(getPath(merged, 'markdown.alternateLink')).toBe('never');
@@ -232,6 +245,39 @@ describe('mergeLegacy', () => {
         throwing,
       ),
     ).toThrow(AeoConfigError);
+  });
+});
+
+describe('printMigration', () => {
+  test('renders a paste-ready canonical block', () => {
+    const out = printMigration({
+      exclude: ['/private/**'],
+      dotmd: { frontmatter: true },
+      domainProfile: { enabled: true, name: 'Acme' },
+    });
+    expect(out).toContain('canonical replacement for your 1.0 keys');
+    expect(out).toContain('pages: {');
+    expect(out).toContain('exclude: ["/private/**"],');
+    expect(out).toContain('markdown: {');
+    expect(out).toContain('frontmatter: true,');
+    expect(out).toContain('site: {');
+    expect(out).toContain('profile: {');
+    expect(out).toContain("name: \"Acme\",");
+  });
+
+  test('maps values that changed shape, not just name', () => {
+    expect(printMigration({ sitemap: { enabled: false } })).toContain('mode: "external",');
+  });
+
+  test('flags values that cannot be serialized', () => {
+    const out = printMigration({ llmsTxt: { sections: [{ title: 'Blog', match: () => true }] } });
+    expect(out).toContain('[Function');
+    expect(out).toContain('copy those by hand');
+  });
+
+  test('returns null when there is nothing to migrate', () => {
+    expect(printMigration({})).toBeNull();
+    expect(printMigration({ markdown: { frontmatter: true } })).toBeNull();
   });
 });
 

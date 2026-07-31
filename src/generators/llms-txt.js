@@ -68,9 +68,9 @@ export function groupSections(pages, sections, defaultSection) {
  * @param {string} siteDescription
  */
 export function emitLlmsTxt(pages, distDir, config, siteName, siteDescription) {
-  if (!config.llmsTxt.enabled) return;
+  if (!config.corpus.index.enabled) return;
   const eligible = pages.filter((p) => isLlmsEligible(p, config));
-  const groups = groupSections(eligible, config.llmsTxt.sections, config.llmsTxt.defaultSection);
+  const groups = groupSections(eligible, config.corpus.index.sections, config.corpus.index.defaultSection);
 
   const lines = [`# ${siteName}`, ''];
   if (siteDescription) lines.push(`> ${siteDescription}`, '');
@@ -95,7 +95,7 @@ export function emitLlmsTxt(pages, distDir, config, siteName, siteDescription) {
  */
 export function isLlmsEligible(p, config) {
   if (p.aeoTokens.has('no-llms')) return false;
-  if (p.aeoTokens.has('no-dotmd') && !config.llmsTxt.includeNoDotmd) return false;
+  if (p.aeoTokens.has('no-dotmd') && !config.corpus.index.includeHtmlOnly) return false;
   return true;
 }
 
@@ -117,8 +117,8 @@ export function llmsEntryHref(p, config) {
  */
 function entryLine(p, config) {
   let line = `- [${p.title}](${llmsEntryHref(p, config)})`;
-  if (config.llmsTxt.includeDescriptions && p.description) line += `: ${p.description}`;
-  if (config.llmsTxt.showLastmod && p.lastModified) {
+  if (config.corpus.index.includeDescriptions && p.description) line += `: ${p.description}`;
+  if (config.corpus.index.showLastModified && p.lastModified) {
     line += ` _(updated ${p.lastModified.toISOString().slice(0, 10)})_`;
   }
   return line;
@@ -133,13 +133,13 @@ function entryLine(p, config) {
  * @param {string} siteDescription
  */
 export function emitLlmsFullTxt(pages, distDir, config, siteName, siteDescription) {
-  if (!config.llmsFullTxt.enabled) return;
+  if (!config.corpus.full.enabled) return;
   const eligible = pages.filter((p) => !p.aeoTokens.has('no-llms') && !p.aeoTokens.has('no-llms-full'));
 
   const selected =
-    config.llmsFullTxt.mode === 'first-page-only'
+    config.corpus.full.mode === 'first-page-only'
       ? eligible.slice(0, 1)
-      : config.llmsFullTxt.mode === 'index'
+      : config.corpus.full.mode === 'index'
         ? eligible.filter((p) => p.pathname === '/')
         : eligible;
 

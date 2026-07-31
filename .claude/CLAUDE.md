@@ -19,10 +19,15 @@ The build pipeline, in the order data flows:
   facts (`siteUrl`, `base`, `trailingSlash`, `buildFormat`, `projectRoot`, `routeEntrypoints`).
   Hooks used: `astro:config:setup`, `astro:config:done`, `astro:routes:resolved`,
   `astro:server:setup`, `astro:build:done`.
-- `src/config.js`: `resolveConfig` fills every default and warns on unknown top-level keys
-  (`KNOWN_KEYS`) and the deprecated `dotmd.dotmdMetadata` alias. `resolveSiteMeta` resolves the
-  site name/description via the fallback chain `site.*` -> `domainProfile.*` -> home `<title>`
-  -> hostname.
+- `src/config.js`: `resolveConfig` lifts any 1.0 keys onto their canonical paths, fills every
+  default, and warns on unknown keys at any depth (`CONFIG_SHAPE`, where `PASSTHROUGH` marks a
+  subtree forwarded to another tool). `resolveSiteMeta` resolves the site name/description via the
+  fallback chain `site.*` -> `site.profile.*` -> home `<title>` -> hostname.
+- `src/lib/config-migrate.js`: the 1.0 -> 1.1 rename. `LEGACY_MOVES` is the single source of truth
+  for where each old key went, and it drives the deprecation warnings, the conflict errors, the
+  `AEO_PRINT_MIGRATION` printer, and the README table, so those four cannot drift. A 1.0 key and
+  its canonical replacement set to different values throws `AeoConfigError` (`src/lib/errors.js`);
+  set to equal values, canonical wins with one warning.
 - `src/hooks/build-done.js`: `onBuildDone` orchestrates every generator on `astro:build:done`.
 - `src/hooks/server-setup.js`: dev-server middleware that serves `robots.txt`,
   `domain-profile.json`, and `.md` companions live, and builds a static-route `llms.txt`, during
@@ -63,7 +68,13 @@ The build pipeline, in the order data flows:
 - Vitest, with tests colocated next to the source they cover as `*.test.js`. Add or adjust a
   test with every behavior change.
 - `pnpm test` runs the unit, CLI, and build e2e tests. The build e2e spawns `astro build`, so
-  the config uses long (120s) timeouts.
+  the config uses long (120s) timeouts. Vitest runs test **files in parallel**, so an e2e that
+  spawns a build must own its fixture root: two builds against one root clobber each other's
+  output. `fixtures/config-compat` exists for exactly this reason, rather than reusing the demo.
+- `src/config-compat.e2e.test.js` builds `fixtures/config-compat` twice, once from
+  `astro.legacy.config.mjs` and once from `astro.canonical.config.mjs`, and diffs the two outputs
+  byte for byte. That diff is the 1.0 compatibility guarantee. Keep the two configs in lockstep;
+  `AEO_PRINT_MIGRATION=1 astro build` prints the canonical spelling of a 1.0 config.
 - `pnpm run test:dev` runs the opt-in dev-server e2e (`*.dev.test.js`), which spawns
   `astro dev`. It is excluded from the default run.
 - `pnpm run typecheck` runs `tsc --noEmit` against the JSDoc types, using the repo's own
@@ -92,13 +103,22 @@ pnpm run demo:validate # run the validator CLI on the demo build
 
 ## When adding a config option
 
-Keep these five in sync so behavior, types, and docs match:
+Keep these six in sync so behavior, types, and docs match:
 
-1. `resolveConfig` defaults in `src/config.js` (and add any new top-level key to `KNOWN_KEYS`).
+1. `resolveConfig` defaults in `src/config.js` (and add the key to `CONFIG_SHAPE`, at its real
+   depth, or it will warn as a typo).
 2. The types in `src/index.d.ts` (and `components/index.d.ts` for component props).
 3. The Configuration block in `README.md`.
 4. A note in `CHANGELOG.md`.
 5. `fixtures/types-consumer/consumer.ts`, so the option is exercised from a consumer's side.
+6. `ResolvedAstroAeoConfig` in `src/index.d.ts`, plus a read of the new field in `consumer.ts`.
+   The resolved type is hand-written, and both tsconfigs set `skipLibCheck` (Astro's own
+   declarations do not compile without it), so a type assertion written inside `src/index.d.ts` is
+   never evaluated. `consumer.ts` is the only place a drift guard actually runs.
+
+When renaming an option, add a row to `LEGACY_MOVES` rather than reading the old key anywhere:
+generators read canonical paths only. `ResolvedAeoConfig` is frozen at the 1.0 shape and must not
+grow.
 
 ## CI and compatibility
 

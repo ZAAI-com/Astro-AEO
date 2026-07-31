@@ -66,7 +66,7 @@ export default defineConfig({
 astro build
 ```
 
-Out of the box you get: a `.md` companion beside every page, `llms.txt` and `llms-full.txt` at the site root, an alternate link tag on every page, and a sitemap (via the auto-wired `@astrojs/sitemap`). Enable `robotsTxt`, `domainProfile`, and `urlMap` when you want them.
+Out of the box you get: a `.md` companion beside every page, `llms.txt` and `llms-full.txt` at the site root, an alternate link tag on every page, and a sitemap (via the auto-wired `@astrojs/sitemap`). Enable `discovery.robots`, `site.profile`, and `corpus.urlMap` when you want them.
 
 ## Configuration
 
@@ -74,93 +74,152 @@ All options are optional. Defaults are shown.
 
 ```js
 aeo({
-  include: ['**'],                 // path globs to include
-  exclude: [],                     // path globs to exclude, e.g. ['/drafts/**']
-  respectNoindex: true,            // skip pages with <meta name="robots" content="noindex">
-  stripTitleSuffix: false,         // strip " | Your Brand" from titles: string | string[] | RegExp
+  site: {
+    name: '',                        // llms.txt heading; falls back to profile, <title>, hostname
+    description: '',
 
-  dotmd: {
+    profile: {                       // /.well-known/domain-profile.json
+      enabled: false,
+      name: '',                          // e.g. 'Your Site'
+      description: '',                   // e.g. 'What your site is about.'
+      website: '',                       // defaults to the Astro `site`
+      email: '',                         // '@' -> email, http(s) -> contactPoint, else telephone
+      logo: '',
+      sameAs: [],
+      entityType: 'Organization',        // Organization | Person | Blog | ...
+    },
+  },
+
+  pages: {
+    include: ['**'],                 // path globs to include
+    exclude: [],                     // path globs to exclude, e.g. ['/drafts/**']
+    respectNoindex: true,            // skip pages with <meta name="robots" content="noindex">
+    stripTitleSuffix: false,         // strip " | Your Brand" from titles: string | string[] | RegExp
+  },
+
+  markdown: {                        // the .md companions
     enabled: true,
-    linkTag: 'auto',               // 'auto' | 'always' | 'never'
+    alternateLink: 'auto',           // 'auto' | 'always' | 'never'
     includeLastModified: true,
-    frontmatter: false,            // prepend YAML frontmatter to .md files
+    frontmatter: false,              // prepend YAML frontmatter to .md files
   },
 
-  llmsTxt: {
-    enabled: true,
-    sections: [{ title: 'Home', match: '/' }],  // ordered, first match wins
-    defaultSection: 'Pages',       // section for unmatched pages, or false to drop them
-    includeDescriptions: true,
-    showLastmod: false,
-    includeNoDotmd: false,         // list no-dotmd pages (linking to HTML) instead of omitting them
+  corpus: {
+    index: {                         // llms.txt
+      enabled: true,
+      sections: [{ title: 'Home', match: '/' }],  // ordered, first match wins
+      defaultSection: 'Pages',       // section for unmatched pages, or false to drop them
+      includeDescriptions: true,
+      showLastModified: false,
+      includeHtmlOnly: false,        // list no-dotmd pages (linking to HTML) instead of omitting them
+    },
+
+    full: {                          // llms-full.txt
+      enabled: true,
+      mode: 'all',                   // 'all' | 'index' | 'first-page-only'
+    },
+
+    urlMap: {
+      enabled: false,
+      outputFilepath: 'docs/Url-Map.md',
+    },
   },
 
-  llmsFullTxt: {
-    enabled: true,
-    mode: 'all',                   // 'all' | 'index' | 'first-page-only'
-  },
+  discovery: {
+    sitemap: {
+      mode: 'auto',                  // 'auto' | 'external' | 'disabled'
+      options: {},                   // forwarded when auto-wired; filenameBase also hints user-owned output
 
-  robotsTxt: {
-    enabled: false,
-    universalAllow: true,              // lead with "User-agent: * / Allow: /" (suppressed if '*' is named below)
-    allow: ['Googlebot', 'OAI-SearchBot', 'ChatGPT-User', 'Claude-SearchBot', 'PerplexityBot'],
-    disallow: ['GPTBot', 'ClaudeBot', 'Google-Extended'],
-    includeSitemap: undefined,          // omitted = auto-detect; true = force; false = omit
-    sitemapPath: '/sitemap-index.xml',  // defaults to the @astrojs/sitemap output name (tracks filenameBase)
-    includeLlmsTxt: true,
-    extraLines: [],
-  },
+      alias: {
+        enabled: true,               // mirror the generated index when /sitemap.xml is free
+        sourceFilename: 'sitemap-index.xml',  // defaults to the @astrojs/sitemap filenameBase output
+        outputFilename: 'sitemap.xml',        // conventional filename written at the build root
+      },
+    },
 
-  domainProfile: {
-    enabled: false,
-    name: 'Your Site',
-    description: 'What your site is about.',
-    website: 'https://yoursite.com',   // defaults to the Astro `site`
-    email: 'hello@yoursite.com',       // '@' -> email, http(s) -> contactPoint, else telephone
-    logo: 'https://yoursite.com/logo.png',
-    sameAs: ['https://github.com/you'],
-    entityType: 'Organization',        // Organization | Person | Blog | ...
-  },
-
-  urlMap: {
-    enabled: false,
-    outputFilepath: 'docs/Url-Map.md',
-  },
-
-  sitemap: {
-    enabled: true,                 // auto-wire @astrojs/sitemap when no sitemap is present
-    options: {},                   // forwarded when auto-wired; filenameBase also hints user-owned output
-  },
-
-  sitemapAlias: {
-    enabled: true,                 // mirror the generated index when /sitemap.xml is free
-    sourceFilename: 'sitemap-index.xml',  // defaults to the @astrojs/sitemap filenameBase output
-    outputFilename: 'sitemap.xml', // conventional filename written at the build root
+    robots: {
+      enabled: false,
+      universalAllow: true,              // lead with "User-agent: * / Allow: /" (suppressed if '*' is named below)
+      allow: [],                          // e.g. ['Googlebot', 'OAI-SearchBot', 'Claude-SearchBot']
+      disallow: [],                       // e.g. ['GPTBot', 'ClaudeBot', 'Google-Extended']
+      includeSitemap: undefined,          // omitted = auto-detect; true = force; false = omit
+      sitemapPath: '/sitemap-index.xml',  // defaults to the @astrojs/sitemap output name (tracks filenameBase)
+      includeLlmsTxt: true,
+      extraLines: [],
+    },
   },
 });
 ```
 
+### Migrating from 1.0
+
+Every 1.0 key still works and produces byte-identical output. Using one emits a
+single deprecation warning per section; the 1.0 keys are removed in 2.0.
+
+| 1.0 | 1.1 |
+| --- | --- |
+| `include`, `exclude`, `respectNoindex`, `stripTitleSuffix` | `pages.*` |
+| `dotmd.enabled`, `dotmd.includeLastModified`, `dotmd.frontmatter` | `markdown.*` |
+| `dotmd.linkTag` | `markdown.alternateLink` |
+| `dotmd.dotmdMetadata` | `markdown.frontmatter` |
+| `llmsTxt.*` | `corpus.index.*` |
+| `llmsTxt.showLastmod` | `corpus.index.showLastModified` |
+| `llmsTxt.includeNoDotmd` | `corpus.index.includeHtmlOnly` |
+| `llmsFullTxt.*` | `corpus.full.*` |
+| `urlMap.*` | `corpus.urlMap.*` |
+| `sitemap.enabled: true` / `false` | `discovery.sitemap.mode: 'auto'` / `'external'` |
+| `sitemap.options` | `discovery.sitemap.options` |
+| `sitemapAlias.*` | `discovery.sitemap.alias.*` |
+| `robotsTxt.*` | `discovery.robots.*` |
+| `domainProfile.*` | `site.profile.*` |
+| `domainProfile.contact` | `site.profile.email` |
+
+To see the canonical replacement for your own config, build once with the printer on:
+
+```bash
+AEO_PRINT_MIGRATION=1 astro build
+```
+
+It prints a paste-ready block derived from the keys you actually set. Functions and
+regular expressions appear as placeholders, so copy those by hand.
+
+Two rules are worth knowing:
+
+- You can mix eras as long as they address different settings. Setting a 1.0 key and
+  its 1.1 replacement to **different** values is a build-stopping error naming both
+  paths, because silently picking one could publish the wrong `robots.txt` policy.
+- Values compare structurally, but callbacks compare by reference. Pasting the same
+  `match` function into both `llmsTxt.sections` and `corpus.index.sections` is
+  reported as a conflict: delete one.
+
+`sitemap.enabled: false` maps to `mode: 'external'`, not `'disabled'`. It never meant
+"no sitemap", only "do not auto-register `@astrojs/sitemap`"; a sitemap you register
+yourself stayed in use. The new `disabled` mode, which has no 1.0 equivalent, opts out
+of sitemap handling entirely.
+
 ### Sitemap
 
-Astro-AEO does not generate sitemap XML itself; it defers to the official [`@astrojs/sitemap`](https://docs.astro.build/en/guides/integrations-guide/sitemap/) integration, which handles the hard parts (index splitting past 50k URLs, i18n alternates, `lastmod`). With `sitemap.enabled` (the default) and Astro `site` set, Astro-AEO auto-registers `@astrojs/sitemap` when you have not added it yourself. After sitemap generation finishes, Astro-AEO verifies the configured file exists before adding the `Sitemap:` line to `robots.txt`. If filtering, serialization, or an empty site produces no index, the line is omitted instead of advertising a 404.
+Astro-AEO does not generate sitemap XML itself; it defers to the official [`@astrojs/sitemap`](https://docs.astro.build/en/guides/integrations-guide/sitemap/) integration, which handles the hard parts (index splitting past 50k URLs, i18n alternates, `lastmod`). With `discovery.sitemap.mode: 'auto'` (the default) and Astro `site` set, Astro-AEO auto-registers `@astrojs/sitemap` when you have not added it yourself. After sitemap generation finishes, Astro-AEO verifies the configured file exists before adding the `Sitemap:` line to `robots.txt`. If filtering, serialization, or an empty site produces no index, the line is omitted instead of advertising a 404.
 
 - Already using `@astrojs/sitemap`? Astro-AEO detects it and stays out of the way (no double registration); your configuration is used as-is.
 - Want to tune the auto-registered sitemap? Pass options straight through:
 
 ```js
 aeo({
-  sitemap: {
-    options: {
-      changefreq: 'weekly',
-      filter: (page) => !page.includes('/drafts/'),
+  discovery: {
+    sitemap: {
+      options: {
+        changefreq: 'weekly',
+        filter: (page) => !page.includes('/drafts/'),
+      },
     },
   },
 });
 ```
 
-Set `sitemap.enabled: false` to disable auto-registration. A user-registered sitemap is still detected and finalized.
+Set `discovery.sitemap.mode: 'external'` to disable auto-registration. A user-registered sitemap is still detected and finalized. Use `'disabled'` to opt out of sitemap handling entirely, including the alias and the `robots.txt` `Sitemap:` line.
 
-For a separately registered sitemap with a custom `filenameBase`, repeat that value in Astro-AEO as the shared output-name hint. Other `sitemap.options` are ignored when the user owns the integration, but `filenameBase` keeps the alias source and default robots path aligned:
+For a separately registered sitemap with a custom `filenameBase`, repeat that value in Astro-AEO as the shared output-name hint. Other `discovery.sitemap.options` are ignored when the user owns the integration, but `filenameBase` keeps the alias source and default robots path aligned:
 
 ```js
 import sitemap from '@astrojs/sitemap';
@@ -168,30 +227,34 @@ import sitemap from '@astrojs/sitemap';
 integrations: [
   sitemap({ filenameBase: 'docs' }),
   aeo({
-    sitemap: {
-      enabled: false,
-      options: { filenameBase: 'docs' },
+    discovery: {
+      sitemap: {
+        mode: 'external',
+        options: { filenameBase: 'docs' },
+      },
     },
   }),
 ],
 ```
 
-By default `@astrojs/sitemap` names its index `sitemap-index.xml` (a custom `filenameBase` makes it `${filenameBase}-index.xml`), so a request for the conventional `/sitemap.xml` returns 404. With `sitemapAlias.enabled` (the default), Astro-AEO byte-copies the generated index to `/sitemap.xml` after generation. The copy is byte-identical, but it is created only when the source exists and the target does not. Any existing build output wins, including a file from `public/`, a prerendered Astro endpoint, or another integration. Remove that output if you want Astro-AEO to provide the alias instead.
+By default `@astrojs/sitemap` names its index `sitemap-index.xml` (a custom `filenameBase` makes it `${filenameBase}-index.xml`), so a request for the conventional `/sitemap.xml` returns 404. With `discovery.sitemap.alias.enabled` (the default), Astro-AEO byte-copies the generated index to `/sitemap.xml` after generation. The copy is byte-identical, but it is created only when the source exists and the target does not. Any existing build output wins, including a file from `public/`, a prerendered Astro endpoint, or another integration. Remove that output if you want Astro-AEO to provide the alias instead.
 
-`robotsTxt.sitemapPath` defaults to the tracked sitemap output name (`/sitemap-index.xml`, or `/${filenameBase}-index.xml`). When `includeSitemap` is omitted, Astro-AEO automatically emits the line only if that path exists in the static build. Set `includeSitemap: true` to force the line for an SSR or runtime-only sitemap, or `false` to suppress it. In `astro dev`, automatic mode recognizes public files and concrete Astro routes but does not advertise the build-only `@astrojs/sitemap` output.
+`discovery.robots.sitemapPath` defaults to the tracked sitemap output name (`/sitemap-index.xml`, or `/${filenameBase}-index.xml`). When `includeSitemap` is omitted, Astro-AEO automatically emits the line only if that path exists in the static build. Set `includeSitemap: true` to force the line for an SSR or runtime-only sitemap, or `false` to suppress it. In `astro dev`, automatic mode recognizes public files and concrete Astro routes but does not advertise the build-only `@astrojs/sitemap` output.
 
 ### Sections
 
-`llmsTxt.sections` groups pages in `llms.txt`. Each rule has a `title` and a `match` that is a glob string, an array of globs, a RegExp, or a predicate `(page) => boolean`. Rules are evaluated in order, first match wins. Empty sections are dropped. Pages matching no rule fall into `defaultSection`.
+`corpus.index.sections` groups pages in `llms.txt`. Each rule has a `title` and a `match` that is a glob string, an array of globs, a RegExp, or a predicate `(page) => boolean`. Rules are evaluated in order, first match wins. Empty sections are dropped. Pages matching no rule fall into `defaultSection`.
 
 ```js
-llmsTxt: {
-  sections: [
-    { title: 'Home', match: '/' },
-    { title: 'Guides', match: '/guides/**' },
-    { title: 'Blog', match: /^\/\d{4}\/[^/]+$/ },
-  ],
-  defaultSection: 'Pages',
+corpus: {
+  index: {
+    sections: [
+      { title: 'Home', match: '/' },
+      { title: 'Guides', match: '/guides/**' },
+      { title: 'Blog', match: /^\/\d{4}\/[^/]+$/ },
+    ],
+    defaultSection: 'Pages',
+  },
 }
 ```
 
@@ -199,11 +262,11 @@ Globs are segment-aware: `*` stays inside one path segment, `**` crosses segment
 
 ### The universal robots.txt group
 
-`robotsTxt.universalAllow` (default `true`) makes `robots.txt` lead with a `User-agent: *` / `Allow: /` group, so unlisted crawlers see an explicit open policy even when you also name specific bots in `allow`/`disallow`. It is suppressed automatically if you already declare a `User-agent: *` group yourself (via `allow`, `disallow`, or `extraLines`), so there is no duplicate group. Set it to `false` for a named-bots-only policy.
+`discovery.robots.universalAllow` (default `true`) makes `robots.txt` lead with a `User-agent: *` / `Allow: /` group, so unlisted crawlers see an explicit open policy even when you also name specific bots in `allow`/`disallow`. It is suppressed automatically if you already declare a `User-agent: *` group yourself (via `allow`, `disallow`, or `extraLines`), so there is no duplicate group. Set it to `false` for a named-bots-only policy.
 
-### domainProfile email
+### Profile email
 
-`domainProfile.email` is routed into the schema.org profile by value shape: an `http(s)` URL becomes a `contactPoint` (`{ '@type': 'ContactPoint', url }`), a value containing `@` becomes `email`, and anything else becomes `telephone`. The old `contact` key is a deprecated alias for `email`; it still works but emits a deprecation warning.
+`site.profile.email` is routed into the schema.org profile by value shape: an `http(s)` URL becomes a `contactPoint` (`{ '@type': 'ContactPoint', url }`), a value containing `@` becomes `email`, and anything else becomes `telephone`. The old `domainProfile.contact` key is a deprecated alias; it still works but emits a deprecation warning.
 
 ### Serving .md companions
 

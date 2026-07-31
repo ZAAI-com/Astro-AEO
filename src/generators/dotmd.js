@@ -40,8 +40,8 @@ export function matchMarkdownAlternateLinks(html) {
  * @returns {number} count of .md files written
  */
 export function emitDotMd(pages, config) {
-  if (!config.dotmd.enabled) return 0;
-  const { includeLastModified, frontmatter, linkTag } = config.dotmd;
+  if (!config.markdown.enabled) return 0;
+  const { includeLastModified, frontmatter, alternateLink } = config.markdown;
   let written = 0;
 
   for (const page of pages) {
@@ -68,7 +68,7 @@ export function emitDotMd(pages, config) {
     writeFileSync(page.mdPath, body, 'utf8');
     written++;
 
-    if (linkTag !== 'never') injectAlternateLink(page, linkTag);
+    if (alternateLink !== 'never') injectAlternateLink(page, alternateLink);
   }
 
   return written;

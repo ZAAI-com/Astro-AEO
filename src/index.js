@@ -4,7 +4,6 @@ import sitemap from '@astrojs/sitemap';
 import { resolveConfig } from './config.js';
 import {
   resolveSitemapPlan,
-  resolveSitemapPolicy,
   sitemapPathExists,
   sitemapPathMatchesRoute,
 } from './lib/sitemap.js';
@@ -30,12 +29,10 @@ export default function aeo(userConfig = {}) {
   let projectRoot = '';
   /** @type {URL | undefined} */
   let publicDir;
-  const sitemapPolicy = resolveSitemapPolicy(userConfig.robotsTxt?.includeSitemap);
   const sitemapState = {
     expected: false,
     siteUrl: '',
     base: '',
-    sitemapPolicy,
   };
   /** @type {Map<string, string>} */
   const routeEntrypoints = new Map();
@@ -54,7 +51,7 @@ export default function aeo(userConfig = {}) {
           (i) => i && i.name === '@astrojs/sitemap',
         );
         const plan = resolveSitemapPlan({
-          enabled: config.sitemap.enabled,
+          mode: config.discovery.sitemap.mode,
           hasUserSitemap,
           hasSite: Boolean(astroConfig.site),
         });
@@ -66,9 +63,9 @@ export default function aeo(userConfig = {}) {
         // create the alias, and only then write robots.txt.
         const added = [];
         if (plan.register) {
-          added.push(sitemap(/** @type {any} */ (config.sitemap.options)));
+          added.push(sitemap(/** @type {any} */ (config.discovery.sitemap.options)));
         }
-        if (config.sitemapAlias.enabled || config.robotsTxt.enabled) {
+        if (config.discovery.sitemap.alias.enabled || config.discovery.robots.enabled) {
           added.push(sitemapFinalizerIntegration(config, sitemapState));
         }
         if (added.length) updateConfig({ integrations: added });
@@ -110,10 +107,9 @@ export default function aeo(userConfig = {}) {
             siteUrl,
             base,
             trailingSlash,
-            sitemapPolicy,
             isSitemapAvailable: () =>
-              (publicDir ? sitemapPathExists(publicDir, config.robotsTxt.sitemapPath) : false) ||
-              sitemapPathMatchesRoute(config.robotsTxt.sitemapPath, [...resolvedRoutePaths]),
+              (publicDir ? sitemapPathExists(publicDir, config.discovery.robots.sitemapPath) : false) ||
+              sitemapPathMatchesRoute(config.discovery.robots.sitemapPath, [...resolvedRoutePaths]),
             getStaticPaths: () => [...routeEntrypoints.keys()],
             logger,
           }),
@@ -140,7 +136,7 @@ export default function aeo(userConfig = {}) {
  * according to the configured auto/always/never policy.
  *
  * @param {ReturnType<typeof resolveConfig>} config
- * @param {{ expected: boolean; siteUrl: string; base: string; sitemapPolicy: 'auto'|'always'|'never' }} state
+ * @param {{ expected: boolean; siteUrl: string; base: string }} state
  * @returns {import('astro').AstroIntegration}
  */
 function sitemapFinalizerIntegration(config, state) {
@@ -151,7 +147,6 @@ function sitemapFinalizerIntegration(config, state) {
         finalizeSitemapOutputs(dir, config, {
           siteUrl: state.siteUrl,
           base: state.base,
-          sitemapPolicy: state.sitemapPolicy,
           sitemapExpected: state.expected,
           logger,
         });

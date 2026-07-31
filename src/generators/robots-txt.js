@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
  * @returns {string}
  */
 export function buildRobotsTxt(config, siteUrl, base = '', sitemapAvailable = true) {
-  const { universalAllow, allow, disallow, includeSitemap, sitemapPath, includeLlmsTxt, extraLines } = config.robotsTxt;
+  const { universalAllow, allow, disallow, includeSitemap, sitemapPath, includeLlmsTxt, extraLines } = config.discovery.robots;
   const b = base && base !== '/' ? base.replace(/\/$/, '') : '';
   const lines = [];
 
@@ -32,7 +32,7 @@ export function buildRobotsTxt(config, siteUrl, base = '', sitemapAvailable = tr
   for (const bot of disallow) lines.push(`User-agent: ${bot}`, 'Disallow: /', '');
 
   if (includeSitemap && sitemapAvailable && siteUrl) lines.push(`Sitemap: ${siteUrl}${b}${sitemapPath}`);
-  if (includeLlmsTxt && config.llmsTxt.enabled && siteUrl) {
+  if (includeLlmsTxt && config.corpus.index.enabled && siteUrl) {
     // Not a standard robots directive; emitted as a comment as a hint for
     // humans and crawlers. Primary discovery is the per-page alternate link.
     lines.push(`# llms.txt: ${siteUrl}${b}/llms.txt`);
@@ -54,7 +54,7 @@ export function buildRobotsTxt(config, siteUrl, base = '', sitemapAvailable = tr
  * @param {boolean} [sitemapAvailable]  Whether to emit the Sitemap line.
  */
 export function emitRobotsTxt(distDir, config, siteUrl, logger, base = '', sitemapAvailable = true) {
-  if (!config.robotsTxt.enabled) return;
+  if (!config.discovery.robots.enabled) return;
   const outPath = join(fileURLToPath(distDir), 'robots.txt');
   if (existsSync(outPath) && logger) {
     logger.warn('astro-aeo: overwriting an existing robots.txt in the build output');

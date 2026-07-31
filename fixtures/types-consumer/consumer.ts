@@ -9,11 +9,16 @@ import type {
   AeoPage,
   AstroAeoConfig,
   CanonicalAeoConfig,
+  CorpusOptions,
+  DiscoveryOptions,
   EntityType,
+  MarkdownOptions,
+  PagesOptions,
   ResolvedAeoConfig,
   ResolvedAstroAeoConfig,
   SectionRule,
   SiteOptions,
+  SitemapPolicy,
 } from 'astro-aeo';
 import type {
   ArticleJsonLdProps,
@@ -64,25 +69,50 @@ export const resolvedEntity: EntityType = resolved.domainProfile.entityType;
 // an assertion written there would never be evaluated. These reads are the actual
 // drift guard: they run in a real .ts consumer, on the oldest supported compiler.
 declare const resolvedCanonical: ResolvedAstroAeoConfig;
-export const rLinkTag: 'auto' | 'always' | 'never' = resolvedCanonical.dotmd.linkTag;
-export const rMode: 'all' | 'index' | 'first-page-only' = resolvedCanonical.llmsFullTxt.mode;
+export const rAlternateLink: 'auto' | 'always' | 'never' = resolvedCanonical.markdown.alternateLink;
+export const rMode: 'all' | 'index' | 'first-page-only' = resolvedCanonical.corpus.full.mode;
 export const rEntity: EntityType = resolvedCanonical.site.profile.entityType;
-export const rSections: SectionRule[] = resolvedCanonical.llmsTxt.sections;
-export const rStrip: string | string[] | RegExp | false = resolvedCanonical.stripTitleSuffix;
+export const rSections: SectionRule[] = resolvedCanonical.corpus.index.sections;
+export const rDefaultSection: string | false = resolvedCanonical.corpus.index.defaultSection;
+export const rStrip: string | string[] | RegExp | false = resolvedCanonical.pages.stripTitleSuffix;
+export const rInclude: string[] = resolvedCanonical.pages.include;
 // A free-form passthrough must stay assignable to Record<string, unknown>. The
 // derived type this replaced collapsed it to Record<string, {}>, which forced a
 // cast at the one place that builds it.
-export const rSitemapOptions: Record<string, unknown> = resolvedCanonical.sitemap.options;
+export const rSitemapOptions: Record<string, unknown> = resolvedCanonical.discovery.sitemap.options;
+// A resolved-only field with no public counterpart. A type derived from the public
+// shape could not express this, which is why the resolved config is hand-written.
+export const rPolicy: SitemapPolicy = resolvedCanonical.discovery.robots.sitemapPolicy;
+export const rMode2: 'auto' | 'external' | 'disabled' = resolvedCanonical.discovery.sitemap.mode;
 
 // The canonical and legacy halves compose into the public type.
 export const canonicalOnly: CanonicalAeoConfig = { site: { name: 'Example' } };
 export const siteOpts: SiteOptions = { name: 'Example', description: 'An example site.' };
+export const pageOpts: PagesOptions = { include: ['**'], exclude: ['/private/**'], respectNoindex: true };
+export const mdOpts: MarkdownOptions = { enabled: true, alternateLink: 'auto', frontmatter: true };
+export const discoveryOpts: DiscoveryOptions = {
+  sitemap: { mode: 'external', options: { filenameBase: 'sitemap' }, alias: { enabled: true } },
+  robots: { enabled: true, allow: ['GPTBot'], includeSitemap: true },
+};
+export const corpusOpts: CorpusOptions = {
+  index: { sections, defaultSection: 'Pages', showLastModified: true, includeHtmlOnly: false },
+  full: { mode: 'index' },
+  urlMap: { enabled: false, outputFilepath: 'docs/Url-Map.md' },
+};
 
 // A 1.0 block and its 1.1 replacement must both typecheck in one literal: the
 // runtime accepts the combination and only errors when the two values disagree.
 export const mixedEras: AstroAeoConfig = {
   domainProfile: { enabled: true },
   site: { profile: { name: 'Example', entityType: 'Organization' } },
+  exclude: ['/private/**'],
+  pages: { respectNoindex: true },
+  dotmd: { includeLastModified: true },
+  markdown: { frontmatter: true },
+  llmsFullTxt: { enabled: true },
+  corpus: { index: { includeDescriptions: true } },
+  robotsTxt: { universalAllow: true },
+  discovery: { robots: { enabled: true } },
 };
 
 // Component prop types are exported and structurally usable.
@@ -112,3 +142,17 @@ export const badLinkTag: AstroAeoConfig = { dotmd: { linkTag: 'sometimes' } };
 export const badProfileEntity: AstroAeoConfig = { site: { profile: { entityType: 'Spaceship' } } };
 // @ts-expect-error `contact` was not carried into the canonical profile, only `email`
 export const noProfileContact: AstroAeoConfig = { site: { profile: { contact: 'hi@x.com' } } };
+// @ts-expect-error pages.include is a string array, not a single glob
+export const badInclude: AstroAeoConfig = { pages: { include: '/blog/**' } };
+// @ts-expect-error markdown.alternateLink is a closed union
+export const badAlternate: AstroAeoConfig = { markdown: { alternateLink: 'sometimes' } };
+// @ts-expect-error `linkTag` was renamed to `alternateLink` in the canonical block
+export const noMarkdownLinkTag: AstroAeoConfig = { markdown: { linkTag: 'auto' } };
+// @ts-expect-error corpus.full.mode is a closed union
+export const badCorpusMode: AstroAeoConfig = { corpus: { full: { mode: 'everything' } } };
+// @ts-expect-error `showLastmod` was renamed to `showLastModified` in the canonical block
+export const noShowLastmod: AstroAeoConfig = { corpus: { index: { showLastmod: true } } };
+// @ts-expect-error discovery.sitemap.mode is a closed union
+export const badSitemapMode: AstroAeoConfig = { discovery: { sitemap: { mode: 'on' } } };
+// @ts-expect-error sitemapPolicy is resolved-only and has no public counterpart
+export const noPublicPolicy: AstroAeoConfig = { discovery: { robots: { sitemapPolicy: 'auto' } } };

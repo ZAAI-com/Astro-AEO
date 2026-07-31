@@ -3,6 +3,10 @@ dist/
 .astro/
 fixtures/demo/dist/
 fixtures/demo/.astro/
+# The config-compat fixture builds twice, once per configuration era, and diffs them.
+fixtures/config-compat/dist-legacy/
+fixtures/config-compat/dist-canonical/
+fixtures/config-compat/.astro/
 fixtures/demo/node_modules/
 *.log
 .DS_Store

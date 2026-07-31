@@ -45,18 +45,18 @@ export async function onBuildDone(config, options, env) {
   );
 
   const written = emitDotMd(pages, config);
-  if (config.dotmd.enabled) logger.info(`astro-aeo: emitted ${written} .md companion files`);
+  if (config.markdown.enabled) logger.info(`astro-aeo: emitted ${written} .md companion files`);
 
   emitLlmsTxt(pages, dir, config, siteName, siteDescription);
   emitLlmsFullTxt(pages, dir, config, siteName, siteDescription);
-  if (config.llmsTxt.enabled) logger.info('astro-aeo: emitted /llms.txt');
-  if (config.llmsFullTxt.enabled) logger.info('astro-aeo: emitted /llms-full.txt');
+  if (config.corpus.index.enabled) logger.info('astro-aeo: emitted /llms.txt');
+  if (config.corpus.full.enabled) logger.info('astro-aeo: emitted /llms-full.txt');
 
   emitDomainProfile(dir, config, env.siteUrl);
   if (config.site.profile.enabled) logger.info('astro-aeo: emitted /.well-known/domain-profile.json');
 
-  if (config.urlMap.enabled) {
+  if (config.corpus.urlMap.enabled) {
     emitUrlMap(pages, config, env.projectRoot, new Date());
-    logger.info(`astro-aeo: emitted ${config.urlMap.outputFilepath}`);
+    logger.info(`astro-aeo: emitted ${config.corpus.urlMap.outputFilepath}`);
   }
 }

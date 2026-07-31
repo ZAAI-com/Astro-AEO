@@ -30,9 +30,9 @@ export function resolveWithinRoot(projectRoot, filepath) {
  * @param {Date} generatedAt
  */
 export function emitUrlMap(pages, config, projectRoot, generatedAt) {
-  if (!config.urlMap.enabled) return;
+  if (!config.corpus.urlMap.enabled) return;
 
-  const outPath = resolveWithinRoot(projectRoot, config.urlMap.outputFilepath);
+  const outPath = resolveWithinRoot(projectRoot, config.corpus.urlMap.outputFilepath);
 
   const stamp = generatedAt.toISOString().slice(0, 19).replace('T', ' at ');
   const lines = [

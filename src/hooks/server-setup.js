@@ -19,7 +19,6 @@ import { isIncluded } from '../lib/match.js';
  * @param {string} deps.siteUrl
  * @param {string} deps.base
  * @param {'always'|'never'|'ignore'} deps.trailingSlash
- * @param {'auto'|'always'|'never'} [deps.sitemapPolicy]
  * @param {() => boolean} [deps.isSitemapAvailable]
  * @param {() => string[]} [deps.getStaticPaths]
  * @param {{ warn: (m: string) => void }} deps.logger
@@ -31,11 +30,10 @@ export function createAeoMiddleware(deps) {
     siteUrl,
     base,
     trailingSlash,
-    sitemapPolicy = 'auto',
     isSitemapAvailable = () => false,
     getStaticPaths,
   } = deps;
-  const strip = makeTitleStripper(config.stripTitleSuffix);
+  const strip = makeTitleStripper(config.pages.stripTitleSuffix);
   const td = createTurndown();
   const basePrefix = base && base !== '/' ? base.replace(/\/$/, '') : '';
 
@@ -60,10 +58,9 @@ export function createAeoMiddleware(deps) {
     const proto = req.headers['x-forwarded-proto'] || 'http';
     const origin = req.headers.host ? `${proto}://${req.headers.host}` : null;
 
-    if (pathname === '/robots.txt' && config.robotsTxt.enabled) {
-      const sitemapAvailable =
-        sitemapPolicy === 'always' ||
-        (sitemapPolicy === 'auto' && isSitemapAvailable());
+    if (pathname === '/robots.txt' && config.discovery.robots.enabled) {
+      const policy = config.discovery.robots.sitemapPolicy;
+      const sitemapAvailable = policy === 'always' || (policy === 'auto' && isSitemapAvailable());
       return send(res, 200, 'text/plain; charset=utf-8', buildRobotsTxt(config, siteUrl, base, sitemapAvailable), method);
     }
 
@@ -74,17 +71,17 @@ export function createAeoMiddleware(deps) {
 
     if (!origin) return next();
 
-    if (pathname === '/llms.txt' && config.llmsTxt.enabled) {
+    if (pathname === '/llms.txt' && config.corpus.index.enabled) {
       serveLlmsIndex(origin, false).then((body) => (body == null ? next() : send(res, 200, 'text/plain; charset=utf-8', body, method)), next);
       return;
     }
 
-    if (pathname === '/llms-full.txt' && config.llmsFullTxt.enabled) {
+    if (pathname === '/llms-full.txt' && config.corpus.full.enabled) {
       serveLlmsIndex(origin, true).then((body) => (body == null ? next() : send(res, 200, 'text/plain; charset=utf-8', body, method)), next);
       return;
     }
 
-    if (pathname.endsWith('.md') && config.dotmd.enabled) {
+    if (pathname.endsWith('.md') && config.markdown.enabled) {
       serveMarkdown(origin, pathname).then((body) => (body == null ? next() : send(res, 200, 'text/markdown; charset=utf-8', body, method)), next);
       return;
     }
@@ -101,7 +98,7 @@ export function createAeoMiddleware(deps) {
   async function fetchPage(origin, pageUrlPath) {
     // Mirror the build's include/exclude filter (collectPages) so excluded pages
     // are never served as .md or listed in llms.txt during `astro dev`.
-    if (!isIncluded(pageUrlPath, { include: config.include, exclude: config.exclude })) return null;
+    if (!isIncluded(pageUrlPath, { include: config.pages.include, exclude: config.pages.exclude })) return null;
     let html;
     try {
       const resp = await fetch(`${origin}${basePrefix}${urlPath(pageUrlPath, trailingSlash)}`, {
@@ -116,7 +113,7 @@ export function createAeoMiddleware(deps) {
     }
     const meta = extractPageMeta(html, strip);
     if (meta.isRedirect || meta.aeoTokens.has('skip')) return null;
-    if (config.respectNoindex && meta.noindex) return null;
+    if (config.pages.respectNoindex && meta.noindex) return null;
     return {
       pathname: pageUrlPath,
       url: absoluteUrl(siteUrl || origin, base, pageUrlPath, trailingSlash),
@@ -138,7 +135,7 @@ export function createAeoMiddleware(deps) {
     const page = await fetchPage(origin, pagePath);
     if (!page || page.aeoTokens.has('no-dotmd')) return null;
     let body = '';
-    if (config.dotmd.frontmatter) {
+    if (config.markdown.frontmatter) {
       body += '---\n';
       body += `title: ${JSON.stringify(page.title)}\n`;
       body += `url: ${page.url}\n`;
@@ -179,8 +176,8 @@ export function createAeoMiddleware(deps) {
     const eligible = collected.filter((p) => isLlmsEligible(p, config));
     const groups = groupSections(
       /** @type {any} */ (eligible),
-      config.llmsTxt.sections,
-      config.llmsTxt.defaultSection,
+      config.corpus.index.sections,
+      config.corpus.index.defaultSection,
     );
     const lines = [`# ${name}`, ''];
     if (description) lines.push(`> ${description}`, '');
@@ -189,7 +186,7 @@ export function createAeoMiddleware(deps) {
       lines.push(`## ${group.title}`, '');
       for (const p of group.pages) {
         let line = `- [${p.title}](${llmsEntryHref(p, config)})`;
-        if (config.llmsTxt.includeDescriptions && p.description) line += `: ${p.description}`;
+        if (config.corpus.index.includeDescriptions && p.description) line += `: ${p.description}`;
         lines.push(line);
       }
       lines.push('');

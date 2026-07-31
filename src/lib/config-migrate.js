@@ -218,17 +218,15 @@ function canonicalLabel(section) {
  * `undefined` `robotsTxt.includeSitemap` and an omitted one must both keep meaning
  * "auto", so absence has to survive the lift untouched.
  * @param {Record<string, any>} userConfig
- * @param {Set<string>} [activeSections]  Restrict lifting to these canonical sections.
  * @returns {LiftResult}
  */
-export function liftLegacy(userConfig, activeSections) {
+export function liftLegacy(userConfig) {
   /** @type {Record<string, any>} */
   const lifted = {};
   /** @type {Map<string, LegacyMove[]>} */
   const movesBySection = new Map();
 
   for (const move of LEGACY_MOVES) {
-    if (activeSections && !activeSections.has(move.section)) continue;
     const value = getPath(userConfig, move.from);
     if (value === undefined) continue;
     if (move.supersededBy && getPath(userConfig, move.supersededBy) !== undefined) continue;
@@ -256,11 +254,10 @@ export function liftLegacy(userConfig, activeSections) {
  * the canonical value is used; both set and different, throw.
  * @param {Record<string, any>} userConfig
  * @param {(message: string) => never} onConflict  Called with the assembled error text.
- * @param {Set<string>} [activeSections]  Restrict the merge to these canonical sections.
  * @returns {MergeResult}
  */
-export function mergeLegacy(userConfig, onConflict, activeSections) {
-  const { lifted, movesBySection } = liftLegacy(userConfig, activeSections);
+export function mergeLegacy(userConfig, onConflict) {
+  const { lifted, movesBySection } = liftLegacy(userConfig);
   /** @type {string[]} */
   const warnings = [];
   /** @type {string[]} */
@@ -288,7 +285,8 @@ export function mergeLegacy(userConfig, onConflict, activeSections) {
 
     const groups = [...new Set(moves.map((m) => m.group).filter(Boolean))];
     const blocks = groups.length ? groups.map((g) => `\`${g}\``).join(', ') : 'the top-level page options';
-    const verb = groups.length > 1 ? 'are' : 'is';
+    // Zero groups is the top-level scalar case, whose label ("options") is plural.
+    const verb = groups.length === 1 ? 'is' : 'are';
     const pairs = moves.map((m) => `${m.from} -> ${m.to}`).join(', ');
 
     if (overridden.length === moves.length) {
@@ -311,6 +309,55 @@ export function mergeLegacy(userConfig, onConflict, activeSections) {
   }
 
   return { merged: deepMerge(lifted, userConfig), warnings };
+}
+
+/**
+ * Render the canonical replacement for a project's 1.0 keys as a paste-ready
+ * config block.
+ *
+ * This runs inside Astro, on values that are already loaded, which is why it is
+ * a printer rather than a codemod: rewriting `astro.config.mjs` (or `.ts`) in
+ * place would need a full JS parser to preserve comments, spreads, and imported
+ * constants, and the failure mode of a subtly wrong config is worse than no tool.
+ *
+ * Functions and regular expressions are printed as placeholders, since neither
+ * survives serialization. The caller tells the user to copy those by hand.
+ * @param {Record<string, any>} userConfig
+ * @returns {string | null}  null when there is nothing to migrate.
+ */
+export function printMigration(userConfig) {
+  const { lifted, movesBySection } = liftLegacy(userConfig);
+  if (movesBySection.size === 0) return null;
+
+  const body = renderBlock(lifted, 1);
+  const hasPlaceholder = /\[Function|\/.*\/[gimsuy]*$/m.test(body);
+  return [
+    'astro-aeo: canonical replacement for your 1.0 keys:',
+    '',
+    body,
+    '',
+    hasPlaceholder
+      ? 'Functions and regular expressions are printed as placeholders, copy those by hand.'
+      : null,
+  ]
+    .filter((line) => line !== null)
+    .join('\n');
+}
+
+/**
+ * @param {Record<string, any>} value
+ * @param {number} depth
+ * @returns {string}
+ */
+function renderBlock(value, depth) {
+  const pad = '  '.repeat(depth);
+  return Object.keys(value)
+    .map((key) => {
+      const next = value[key];
+      if (isPlainObject(next)) return `${pad}${key}: {\n${renderBlock(next, depth + 1)}\n${pad}},`;
+      return `${pad}${key}: ${describeValue(next)},`;
+    })
+    .join('\n');
 }
 
 /**

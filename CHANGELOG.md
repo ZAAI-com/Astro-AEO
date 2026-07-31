@@ -6,6 +6,15 @@ All notable changes to this project are documented here. This project follows [S
 
 ### Added
 
+- Canonical nested configuration. Options are now grouped by what they produce: `site` (including
+  `site.profile`), `pages`, `markdown`, `corpus` (`index`, `full`, `urlMap`), and `discovery`
+  (`sitemap`, `sitemap.alias`, `robots`). The flat 1.0 surface had grown to thirteen top-level keys
+  whose names described implementation details (`dotmd`, `llmsTxt`) rather than outputs.
+- `discovery.sitemap.mode`: `'auto'` (auto-register `@astrojs/sitemap`), `'external'` (use a
+  sitemap the project registers itself), or `'disabled'` (opt out entirely, including the alias and
+  the `robots.txt` `Sitemap:` line). `'disabled'` has no 1.0 equivalent.
+- `AEO_PRINT_MIGRATION=1` prints a paste-ready canonical config block derived from the 1.0 keys a
+  project actually sets. It runs inside Astro, so it works for `.mjs` and `.ts` configs alike.
 - `pnpm run test:types`: a consumer typecheck of `fixtures/types-consumer/` against the oldest
   supported TypeScript (the `typescript-floor` devDependency alias, currently 5.5). It imports the
   package through its real `exports` map, so the hand-written `.d.ts` files are covered the way a
@@ -13,8 +22,39 @@ All notable changes to this project are documented here. This project follows [S
 
 ### Changed
 
+- Every 1.0 configuration key still works and produces byte-identical output. This is asserted by
+  building the demo site twice, once fully in 1.0 keys and once fully in 1.1 keys, and diffing the
+  two outputs file by file. Using a 1.0 key emits one deprecation warning per section. They are
+  removed in 2.0.
+- Setting a 1.0 key and its 1.1 replacement to **different** values is now a build-stopping error
+  naming both paths. Silently preferring one could publish the wrong `robots.txt` policy. Mixing
+  eras is fine when the two address different settings.
+- Metadata extraction (description, `aeo` tokens, `robots`, `article:modified_time`, redirect
+  stubs) now shares one quote-aware `<meta>` scanner instead of a regular expression per field.
+  Attribute order, unquoted values, and a `>` inside a quoted value are handled for every field.
+  Previously only `extractMetaContent`, which `extractPageMeta` did not use, was that robust.
+- Unknown-key warnings are emitted at any depth, so a typo in `discovery.sitemap.alias.enabld` is
+  reported as precisely as a top-level one. Options forwarded to `@astrojs/sitemap` are never
+  inspected.
+- The `robots.txt` `Sitemap:` tri-state (omitted, `true`, `false`) is resolved once into the
+  config as `discovery.robots.sitemapPolicy`, rather than being recovered from raw user input in
+  the integration entry point.
 - Dev toolchain and CI actions updated to their latest versions.
-- Maintenance release: no functional or configuration-surface changes for consumers.
+
+### Fixed
+
+- `astro dev` no longer risks handling its own internal page fetches: the `x-astro-aeo` marker it
+  has always sent is now actually checked.
+
+### Types
+
+- `ResolvedAeoConfig` is deprecated and frozen at the 1.0 shape. The resolved config is now
+  `ResolvedAstroAeoConfig`. This is a type-only change: `resolveConfig` is not part of the package
+  `exports` map, so no value of that type was ever obtainable at runtime.
+- The public config type is now `AstroAeoConfig extends CanonicalAeoConfig, LegacyAeoConfig`, and
+  the resolved type is hand-written rather than derived. The previous derived type collapsed
+  `Record<string, unknown>` index signatures to `Record<string, {}>`, which forced a cast on
+  `sitemap.options`.
 
 ## 1.0.0
 

@@ -1,6 +1,7 @@
 // @ts-check
-import { isPlainObject, mergeLegacy } from './lib/config-migrate.js';
+import { isPlainObject, mergeLegacy, printMigration } from './lib/config-migrate.js';
 import { AeoConfigError } from './lib/errors.js';
+import { resolveSitemapPolicy } from './lib/sitemap.js';
 
 /**
  * Default llms.txt sections when the user configures none: a Home rule for "/"
@@ -9,15 +10,6 @@ import { AeoConfigError } from './lib/errors.js';
  * @type {import('./index.js').SectionRule[]}
  */
 const DEFAULT_SECTIONS = [{ title: 'Home', match: '/' }];
-
-/**
- * Canonical sections whose readers have been migrated. Legacy keys outside this
- * set are still read from their 1.0 path further down, so lifting them here would
- * silently drop a canonical value. The set grows one section per step and this
- * whole mechanism disappears once every section has moved.
- * @type {Set<string>}
- */
-const ACTIVE_CANONICAL_SECTIONS = new Set(['site.profile']);
 
 /**
  * Resolve a user config into a fully-defaulted config object.
@@ -38,33 +30,46 @@ export function resolveConfig(rawConfig = {}, logger) {
     (message) => {
       throw new AeoConfigError(message);
     },
-    ACTIVE_CANONICAL_SECTIONS,
   );
   if (logger) for (const warning of warnings) logger.warn(warning);
 
-  const userConfig = /** @type {import('./index.js').AstroAeoConfig} */ (merged);
-
-  const dotmd = userConfig.dotmd ?? {};
-  const frontmatter = dotmd.frontmatter ?? dotmd.dotmdMetadata ?? false;
-  if (dotmd.dotmdMetadata !== undefined && logger) {
-    logger.warn('astro-aeo: `dotmd.dotmdMetadata` is deprecated, use `dotmd.frontmatter`');
+  // Opt-in, because a full config block in the build log is noise for anyone who
+  // is not actively migrating.
+  if (logger && process.env.AEO_PRINT_MIGRATION) {
+    const migration = printMigration(/** @type {Record<string, any>} */ (rawConfig));
+    if (migration) logger.warn(migration);
   }
 
-  const llmsTxt = userConfig.llmsTxt ?? {};
-  const robotsTxt = userConfig.robotsTxt ?? {};
+  const userConfig = /** @type {import('./index.js').AstroAeoConfig} */ (merged);
+
+  const markdown = userConfig.markdown ?? {};
+  const corpusIndex = userConfig.corpus?.index ?? {};
+  const corpusFull = userConfig.corpus?.full ?? {};
+  const corpusUrlMap = userConfig.corpus?.urlMap ?? {};
+  const robots = userConfig.discovery?.robots ?? {};
+  const sitemap = userConfig.discovery?.sitemap ?? {};
+  const alias = sitemap.alias ?? {};
   const profile = userConfig.site?.profile ?? {};
+  const pages = userConfig.pages ?? {};
 
   // The @astrojs/sitemap output name is `${filenameBase}-index.xml` (filenameBase
-  // defaults to 'sitemap'). Resolved once so both the sitemapAlias source and the
+  // defaults to 'sitemap'). Resolved once so both the alias source and the
   // robots.txt Sitemap path track a single source of truth. For a separately
   // registered integration this value is the explicit shared filename hint.
-  const sitemapFilenameBase = userConfig.sitemap?.options?.filenameBase ?? 'sitemap';
+  //
+  // Read from the MERGED config, never from the raw input: a project still using
+  // the 1.0 `sitemap.options` would otherwise fall back to the default base and
+  // advertise `/sitemap-index.xml` while its real file is `${base}-index.xml`.
+  const sitemapFilenameBase = sitemap.options?.filenameBase ?? 'sitemap';
+
+  // The public setting is an optional boolean, and all three states are
+  // meaningful: omitted verifies the build output, true forces the line for a
+  // runtime-only sitemap, false suppresses it. Collapsing to a boolean here would
+  // lose "omitted", so the distinction is resolved into `sitemapPolicy` instead of
+  // being recovered from the raw user config elsewhere.
+  const sitemapPolicy = resolveSitemapPolicy(robots.includeSitemap);
 
   return {
-    include: userConfig.include ?? ['**'],
-    exclude: userConfig.exclude ?? [],
-    respectNoindex: userConfig.respectNoindex ?? true,
-    stripTitleSuffix: userConfig.stripTitleSuffix ?? false,
     site: {
       name: userConfig.site?.name ?? '',
       description: userConfig.site?.description ?? '',
@@ -79,56 +84,66 @@ export function resolveConfig(rawConfig = {}, logger) {
         entityType: profile.entityType ?? 'Organization',
       },
     },
-    dotmd: {
-      enabled: dotmd.enabled ?? true,
-      linkTag: dotmd.linkTag ?? 'auto',
-      includeLastModified: dotmd.includeLastModified ?? true,
-      frontmatter,
-      dotmdMetadata: frontmatter,
+    pages: {
+      include: pages.include ?? ['**'],
+      exclude: pages.exclude ?? [],
+      respectNoindex: pages.respectNoindex ?? true,
+      stripTitleSuffix: pages.stripTitleSuffix ?? false,
     },
-    llmsTxt: {
-      enabled: llmsTxt.enabled ?? true,
-      sections: llmsTxt.sections ?? DEFAULT_SECTIONS,
-      defaultSection: llmsTxt.defaultSection ?? 'Pages',
-      includeDescriptions: llmsTxt.includeDescriptions ?? true,
-      showLastmod: llmsTxt.showLastmod ?? false,
-      includeNoDotmd: llmsTxt.includeNoDotmd ?? false,
+    markdown: {
+      enabled: markdown.enabled ?? true,
+      alternateLink: markdown.alternateLink ?? 'auto',
+      includeLastModified: markdown.includeLastModified ?? true,
+      frontmatter: markdown.frontmatter ?? false,
     },
-    llmsFullTxt: {
-      enabled: userConfig.llmsFullTxt?.enabled ?? true,
-      mode: userConfig.llmsFullTxt?.mode ?? 'all',
+    corpus: {
+      index: {
+        enabled: corpusIndex.enabled ?? true,
+        sections: corpusIndex.sections ?? DEFAULT_SECTIONS,
+        defaultSection: corpusIndex.defaultSection ?? 'Pages',
+        includeDescriptions: corpusIndex.includeDescriptions ?? true,
+        showLastModified: corpusIndex.showLastModified ?? false,
+        includeHtmlOnly: corpusIndex.includeHtmlOnly ?? false,
+      },
+      full: {
+        enabled: corpusFull.enabled ?? true,
+        mode: corpusFull.mode ?? 'all',
+      },
+      urlMap: {
+        enabled: corpusUrlMap.enabled ?? false,
+        outputFilepath: corpusUrlMap.outputFilepath ?? 'docs/Url-Map.md',
+      },
     },
-    urlMap: {
-      enabled: userConfig.urlMap?.enabled ?? false,
-      outputFilepath: userConfig.urlMap?.outputFilepath ?? 'docs/Url-Map.md',
-    },
-    sitemap: {
-      enabled: userConfig.sitemap?.enabled ?? true,
-      // Forwarded verbatim to the @astrojs/sitemap integration (filter,
-      // changefreq, priority, lastmod, i18n, entryLimit, ...).
-      options: userConfig.sitemap?.options ?? {},
-    },
-    sitemapAlias: {
-      enabled: userConfig.sitemapAlias?.enabled ?? true,
-      // Default source tracks the @astrojs/sitemap output name. An explicit
-      // sourceFilename always wins.
-      sourceFilename: userConfig.sitemapAlias?.sourceFilename ?? `${sitemapFilenameBase}-index.xml`,
-      outputFilename: userConfig.sitemapAlias?.outputFilename ?? 'sitemap.xml',
-    },
-    robotsTxt: {
-      enabled: robotsTxt.enabled ?? false,
-      universalAllow: robotsTxt.universalAllow ?? true,
-      allow: robotsTxt.allow ?? [],
-      disallow: robotsTxt.disallow ?? [],
-      // The optional public value is resolved to a boolean for the text builder;
-      // index.js separately preserves omission as the automatic build policy.
-      includeSitemap: robotsTxt.includeSitemap ?? true,
-      // Tracks the @astrojs/sitemap output name. The late finalizer verifies this
-      // root-relative path before it is interpolated as
-      // `${siteUrl}${base}${sitemapPath}` in robots-txt.js.
-      sitemapPath: robotsTxt.sitemapPath ?? `/${sitemapFilenameBase}-index.xml`,
-      includeLlmsTxt: robotsTxt.includeLlmsTxt ?? true,
-      extraLines: robotsTxt.extraLines ?? [],
+    discovery: {
+      sitemap: {
+        mode: sitemap.mode ?? 'auto',
+        // Forwarded verbatim to the @astrojs/sitemap integration (filter,
+        // changefreq, priority, lastmod, i18n, entryLimit, ...).
+        options: sitemap.options ?? {},
+        alias: {
+          enabled: alias.enabled ?? true,
+          // Default source tracks the @astrojs/sitemap output name. An explicit
+          // sourceFilename always wins.
+          sourceFilename: alias.sourceFilename ?? `${sitemapFilenameBase}-index.xml`,
+          outputFilename: alias.outputFilename ?? 'sitemap.xml',
+        },
+      },
+      robots: {
+        enabled: robots.enabled ?? false,
+        universalAllow: robots.universalAllow ?? true,
+        allow: robots.allow ?? [],
+        disallow: robots.disallow ?? [],
+        sitemapPolicy,
+        // Equivalent to the old `includeSitemap ?? true` for all three inputs, but
+        // derived from the policy so the two can never disagree.
+        includeSitemap: sitemapPolicy !== 'never',
+        // Tracks the @astrojs/sitemap output name. The late finalizer verifies this
+        // root-relative path before it is interpolated as
+        // `${siteUrl}${base}${sitemapPath}` in robots-txt.js.
+        sitemapPath: robots.sitemapPath ?? `/${sitemapFilenameBase}-index.xml`,
+        includeLlmsTxt: robots.includeLlmsTxt ?? true,
+        extraLines: robots.extraLines ?? [],
+      },
     },
   };
 }
@@ -152,6 +167,13 @@ const CONFIG_SHAPE = {
   exclude: null,
   respectNoindex: null,
   stripTitleSuffix: null,
+  pages: { include: null, exclude: null, respectNoindex: null, stripTitleSuffix: null },
+  markdown: { enabled: null, alternateLink: null, includeLastModified: null, frontmatter: null },
+  corpus: {
+    index: { enabled: null, sections: null, defaultSection: null, includeDescriptions: null, showLastModified: null, includeHtmlOnly: null },
+    full: { enabled: null, mode: null },
+    urlMap: { enabled: null, outputFilepath: null },
+  },
   site: {
     name: null,
     description: null,
@@ -162,6 +184,14 @@ const CONFIG_SHAPE = {
   llmsFullTxt: { enabled: null, mode: null },
   urlMap: { enabled: null, outputFilepath: null },
   robotsTxt: { enabled: null, universalAllow: null, allow: null, disallow: null, includeSitemap: null, sitemapPath: null, includeLlmsTxt: null, extraLines: null },
+  discovery: {
+    sitemap: {
+      mode: null,
+      options: PASSTHROUGH,
+      alias: { enabled: null, sourceFilename: null, outputFilename: null },
+    },
+    robots: { enabled: null, universalAllow: null, allow: null, disallow: null, includeSitemap: null, sitemapPath: null, includeLlmsTxt: null, extraLines: null },
+  },
   domainProfile: { enabled: null, name: null, description: null, website: null, email: null, contact: null, logo: null, sameAs: null, entityType: null },
   sitemap: { enabled: null, options: PASSTHROUGH },
   sitemapAlias: { enabled: null, sourceFilename: null, outputFilename: null },

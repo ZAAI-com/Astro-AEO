@@ -46,7 +46,7 @@ import { isIncluded, normalizePath } from './match.js';
  */
 export function collectPages(rawPages, config, ctx) {
   const distRoot = fileURLToPath(ctx.distDir);
-  const strip = makeTitleStripper(config.stripTitleSuffix);
+  const strip = makeTitleStripper(config.pages.stripTitleSuffix);
   const td = createTurndown();
   /** @type {PageInfo[]} */
   const pages = [];
@@ -54,7 +54,7 @@ export function collectPages(rawPages, config, ctx) {
   for (const raw of rawPages) {
     const pathname = normalizePath(raw.pathname || '/');
 
-    if (!isIncluded(pathname, { include: config.include, exclude: config.exclude })) continue;
+    if (!isIncluded(pathname, { include: config.pages.include, exclude: config.pages.exclude })) continue;
 
     const htmlPath = resolveHtmlPath(distRoot, pathname, ctx.buildFormat);
     let html;
@@ -67,7 +67,7 @@ export function collectPages(rawPages, config, ctx) {
 
     const meta = extractPageMeta(html, strip);
     if (meta.isRedirect) continue;
-    if (config.respectNoindex && meta.noindex) continue;
+    if (config.pages.respectNoindex && meta.noindex) continue;
     if (meta.aeoTokens.has('skip')) continue;
 
     const markdown = htmlToMarkdown(html, td);
@@ -76,7 +76,7 @@ export function collectPages(rawPages, config, ctx) {
     const mdPath = pathname === '/' ? join(distRoot, 'index.md') : join(distRoot, `${pathname}.md`);
 
     let lastModified = meta.modifiedTime;
-    if (!lastModified && config.dotmd.includeLastModified) {
+    if (!lastModified && config.markdown.includeLastModified) {
       const entry = ctx.routeEntrypoints.get(pathname);
       if (entry) lastModified = getGitLastModified(join(ctx.projectRoot, entry), { cwd: ctx.projectRoot });
     }

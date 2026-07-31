@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
  * finalizer still verifies the file before advertising it.
  *
  * @param {object} input
- * @param {boolean} input.enabled          `config.sitemap.enabled`.
+ * @param {'auto'|'external'|'disabled'} input.mode  `config.discovery.sitemap.mode`.
  * @param {boolean} input.hasUserSitemap   User already added `@astrojs/sitemap`.
  * @param {boolean} input.hasSite          Astro `site` is configured.
  * @returns {{ register: boolean; expected: boolean; warning?: string }}
@@ -23,13 +23,17 @@ import { fileURLToPath } from 'node:url';
  *   `expected`: an official sitemap integration should produce a sitemap.
  *   `warning`: a one-time message to log, when the intent cannot be honored.
  */
-export function resolveSitemapPlan({ enabled, hasUserSitemap, hasSite }) {
+export function resolveSitemapPlan({ mode, hasUserSitemap, hasSite }) {
+  // 'disabled' opts out of sitemap handling entirely, including a sitemap the
+  // project registered itself. This state has no 1.0 equivalent.
+  if (mode === 'disabled') return { register: false, expected: false };
+
   // Respect a user-registered sitemap; never double-register. It counts as
-  // expected even when the auto-wire feature is off. The finalizer verifies its
-  // output before the robots.txt Sitemap line is emitted.
+  // expected even in 'external' mode, which only turns off auto-registration.
+  // The finalizer verifies its output before the robots.txt Sitemap line.
   if (hasUserSitemap) return { register: false, expected: true };
 
-  if (!enabled) return { register: false, expected: false };
+  if (mode === 'external') return { register: false, expected: false };
 
   // Auto-registering @astrojs/sitemap requires a `site` URL; without it the
   // integration would emit nothing, so no sitemap is expected.

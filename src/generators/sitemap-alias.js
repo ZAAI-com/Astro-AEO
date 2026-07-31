@@ -23,8 +23,8 @@ import { fileURLToPath } from 'node:url';
  * @returns {boolean}
  */
 export function emitSitemapAlias(distDir, config, logger) {
-  if (!config.sitemapAlias.enabled) return false;
-  const { sourceFilename, outputFilename } = config.sitemapAlias;
+  if (!config.discovery.sitemap.alias.enabled) return false;
+  const { sourceFilename, outputFilename } = config.discovery.sitemap.alias;
 
   // These are filenames at the output root, not paths: a separator or ".." could
   // copy a file from outside dist into the published site, or clobber a file
