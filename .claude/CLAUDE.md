@@ -32,12 +32,20 @@ The build pipeline, in the order data flows:
 - `src/hooks/server-setup.js`: dev-server middleware that serves `robots.txt`,
   `domain-profile.json`, and `.md` companions live, and builds a static-route `llms.txt`, during
   `astro dev`.
+- `src/core/`: pure, source-agnostic logic shared by the build and the dev server. Nothing here
+  reads the filesystem, so the same functions run over build output and a live response.
+  - `html-document.js`: the only module that knows the DOM implementation (`linkedom/worker`).
+  - `extract/`: selector-based content extraction, cleanup, `keepSelectors`, URL resolution, and
+    extraction diagnostics.
+  - `render/`: the string builders. `renderMarkdownDocument` is the single definition of a `.md`
+    body; `renderLlmsTxt` / `renderLlmsFullTxt` likewise. Build and dev both call these, which is
+    what keeps them from drifting as they previously did.
 - `src/lib/`: shared helpers.
   - `collect.js`: turns raw build pages into normalized `AeoPage` records (path, url, title,
     description, last-modified).
   - `match.js`: segment-aware glob / RegExp / predicate matching used by include/exclude and
     `llmsTxt.sections`.
-  - `html-to-md.js`: HTML `<main>` to Markdown via Turndown.
+  - `html-to-md.js`: Turndown wiring over the extraction pipeline.
   - `git-mtime.js`: last-modified dates from git history (falls back behind
     `article:modified_time`).
   - `page-meta.js`: parses title, description, and AEO meta tags out of rendered HTML.
@@ -59,8 +67,12 @@ The build pipeline, in the order data flows:
   installable directly as a git dependency.
 - Types are **hand-written** in `src/index.d.ts` and `components/index.d.ts` (not generated).
   Update them in the same change as the code they describe.
-- Keep runtime dependencies minimal. `turndown` is the only one today; do not add another
-  without a strong reason.
+- Keep runtime dependencies minimal. There are three: `@astrojs/sitemap` (the official
+  integration, rather than re-implementing the sitemap spec), `turndown` (HTML to Markdown), and
+  `linkedom` (imported as `linkedom/worker`, a single pre-bundled ESM file that runs unchanged in
+  Node and on edge runtimes). Extraction needs a real DOM for selectors, cleanup, marker removal,
+  and URL resolution, and one parser shared by every stage beats a regular expression per stage.
+  Do not add a fourth without a comparably strong reason.
 - House style: no em dashes anywhere (use a colon, comma, or parentheses).
 
 ## Tests

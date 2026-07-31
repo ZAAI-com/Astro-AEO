@@ -12,6 +12,7 @@ import type {
   CorpusOptions,
   DiscoveryOptions,
   EntityType,
+  ExtractionOptions,
   MarkdownOptions,
   PagesOptions,
   ResolvedAeoConfig,
@@ -70,6 +71,8 @@ export const resolvedEntity: EntityType = resolved.domainProfile.entityType;
 // drift guard: they run in a real .ts consumer, on the oldest supported compiler.
 declare const resolvedCanonical: ResolvedAstroAeoConfig;
 export const rAlternateLink: 'auto' | 'always' | 'never' = resolvedCanonical.markdown.alternateLink;
+export const rSelectors: string[] = resolvedCanonical.markdown.extraction.selectors;
+export const rKeep: string[] = resolvedCanonical.markdown.extraction.keepSelectors;
 export const rMode: 'all' | 'index' | 'first-page-only' = resolvedCanonical.corpus.full.mode;
 export const rEntity: EntityType = resolvedCanonical.site.profile.entityType;
 export const rSections: SectionRule[] = resolvedCanonical.corpus.index.sections;
@@ -89,7 +92,13 @@ export const rMode2: 'auto' | 'external' | 'disabled' = resolvedCanonical.discov
 export const canonicalOnly: CanonicalAeoConfig = { site: { name: 'Example' } };
 export const siteOpts: SiteOptions = { name: 'Example', description: 'An example site.' };
 export const pageOpts: PagesOptions = { include: ['**'], exclude: ['/private/**'], respectNoindex: true };
-export const mdOpts: MarkdownOptions = { enabled: true, alternateLink: 'auto', frontmatter: true };
+export const mdOpts: MarkdownOptions = {
+  enabled: true,
+  alternateLink: 'auto',
+  frontmatter: true,
+  extraction: { selectors: ['article', 'main'], removeSelectors: ['nav'], keepSelectors: [] },
+};
+export const extractionOpts: ExtractionOptions = { selectors: ['main'] };
 export const discoveryOpts: DiscoveryOptions = {
   sitemap: { mode: 'external', options: { filenameBase: 'sitemap' }, alias: { enabled: true } },
   robots: { enabled: true, allow: ['GPTBot'], includeSitemap: true },
@@ -146,6 +155,8 @@ export const noProfileContact: AstroAeoConfig = { site: { profile: { contact: 'h
 export const badInclude: AstroAeoConfig = { pages: { include: '/blog/**' } };
 // @ts-expect-error markdown.alternateLink is a closed union
 export const badAlternate: AstroAeoConfig = { markdown: { alternateLink: 'sometimes' } };
+// @ts-expect-error extraction selectors are an array of strings, not one string
+export const badSelectors: AstroAeoConfig = { markdown: { extraction: { selectors: 'main' } } };
 // @ts-expect-error `linkTag` was renamed to `alternateLink` in the canonical block
 export const noMarkdownLinkTag: AstroAeoConfig = { markdown: { linkTag: 'auto' } };
 // @ts-expect-error corpus.full.mode is a closed union

@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createTurndown, htmlToMarkdown } from './html-to-md.js';
+import { createTurndown, htmlToMarkdownWithDiagnostics } from './html-to-md.js';
 import { extractPageMeta, makeTitleStripper } from './page-meta.js';
 import { getGitLastModified } from './git-mtime.js';
 import { isIncluded, normalizePath } from './match.js';
@@ -70,8 +70,10 @@ export function collectPages(rawPages, config, ctx) {
     if (config.pages.respectNoindex && meta.noindex) continue;
     if (meta.aeoTokens.has('skip')) continue;
 
-    const markdown = htmlToMarkdown(html, td);
     const url = absoluteUrl(ctx.siteUrl, ctx.base, pathname, ctx.trailingSlash);
+    const markdown = htmlToMarkdownWithDiagnostics(html, config.markdown.extraction, td, {
+      baseUrl: url,
+    }).markdown;
     const mdHref = mdHrefFor(pathname, ctx.base);
     const mdPath = pathname === '/' ? join(distRoot, 'index.md') : join(distRoot, `${pathname}.md`);
 

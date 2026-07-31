@@ -314,6 +314,25 @@ export interface CorpusOptions {
   urlMap?: CorpusUrlMapOptions;
 }
 
+export interface ExtractionOptions {
+  /**
+   * Content selectors, tried in order; the first with any match wins. Only
+   * top-level matches are converted, so a nested match is not emitted twice.
+   * Falls back to `<body>`. Default: ['article', 'main'].
+   */
+  selectors?: string[];
+  /**
+   * Dropped before conversion. `script`, `style`, `noscript`, `iframe`, and
+   * `head` are always dropped in addition to these. Default: ['nav', 'footer'].
+   */
+  removeSelectors?: string[];
+  /**
+   * Preserved as raw HTML in the Markdown. Removal takes precedence, and the
+   * always-dropped tags above can never be restored this way. Default: [].
+   */
+  keepSelectors?: string[];
+}
+
 export interface MarkdownOptions {
   /** Generate .md companion pages. Default: true. */
   enabled?: boolean;
@@ -328,6 +347,8 @@ export interface MarkdownOptions {
   includeLastModified?: boolean;
   /** Prepend YAML frontmatter (title, url, description, optional lastModified) to .md files. Default: false. */
   frontmatter?: boolean;
+  /** Which part of a rendered page becomes Markdown. */
+  extraction?: ExtractionOptions;
 }
 
 export interface PagesOptions {
@@ -431,7 +452,7 @@ export interface ResolvedAstroAeoConfig {
     profile: Required<ProfileOptions>;
   };
   pages: Required<PagesOptions>;
-  markdown: Required<MarkdownOptions>;
+  markdown: Omit<Required<MarkdownOptions>, 'extraction'> & { extraction: Required<ExtractionOptions> };
   corpus: {
     index: Required<CorpusIndexOptions>;
     full: Required<CorpusFullOptions>;

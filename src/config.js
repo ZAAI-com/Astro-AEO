@@ -2,6 +2,8 @@
 import { isPlainObject, mergeLegacy, printMigration } from './lib/config-migrate.js';
 import { AeoConfigError } from './lib/errors.js';
 import { resolveSitemapPolicy } from './lib/sitemap.js';
+import { parseDocument } from './core/html-document.js';
+import { assertValidSelectors } from './core/extract/index.js';
 
 /**
  * Default llms.txt sections when the user configures none: a Home rule for "/"
@@ -41,8 +43,10 @@ export function resolveConfig(rawConfig = {}, logger) {
   }
 
   const userConfig = /** @type {import('./index.js').AstroAeoConfig} */ (merged);
+  validateExtractionSelectors(userConfig.markdown?.extraction);
 
   const markdown = userConfig.markdown ?? {};
+  const extraction = markdown.extraction ?? {};
   const corpusIndex = userConfig.corpus?.index ?? {};
   const corpusFull = userConfig.corpus?.full ?? {};
   const corpusUrlMap = userConfig.corpus?.urlMap ?? {};
@@ -95,6 +99,11 @@ export function resolveConfig(rawConfig = {}, logger) {
       alternateLink: markdown.alternateLink ?? 'auto',
       includeLastModified: markdown.includeLastModified ?? true,
       frontmatter: markdown.frontmatter ?? false,
+      extraction: {
+        selectors: extraction.selectors ?? ['article', 'main'],
+        removeSelectors: extraction.removeSelectors ?? ['nav', 'footer'],
+        keepSelectors: extraction.keepSelectors ?? [],
+      },
     },
     corpus: {
       index: {
@@ -149,6 +158,25 @@ export function resolveConfig(rawConfig = {}, logger) {
 }
 
 /**
+ * Run each user-supplied selector once so a typo fails the build with the path
+ * that caused it, rather than silently matching nothing on every page. The
+ * shipped defaults are not re-validated, so a zero-config build never parses a
+ * probe document.
+ * @param {import('./index.js').ExtractionOptions | undefined} extraction
+ */
+function validateExtractionSelectors(extraction) {
+  if (!extraction) return;
+  /** @type {Document | undefined} */
+  let probe;
+  for (const key of /** @type {const} */ (['selectors', 'removeSelectors', 'keepSelectors'])) {
+    const value = extraction[key];
+    if (!Array.isArray(value) || value.length === 0) continue;
+    probe = probe ?? parseDocument('<html></html>');
+    assertValidSelectors(probe, `markdown.extraction.${key}`, value);
+  }
+}
+
+/**
  * Free-form subtree marker. Everything below a PASSTHROUGH is forwarded verbatim
  * to another tool, so validating it would flag that tool's own valid options.
  */
@@ -168,7 +196,13 @@ const CONFIG_SHAPE = {
   respectNoindex: null,
   stripTitleSuffix: null,
   pages: { include: null, exclude: null, respectNoindex: null, stripTitleSuffix: null },
-  markdown: { enabled: null, alternateLink: null, includeLastModified: null, frontmatter: null },
+  markdown: {
+    enabled: null,
+    alternateLink: null,
+    includeLastModified: null,
+    frontmatter: null,
+    extraction: { selectors: null, removeSelectors: null, keepSelectors: null },
+  },
   corpus: {
     index: { enabled: null, sections: null, defaultSection: null, includeDescriptions: null, showLastModified: null, includeHtmlOnly: null },
     full: { enabled: null, mode: null },

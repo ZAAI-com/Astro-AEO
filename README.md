@@ -102,6 +102,12 @@ aeo({
     alternateLink: 'auto',           // 'auto' | 'always' | 'never'
     includeLastModified: true,
     frontmatter: false,              // prepend YAML frontmatter to .md files
+
+    extraction: {
+      selectors: ['article', 'main'],     // tried in order, first with a match wins
+      removeSelectors: ['nav', 'footer'], // dropped before conversion
+      keepSelectors: [],                  // preserved as raw HTML in the Markdown
+    },
   },
 
   corpus: {
@@ -240,6 +246,37 @@ integrations: [
 By default `@astrojs/sitemap` names its index `sitemap-index.xml` (a custom `filenameBase` makes it `${filenameBase}-index.xml`), so a request for the conventional `/sitemap.xml` returns 404. With `discovery.sitemap.alias.enabled` (the default), Astro-AEO byte-copies the generated index to `/sitemap.xml` after generation. The copy is byte-identical, but it is created only when the source exists and the target does not. Any existing build output wins, including a file from `public/`, a prerendered Astro endpoint, or another integration. Remove that output if you want Astro-AEO to provide the alias instead.
 
 `discovery.robots.sitemapPath` defaults to the tracked sitemap output name (`/sitemap-index.xml`, or `/${filenameBase}-index.xml`). When `includeSitemap` is omitted, Astro-AEO automatically emits the line only if that path exists in the static build. Set `includeSitemap: true` to force the line for an SSR or runtime-only sitemap, or `false` to suppress it. In `astro dev`, automatic mode recognizes public files and concrete Astro routes but does not advertise the build-only `@astrojs/sitemap` output.
+
+### Extraction
+
+`markdown.extraction.selectors` decides which part of a rendered page becomes
+Markdown. Selectors are tried in order and the first one with any match wins, so the
+default prefers a semantic `<article>` and falls back to `<main>`. If a page has
+several top-level matches they are all converted, in document order; a match nested
+inside another match is skipped so its content is not emitted twice. With no match,
+extraction falls back to `<body>`.
+
+`script`, `style`, `noscript`, `iframe`, and `head` are always dropped, in addition to
+`removeSelectors`. `keepSelectors` emits matching elements as raw HTML instead of
+converting them, for a widget whose markup carries meaning. Removal wins over
+keeping, and the always-dropped tags can never be reintroduced this way.
+
+An invalid or empty selector is a configuration error, not a silent no-op.
+
+```js
+markdown: {
+  extraction: {
+    selectors: ['[data-content]', 'article', 'main'],
+    removeSelectors: ['nav', 'footer', '.sidebar', '.cookie-banner'],
+    keepSelectors: ['.pricing-table'],
+  },
+}
+```
+
+Relative links and image sources in the extracted content are rewritten against the
+page's own canonical URL, because a `.md` companion is usually read away from the site
+that served it. Fragment links and non-navigational schemes (`mailto:`, `tel:`) are
+left exactly as authored.
 
 ### Sections
 

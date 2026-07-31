@@ -13,6 +13,11 @@ All notable changes to this project are documented here. This project follows [S
 - `discovery.sitemap.mode`: `'auto'` (auto-register `@astrojs/sitemap`), `'external'` (use a
   sitemap the project registers itself), or `'disabled'` (opt out entirely, including the alias and
   the `robots.txt` `Sitemap:` line). `'disabled'` has no 1.0 equivalent.
+- `markdown.extraction`: `selectors` (default `['article', 'main']`, tried in order, first with a
+  match wins), `removeSelectors` (default `['nav', 'footer']`), and `keepSelectors` (emit matching
+  elements as raw HTML). `script`, `style`, `noscript`, `iframe`, and `head` are always dropped and
+  can never be reintroduced by `keepSelectors`. An invalid or empty selector is a configuration
+  error rather than a silent no-op.
 - `AEO_PRINT_MIGRATION=1` prints a paste-ready canonical config block derived from the 1.0 keys a
   project actually sets. It runs inside Astro, so it works for `.mjs` and `.ts` configs alike.
 - `pnpm run test:types`: a consumer typecheck of `fixtures/types-consumer/` against the oldest
@@ -23,9 +28,9 @@ All notable changes to this project are documented here. This project follows [S
 ### Changed
 
 - Every 1.0 configuration key still works and produces byte-identical output. This is asserted by
-  building the demo site twice, once fully in 1.0 keys and once fully in 1.1 keys, and diffing the
-  two outputs file by file. Using a 1.0 key emits one deprecation warning per section. They are
-  removed in 2.0.
+  `fixtures/config-compat`, one site written twice (once fully in 1.0 keys, once fully in 1.1 keys)
+  and built twice, with the two outputs diffed file by file. Using a 1.0 key emits one deprecation
+  warning per section. They are removed in 2.0.
 - Setting a 1.0 key and its 1.1 replacement to **different** values is now a build-stopping error
   naming both paths. Silently preferring one could publish the wrong `robots.txt` policy. Mixing
   eras is fine when the two address different settings.
@@ -43,8 +48,22 @@ All notable changes to this project are documented here. This project follows [S
 
 ### Fixed
 
+- Content extraction is now performed against a parsed DOM (`linkedom`) rather than a regular
+  expression over the source text. The previous non-greedy `<main>` match stopped at the first
+  `</main>` wherever it appeared, so a closing tag inside a comment, a script string, or a
+  `<template>` truncated the page; and when a document had no `<main>` at all, the entire
+  document including `<head>` was handed to the converter.
 - `astro dev` no longer risks handling its own internal page fetches: the `x-astro-aeo` marker it
   has always sent is now actually checked.
+
+### Output
+
+- Relative links and image sources in `.md` companions are resolved against the page's own
+  canonical URL. A companion is normally read away from the site that served it, where a
+  root-relative href is a dead link. Fragment links and non-navigational schemes (`mailto:`,
+  `tel:`) are left exactly as authored. **This changes existing `.md` and `llms-full.txt` output
+  for pages containing relative links**, and is the one deliberate output change in this release.
+- All other generated artifacts are byte-identical to 1.0.
 
 ### Types
 

@@ -1,5 +1,7 @@
 // @ts-check
 import TurndownService from 'turndown';
+import { parseDocument } from '../core/html-document.js';
+import { addKeepRule, extractMarkdown, NEVER_CONTENT } from '../core/extract/index.js';
 
 /**
  * Create a configured Turndown instance. One per build so future options can
@@ -14,25 +16,45 @@ export function createTurndown() {
     emDelimiter: '_',
   });
 
-  td.remove(['script', 'style', 'noscript', 'iframe']);
+  // Extraction already strips these from the document, so this is a second line
+  // of defence for any caller that hands Turndown raw HTML directly.
+  td.remove(/** @type {any} */ (NEVER_CONTENT));
 
-  td.addRule('skipChrome', {
-    filter: (node) => node.nodeName === 'NAV' || node.nodeName === 'FOOTER',
-    replacement: () => '',
-  });
-
-  return td;
+  return addKeepRule(td);
 }
 
 /**
- * Convert an HTML document to Markdown, preferring the <main> region and
- * falling back to the whole document when no <main> is present.
+ * Convert a rendered page to Markdown using the configured extraction options.
+ * @param {string} html
+ * @param {import('../core/extract/index.js').ExtractionOptions} extraction
+ * @param {import('turndown')} [td]
+ * @param {{ baseUrl?: string }} [context]
+ * @returns {{ markdown: string; diagnostics: import('../core/extract/index.js').ExtractionDiagnostics }}
+ */
+export function htmlToMarkdownWithDiagnostics(html, extraction, td = createTurndown(), context = {}) {
+  return extractMarkdown(parseDocument(html), extraction, td, context);
+}
+
+/**
+ * Convert an HTML document to Markdown with the default extraction options.
+ * Retained because it is the established entry point; prefer
+ * `htmlToMarkdownWithDiagnostics` where the configured options are available.
  * @param {string} html
  * @param {import('turndown')} [td]
  * @returns {string}
  */
 export function htmlToMarkdown(html, td = createTurndown()) {
-  const mainMatch = html.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
-  const body = mainMatch ? mainMatch[1] : html;
-  return td.turndown(body).trim();
+  return htmlToMarkdownWithDiagnostics(html, DEFAULT_EXTRACTION, td).markdown;
 }
+
+/**
+ * The shipped defaults. `article` before `main` prefers the semantic content
+ * element when a page has one; `nav` and `footer` used to be dropped by a
+ * hard-coded Turndown rule and are now ordinary, overridable selectors.
+ * @type {import('../core/extract/index.js').ExtractionOptions}
+ */
+export const DEFAULT_EXTRACTION = {
+  selectors: ['article', 'main'],
+  removeSelectors: ['nav', 'footer'],
+  keepSelectors: [],
+};

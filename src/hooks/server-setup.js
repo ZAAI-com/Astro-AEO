@@ -1,5 +1,5 @@
 // @ts-check
-import { createTurndown, htmlToMarkdown } from '../lib/html-to-md.js';
+import { createTurndown, htmlToMarkdownWithDiagnostics } from '../lib/html-to-md.js';
 import { extractPageMeta, makeTitleStripper } from '../lib/page-meta.js';
 import { resolveSiteMeta } from '../config.js';
 import { buildRobotsTxt } from '../generators/robots-txt.js';
@@ -115,13 +115,15 @@ export function createAeoMiddleware(deps) {
     const meta = extractPageMeta(html, strip);
     if (meta.isRedirect || meta.aeoTokens.has('skip')) return null;
     if (config.pages.respectNoindex && meta.noindex) return null;
+    const url = absoluteUrl(siteUrl || origin, base, pageUrlPath, trailingSlash);
     return {
       pathname: pageUrlPath,
-      url: absoluteUrl(siteUrl || origin, base, pageUrlPath, trailingSlash),
+      url,
       mdHref: mdHrefFor(pageUrlPath, base),
       title: meta.title,
       description: meta.description,
-      markdown: htmlToMarkdown(html, td),
+      markdown: htmlToMarkdownWithDiagnostics(html, config.markdown.extraction, td, { baseUrl: url })
+        .markdown,
       aeoTokens: meta.aeoTokens,
       // Only what the rendered page states. The build additionally falls back to
       // git history, which needs the route-to-source map and the project root;
