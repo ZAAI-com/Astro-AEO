@@ -1,0 +1,116 @@
+.claude/CLAUDE.md
+  s_a1ee465ff37919::t_8d3cabfb2babf7 71-77
+  s_a1ee465ff37919::t_9e4e1b8c50aa68 22-30,106,108-109,114-121
+fixtures/config-compat/astro.canonical.config.mjs
+  s_a1ee465ff37919::t_505a209eeb645d 1-56
+src/generators/dotmd.js
+  s_a1ee465ff37919::t_6f0b25c34b03f1 71
+  s_a1ee465ff37919::t_0a958e4a43b785 43-44
+src/index.js
+  s_a1ee465ff37919::t_fd0648867a6d26 54,66,68,111-112,139
+CHANGELOG.md
+  s_a1ee465ff37919::t_7a00cb1bedbaf3 9-17,25-41,43-57
+src/config-compat.e2e.test.js
+  s_a1ee465ff37919::t_f619f1590104d1 1-11,16,20-21,27-37,44-50,58-60,63-68,70,72-75,98-99
+  s_a1ee465ff37919::t_bf0c049336e664 12-15,17-19,22-26,38-43,51-57,61-62,69,71,76-97
+README.md
+  s_a1ee465ff37919::t_ca9f939a9400c8 78-79,83-88,114,143-144
+  s_a1ee465ff37919::t_bfb75883793d2c 69,77,81-82,89-90,93-97,100,102-104,107-113,115,117-120,122-125,128-138,140-142,145-149,154-199,202,209-214,220,222,230-234,240,242,246,249-257,265,267,269
+fixtures/config-compat/src/pages/blog/post.astro
+  s_a1ee465ff37919::t_e0c2c62e42e2e5 1-7
+src/generators/robots-txt.js
+  s_a1ee465ff37919::t_e9681ec7879b6a 35
+  s_a1ee465ff37919::t_660296439d9e7a 18,57
+fixtures/config-compat/src/pages/private/secret.astro
+  s_a1ee465ff37919::t_e0c2c62e42e2e5 1-6
+src/lib/collect.js
+  s_a1ee465ff37919::t_b15bf4785fdf5d 49,57,70
+  s_a1ee465ff37919::t_0a958e4a43b785 79
+fixtures/config-compat/src/pages/index.astro
+  s_a1ee465ff37919::t_e0c2c62e42e2e5 1-7
+src/index.d.ts
+  s_a1ee465ff37919::t_e9681ec7879b6a 275-316,381,401,403,405,435-438,454
+  s_a1ee465ff37919::t_b15bf4785fdf5d 333-343,378-379,383,391,393,395,397,433
+  s_a1ee465ff37919::t_0a958e4a43b785 317-332,380,399,434
+  s_a1ee465ff37919::t_8c872b4371a78c 198-274,382,407,409,411,439-453
+  s_a1ee465ff37919::t_24f97fedfb105a 384-390
+src/generators/url-map.js
+  s_a1ee465ff37919::t_e9681ec7879b6a 33,35
+fixtures/config-compat/src/layouts/Layout.astro
+  s_a1ee465ff37919::t_e0c2c62e42e2e5 1-21
+src/config.js
+  s_a1ee465ff37919::t_660296439d9e7a 4,49-51,56,59-70,117-146,187-194
+  s_a1ee465ff37919::t_c51af0dfd9096a 36-40
+  s_a1ee465ff37919::t_0a958e4a43b785 45,93-97,171
+  s_a1ee465ff37919::t_e9681ec7879b6a 46-48,99-115,172-176
+  s_a1ee465ff37919::t_b15bf4785fdf5d 53,87-91,170
+  s_a1ee465ff37919::t_fe7e5342a6e274 2
+  s_a1ee465ff37919::t_8569854dc1c7f5 43-44
+src/generators/sitemap-finalize.js
+  s_a1ee465ff37919::t_00dac51f59b09e 22,24-26
+  s_a1ee465ff37919::t_660296439d9e7a 27,33,39,42,46,52,55-56
+src/lib/sitemap.test.js
+  s_a1ee465ff37919::t_8f28259edca090 14-15,19-20,24-25,34,39,48
+  s_a1ee465ff37919::t_a45bbed4861666 38,43-47,51-62
+  s_a1ee465ff37919::t_c25c8f141cd9dc 63
+src/lib/sitemap.js
+  s_a1ee465ff37919::t_fd0648867a6d26 18,26-30,32-33,36
+.gitignore
+  s_a1ee465ff37919::t_1cf99bcbfb8cc3 6-9
+src/config.test.js
+  s_a1ee465ff37919::t_a288660221a78a 11-14,37-63
+  s_a1ee465ff37919::t_16528717e6e8a3 15-16,18-23,79-81,105,107-109,115,117-120,133,187-188,191,200,227-311
+  s_a1ee465ff37919::t_1d701a4a7867a8 8,143-144,146-167
+  s_a1ee465ff37919::t_663e096e406a36 9-10,26,29,33-36,64-71,189-190,199
+  s_a1ee465ff37919::t_101299b5414aa5 312
+fixtures/config-compat/package.json
+  s_a1ee465ff37919::t_e0c2c62e42e2e5 1-6
+src/hooks/build-done.js
+  s_a1ee465ff37919::t_e9681ec7879b6a 52-53,58,60
+  s_a1ee465ff37919::t_0a958e4a43b785 48
+fixtures/types-consumer/consumer.ts
+  s_a1ee465ff37919::t_60d012358513b9 12,73,75-76,97-101,112-113,151-154
+  s_a1ee465ff37919::t_5be9e211487413 13,21,82-86,93-96,114-115,155-158
+  s_a1ee465ff37919::t_329e311765830d 16,77-78,91,108-109,145-146
+  s_a1ee465ff37919::t_030f3cf2dbe8cb 15,72,92,110-111,147-150
+src/hooks/server-setup.js
+  s_a1ee465ff37919::t_b15bf4785fdf5d 36,101,116
+  s_a1ee465ff37919::t_fd0648867a6d26 62-63
+  s_a1ee465ff37919::t_e9681ec7879b6a 74,79,179-180,189
+  s_a1ee465ff37919::t_660296439d9e7a 61
+  s_a1ee465ff37919::t_0a958e4a43b785 84,138
+fixtures/config-compat/src/pages/about.astro
+  s_a1ee465ff37919::t_e0c2c62e42e2e5 1-7
+src/generators/sitemap-alias.js
+  s_a1ee465ff37919::t_660296439d9e7a 26-27
+src/lib/config-migrate.js
+  s_a1ee465ff37919::t_59dc39f369b84e 288-289
+  s_a1ee465ff37919::t_f22950513a6a6d 314-362
+  s_a1ee465ff37919::t_2878fb7768c7bc 223,259-260
+src/lib/config-migrate.test.js
+  s_a1ee465ff37919::t_fe7a2a8123d94a 251-283
+  s_a1ee465ff37919::t_848f095fa4f9ca 11
+  s_a1ee465ff37919::t_dc95ef4268182b 175-186
+src/generators/llms-txt.js
+  s_a1ee465ff37919::t_e9681ec7879b6a 71,73,98,120-121,136,140,142
+fixtures/config-compat/src/pages/no-md.astro
+  s_a1ee465ff37919::t_e0c2c62e42e2e5 1-7
+fixtures/config-compat/astro.legacy.config.mjs
+  s_a1ee465ff37919::t_505a209eeb645d 1-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "451fb29c2b1d28e2a802db96fec16bf6a9704da4",
+  "prompts": {},
+  "sessions": {
+    "s_a1ee465ff37919": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3a101c22-71dc-45a5-948c-20c9f1c2baf8",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
