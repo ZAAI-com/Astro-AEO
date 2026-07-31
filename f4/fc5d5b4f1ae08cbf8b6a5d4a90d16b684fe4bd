@@ -1,0 +1,57 @@
+fixtures/types-consumer/consumer.ts
+  s_a1ee465ff37919::t_c319c825d12ee7 15,74-75,95-101,158-159
+src/core/html-document.js
+  s_a1ee465ff37919::t_d40bf1e1a3b7ef 1-25
+src/core/extract/index.js
+  s_a1ee465ff37919::t_6812e78727b119 1-12,19-29,41-99,107,113-127,129-157,192-198,200-201,203-208,214-228
+  s_a1ee465ff37919::t_70e296f4f1bb34 210-213
+  s_a1ee465ff37919::t_8a0c8300353310 13-18,100-106,108-112,128
+  s_a1ee465ff37919::t_6f343f30039eda 30-40,158-191,199,202,209
+src/index.d.ts
+  s_a1ee465ff37919::t_6171f31b1f4d39 317-335,350-351,455
+src/lib/collect.js
+  s_a1ee465ff37919::t_6f343f30039eda 74-76
+  s_a1ee465ff37919::t_6171f31b1f4d39 5
+src/config.js
+  s_a1ee465ff37919::t_6171f31b1f4d39 5-6,46,49,102-106,160-178,199-205
+src/hooks/server-setup.js
+  s_a1ee465ff37919::t_6f343f30039eda 118,121,125-126
+  s_a1ee465ff37919::t_6171f31b1f4d39 2
+src/core/extract/index.test.js
+  s_a1ee465ff37919::t_93ca9fab8aa4fe 101-168
+  s_a1ee465ff37919::t_ca268ceebfe1e7 1-100,169-205
+README.md
+  s_a1ee465ff37919::t_c319c825d12ee7 105-110,250-279
+  s_a1ee465ff37919::t_36d6493169c422 280
+.claude/CLAUDE.md
+  s_a1ee465ff37919::t_8bbb313967b7a5 70-75
+  s_a1ee465ff37919::t_791b2e566ed5f2 35-42,48
+src/lib/html-to-md.js
+  s_a1ee465ff37919::t_6f343f30039eda 31,34-35
+  s_a1ee465ff37919::t_8a0c8300353310 4,21
+  s_a1ee465ff37919::t_0992c47754039a 3,19-20,23-24,26-30,32-33,39-41,47,49-60
+CHANGELOG.md
+  s_a1ee465ff37919::t_8bbb313967b7a5 31-33
+  s_a1ee465ff37919::t_791b2e566ed5f2 16-20,51-55,59-66
+  s_a1ee465ff37919::t_1a4cb6dfa6c5b4 67
+package.json
+  s_a1ee465ff37919::t_9545626e5d4ff1 67
+pnpm-lock.yaml
+  s_a1ee465ff37919::t_c2926b370cce60 14-16,1056-1059,1112-1115,1128-1131,1136-1138,1166-1169,1173-1176,1181-1184,1188-1191,1204-1211,1304-1306,1403-1411,1475-1478,1684-1686,2718-2719,2760-2767,2780-2781,2786-2787,2810-2815,2818-2819,2824-2827,2834-2839,2846-2849,2992-2998,3062-3069,3135-3138,3426-3427
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "f4fc5d5b4f1ae08cbf8b6a5d4a90d16b684fe4bd",
+  "prompts": {},
+  "sessions": {
+    "s_a1ee465ff37919": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3a101c22-71dc-45a5-948c-20c9f1c2baf8",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
