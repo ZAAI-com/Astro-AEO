@@ -1,0 +1,35 @@
+.claude/CLAUDE.md
+  s_a1ee465ff37919::t_c877dcd1986684 56-63,84-100
+  s_a1ee465ff37919::t_c07828f68bd2bb 101
+src/runtime/negotiate.js
+  s_a1ee465ff37919::t_6241eea496763f 1-87
+src/index.js
+  s_a1ee465ff37919::t_84b5be8c4b7a25 13,33-34,45-58,65,67,89-97
+src/virtual/plugin.test.js
+  s_a1ee465ff37919::t_81ab7010047366 1-33
+src/virtual/plugin.js
+  s_a1ee465ff37919::t_19e23029c70bf0 1-19,24,26-30,32-34,36-41
+  s_a1ee465ff37919::t_67297136f3d3bf 20-23,25,31,35
+src/virtual/serialize.js
+  s_a1ee465ff37919::t_25f22ffb79aebc 1-80
+src/virtual/serialize.test.js
+  s_a1ee465ff37919::t_1b654a26f5ce1b 1-89
+src/runtime/negotiate.test.js
+  s_a1ee465ff37919::t_69bc09bfe30788 1-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "7caec01fb610523af83de6f90654599dbeba8fc8",
+  "prompts": {},
+  "sessions": {
+    "s_a1ee465ff37919": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3a101c22-71dc-45a5-948c-20c9f1c2baf8",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
