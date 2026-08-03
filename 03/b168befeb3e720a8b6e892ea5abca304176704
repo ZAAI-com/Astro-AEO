@@ -1,0 +1,44 @@
+src/generators/dotmd.js
+  s_a1ee465ff37919::t_1084245e117a36 2,40,43,51-58
+src/build/artifacts.js
+  s_a1ee465ff37919::t_0691ac1d2027b5 42-44,69
+  s_a1ee465ff37919::t_05225d7e721e42 1-41,45-68,70-155
+src/index.js
+  s_a1ee465ff37919::t_8b9ad79f218664 69,142-143,146,156
+  s_a1ee465ff37919::t_7d35428a1ee8db 127-128
+.claude/CLAUDE.md
+  s_a1ee465ff37919::t_cb1af5ba13a9b3 53-58
+src/hooks/build-done.js
+  s_a1ee465ff37919::t_7d35428a1ee8db 3,18-19,50-59,62-63,67,70-71,76-77
+src/generators/sitemap-finalize.js
+  s_a1ee465ff37919::t_8b9ad79f218664 5,17-18,25,27-29,46,57
+src/build/artifacts.test.js
+  s_a1ee465ff37919::t_1e91e7fca03e0a 1-155
+CHANGELOG.md
+  s_a1ee465ff37919::t_cb1af5ba13a9b3 41-46
+src/generators/sitemap-alias.js
+  s_a1ee465ff37919::t_abceda75e08748 2-3,24,27,52-57,59-67,69
+src/generators/llms-txt.js
+  s_a1ee465ff37919::t_1084245e117a36 24,26,28-34,44,46,48-54
+src/generators/robots-txt.js
+  s_a1ee465ff37919::t_756baf108f80f9 55,57
+  s_a1ee465ff37919::t_2b1ba521791929 2,59-77
+src/generators/domain-profile.js
+  s_a1ee465ff37919::t_7d35428a1ee8db 48,50,52-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "03b168befeb3e720a8b6e892ea5abca304176704",
+  "prompts": {},
+  "sessions": {
+    "s_a1ee465ff37919": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3a101c22-71dc-45a5-948c-20c9f1c2baf8",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
