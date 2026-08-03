@@ -66,7 +66,7 @@ export default function aeo(userConfig = {}) {
           added.push(sitemap(/** @type {any} */ (config.discovery.sitemap.options)));
         }
         if (config.discovery.sitemap.alias.enabled || config.discovery.robots.enabled) {
-          added.push(sitemapFinalizerIntegration(config, sitemapState));
+          added.push(sitemapFinalizerIntegration(config, sitemapState, () => ({ routePaths: resolvedRoutePaths, publicDir })));
         }
         if (added.length) updateConfig({ integrations: added });
       },
@@ -124,6 +124,8 @@ export default function aeo(userConfig = {}) {
           buildFormat,
           projectRoot,
           routeEntrypoints,
+          resolvedRoutePaths,
+          publicDir,
         });
       },
     },
@@ -137,9 +139,11 @@ export default function aeo(userConfig = {}) {
  *
  * @param {ReturnType<typeof resolveConfig>} config
  * @param {{ expected: boolean; siteUrl: string; base: string }} state
+ * @param {() => { routePaths: Set<string>; publicDir: URL | undefined }} collisionInputs
+ *   Read lazily: routes resolve and publicDir is captured after this runs.
  * @returns {import('astro').AstroIntegration}
  */
-function sitemapFinalizerIntegration(config, state) {
+function sitemapFinalizerIntegration(config, state, collisionInputs) {
   return {
     name: 'astro-aeo/sitemap-finalizer',
     hooks: {
@@ -149,6 +153,7 @@ function sitemapFinalizerIntegration(config, state) {
           base: state.base,
           sitemapExpected: state.expected,
           logger,
+          ...collisionInputs(),
         });
       },
     },

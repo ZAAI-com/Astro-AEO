@@ -2,6 +2,7 @@
 import { emitRobotsTxt } from './robots-txt.js';
 import { emitSitemapAlias } from './sitemap-alias.js';
 import { sitemapPathExists } from '../lib/sitemap.js';
+import { createArtifactWriter } from '../build/artifacts.js';
 
 /**
  * Finalize sitemap-dependent outputs after every configured sitemap integration
@@ -13,14 +14,19 @@ import { sitemapPathExists } from '../lib/sitemap.js';
  * @param {string} options.siteUrl
  * @param {string} options.base
  * @param {boolean} options.sitemapExpected
+ * @param {Set<string>} [options.routePaths]  Concrete route pathnames, for collision checks.
+ * @param {URL} [options.publicDir]           Astro's publicDir, for collision checks.
  * @param {{ info: (m: string) => void; warn: (m: string) => void }} options.logger
  * @returns {{ aliasEmitted: boolean; sitemapAdvertised: boolean }}
  */
 export function finalizeSitemapOutputs(
   distDir,
   config,
-  { siteUrl, base, sitemapExpected, logger },
+  { siteUrl, base, sitemapExpected, logger, routePaths, publicDir },
 ) {
+  // This runs as its own integration, after @astrojs/sitemap, so it cannot reuse
+  // the writer from onBuildDone. It still gets the same collision inputs.
+  const writer = createArtifactWriter({ distDir, logger, routePaths, publicDir });
   // Resolved from the optional `includeSitemap` tri-state in resolveConfig, so the
   // omitted-versus-false distinction never has to be recovered from raw user input.
   const sitemapPolicy = config.discovery.robots.sitemapPolicy;
@@ -37,7 +43,7 @@ export function finalizeSitemapOutputs(
   // A matching source is sufficient to support a manual or third-party sitemap,
   // even when astro-aeo did not register or recognize its generator.
   if (config.discovery.sitemap.alias.enabled && sourceExists) {
-    aliasEmitted = emitSitemapAlias(distDir, config, logger);
+    aliasEmitted = emitSitemapAlias(distDir, config, logger, writer);
     if (aliasEmitted) {
       logger.info(`astro-aeo: emitted /${config.discovery.sitemap.alias.outputFilename}`);
     }
@@ -48,7 +54,7 @@ export function finalizeSitemapOutputs(
     sitemapPolicy === 'always' ||
     (sitemapPolicy === 'auto' && advertisedPathExists);
 
-  emitRobotsTxt(distDir, config, siteUrl, logger, base, sitemapAvailable);
+  emitRobotsTxt(distDir, config, siteUrl, logger, base, sitemapAvailable, writer);
   if (config.discovery.robots.enabled) logger.info('astro-aeo: emitted /robots.txt');
 
   const sitemapAdvertised =

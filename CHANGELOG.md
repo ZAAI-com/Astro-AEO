@@ -38,6 +38,12 @@ All notable changes to this project are documented here. This project follows [S
   stubs) now shares one quote-aware `<meta>` scanner instead of a regular expression per field.
   Attribute order, unquoted values, and a `>` inside a quoted value are handled for every field.
   Previously only `extractMetaContent`, which `extractPageMeta` did not use, was that robust.
+- All build output now goes through one artifact writer, which reports a collision instead of
+  letting it pass silently. Three cases are newly diagnosed: two astro-aeo generators claiming one
+  path, a path also produced by a route in the project (a `src/pages/llms.txt.ts` endpoint had its
+  output clobbered with no indication of what did it), and a path also committed to `public/`. The
+  per-output collision policies are unchanged: `robots.txt` still warns before overwriting, and the
+  sitemap alias still refuses to replace an existing file.
 - Unknown-key warnings are emitted at any depth, so a typo in `discovery.sitemap.alias.enabld` is
   reported as precisely as a top-level one. Options forwarded to `@astrojs/sitemap` are never
   inspected.

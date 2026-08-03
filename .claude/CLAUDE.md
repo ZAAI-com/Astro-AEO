@@ -50,6 +50,12 @@ The build pipeline, in the order data flows:
     `article:modified_time`).
   - `page-meta.js`: parses title, description, and AEO meta tags out of rendered HTML.
   - `serialize-jsonld.js`: XSS-safe JSON-LD serialization used by the components.
+- `src/build/artifacts.js`: the single writer for build output. Generators declare an `Artifact`
+  (path, owner, route, contents or `copyFrom`, and a collision policy) rather than calling
+  `writeFileSync`. It detects four collision sources: another astro-aeo owner, a route the project
+  defines, a file in `public/`, and an existing file at the destination. The three historical
+  policies (`overwrite`, `warn-overwrite`, `skip`) and their exact messages are preserved, because
+  those messages are asserted by tests and read by users.
 - `src/generators/`: one module per output, each exposes an `emit*` function.
   `dotmd.js`, `llms-txt.js` (both `llms.txt` and `llms-full.txt`), `robots-txt.js`,
   `domain-profile.js`, `url-map.js`, `sitemap-alias.js`, and the late

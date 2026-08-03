@@ -1,5 +1,4 @@
 // @ts-check
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderLlmsTxt, renderLlmsFullTxt } from '../core/render/llms-txt.js';
@@ -22,11 +21,17 @@ export {
  * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @param {string} siteName
  * @param {string} siteDescription
+ * @param {ReturnType<typeof import('../build/artifacts.js').createArtifactWriter>} writer
  */
-export function emitLlmsTxt(pages, distDir, config, siteName, siteDescription) {
+export function emitLlmsTxt(pages, distDir, config, siteName, siteDescription, writer) {
   if (!config.corpus.index.enabled) return;
-  const body = renderLlmsTxt(pages, config, { name: siteName, description: siteDescription });
-  writeFileSync(join(fileURLToPath(distDir), 'llms.txt'), body, 'utf8');
+  writer.write({
+    path: join(fileURLToPath(distDir), 'llms.txt'),
+    owner: 'llmsTxt',
+    route: '/llms.txt',
+    contents: renderLlmsTxt(pages, config, { name: siteName, description: siteDescription }),
+    onConflict: 'overwrite',
+  });
 }
 
 /**
@@ -36,9 +41,15 @@ export function emitLlmsTxt(pages, distDir, config, siteName, siteDescription) {
  * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @param {string} siteName
  * @param {string} siteDescription
+ * @param {ReturnType<typeof import('../build/artifacts.js').createArtifactWriter>} writer
  */
-export function emitLlmsFullTxt(pages, distDir, config, siteName, siteDescription) {
+export function emitLlmsFullTxt(pages, distDir, config, siteName, siteDescription, writer) {
   if (!config.corpus.full.enabled) return;
-  const body = renderLlmsFullTxt(pages, config, { name: siteName, description: siteDescription });
-  writeFileSync(join(fileURLToPath(distDir), 'llms-full.txt'), body, 'utf8');
+  writer.write({
+    path: join(fileURLToPath(distDir), 'llms-full.txt'),
+    owner: 'llmsFullTxt',
+    route: '/llms-full.txt',
+    contents: renderLlmsFullTxt(pages, config, { name: siteName, description: siteDescription }),
+    onConflict: 'overwrite',
+  });
 }

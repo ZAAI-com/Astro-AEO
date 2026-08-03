@@ -1,5 +1,4 @@
 // @ts-check
-import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -46,11 +45,15 @@ function contactFields(value) {
  * @param {URL} distDir
  * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @param {string} siteUrl  Site origin without trailing slash (fallback for website).
+ * @param {ReturnType<typeof import('../build/artifacts.js').createArtifactWriter>} writer
  */
-export function emitDomainProfile(distDir, config, siteUrl) {
+export function emitDomainProfile(distDir, config, siteUrl, writer) {
   if (!config.site.profile.enabled) return;
-  const wellKnownDir = join(fileURLToPath(distDir), '.well-known');
-  mkdirSync(wellKnownDir, { recursive: true });
-  const profile = buildDomainProfile(config, siteUrl);
-  writeFileSync(join(wellKnownDir, 'domain-profile.json'), JSON.stringify(profile, null, 2), 'utf8');
+  writer.write({
+    path: join(fileURLToPath(distDir), '.well-known', 'domain-profile.json'),
+    owner: 'domainProfile',
+    route: '/.well-known/domain-profile.json',
+    contents: JSON.stringify(buildDomainProfile(config, siteUrl), null, 2),
+    onConflict: 'overwrite',
+  });
 }

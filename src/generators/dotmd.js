@@ -1,6 +1,5 @@
 // @ts-check
-import { writeFileSync, readFileSync, mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { writeFileSync, readFileSync } from 'node:fs';
 import { renderMarkdownDocument } from '../core/render/markdown-doc.js';
 
 // Matches a markdown alternate <link> regardless of whether rel= or type=
@@ -38,9 +37,10 @@ export function matchMarkdownAlternateLinks(html) {
  *
  * @param {import('../lib/collect.js').PageInfo[]} pages
  * @param {import('../index.js').ResolvedAstroAeoConfig} config
+ * @param {ReturnType<typeof import('../build/artifacts.js').createArtifactWriter>} writer
  * @returns {number} count of .md files written
  */
-export function emitDotMd(pages, config) {
+export function emitDotMd(pages, config, writer) {
   if (!config.markdown.enabled) return 0;
   const { alternateLink } = config.markdown;
   let written = 0;
@@ -48,11 +48,14 @@ export function emitDotMd(pages, config) {
   for (const page of pages) {
     if (page.aeoTokens.has('no-dotmd')) continue;
 
-    const body = renderMarkdownDocument(page, config);
-
-    mkdirSync(dirname(page.mdPath), { recursive: true });
-    writeFileSync(page.mdPath, body, 'utf8');
-    written++;
+    const wrote = writer.write({
+      path: page.mdPath,
+      owner: 'dotmd',
+      route: page.mdHref,
+      contents: renderMarkdownDocument(page, config),
+      onConflict: 'overwrite',
+    });
+    if (wrote) written++;
 
     if (alternateLink !== 'never') injectAlternateLink(page, alternateLink);
   }

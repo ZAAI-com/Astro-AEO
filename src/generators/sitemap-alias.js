@@ -1,5 +1,6 @@
 // @ts-check
-import { constants, copyFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { createArtifactWriter } from '../build/artifacts.js';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -20,9 +21,10 @@ import { fileURLToPath } from 'node:url';
  * @param {URL} distDir
  * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @param {{ warn: (m: string) => void }} [logger]
+ * @param {ReturnType<typeof createArtifactWriter>} [writer]  Shared writer, when one exists.
  * @returns {boolean}
  */
-export function emitSitemapAlias(distDir, config, logger) {
+export function emitSitemapAlias(distDir, config, logger, writer = undefined) {
   if (!config.discovery.sitemap.alias.enabled) return false;
   const { sourceFilename, outputFilename } = config.discovery.sitemap.alias;
 
@@ -47,21 +49,27 @@ export function emitSitemapAlias(distDir, config, logger) {
     return false;
   }
 
-  if (existsSync(outPath)) {
-    logger?.warn(`astro-aeo: ${outputFilename} already exists in the build output, leaving it in place; remove the existing output to serve the generated sitemap index at /${outputFilename}`);
-    return false;
-  }
+  const write =
+    writer ??
+    createArtifactWriter({
+      distDir,
+      logger: { info: () => {}, warn: (/** @type {string} */ m) => logger?.warn(m) },
+    });
   try {
-    copyFileSync(srcPath, outPath, constants.COPYFILE_EXCL);
+    return write.write({
+      path: outPath,
+      owner: 'sitemapAlias',
+      route: `/${outputFilename}`,
+      // A byte copy, not a read-then-write, so the alias stays exact.
+      copyFrom: srcPath,
+      onConflict: 'skip',
+      conflictMessage: `astro-aeo: ${outputFilename} already exists in the build output, leaving it in place; remove the existing output to serve the generated sitemap index at /${outputFilename}`,
+    });
   } catch (err) {
-    if (isAlreadyExistsError(err)) {
-      logger?.warn(`astro-aeo: ${outputFilename} already exists in the build output, leaving it in place; remove the existing output to serve the generated sitemap index at /${outputFilename}`);
-      return false;
-    }
+    // Documented never to throw: a sitemap problem must not fail the whole build.
     logger?.warn(`astro-aeo: sitemapAlias copy failed: ${err instanceof Error ? err.message : String(err)}`);
     return false;
   }
-  return true;
 }
 
 /**
@@ -71,12 +79,4 @@ export function emitSitemapAlias(distDir, config, logger) {
  */
 function isPlainFilename(name) {
   return typeof name === 'string' && name.length > 0 && name !== '.' && name !== '..' && !/[\\/]/.test(name);
-}
-
-/**
- * @param {unknown} err
- * @returns {boolean}
- */
-function isAlreadyExistsError(err) {
-  return typeof err === 'object' && err !== null && 'code' in err && err.code === 'EEXIST';
 }
