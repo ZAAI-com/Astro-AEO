@@ -53,6 +53,14 @@ The build pipeline, in the order data flows:
   - `git-mtime.js`: last-modified dates from git history (falls back behind
     `article:modified_time`).
   - `serialize-jsonld.js`: XSS-safe JSON-LD serialization used by the components.
+- `src/virtual/`: the runtime's configuration transport. `plugin.js` is a Vite plugin serving the
+  virtual module `astro-aeo:runtime-config`; `serialize.js` emits the resolved config as source.
+  A module registered with `addMiddleware` is a separate module and cannot close over the
+  integration's state, and `astro:env` only carries scalars, so this is how config reaches request
+  time. `load()` is called on first import, after `astro:config:done`, which is why the snapshot is
+  read through a callback: the site facts do not exist when the plugin is registered.
+- `src/runtime/`: modules destined for the consumer's SSR bundle. Same no-`node:` rule as
+  `src/core/`, and additionally no heavy imports: what lands here is bundled into **their** build.
 - `src/sources/dist-html.js`: the build's HTML source, reading rendered pages back out of the
   build output. The filesystem half of the pipeline, kept out of `src/core/` on purpose.
 - `src/build/collect.js`: runs `buildPage` over the build's pages and adds what only a build
@@ -72,6 +80,24 @@ The build pipeline, in the order data flows:
   and hand-written `index.d.ts`.
 - `cli/validate.js` + `cli/report.js`, entered through `bin/astro-aeo.js`: the
   `astro-aeo validate` command that checks a built `dist` for common AEO mistakes.
+
+### Verified Astro behaviour
+
+Measured against Astro 7 in this repo, not inferred. Re-verify before changing the transport.
+
+- A middleware entrypoint registered as a **bare specifier** (`astro-aeo/middleware`) resolves.
+  Astro emits it verbatim into a generated import, so **Vite** resolves it, not Node. It works from
+  a fixture using the `link:` self-link, in both build and dev.
+- App middleware **does** run for a path that matches no route, and a `Response` it returns without
+  calling `next()` arrives with **its own status**. `handler.js` seeds `state.status = 404` before
+  the chain, but that only seeds the page render. A returned 200 is a 200 over the wire.
+- `next('/some-page')` from an unmatched path rewrites into the real route and returns its rendered
+  response, so a `.md` request re-enters the project's own middleware and its auth applies.
+- Middleware runs during the static prerender pass for every page, with `context.isPrerendered`
+  true. In `astro dev` static routes also report `isPrerendered: true`, so a gate meant to skip
+  prerendering must test `command === 'build' && isPrerendered`, never `isPrerendered` alone.
+- `addMiddleware` does **not** require an adapter, unlike `injectRoute({ prerender: false })`,
+  which flips `buildOutput` to `server` and fails a static project with `NoAdapterInstalled`.
 
 ## Conventions
 

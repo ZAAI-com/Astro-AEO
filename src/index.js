@@ -10,6 +10,7 @@ import {
 import { finalizeSitemapOutputs } from './generators/sitemap-finalize.js';
 import { onBuildDone } from './hooks/build-done.js';
 import { createAeoMiddleware } from './hooks/server-setup.js';
+import { aeoRuntimeConfigPlugin } from './virtual/plugin.js';
 
 /**
  * Answer Engine Optimization integration for Astro.
@@ -29,6 +30,8 @@ export default function aeo(userConfig = {}) {
   let projectRoot = '';
   /** @type {URL | undefined} */
   let publicDir;
+  /** @type {'dev'|'build'|'preview'} */
+  let command = 'build';
   const sitemapState = {
     expected: false,
     siteUrl: '',
@@ -39,14 +42,29 @@ export default function aeo(userConfig = {}) {
   /** @type {Set<string>} */
   const resolvedRoutePaths = new Set();
 
+  /**
+   * What the runtime needs, and nothing more. Kept small deliberately: every
+   * field here is emitted as source into the consumer's bundle.
+   * @returns {Record<string, unknown>}
+   */
+  function runtimeSnapshot() {
+    return {
+      command,
+      config,
+      site: { siteUrl, base, trailingSlash, buildFormat },
+      staticPaths: [...resolvedRoutePaths],
+    };
+  }
+
   return {
     name: 'astro-aeo',
     hooks: {
       // Integrations can only be added here, so resolve config early and, when
       // the sitemap feature is on and none is present, auto-register the
       // official @astrojs/sitemap rather than emitting XML ourselves.
-      'astro:config:setup': ({ config: astroConfig, updateConfig, logger }) => {
+      'astro:config:setup': ({ config: astroConfig, command: astroCommand, updateConfig, logger }) => {
         config = resolveConfig(userConfig, logger);
+        command = astroCommand === 'dev' ? 'dev' : astroCommand === 'preview' ? 'preview' : 'build';
         const hasUserSitemap = (astroConfig.integrations ?? []).some(
           (i) => i && i.name === '@astrojs/sitemap',
         );
@@ -68,7 +86,15 @@ export default function aeo(userConfig = {}) {
         if (config.discovery.sitemap.alias.enabled || config.discovery.robots.enabled) {
           added.push(sitemapFinalizerIntegration(config, sitemapState, () => ({ routePaths: resolvedRoutePaths, publicDir })));
         }
-        if (added.length) updateConfig({ integrations: added });
+        // The runtime reads its configuration from a virtual module, because an
+        // entrypoint registered with addMiddleware is a separate module and cannot
+        // close over anything here. `load()` runs on first import, which is after
+        // astro:config:done, so the snapshot is read through a callback: the site
+        // facts below do not exist yet at this point.
+        updateConfig({
+          integrations: added,
+          vite: { plugins: [aeoRuntimeConfigPlugin(runtimeSnapshot)] },
+        });
       },
 
       'astro:config:done': ({ config: astroConfig, logger }) => {
