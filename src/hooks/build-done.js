@@ -1,5 +1,5 @@
 // @ts-check
-import { collectPages } from '../lib/collect.js';
+import { collectPages } from '../build/collect.js';
 import { createArtifactWriter } from '../build/artifacts.js';
 import { resolveSiteMeta } from '../config.js';
 import { emitDotMd } from '../generators/dotmd.js';

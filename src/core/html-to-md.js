@@ -1,7 +1,7 @@
 // @ts-check
 import TurndownService from 'turndown';
-import { parseDocument } from '../core/html-document.js';
-import { addKeepRule, extractMarkdown, NEVER_CONTENT } from '../core/extract/index.js';
+import { parseDocument } from './html-document.js';
+import { addKeepRule, extractMarkdown, NEVER_CONTENT } from './extract/index.js';
 
 /**
  * Create a configured Turndown instance. One per build so future options can

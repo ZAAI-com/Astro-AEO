@@ -16,7 +16,7 @@ export {
 
 /**
  * Write /llms.txt.
- * @param {import('../lib/collect.js').PageInfo[]} pages
+ * @param {import('../build/collect.js').PageInfo[]} pages
  * @param {URL} distDir
  * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @param {string} siteName
@@ -36,7 +36,7 @@ export function emitLlmsTxt(pages, distDir, config, siteName, siteDescription, w
 
 /**
  * Write /llms-full.txt (concatenated page content).
- * @param {import('../lib/collect.js').PageInfo[]} pages
+ * @param {import('../build/collect.js').PageInfo[]} pages
  * @param {URL} distDir
  * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @param {string} siteName

@@ -1,5 +1,5 @@
 // @ts-check
-import { matchPath } from '../../lib/match.js';
+import { matchPath } from '../match.js';
 import { isoDate } from './markdown-doc.js';
 
 /**

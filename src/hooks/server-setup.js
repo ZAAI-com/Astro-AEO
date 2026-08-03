@@ -1,13 +1,13 @@
 // @ts-check
-import { createTurndown, htmlToMarkdownWithDiagnostics } from '../lib/html-to-md.js';
-import { extractPageMeta, makeTitleStripper } from '../lib/page-meta.js';
+import { createTurndown, htmlToMarkdownWithDiagnostics } from '../core/html-to-md.js';
+import { extractPageMeta, makeTitleStripper } from '../core/page-meta.js';
 import { resolveSiteMeta } from '../config.js';
 import { buildRobotsTxt } from '../generators/robots-txt.js';
 import { buildDomainProfile } from '../generators/domain-profile.js';
 import { renderLlmsTxt, renderLlmsFullTxt } from '../core/render/llms-txt.js';
 import { renderMarkdownDocument } from '../core/render/markdown-doc.js';
-import { absoluteUrl, mdHrefFor, urlPath } from '../lib/collect.js';
-import { isIncluded } from '../lib/match.js';
+import { absoluteUrl, mdHrefFor, urlPath } from '../core/page-model.js';
+import { isIncluded } from '../core/match.js';
 
 /**
  * Create a Connect/Vite middleware that serves the AEO text outputs live in

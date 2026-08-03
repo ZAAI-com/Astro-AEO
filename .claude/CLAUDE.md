@@ -33,23 +33,30 @@ The build pipeline, in the order data flows:
   `domain-profile.json`, and `.md` companions live, and builds a static-route `llms.txt`, during
   `astro dev`.
 - `src/core/`: pure, source-agnostic logic shared by the build and the dev server. Nothing here
-  reads the filesystem, so the same functions run over build output and a live response.
+  reads the filesystem, so the same functions run over build output and a live response. This is
+  enforced by `src/core/boundary.test.js`, which fails on a `node:` import or a reach into any
+  directory that has one. It matters because these modules are destined for a consumer's SSR
+  bundle, where a violation fails **their** build, not ours.
+  - `page-model.js`: the `AeoPage` / `BuildPage` records, the URL helpers, and `buildPage()`, the
+    single normalize step. It returns either a page or a named skip reason, never silence.
   - `html-document.js`: the only module that knows the DOM implementation (`linkedom/worker`).
   - `extract/`: selector-based content extraction, cleanup, `keepSelectors`, URL resolution, and
     extraction diagnostics.
+  - `match.js`: segment-aware glob / RegExp / predicate matching used by include/exclude and
+    `corpus.index.sections`.
+  - `page-meta.js`: parses title, description, and AEO meta tags out of rendered HTML.
+  - `html-to-md.js`: Turndown wiring over the extraction pipeline.
   - `render/`: the string builders. `renderMarkdownDocument` is the single definition of a `.md`
     body; `renderLlmsTxt` / `renderLlmsFullTxt` likewise. Build and dev both call these, which is
     what keeps them from drifting as they previously did.
 - `src/lib/`: shared helpers.
-  - `collect.js`: turns raw build pages into normalized `AeoPage` records (path, url, title,
-    description, last-modified).
-  - `match.js`: segment-aware glob / RegExp / predicate matching used by include/exclude and
-    `llmsTxt.sections`.
-  - `html-to-md.js`: Turndown wiring over the extraction pipeline.
   - `git-mtime.js`: last-modified dates from git history (falls back behind
     `article:modified_time`).
-  - `page-meta.js`: parses title, description, and AEO meta tags out of rendered HTML.
   - `serialize-jsonld.js`: XSS-safe JSON-LD serialization used by the components.
+- `src/sources/dist-html.js`: the build's HTML source, reading rendered pages back out of the
+  build output. The filesystem half of the pipeline, kept out of `src/core/` on purpose.
+- `src/build/collect.js`: runs `buildPage` over the build's pages and adds what only a build
+  knows (the HTML path, the `.md` path, and the git-history fallback for `lastModified`).
 - `src/build/artifacts.js`: the single writer for build output. Generators declare an `Artifact`
   (path, owner, route, contents or `copyFrom`, and a collision policy) rather than calling
   `writeFileSync`. It detects four collision sources: another astro-aeo owner, a route the project

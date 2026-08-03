@@ -1,7 +1,7 @@
 import { test, expect, describe } from 'vitest';
 import { parseDocument } from '../html-document.js';
 import { assertValidSelectors, cleanRoot, extractMarkdown, selectContentRoots } from './index.js';
-import { createTurndown, DEFAULT_EXTRACTION, htmlToMarkdown } from '../../lib/html-to-md.js';
+import { createTurndown, DEFAULT_EXTRACTION, htmlToMarkdown } from '../html-to-md.js';
 import { AeoConfigError } from '../../lib/errors.js';
 
 const doc = (html) => parseDocument(html);

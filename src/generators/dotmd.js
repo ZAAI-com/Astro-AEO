@@ -35,7 +35,7 @@ export function matchMarkdownAlternateLinks(html) {
  * Write .md companion files and inject <link rel="alternate" type="text/markdown">
  * into each page's <head>.
  *
- * @param {import('../lib/collect.js').PageInfo[]} pages
+ * @param {import('../build/collect.js').PageInfo[]} pages
  * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @param {ReturnType<typeof import('../build/artifacts.js').createArtifactWriter>} writer
  * @returns {number} count of .md files written
@@ -66,7 +66,7 @@ export function emitDotMd(pages, config, writer) {
 /**
  * Inject (or, in 'always' mode, normalize) the markdown alternate link in a
  * page's <head>. Idempotent in 'auto' mode.
- * @param {import('../lib/collect.js').PageInfo} page
+ * @param {import('../build/collect.js').PageInfo} page
  * @param {'auto'|'always'} mode
  */
 function injectAlternateLink(page, mode) {

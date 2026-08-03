@@ -24,7 +24,7 @@ export function resolveWithinRoot(projectRoot, filepath) {
  * Write a Markdown table of every page to a file under the project root
  * (default docs/Url-Map.md), for committing as a content audit.
  *
- * @param {import('../lib/collect.js').PageInfo[]} pages
+ * @param {import('../build/collect.js').PageInfo[]} pages
  * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @param {string} projectRoot
  * @param {Date} generatedAt

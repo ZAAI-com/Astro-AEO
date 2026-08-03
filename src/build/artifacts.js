@@ -2,7 +2,7 @@
 import { writeFileSync, mkdirSync, existsSync, copyFileSync, constants } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { normalizePath } from '../lib/match.js';
+import { normalizePath } from '../core/match.js';
 
 /**
  * One place that writes build output.
