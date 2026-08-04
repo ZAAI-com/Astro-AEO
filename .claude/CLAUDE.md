@@ -29,9 +29,10 @@ The build pipeline, in the order data flows:
   its canonical replacement set to different values throws `AeoConfigError` (`src/lib/errors.js`);
   set to equal values, canonical wins with one warning.
 - `src/hooks/build-done.js`: `onBuildDone` orchestrates every generator on `astro:build:done`.
-- `src/hooks/server-setup.js`: dev-server middleware that serves `robots.txt`,
-  `domain-profile.json`, and `.md` companions live, and builds a static-route `llms.txt`, during
-  `astro dev`.
+- `src/runtime/middleware.js`: the `addMiddleware` entrypoint, registered with `order: 'pre'` so
+  it is outermost and `next()` yields the fully rendered response. It serves `.md` companions,
+  `Accept` negotiation, and (in dev, where no build output exists) the text artifacts. There is no
+  longer a separate dev implementation.
 - `src/core/`: pure, source-agnostic logic shared by the build and the dev server. Nothing here
   reads the filesystem, so the same functions run over build output and a live response. This is
   enforced by `src/core/boundary.test.js`, which fails on a `node:` import or a reach into any
@@ -96,6 +97,14 @@ Measured against Astro 7 in this repo, not inferred. Re-verify before changing t
 - Middleware runs during the static prerender pass for every page, with `context.isPrerendered`
   true. In `astro dev` static routes also report `isPrerendered: true`, so a gate meant to skip
   prerendering must test `command === 'build' && isPrerendered`, never `isPrerendered` alone.
+- Astro **blanks request headers and the query string** for a prerendered route
+  (`core/request.js`), on purpose, so code reading them cannot work in dev and then fail once the
+  page is a static file. Content negotiation therefore only ever applies to on-demand routes. A
+  direct `.md` request is unaffected: it matches no route, so it is handled on the synthetic
+  `/404` route, which is not prerendered and does have headers.
+- A `.md` request must never fall through to `next()` once `context.rewrite()` has been called:
+  `next()` then resolves to the underlying page's HTML, which would serve an excluded or
+  `no-dotmd` page's content at the `.md` URL with a 200.
 - `addMiddleware` does **not** require an adapter, unlike `injectRoute({ prerender: false })`,
   which flips `buildOutput` to `server` and fails a static project with `NoAdapterInstalled`.
 

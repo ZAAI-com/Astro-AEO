@@ -103,6 +103,8 @@ aeo({
     includeLastModified: true,
     frontmatter: false,              // prepend YAML frontmatter to .md files
 
+    negotiation: 'off',              // 'off' | 'response' | 'redirect', on-demand routes only
+
     extraction: {
       selectors: ['article', 'main'],     // tried in order, first with a match wins
       removeSelectors: ['nav', 'footer'], // dropped before conversion
@@ -246,6 +248,23 @@ integrations: [
 By default `@astrojs/sitemap` names its index `sitemap-index.xml` (a custom `filenameBase` makes it `${filenameBase}-index.xml`), so a request for the conventional `/sitemap.xml` returns 404. With `discovery.sitemap.alias.enabled` (the default), Astro-AEO byte-copies the generated index to `/sitemap.xml` after generation. The copy is byte-identical, but it is created only when the source exists and the target does not. Any existing build output wins, including a file from `public/`, a prerendered Astro endpoint, or another integration. Remove that output if you want Astro-AEO to provide the alias instead.
 
 `discovery.robots.sitemapPath` defaults to the tracked sitemap output name (`/sitemap-index.xml`, or `/${filenameBase}-index.xml`). When `includeSitemap` is omitted, Astro-AEO automatically emits the line only if that path exists in the static build. Set `includeSitemap: true` to force the line for an SSR or runtime-only sitemap, or `false` to suppress it. In `astro dev`, automatic mode recognizes public files and concrete Astro routes but does not advertise the build-only `@astrojs/sitemap` output.
+
+### Content negotiation
+
+`markdown.negotiation` lets a client ask for Markdown at a page's own URL instead of
+its `.md` path. `'response'` returns Markdown at the original URL; `'redirect'` sends
+a 303 to the `.md` URL. Default is `'off'`.
+
+Markdown has to be asked for explicitly and outrank HTML strictly. A wildcard
+(`*/*`), a tie, a missing header, and a malformed one all resolve to HTML, so
+browsers, curl, and crawlers that send `*/*` are unaffected.
+
+**This applies to on-demand routes only.** Astro does not expose request headers to
+a prerendered route, deliberately: those pages become static files, so honouring a
+request header would work in `astro dev` and then silently stop working once
+deployed. A project with no adapter prerenders everything and cannot negotiate
+anywhere, and Astro-AEO warns if you configure it there. The `.md` companions are
+unaffected and work on any hosting.
 
 ### Extraction
 

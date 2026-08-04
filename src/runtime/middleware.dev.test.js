@@ -127,3 +127,43 @@ describe('dev server AEO endpoints', () => {
     });
   });
 });
+
+describe('request-time contract', () => {
+  test('a prerendered route always serves HTML, whatever the client asks for', async () => {
+    // Astro blanks request headers for prerendered routes (core/request.js), on
+    // purpose: those pages are static files in production, so honouring an Accept
+    // header would work in dev and silently stop working once deployed. Content
+    // negotiation is therefore an on-demand-route feature, and the demo is static.
+    // The negotiation predicate itself is unit-tested in runtime/negotiate.test.js.
+    const r = await fetch(`${BASE}/about/`, { headers: { accept: 'text/markdown' } });
+    expect(r.headers.get('content-type')).toContain('text/html');
+  });
+
+  test('a .md response carries an ETag that satisfies a conditional request', async () => {
+    const first = await fetch(`${BASE}/about.md`);
+    const etag = first.headers.get('etag');
+    expect(etag).toBeTruthy();
+    const second = await fetch(`${BASE}/about.md`, { headers: { 'if-none-match': etag } });
+    expect(second.status).toBe(304);
+    expect(await second.text()).toBe('');
+  });
+
+  test('HEAD returns the same headers with no body', async () => {
+    const head = await fetch(`${BASE}/about.md`, { method: 'HEAD' });
+    const get = await fetch(`${BASE}/about.md`);
+    expect(head.status).toBe(200);
+    expect(head.headers.get('content-type')).toBe(get.headers.get('content-type'));
+    expect(head.headers.get('etag')).toBe(get.headers.get('etag'));
+    expect(await head.text()).toBe('');
+  });
+
+  test('a POST is never intercepted', async () => {
+    const r = await fetch(`${BASE}/about.md`, { method: 'POST' });
+    expect(r.status).not.toBe(200);
+  });
+
+  test('a .md path for a page that does not exist is a 404, not someone else HTML', async () => {
+    const r = await fetch(`${BASE}/does-not-exist.md`);
+    expect(r.status).toBe(404);
+  });
+});

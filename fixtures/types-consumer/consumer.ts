@@ -71,6 +71,7 @@ export const resolvedEntity: EntityType = resolved.domainProfile.entityType;
 // drift guard: they run in a real .ts consumer, on the oldest supported compiler.
 declare const resolvedCanonical: ResolvedAstroAeoConfig;
 export const rAlternateLink: 'auto' | 'always' | 'never' = resolvedCanonical.markdown.alternateLink;
+export const rNegotiation: 'off' | 'response' | 'redirect' = resolvedCanonical.markdown.negotiation;
 export const rSelectors: string[] = resolvedCanonical.markdown.extraction.selectors;
 export const rKeep: string[] = resolvedCanonical.markdown.extraction.keepSelectors;
 export const rMode: 'all' | 'index' | 'first-page-only' = resolvedCanonical.corpus.full.mode;
@@ -96,6 +97,7 @@ export const mdOpts: MarkdownOptions = {
   enabled: true,
   alternateLink: 'auto',
   frontmatter: true,
+  negotiation: 'response',
   extraction: { selectors: ['article', 'main'], removeSelectors: ['nav'], keepSelectors: [] },
 };
 export const extractionOpts: ExtractionOptions = { selectors: ['main'] };
@@ -155,6 +157,8 @@ export const noProfileContact: AstroAeoConfig = { site: { profile: { contact: 'h
 export const badInclude: AstroAeoConfig = { pages: { include: '/blog/**' } };
 // @ts-expect-error markdown.alternateLink is a closed union
 export const badAlternate: AstroAeoConfig = { markdown: { alternateLink: 'sometimes' } };
+// @ts-expect-error markdown.negotiation is a closed union
+export const badNegotiation: AstroAeoConfig = { markdown: { negotiation: 'maybe' } };
 // @ts-expect-error extraction selectors are an array of strings, not one string
 export const badSelectors: AstroAeoConfig = { markdown: { extraction: { selectors: 'main' } } };
 // @ts-expect-error `linkTag` was renamed to `alternateLink` in the canonical block

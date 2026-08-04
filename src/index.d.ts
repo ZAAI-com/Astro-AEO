@@ -347,6 +347,21 @@ export interface MarkdownOptions {
   includeLastModified?: boolean;
   /** Prepend YAML frontmatter (title, url, description, optional lastModified) to .md files. Default: false. */
   frontmatter?: boolean;
+  /**
+   * Serve Markdown at a page's own URL when the client asks for it by `Accept`.
+   * - 'off' (default): `.md` companions only, at their own paths.
+   * - 'response': return Markdown at the original URL.
+   * - 'redirect': redirect to the `.md` URL.
+   *
+   * Markdown must be requested explicitly and outrank HTML strictly; a wildcard,
+   * a tie, or a malformed header always resolves to HTML.
+   *
+   * Applies to on-demand routes only. Astro does not expose request headers to a
+   * prerendered route, so that code cannot appear to work in dev and then stop
+   * once the page is a static file. A project with no adapter prerenders
+   * everything and cannot negotiate anywhere; `.md` companions are unaffected.
+   */
+  negotiation?: 'off' | 'response' | 'redirect';
   /** Which part of a rendered page becomes Markdown. */
   extraction?: ExtractionOptions;
 }

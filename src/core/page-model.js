@@ -1,6 +1,6 @@
 // @ts-check
 import { htmlToMarkdownWithDiagnostics } from './html-to-md.js';
-import { extractPageMeta } from './page-meta.js';
+import { extractPageMeta, makeTitleStripper } from './page-meta.js';
 import { isIncluded, normalizePath } from './match.js';
 
 /**
@@ -116,7 +116,7 @@ export function basePrefix(base) {
  * @param {import('../index.js').ResolvedAstroAeoConfig} input.config
  * @param {SiteFacts} input.site
  * @param {import('turndown')} [input.td]
- * @param {(title: string) => string} [input.strip]
+ * @param {(title: string) => string} [input.strip]  Reused instance; derived from config when absent.
  * @returns {{ page: AeoPage } | { skip: SkipReason }}
  */
 export function buildPage({ pathname: rawPathname, html, config, site, td, strip }) {
@@ -126,7 +126,10 @@ export function buildPage({ pathname: rawPathname, html, config, site, td, strip
     return { skip: 'excluded' };
   }
 
-  const meta = extractPageMeta(html, strip);
+  // Deriving this from config when the caller does not supply one keeps the
+  // option working everywhere. Callers in a loop pass their own so the regular
+  // expression is compiled once rather than per page.
+  const meta = extractPageMeta(html, strip ?? makeTitleStripper(config.pages.stripTitleSuffix));
   if (meta.isRedirect) return { skip: 'redirect' };
   if (config.pages.respectNoindex && meta.noindex) return { skip: 'noindex' };
   if (meta.aeoTokens.has('skip')) return { skip: 'skip-token' };

@@ -2,14 +2,9 @@
 import { fileURLToPath } from 'node:url';
 import sitemap from '@astrojs/sitemap';
 import { resolveConfig } from './config.js';
-import {
-  resolveSitemapPlan,
-  sitemapPathExists,
-  sitemapPathMatchesRoute,
-} from './lib/sitemap.js';
+import { resolveSitemapPlan } from './lib/sitemap.js';
 import { finalizeSitemapOutputs } from './generators/sitemap-finalize.js';
 import { onBuildDone } from './hooks/build-done.js';
-import { createAeoMiddleware } from './hooks/server-setup.js';
 import { aeoRuntimeConfigPlugin } from './virtual/plugin.js';
 
 /**
@@ -62,7 +57,7 @@ export default function aeo(userConfig = {}) {
       // Integrations can only be added here, so resolve config early and, when
       // the sitemap feature is on and none is present, auto-register the
       // official @astrojs/sitemap rather than emitting XML ourselves.
-      'astro:config:setup': ({ config: astroConfig, command: astroCommand, updateConfig, logger }) => {
+      'astro:config:setup': ({ config: astroConfig, command: astroCommand, addMiddleware, updateConfig, logger }) => {
         config = resolveConfig(userConfig, logger);
         command = astroCommand === 'dev' ? 'dev' : astroCommand === 'preview' ? 'preview' : 'build';
         const hasUserSitemap = (astroConfig.integrations ?? []).some(
@@ -95,6 +90,15 @@ export default function aeo(userConfig = {}) {
           integrations: added,
           vite: { plugins: [aeoRuntimeConfigPlugin(runtimeSnapshot)] },
         });
+
+        // One handler for every request-time surface: .md companions, Accept
+        // negotiation, and the text artifacts during `astro dev`. `order: 'pre'`
+        // makes it the outermost, so `next()` yields the fully rendered response.
+        //
+        // A bare specifier is correct here: Astro emits it verbatim into a
+        // generated import that Vite resolves, so it does not go through Node's
+        // resolver and needs no URL fallback.
+        addMiddleware({ order: 'pre', entrypoint: 'astro-aeo/middleware' });
       },
 
       'astro:config:done': ({ config: astroConfig, logger }) => {
@@ -106,6 +110,17 @@ export default function aeo(userConfig = {}) {
         buildFormat = astroConfig.build?.format === 'file' ? 'file' : 'directory';
         projectRoot = fileURLToPath(astroConfig.root);
         publicDir = astroConfig.publicDir;
+
+        // Astro blanks request headers for prerendered routes (core/request.js),
+        // deliberately, so that code reading them cannot work in dev and then fail
+        // once the page is a static file. Negotiation therefore only ever applies
+        // to on-demand routes, and a project with no adapter has none.
+        if (config.markdown.negotiation !== 'off' && !astroConfig.adapter) {
+          logger.warn(
+            `astro-aeo: markdown.negotiation is "${config.markdown.negotiation}" but this project has no adapter, so every route is prerendered and none can negotiate. ` +
+              'Astro does not expose request headers to a prerendered route. Add an adapter and mark the routes that should negotiate with `export const prerender = false`, or set markdown.negotiation to "off". The .md companions are unaffected.',
+          );
+        }
         sitemapState.siteUrl = siteUrl;
         sitemapState.base = base;
       },
@@ -123,23 +138,6 @@ export default function aeo(userConfig = {}) {
             routeEntrypoints.set(normalize(pathname), entrypoint);
           }
         }
-      },
-
-      'astro:server:setup': ({ server, logger }) => {
-        config = config ?? resolveConfig(userConfig, logger);
-        server.middlewares.use(
-          createAeoMiddleware({
-            config,
-            siteUrl,
-            base,
-            trailingSlash,
-            isSitemapAvailable: () =>
-              (publicDir ? sitemapPathExists(publicDir, config.discovery.robots.sitemapPath) : false) ||
-              sitemapPathMatchesRoute(config.discovery.robots.sitemapPath, [...resolvedRoutePaths]),
-            getStaticPaths: () => [...routeEntrypoints.keys()],
-            logger,
-          }),
-        );
       },
 
       'astro:build:done': async (options) => {

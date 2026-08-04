@@ -99,6 +99,7 @@ export function resolveConfig(rawConfig = {}, logger) {
       alternateLink: markdown.alternateLink ?? 'auto',
       includeLastModified: markdown.includeLastModified ?? true,
       frontmatter: markdown.frontmatter ?? false,
+      negotiation: markdown.negotiation ?? 'off',
       extraction: {
         selectors: extraction.selectors ?? ['article', 'main'],
         removeSelectors: extraction.removeSelectors ?? ['nav', 'footer'],
@@ -201,6 +202,7 @@ const CONFIG_SHAPE = {
     alternateLink: null,
     includeLastModified: null,
     frontmatter: null,
+    negotiation: null,
     extraction: { selectors: null, removeSelectors: null, keepSelectors: null },
   },
   corpus: {
@@ -257,24 +259,5 @@ function warnUnknownKeys(value, shape, logger, path = '') {
   }
 }
 
-/**
- * Resolve the site name/description used in llms.txt headers, following the
- * fallback chain: explicit site.* -> site.profile.* -> homepage <title> -> hostname.
- *
- * @param {import('./index.js').ResolvedAstroAeoConfig} config
- * @param {string} siteUrl
- * @param {string} homeTitle  <title> of the built home page (may be empty).
- * @returns {{ name: string; description: string }}
- */
-export function resolveSiteMeta(config, siteUrl, homeTitle) {
-  let name = config.site.name || config.site.profile.name || homeTitle;
-  if (!name && siteUrl) {
-    try {
-      name = new URL(siteUrl).hostname;
-    } catch {
-      name = siteUrl;
-    }
-  }
-  const description = config.site.description || config.site.profile.description || '';
-  return { name: name || 'Site', description };
-}
+// Moved to core/site-meta.js so the runtime can use it; re-exported for callers.
+export { resolveSiteMeta } from './core/site-meta.js';

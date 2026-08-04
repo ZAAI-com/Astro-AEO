@@ -18,6 +18,11 @@ All notable changes to this project are documented here. This project follows [S
   elements as raw HTML). `script`, `style`, `noscript`, `iframe`, and `head` are always dropped and
   can never be reintroduced by `keepSelectors`. An invalid or empty selector is a configuration
   error rather than a silent no-op.
+- `markdown.negotiation` (`'off'` by default, `'response'` or `'redirect'`): serve Markdown at a
+  page's own URL when a client asks for it. Markdown must be requested explicitly and outrank HTML
+  strictly, so a wildcard, a tie, a missing header, or a malformed one all resolve to HTML. Applies
+  to on-demand routes only, because Astro does not expose request headers to a prerendered route;
+  configuring it on a project with no adapter warns.
 - `AEO_PRINT_MIGRATION=1` prints a paste-ready canonical config block derived from the 1.0 keys a
   project actually sets. It runs inside Astro, so it works for `.mjs` and `.ts` configs alike.
 - `pnpm run test:types`: a consumer typecheck of `fixtures/types-consumer/` against the oldest
@@ -38,6 +43,11 @@ All notable changes to this project are documented here. This project follows [S
   stubs) now shares one quote-aware `<meta>` scanner instead of a regular expression per field.
   Attribute order, unquoted values, and a `>` inside a quoted value are handled for every field.
   Previously only `extractMetaContent`, which `extractPageMeta` did not use, was that robust.
+- Request-time output is now served by one Astro middleware, registered with `addMiddleware`,
+  replacing the dev-only Connect middleware. `.md` companions, the text artifacts, and negotiation
+  are handled by the same code in `astro dev` and on an adapter, rather than dev having its own
+  implementation. A `.md` request rewrites into the underlying route, so the project's own
+  middleware runs and its authentication applies exactly as it does to the HTML.
 - All build output now goes through one artifact writer, which reports a collision instead of
   letting it pass silently. Three cases are newly diagnosed: two astro-aeo generators claiming one
   path, a path also produced by a route in the project (a `src/pages/llms.txt.ts` endpoint had its
