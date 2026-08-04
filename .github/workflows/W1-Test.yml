@@ -41,6 +41,11 @@ jobs:
       - name: Dev-server e2e (astro 7 leg only)
         if: matrix.astro == '7'
         run: pnpm run test:dev
+      # The on-demand contract needs a real adapter, so it cannot run against a
+      # static build or the dev server. Newest Astro only, matching test:dev.
+      - name: Adapter e2e (astro 7 leg only)
+        if: matrix.astro == '7'
+        run: pnpm run test:ssr
 
   node-compat:
     name: node ${{ matrix.node }} compat
@@ -68,5 +73,9 @@ jobs:
           node-version: ${{ matrix.node }}
       - name: Smoke import under Node
         run: node -e "import('./src/index.js').then(m => { if (typeof m.default !== 'function') process.exit(1) })"
+      # Through the real exports map, which the check above bypasses by importing
+      # the file directly. A typo in the map would otherwise ship.
+      - name: Smoke import every published subpath
+        run: node --input-type=module -e "await Promise.all(['astro-aeo', 'astro-aeo/components'].map((s) => import(s)))"
       - name: CLI runs under Node
         run: node bin/astro-aeo.js validate fixtures/dist-valid

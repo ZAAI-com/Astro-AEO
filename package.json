@@ -71,6 +71,7 @@
     "turndown": "^7.2.0"
   },
   "devDependencies": {
+    "@astrojs/node": "^11.0.3",
     "@types/node": "^26.1.1",
     "@types/turndown": "^5.0.6",
     "astro": "^7.1.3",
@@ -82,6 +83,7 @@
   "scripts": {
     "test": "vitest run",
     "test:dev": "vitest run --config vitest.dev.config.js",
+    "test:ssr": "vitest run --config vitest.ssr.config.js",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "test:types": "node node_modules/typescript-floor/bin/tsc --noEmit -p fixtures/types-consumer/tsconfig.json",

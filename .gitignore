@@ -19,3 +19,5 @@ fixtures/demo/node_modules/
 
 # Test coverage output (vitest --coverage)
 coverage/
+fixtures/ssr-node/dist/
+fixtures/ssr-node/.astro/

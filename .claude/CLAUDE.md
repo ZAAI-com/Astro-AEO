@@ -137,6 +137,10 @@ Measured against Astro 7 in this repo, not inferred. Re-verify before changing t
   `AEO_PRINT_MIGRATION=1 astro build` prints the canonical spelling of a 1.0 config.
 - `pnpm run test:dev` runs the opt-in dev-server e2e (`*.dev.test.js`), which spawns
   `astro dev`. It is excluded from the default run.
+- `pnpm run test:ssr` runs the opt-in adapter e2e (`*.ssr.test.js`) against
+  `fixtures/ssr-node` with `@astrojs/node`. It is the only place the on-demand contract can be
+  tested: content negotiation does not exist on a prerendered route, and neither does a
+  request-time `.md` render.
 - `pnpm run typecheck` runs `tsc --noEmit` against the JSDoc types, using the repo's own
   (newest) TypeScript.
 - `pnpm run test:types` typechecks `fixtures/types-consumer/` against the **oldest** supported

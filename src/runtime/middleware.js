@@ -1,6 +1,7 @@
 // @ts-check
 import { RUNTIME } from './config.js';
 import { mdPathnameFor, pagePathForMdPath, basePrefix } from '../core/page-model.js';
+import { normalizePath } from '../core/match.js';
 import { prefersMarkdown } from './negotiate.js';
 import { MARKDOWN_CONTENT_TYPE, inheritedCacheHeaders, textResponse } from './respond.js';
 import {
@@ -63,12 +64,14 @@ export const onRequest = async (context, next) => {
   // 2. A direct `.md` request.
   const mdPagePath = pagePathForMdPath(pathname);
   if (RUNTIME.config.markdown.enabled && mdPagePath !== null && !ownedByProject(pathname)) {
-    const body = await serveMarkdown(pathname, RUNTIME, htmlFetcher(context));
-    // Not `next()`. Reaching here means the page was excluded, opted out with
-    // `no-dotmd`, or does not exist, and `next()` after the chain has already been
-    // entered resolves to the underlying page's HTML: a 200 of exactly the content
-    // the configuration said not to publish, served at the .md URL.
-    if (body === null) return new Response(null, { status: 404 });
+    const fetcher = htmlFetcher(context);
+    const body = await serveMarkdown(pathname, RUNTIME, fetcher);
+    // Not `next()`: after the chain has been entered, `next()` resolves to the
+    // underlying page's HTML, so an excluded or `no-dotmd` page would be served in
+    // full, with a 200, at its .md URL. Mirror the upstream status when there is
+    // one, because the project's own middleware may have answered 401 or 403 and
+    // replacing that with 404 would contradict the decision it just made.
+    if (body === null) return new Response(null, { status: fetcher.upstreamStatus() ?? 404 });
     return textResponse({
       body,
       contentType: MARKDOWN_CONTENT_TYPE,
@@ -85,7 +88,7 @@ export const onRequest = async (context, next) => {
   if (negotiation === 'redirect') {
     return new Response(null, {
       status: 303,
-      headers: { location: `${basePrefix(RUNTIME.site.base)}${mdPathnameFor(pathname)}`, vary: 'Accept' },
+      headers: { location: `${basePrefix(RUNTIME.site.base)}${mdPathnameFor(normalizePath(pathname))}`, vary: 'Accept' },
     });
   }
 
@@ -96,14 +99,14 @@ export const onRequest = async (context, next) => {
   if (!response.ok) return response;
 
   const html = await response.text();
-  const body = await serveMarkdown(mdPathnameFor(pathname), RUNTIME, async () => html);
+  const body = await serveMarkdown(mdPathnameFor(normalizePath(pathname)), RUNTIME, async () => html);
   if (body === null) return new Response(html, response);
 
   return textResponse({
     body,
     contentType: MARKDOWN_CONTENT_TYPE,
     request: context.request,
-    headers: { vary: 'Accept', ...canonicalLink(pathname, context), ...inheritedCacheHeaders(response) },
+    headers: { vary: 'Accept', ...canonicalLink(normalizePath(pathname), context), ...inheritedCacheHeaders(response) },
   });
 };
 
@@ -130,24 +133,32 @@ function ownedByProject(pathname) {
  * fetcher for the pages after the first.
  *
  * @param {import('astro').APIContext} context
- * @returns {import('./serve.js').HtmlFetcher}
+ * @returns {import('./serve.js').HtmlFetcher & { upstreamStatus(): number | null }}
  */
 function htmlFetcher(context) {
   let rewritten = false;
-  return async (pathname) => {
+  /** @type {number | null} */
+  let upstream = null;
+
+  /** @param {string} pathname */
+  const load = async (pathname) => {
     const target = `${basePrefix(RUNTIME.site.base)}${withTrailingSlash(pathname)}`;
     try {
       const response = rewritten
         ? await fetch(new URL(target, context.url.origin), { headers: { 'x-astro-aeo': '1' } })
         : ((rewritten = true), await context.rewrite(target));
-      if (!response.ok || !isHtml(response)) return null;
-      return await response.text();
+      if (!response.ok) {
+        upstream = response.status;
+        return null;
+      }
+      return isHtml(response) ? await response.text() : null;
     } catch {
       // A rewrite into a prerendered route throws in a server build. That page's
       // .md already exists as a build artifact, so there is nothing to do here.
       return null;
     }
   };
+  return Object.assign(load, { upstreamStatus: () => upstream });
 }
 
 /**
