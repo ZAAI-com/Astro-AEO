@@ -95,6 +95,7 @@ aeo({
     exclude: [],                     // path globs to exclude, e.g. ['/drafts/**']
     respectNoindex: true,            // skip pages with <meta name="robots" content="noindex">
     stripTitleSuffix: false,         // strip " | Your Brand" from titles: string | string[] | RegExp
+    catalogs: [],                    // modules listing data-generated routes
   },
 
   markdown: {                        // the .md companions
@@ -249,6 +250,61 @@ By default `@astrojs/sitemap` names its index `sitemap-index.xml` (a custom `fil
 
 `discovery.robots.sitemapPath` defaults to the tracked sitemap output name (`/sitemap-index.xml`, or `/${filenameBase}-index.xml`). When `includeSitemap` is omitted, Astro-AEO automatically emits the line only if that path exists in the static build. Set `includeSitemap: true` to force the line for an SSR or runtime-only sitemap, or `false` to suppress it. In `astro dev`, automatic mode recognizes public files and concrete Astro routes but does not advertise the build-only `@astrojs/sitemap` output.
 
+### Giving a page its own source
+
+Astro-AEO reads a page's content out of its rendered HTML. That is a good
+approximation, but only an approximation: a heading that was `##` in the source is
+an `<h2>` by the time it is served, and the exact wording of a code fence or a
+table is gone. When a page is built from Markdown, the page itself still has the
+original, and can hand it over:
+
+```astro
+---
+import { defineAeoPage } from 'astro-aeo/page';
+import { AeoPage } from 'astro-aeo/components';
+import { getEntry, render } from 'astro:content';
+
+const post = await getEntry('blog', Astro.params.slug);
+const aeoPage = defineAeoPage({ source: post });
+const { Content } = await render(post);
+---
+<AeoPage {...aeoPage} />
+<Content />
+```
+
+`defineAeoPage` reads `body`, `data.title`, `data.description` and the dates off a
+content-collection entry, or takes any of them directly. Every field is optional;
+supplying none is the same as not using it at all, and extraction runs as usual.
+
+The marker the component emits is internal. It is written only when Astro-AEO is
+the one rendering the page (the build's prerender pass, or a request for the `.md`),
+and it is removed from every page before anything is written or served, so it never
+reaches a browser and never appears in a `.md` file.
+
+### Pages the build cannot see
+
+Routes generated from data rather than from a file are invisible to Astro's page
+list, so they are absent from `llms.txt` and get no `.md`. A catalog lists them:
+
+```js
+// astro.config.mjs
+aeo({ pages: { catalogs: [{ module: './src/aeo-catalog.js' }] } })
+```
+
+```js
+// src/aeo-catalog.js
+export default {
+  name: 'blog',
+  async listPages() {
+    const posts = await fetchPostsFromYourCms();
+    return posts.map((p) => ({ pathname: `/blog/${p.slug}`, lastModified: p.updatedAt }));
+  },
+};
+```
+
+A catalog that fails to load warns and contributes nothing rather than failing the
+build. Astro-AEO does not crawl your site to discover routes.
+
 ### Content negotiation
 
 `markdown.negotiation` lets a client ask for Markdown at a page's own URL instead of
@@ -326,7 +382,14 @@ Globs are segment-aware: `*` stays inside one path segment, `**` crosses segment
 
 ### Serving .md companions
 
-The `.md` companions are advertised as `type="text/markdown"`, but at build time they are plain static assets, and many hosts serve unknown extensions as `text/plain`, `application/octet-stream`, or a download. To keep answer engines consuming them as Markdown in production, set `Content-Type: text/markdown; charset=utf-8` for `*.md`:
+On a project with an adapter, `.md` requests are served by Astro-AEO's own middleware,
+which sets the content type itself and re-enters your routing, so your own middleware
+and its authentication apply to a `.md` request exactly as they do to the HTML.
+
+On static hosting the companions are plain files, and many hosts serve unknown
+extensions as `text/plain`, `application/octet-stream`, or a download. To keep answer
+engines consuming them as Markdown, set `Content-Type: text/markdown; charset=utf-8`
+for `*.md`:
 
 **Render** (`render.yaml`):
 
@@ -433,6 +496,8 @@ pnpm run typecheck     # tsc --noEmit against JSDoc types
 pnpm run demo:dev      # run the demo site in fixtures/demo
 pnpm run demo:build    # build the demo site
 pnpm run demo:validate # run the validator CLI on the demo build
+pnpm run test:dev      # dev-server e2e (spawns astro dev)
+pnpm run test:ssr      # adapter e2e (builds and boots @astrojs/node)
 ```
 
 Tests are colocated next to the source they cover as `*.test.js`. The package is authored as plain ESM JavaScript with JSDoc types and a hand-written `index.d.ts`, so it needs no build step and installs cleanly as a git dependency.

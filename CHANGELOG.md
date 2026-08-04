@@ -23,6 +23,13 @@ All notable changes to this project are documented here. This project follows [S
   strictly, so a wildcard, a tie, a missing header, or a malformed one all resolve to HTML. Applies
   to on-demand routes only, because Astro does not expose request headers to a prerendered route;
   configuring it on a project with no adapter warns.
+- `astro-aeo/page` and the `AeoPage` component: a page can hand Astro-AEO the Markdown it was
+  built from instead of having it recovered from the rendered HTML. `defineAeoPage` reads a
+  content-collection entry, or takes the fields directly. The marker it emits is internal, written
+  only while Astro-AEO is reading the page, and removed from every page before anything is written
+  or served.
+- `pages.catalogs`: modules listing routes generated from data, which Astro's own page list cannot
+  see. A catalog that fails to load warns and contributes nothing rather than failing the build.
 - `AEO_PRINT_MIGRATION=1` prints a paste-ready canonical config block derived from the 1.0 keys a
   project actually sets. It runs inside Astro, so it works for `.mjs` and `.ts` configs alike.
 - `pnpm run test:types`: a consumer typecheck of `fixtures/types-consumer/` against the oldest

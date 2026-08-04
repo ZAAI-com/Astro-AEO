@@ -42,7 +42,9 @@ The build pipeline, in the order data flows:
     single normalize step. It returns either a page or a named skip reason, never silence.
   - `html-document.js`: the only module that knows the DOM implementation (`linkedom/worker`).
   - `extract/`: selector-based content extraction, cleanup, `keepSelectors`, URL resolution, and
-    extraction diagnostics.
+    extraction diagnostics. `marker.js` owns the source-marker channel: `<AeoPage>` writes it,
+    `buildPage` reads it, and `src/build/strip-markers.js` removes it from every built page in a
+    pass of its own. Removal must not live in a generator: every one of them skips some page.
   - `match.js`: segment-aware glob / RegExp / predicate matching used by include/exclude and
     `corpus.index.sections`.
   - `page-meta.js`: parses title, description, and AEO meta tags out of rendered HTML.
@@ -163,6 +165,7 @@ pnpm run test:types    # consumer .d.ts check on the oldest supported TypeScript
 pnpm run demo:dev      # run the demo site in fixtures/demo
 pnpm run demo:build    # build the demo site
 pnpm run demo:validate # run the validator CLI on the demo build
+pnpm run test:ssr      # adapter e2e (builds and boots @astrojs/node)
 ```
 
 ## When adding a config option
