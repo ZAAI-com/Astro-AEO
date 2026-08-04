@@ -375,6 +375,13 @@ export interface PagesOptions {
   respectNoindex?: boolean;
   /** Strip a trailing " | {suffix}" (or matching RegExp) from page titles. Default: false. */
   stripTitleSuffix?: string | string[] | RegExp | false;
+  /**
+   * Modules listing pages the build cannot discover for itself, which is every
+   * route generated from data rather than from a file. Each module default-exports
+   * a `PageCatalog` (see `astro-aeo/page`). Without one, such a route is simply
+   * absent from the corpus; astro-aeo does not crawl to find them. Default: [].
+   */
+  catalogs?: { module: string }[];
 }
 
 export interface ProfileOptions {

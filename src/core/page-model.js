@@ -1,7 +1,10 @@
 // @ts-check
-import { htmlToMarkdownWithDiagnostics } from './html-to-md.js';
+import { createTurndown } from './html-to-md.js';
+import { extractMarkdown } from './extract/index.js';
 import { extractPageMeta, makeTitleStripper } from './page-meta.js';
 import { isIncluded, normalizePath } from './match.js';
+import { parseDocument } from './html-document.js';
+import { readMarker, removeMarkers } from './extract/marker.js';
 
 /**
  * The normalized page record and the single step that produces it.
@@ -31,6 +34,7 @@ import { isIncluded, normalizePath } from './match.js';
  * @property {Date | undefined} lastModified
  * @property {Set<string>} aeoTokens
  * @property {import('./extract/index.js').ExtractionDiagnostics} [extraction]
+ * @property {'marker'|'extraction'} [source]  Where the Markdown came from.
  */
 
 /**
@@ -137,24 +141,41 @@ export function buildPage({ pathname: rawPathname, html, config, site, td, strip
   // The URL is computed before conversion because it is also the base that makes
   // relative links in the extracted content absolute.
   const url = absoluteUrl(site.siteUrl, site.base, pathname, site.trailingSlash);
-  const { markdown, diagnostics } = htmlToMarkdownWithDiagnostics(
-    html,
-    config.markdown.extraction,
-    td,
-    { baseUrl: url },
-  );
+
+  // The page may have handed us its own source. Parse once and remove the marker
+  // whether or not it is used: it is an internal channel and must never survive
+  // into a `.md` file or a browser.
+  const document = parseDocument(html);
+  const marker = readMarker(document);
+  removeMarkers(document);
+
+  const extracted = extractMarkdown(document, config.markdown.extraction, td ?? createTurndown(), {
+    baseUrl: url,
+  });
+  const useMarker = typeof marker?.markdown === 'string' && marker.markdown.trim() !== '';
 
   return {
     page: {
       pathname,
       url,
       mdHref: mdHrefFor(pathname, site.base),
-      title: meta.title,
-      description: meta.description,
-      markdown,
-      lastModified: meta.modifiedTime,
+      title: marker?.title || meta.title,
+      description: marker?.description || meta.description,
+      markdown: useMarker ? /** @type {string} */ (marker.markdown).trim() : extracted.markdown,
+      lastModified: parseDate(marker?.lastModified) ?? meta.modifiedTime,
       aeoTokens: meta.aeoTokens,
-      extraction: diagnostics,
+      extraction: extracted.diagnostics,
+      source: useMarker ? 'marker' : 'extraction',
     },
   };
+}
+
+/**
+ * @param {string | undefined} value
+ * @returns {Date | undefined}
+ */
+function parseDate(value) {
+  if (!value) return undefined;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }

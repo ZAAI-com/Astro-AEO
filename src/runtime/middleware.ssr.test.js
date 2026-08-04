@@ -100,6 +100,33 @@ describe("the project's own middleware still guards a .md request", () => {
   });
 });
 
+describe('the source marker', () => {
+  test('authored Markdown is used instead of extracting from the HTML', async () => {
+    const body = await (await fetch(`${BASE}/sourced.md`)).text();
+    expect(body).toContain('This came from `defineAeoPage`, not from the HTML.');
+    expect(body).toContain('- exact');
+    expect(body).not.toContain('RENDERED-APPROXIMATION');
+  });
+
+  test('the marker never reaches a browser', async () => {
+    // It is an internal channel carrying the page's own source. Emitting it on an
+    // ordinary render would ship that to every visitor.
+    const html = await (await fetch(`${BASE}/sourced/`)).text();
+    expect(html).not.toContain('astro-aeo-marker');
+    expect(html).toContain('RENDERED-APPROXIMATION');
+  });
+
+  test('nor a negotiated response', async () => {
+    const body = await (await fetch(`${BASE}/sourced/`, { headers: { accept: 'text/markdown' } })).text();
+    expect(body).not.toContain('astro-aeo-marker');
+  });
+
+  test('marker metadata overrides what the HTML says', async () => {
+    const body = await (await fetch(`${BASE}/sourced.md`)).text();
+    expect(body).toContain('lastModified: 2026-03-01');
+  });
+});
+
 describe('content negotiation', () => {
   test('an explicit Accept for markdown is honoured at the page URL', async () => {
     const r = await fetch(`${BASE}/about/`, { headers: { accept: 'text/markdown' } });

@@ -22,6 +22,10 @@
       "types": "./components/index.d.ts",
       "default": "./components/index.js"
     },
+    "./page": {
+      "types": "./src/page.d.ts",
+      "default": "./src/page.js"
+    },
     "./middleware": {
       "default": "./src/runtime/middleware.js"
     },

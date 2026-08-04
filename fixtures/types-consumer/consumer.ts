@@ -21,7 +21,10 @@ import type {
   SiteOptions,
   SitemapPolicy,
 } from 'astro-aeo';
+import { defineAeoPage } from 'astro-aeo/page';
+import type { AeoPageInput, CatalogPage, PageCatalog } from 'astro-aeo/page';
 import type {
+  AeoPageProps,
   ArticleJsonLdProps,
   BreadcrumbJsonLdProps,
   FaqJsonLdProps,
@@ -137,6 +140,16 @@ export const crumbs: BreadcrumbJsonLdProps = { includeHome: true, labels: { blog
 export const org: OrganizationJsonLdProps = { name: 'Example', sameAs: ['https://example.com'] };
 export const speakable: SpeakableJsonLdProps = { cssSelector: ['main'] };
 export const article: ArticleJsonLdProps = { headline: 'Hello', author: { name: 'Ada' } };
+
+// The source marker: `defineAeoPage` produces exactly the component's props.
+export const markerInput: AeoPageInput = { markdown: '# X', title: 'X', lastModified: new Date() };
+export const markerProps: AeoPageProps = defineAeoPage(markerInput);
+export const catalog: PageCatalog = {
+  name: 'blog',
+  listPages(): CatalogPage[] {
+    return [{ pathname: '/blog/hello', lastModified: '2026-01-01T00:00:00.000Z' }];
+  },
+};
 
 // Negative assertions: these must stay errors, or the types have gone loose.
 export const unknownOption: AstroAeoConfig = {

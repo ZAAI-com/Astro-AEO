@@ -2,6 +2,7 @@
 import { RUNTIME } from './config.js';
 import { mdPathnameFor, pagePathForMdPath, basePrefix } from '../core/page-model.js';
 import { normalizePath } from '../core/match.js';
+import { COLLECT_FLAG, stripMarkersFromHtml } from '../core/extract/marker.js';
 import { prefersMarkdown } from './negotiate.js';
 import { MARKDOWN_CONTENT_TYPE, inheritedCacheHeaders, textResponse } from './respond.js';
 import {
@@ -38,7 +39,13 @@ export const onRequest = async (context, next) => {
   // would write Markdown into a .html file. Testing `isPrerendered` alone would be
   // wrong: in `astro dev` static routes report it true as well, which would
   // disable the dev server entirely.
-  if (RUNTIME.command === 'build' && context.isPrerendered) return next();
+  if (RUNTIME.command === 'build' && context.isPrerendered) {
+    // This pass produces the HTML files the build then reads back, so the page
+    // should include its source marker. `stripSourceMarkers` removes it from
+    // every file afterwards, so nothing ships with it.
+    markCollecting(context);
+    return next();
+  }
 
   const method = context.request.method;
   if (method !== 'GET' && method !== 'HEAD') return next();
@@ -100,7 +107,8 @@ export const onRequest = async (context, next) => {
 
   const html = await response.text();
   const body = await serveMarkdown(mdPathnameFor(normalizePath(pathname)), RUNTIME, async () => html);
-  if (body === null) return new Response(html, response);
+  // Declined conversion: hand back the page, minus the internal marker.
+  if (body === null) return new Response(stripMarkersFromHtml(html), response);
 
   return textResponse({
     body,
@@ -109,6 +117,16 @@ export const onRequest = async (context, next) => {
     headers: { vary: 'Accept', ...canonicalLink(normalizePath(pathname), context), ...inheritedCacheHeaders(response) },
   });
 };
+
+/**
+ * Tell `<AeoPage>` that this render is for astro-aeo, so it should emit its
+ * source marker. Locals survive a rewrite, which is what makes this work.
+ * @param {import('astro').APIContext} context
+ * @returns {void}
+ */
+function markCollecting(context) {
+  /** @type {Record<string, unknown>} */ (context.locals)[COLLECT_FLAG] = true;
+}
 
 /**
  * Whether the project defines this exact path as a route of its own.
@@ -146,7 +164,7 @@ function htmlFetcher(context) {
     try {
       const response = rewritten
         ? await fetch(new URL(target, context.url.origin), { headers: { 'x-astro-aeo': '1' } })
-        : ((rewritten = true), await context.rewrite(target));
+        : ((rewritten = true), markCollecting(context), await context.rewrite(target));
       if (!response.ok) {
         upstream = response.status;
         return null;

@@ -70,3 +70,24 @@ export interface ArticleJsonLdProps {
   url?: string;
 }
 export declare const ArticleJsonLd: AstroComponentFactory;
+
+/**
+ * Props for the `AeoPage` marker component. Every field is optional: supplying
+ * none is the same as not rendering it. Build one with `defineAeoPage` from
+ * `astro-aeo/page` rather than by hand.
+ *
+ * Note the name is shared with the `AeoPage` *type* exported from `astro-aeo`,
+ * which is the page shape passed to section-rule predicates. They are different
+ * modules; alias one if you import both in a single file.
+ */
+export interface AeoPageProps {
+  /** Authored Markdown, used instead of extracting from the rendered HTML. */
+  markdown?: string;
+  title?: string;
+  description?: string;
+  /** ISO date. */
+  lastModified?: string;
+  /** Where the content came from, recorded in diagnostics. */
+  sourcePath?: string;
+}
+export declare const AeoPage: AstroComponentFactory;

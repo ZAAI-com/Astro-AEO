@@ -93,6 +93,7 @@ export function resolveConfig(rawConfig = {}, logger) {
       exclude: pages.exclude ?? [],
       respectNoindex: pages.respectNoindex ?? true,
       stripTitleSuffix: pages.stripTitleSuffix ?? false,
+      catalogs: pages.catalogs ?? [],
     },
     markdown: {
       enabled: markdown.enabled ?? true,
@@ -196,7 +197,7 @@ const CONFIG_SHAPE = {
   exclude: null,
   respectNoindex: null,
   stripTitleSuffix: null,
-  pages: { include: null, exclude: null, respectNoindex: null, stripTitleSuffix: null },
+  pages: { include: null, exclude: null, respectNoindex: null, stripTitleSuffix: null, catalogs: null },
   markdown: {
     enabled: null,
     alternateLink: null,
