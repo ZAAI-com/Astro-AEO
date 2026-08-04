@@ -75,7 +75,12 @@ jobs:
         run: node -e "import('./src/index.js').then(m => { if (typeof m.default !== 'function') process.exit(1) })"
       # Through the real exports map, which the check above bypasses by importing
       # the file directly. A typo in the map would otherwise ship.
-      - name: Smoke import every published subpath
-        run: node --input-type=module -e "await Promise.all(['astro-aeo', 'astro-aeo/components'].map((s) => import(s)))"
+      #
+      # Only the plain-JavaScript subpaths: `./components` re-exports .astro files
+      # that only Astro's Vite pipeline can load, and `./middleware` imports the
+      # virtual config module that only exists inside a build. Both are covered by
+      # the fixtures instead, which import them the way a project does.
+      - name: Smoke import the published JavaScript subpaths
+        run: node --input-type=module -e "await Promise.all(['astro-aeo', 'astro-aeo/page'].map((s) => import(s)))"
       - name: CLI runs under Node
         run: node bin/astro-aeo.js validate fixtures/dist-valid
