@@ -1,0 +1,61 @@
+fixtures/ssr-node/package.json
+  s_a1ee465ff37919::t_113a6358f85a79 1
+fixtures/ssr-node/src/pages/gated.astro
+  s_a1ee465ff37919::t_113a6358f85a79 1-6
+fixtures/ssr-node/astro.config.mjs
+  s_a1ee465ff37919::t_113a6358f85a79 1-12,16-20
+  s_a1ee465ff37919::t_268e57dfcb4a4d 13-15
+fixtures/ssr-node/src/pages/no-md.astro
+  s_a1ee465ff37919::t_113a6358f85a79 1-6
+.claude/CLAUDE.md
+  s_a1ee465ff37919::t_3f4d98b8b47d95 140-143
+fixtures/ssr-node/src/layouts/Layout.astro
+  s_a1ee465ff37919::t_113a6358f85a79 1-17
+package.json
+  s_a1ee465ff37919::t_e3ce69535dd5fb 86
+  s_a1ee465ff37919::t_1e402265804602 74
+vitest.ssr.config.js
+  s_a1ee465ff37919::t_e3ce69535dd5fb 1-11
+src/runtime/middleware.js
+  s_a1ee465ff37919::t_5182beb9d3b6c0 4,67-68,74,91,102,109,140-142,150-154
+  s_a1ee465ff37919::t_af6f73b71cef71 69-73,136
+  s_a1ee465ff37919::t_ff6d4930c22f3e 143-144,161
+fixtures/ssr-node/src/middleware.ts
+  s_a1ee465ff37919::t_113a6358f85a79 1-12
+.gitignore
+  s_a1ee465ff37919::t_113a6358f85a79 22-23
+fixtures/ssr-node/src/pages/index.astro
+  s_a1ee465ff37919::t_113a6358f85a79 1-6
+.github/workflows/W1-Test.yml
+  s_a1ee465ff37919::t_3f4d98b8b47d95 44-48,76-79
+fixtures/ssr-node/src/pages/private/secret.astro
+  s_a1ee465ff37919::t_113a6358f85a79 1-6
+vitest.config.js
+  s_a1ee465ff37919::t_d7a15c842c7179 7-9
+  s_a1ee465ff37919::t_f3ec13a9c7ab9e 10
+fixtures/ssr-node/src/pages/static-page.astro
+  s_a1ee465ff37919::t_113a6358f85a79 1-9
+fixtures/ssr-node/src/pages/about.astro
+  s_a1ee465ff37919::t_113a6358f85a79 1-6
+src/runtime/middleware.ssr.test.js
+  s_a1ee465ff37919::t_e3ce69535dd5fb 1-55,57,59-160
+  s_a1ee465ff37919::t_268e57dfcb4a4d 56,58
+pnpm-lock.yaml
+  s_a1ee465ff37919::t_22cd732cae5edd 21-23,116-118,122-126,1150-1158,1162-1165,1220-1226,1251-1253,1260-1263,1303-1306,1352-1358,1495-1502,1507-1509,1549-1552,1612-1615,1657-1666,1700-1703,1740-1743,2061-2071,2080-2088,2894-2897,2900-2901,2954-2957,2997-2998,3005-3006,3037-3038,3123-3132,3247-3252,3255-3256,3289-3292,3342-3343,3438-3457,3520-3521,3556-3557
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "45d2ed17439640321ce06a5394567a1934cf792d",
+  "prompts": {},
+  "sessions": {
+    "s_a1ee465ff37919": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3a101c22-71dc-45a5-948c-20c9f1c2baf8",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
