@@ -1,0 +1,150 @@
+fixtures/benchmarks/node-baseline/astro.config.mjs
+  s_7294d5105a5de9::t_893a519039469c 6
+  s_7294d5105a5de9::t_c9ffba6522b0ed 1-5,7-9
+fixtures/benchmarks/node-baseline/src/pages/source.md
+  s_7294d5105a5de9::t_893a519039469c 1-10
+fixtures/benchmarks/node-baseline/src/pages/old.astro
+  s_7294d5105a5de9::t_893a519039469c 1-3
+fixtures/benchmarks/cloudflare-baseline/src/pages/project/[slug].md.js
+  s_7294d5105a5de9::t_ef3ef439cf073b 1
+fixtures/benchmarks/cloudflare-baseline/src/pages/api.js
+  s_7294d5105a5de9::t_893a519039469c 1
+benchmarks/baseline-1.1.json
+  s_7294d5105a5de9::t_73233ef103a7c5 10
+  s_7294d5105a5de9::t_68de4686cf0896 171,176-177
+  s_7294d5105a5de9::t_c7f3327bcd1680 7-9,17-20,26-27,33-37,43-44,50-54,60-61,67-68,71-72,77-78,80-84,86-90,92-96,98-100,102,104,110-111,117-118,124,144-146,152,157-158,164,169-170,173
+  s_7294d5105a5de9::t_1c8707464d2aec 174
+  s_7294d5105a5de9::t_a708f6c029c7de 15
+  s_7294d5105a5de9::t_0a1ad74cf8a319 1-6,11-12,16,69-70,76,101,172,178-179
+  s_7294d5105a5de9::t_f8a360b75b234a 13-14,22-25,29-32,39-42,46-49,56-59,63-66,73-75,79,85,91,97,103,106-109,113-116,120-123,128-131,135-138,141,147-151,153-155,159-163,165-167
+  s_7294d5105a5de9::t_9477088b14049c 21,28,38,45,55,62,105,112,119,125-127,132-134,139-140,142-143,156,168,175
+scripts/update-benchmark-baseline.mjs
+  s_7294d5105a5de9::t_a2d9faf63937c3 37
+  s_7294d5105a5de9::t_a7a28ed4f9c12a 1-31,33-36,39-51
+  s_7294d5105a5de9::t_03f539a94ea27d 32,38
+src/benchmark-comparison.test.js
+  s_7294d5105a5de9::t_31bf3462f5d867 39-54
+  s_7294d5105a5de9::t_5ffdcb3a536b76 112-118
+  s_7294d5105a5de9::t_03f539a94ea27d 55,66,129
+  s_7294d5105a5de9::t_49a73d2204654b 1-38,56-65,67-111,119-128,130-131
+benchmarks/README.md
+  s_7294d5105a5de9::t_9326e772871b20 50-52
+  s_7294d5105a5de9::t_cce11ae62f15e5 18,57
+  s_7294d5105a5de9::t_c9ffba6522b0ed 41-44
+  s_7294d5105a5de9::t_0a1ad74cf8a319 1-14,25-34,40,45-49,53,56,78,93-95
+  s_7294d5105a5de9::t_ebf6a39a941bc1 37
+  s_7294d5105a5de9::t_825369bdfe3330 60-64,69-77
+  s_7294d5105a5de9::t_5bdcac83c9da7b 19-23,38-39,54-55,58-59
+  s_7294d5105a5de9::t_5d0aa35a25f4df 35-36
+  s_7294d5105a5de9::t_fdf9df999b6ed0 15-17
+  s_7294d5105a5de9::t_a2d9faf63937c3 65-68
+  s_7294d5105a5de9::t_17acd6ce8fe26a 79-92
+  s_7294d5105a5de9::t_934b7b8e2be0e6 24
+benchmarks/run.mjs
+  s_7294d5105a5de9::t_9326e772871b20 20-23,153,275-290,302
+  s_7294d5105a5de9::t_03f539a94ea27d 76,78,98,380-381,384,392-393,395
+  s_7294d5105a5de9::t_fdf9df999b6ed0 43-52,118-127
+  s_7294d5105a5de9::t_49b65311f8812b 413-415,418,424-425,428,431-442
+  s_7294d5105a5de9::t_5d0aa35a25f4df 70-74,319-331
+  s_7294d5105a5de9::t_73233ef103a7c5 447
+  s_7294d5105a5de9::t_97a4e6f9fb9ef0 379,382-383,385,391,394
+  s_7294d5105a5de9::t_cce11ae62f15e5 28,31-33,35,87,101-111,113-114,344,387-390,396-397,399-412,416-417,419-423,426-427,429-430,443-444,446
+  s_7294d5105a5de9::t_d98e3e55b59b22 15,34
+  s_7294d5105a5de9::t_bee1833c68b4a2 16-19,112
+  s_7294d5105a5de9::t_8c81ac8bbe9c46 259
+  s_7294d5105a5de9::t_2a3217136a1427 207-211,227-231
+  s_7294d5105a5de9::t_0a1ad74cf8a319 1-14,24-27,29-30,36-42,53-69,75,77,79-86,88,90-97,99-100,115-117,128-152,154-206,212-226,232-258,260-274,291-301,303-318,332-343,345-378,386,398,448-475
+  s_7294d5105a5de9::t_94e0e5a3a8b923 89,445
+fixtures/benchmarks/node-baseline/src/pages/about.astro
+  s_7294d5105a5de9::t_c9ffba6522b0ed 1-5
+fixtures/benchmarks/cloudflare-baseline/src/pages/broken.js
+  s_7294d5105a5de9::t_893a519039469c 1
+src/request-benchmark.test.js
+  s_7294d5105a5de9::t_9326e772871b20 1-38,40-41,43-46,50-83
+  s_7294d5105a5de9::t_cb54279d73388e 39,42,47-49
+fixtures/benchmarks/node-baseline/src/middleware.js
+  s_7294d5105a5de9::t_893a519039469c 1
+fixtures/benchmarks/node-baseline/src/pages/404.astro
+  s_7294d5105a5de9::t_893a519039469c 1-7
+fixtures/benchmarks/cloudflare-baseline/src/pages/404.astro
+  s_7294d5105a5de9::t_893a519039469c 1-7
+fixtures/benchmarks/node-baseline/src/pages/protected.astro
+  s_7294d5105a5de9::t_893a519039469c 1-4
+benchmarks/thresholds.mjs
+  s_7294d5105a5de9::t_d98e3e55b59b22 1-10,12
+  s_7294d5105a5de9::t_03f539a94ea27d 11
+scripts/run-release-benchmark.mjs
+  s_7294d5105a5de9::t_83dc33a36c8052 49,90,97
+  s_7294d5105a5de9::t_8426fcb5dc862f 11,13-15,166-180
+  s_7294d5105a5de9::t_03f539a94ea27d 3,12,48,57,79-80,115-120,125-138,142-155
+  s_7294d5105a5de9::t_80f6e94e57b71c 68,70
+  s_7294d5105a5de9::t_fdf9df999b6ed0 56
+  s_7294d5105a5de9::t_cce11ae62f15e5 8-10,19,25-45,50-55,64,87,94,104-114,121-122,156-165
+  s_7294d5105a5de9::t_934b7b8e2be0e6 1-2,4-7,16-18,20-24,46-47,58-63,65-67,69,71-78,82-86,88-89,91-93,95-96,98-103,123,181
+  s_7294d5105a5de9::t_a7a28ed4f9c12a 81
+  s_7294d5105a5de9::t_1c8707464d2aec 124
+  s_7294d5105a5de9::t_90c52f0ed17648 139-141
+fixtures/benchmarks/node-baseline/src/pages/legacy.md.astro
+  s_7294d5105a5de9::t_a30de0fa2eb1a2 1-3
+fixtures/benchmarks/cloudflare-baseline/astro.config.mjs
+  s_7294d5105a5de9::t_893a519039469c 6
+  s_7294d5105a5de9::t_c9ffba6522b0ed 1-5,7-9
+fixtures/benchmarks/cloudflare-baseline/src/pages/source.md
+  s_7294d5105a5de9::t_893a519039469c 1-10
+fixtures/benchmarks/cloudflare-baseline/src/pages/about.astro
+  s_7294d5105a5de9::t_c9ffba6522b0ed 1-5
+fixtures/benchmarks/cloudflare-baseline/src/middleware.js
+  s_7294d5105a5de9::t_893a519039469c 1
+src/benchmark-fixture-parity.test.js
+  s_7294d5105a5de9::t_893a519039469c 1-25,27-29,31-33
+  s_7294d5105a5de9::t_bf2e887418cf43 26,30
+fixtures/benchmarks/node-baseline/src/pages/project/[slug].md.js
+  s_7294d5105a5de9::t_ef3ef439cf073b 1
+scripts/build-benchmark-baselines.mjs
+  s_7294d5105a5de9::t_c9ffba6522b0ed 1-17
+fixtures/benchmarks/cloudflare-baseline/src/pages/protected.astro
+  s_7294d5105a5de9::t_893a519039469c 1-4
+fixtures/benchmarks/node-baseline/src/pages/api.js
+  s_7294d5105a5de9::t_893a519039469c 1
+fixtures/benchmarks/node-baseline/src/pages/[slug].astro
+  s_7294d5105a5de9::t_893a519039469c 1-4
+fixtures/benchmarks/cloudflare-baseline/src/pages/old.astro
+  s_7294d5105a5de9::t_893a519039469c 1-3
+fixtures/benchmarks/cloudflare-baseline/src/pages/[slug].astro
+  s_7294d5105a5de9::t_893a519039469c 1-4
+fixtures/benchmarks/cloudflare-baseline/src/pages/legacy.md.astro
+  s_7294d5105a5de9::t_a30de0fa2eb1a2 1-3
+benchmarks/request-latency.mjs
+  s_7294d5105a5de9::t_9326e772871b20 1-102,104-121
+  s_7294d5105a5de9::t_cb54279d73388e 103
+fixtures/benchmarks/cloudflare-baseline/src/pages/index.astro
+  s_7294d5105a5de9::t_c9ffba6522b0ed 1-5
+fixtures/benchmarks/node-baseline/src/pages/broken.js
+  s_7294d5105a5de9::t_893a519039469c 1
+fixtures/benchmarks/node-baseline/src/pages/index.astro
+  s_7294d5105a5de9::t_c9ffba6522b0ed 1-5
+benchmarks/comparison.mjs
+  s_7294d5105a5de9::t_03f539a94ea27d 20
+  s_7294d5105a5de9::t_bddf277497b79c 1-5,8-9,12-19,21-162
+  s_7294d5105a5de9::t_31bf3462f5d867 6-7,10-11
+fixtures/benchmarks/node-baseline/src/pages/feed.md.js
+  s_7294d5105a5de9::t_a30de0fa2eb1a2 1
+fixtures/benchmarks/cloudflare-baseline/src/pages/feed.md.js
+  s_7294d5105a5de9::t_a30de0fa2eb1a2 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "95b3b877475fc5a59b227b1183764d118947cbde",
+  "prompts": {},
+  "sessions": {
+    "s_7294d5105a5de9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fce6f-6390-7790-8ab0-1380ab149d21",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
