@@ -114,8 +114,14 @@ jobs:
       # the fixtures instead, which import them the way a project does.
       - name: Smoke import the published JavaScript subpaths
         run: node --input-type=module -e "await Promise.all(['astro-aeo', 'astro-aeo/page'].map((s) => import(s)))"
+      # Unit tests only. The e2e suites shell out to `astro build`, and the Astro
+      # devDependency installed here is 7, whose own engines.node is >=22.12.0, so
+      # they cannot run on the 20.19.5 leg. That combination is also one no user
+      # has: a real Node 20 user is on Astro 5 or 6, whose Node floors are lower.
+      # This job's purpose is to prove the published artifact runs on each
+      # supported Node, which the remaining steps do.
       - name: Core test suite under Node ${{ matrix.node }}
-        run: node node_modules/vitest/vitest.mjs run
+        run: node node_modules/vitest/vitest.mjs run --exclude '**/*.e2e.test.js' --exclude '**/node_modules/**'
       - name: Current TypeScript under Node ${{ matrix.node }}
         run: node node_modules/typescript/bin/tsc --noEmit
       - name: TypeScript 5.5 consumer under Node ${{ matrix.node }}

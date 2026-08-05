@@ -133,6 +133,11 @@ Measured against Astro 7 in this repo, not inferred. Re-verify before changing t
   the config uses long (120s) timeouts. Vitest runs test **files in parallel**, so an e2e that
   spawns a build must own its fixture root: two builds against one root clobber each other's
   output. `fixtures/config-compat` exists for exactly this reason, rather than reusing the demo.
+- **Any test that shells out to `astro build` must be named `*.e2e.test.js`.** The suffix is
+  load-bearing, not cosmetic: the `node-compat` CI job excludes it. That job installs the Astro 7
+  devDependency, whose own `engines.node` is `>=22.12.0`, so an e2e cannot run on its 20.19.5 leg;
+  it exists to prove the *published artifact* runs on each supported Node, which the unit tests
+  and the import/CLI smoke steps do. A build-spawning test named plainly would fail there.
 - `src/config-compat.e2e.test.js` builds `fixtures/config-compat` twice, once from
   `astro.legacy.config.mjs` and once from `astro.canonical.config.mjs`, and diffs the two outputs
   byte for byte. That diff is the 1.0 compatibility guarantee. Keep the two configs in lockstep;
