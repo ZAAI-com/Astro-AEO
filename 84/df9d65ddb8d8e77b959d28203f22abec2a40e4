@@ -1,0 +1,30 @@
+CHANGELOG.md
+  s_7294d5105a5de9::t_b5d1eae6d502cb 110-112,116-117,120-121
+  s_7294d5105a5de9::t_5bdcac83c9da7b 90-91
+  s_7294d5105a5de9::t_5705b1cbca1371 86-89
+  s_7294d5105a5de9::t_137c6677fb18e4 38-39,55-56
+  s_7294d5105a5de9::t_aa94025558286a 33-37,40-41,51,75-76,84-85,105-109,113-115,118-119,130-132,143-145
+  s_7294d5105a5de9::t_b682c5aeac0c27 92-96
+README.md
+  s_7294d5105a5de9::t_25a49a6d81957d 288,291
+  s_7294d5105a5de9::t_396488b4c6cb89 557-559
+  s_7294d5105a5de9::t_4fd273274d237c 5,17,135-138,169,306,308-315,321-331,343-348,370-374,392-402,436-439
+  s_7294d5105a5de9::t_137c6677fb18e4 289-290,548,553-554,560-564
+  s_7294d5105a5de9::t_1294d5a9e36ba8 440
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "84df9d65ddb8d8e77b959d28203f22abec2a40e4",
+  "prompts": {},
+  "sessions": {
+    "s_7294d5105a5de9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fce6f-6390-7790-8ab0-1380ab149d21",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
