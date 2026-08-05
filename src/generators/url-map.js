@@ -1,6 +1,5 @@
 // @ts-check
-import { writeFileSync, mkdirSync } from 'node:fs';
-import { dirname, resolve, sep } from 'node:path';
+import { resolve, sep } from 'node:path';
 
 /**
  * Resolve `filepath` against `projectRoot` and refuse paths that escape it. A
@@ -28,10 +27,15 @@ export function resolveWithinRoot(projectRoot, filepath) {
  * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @param {string} projectRoot
  * @param {Date} generatedAt
+ * @param {ReturnType<typeof import('../build/artifacts.js').createArtifactWriter>} writer
+ * @returns {boolean} whether the URL map was written
  */
-export function emitUrlMap(pages, config, projectRoot, generatedAt) {
-  if (!config.corpus.urlMap.enabled) return;
+export function emitUrlMap(pages, config, projectRoot, generatedAt, writer) {
+  if (!config.corpus.urlMap.enabled) return false;
 
+  // Validate confinement before handing the path to the shared registry. The
+  // URL map intentionally lives under the project root rather than dist, but it
+  // must still participate in cross-generator ownership checks.
   const outPath = resolveWithinRoot(projectRoot, config.corpus.urlMap.outputFilepath);
 
   const stamp = generatedAt.toISOString().slice(0, 19).replace('T', ' at ');
@@ -46,12 +50,17 @@ export function emitUrlMap(pages, config, projectRoot, generatedAt) {
   ];
 
   for (const p of pages) {
-    const lm = p.lastModified ? p.lastModified.toISOString().slice(0, 10) : '';
+    const lm = p.lastModified ? p.lastModified.slice(0, 10) : '';
     lines.push(`| ${cell(p.pathname)} | ${cell(p.mdHref)} | ${cell(p.title)} | ${cell(lm)} |`);
   }
 
-  mkdirSync(dirname(outPath), { recursive: true });
-  writeFileSync(outPath, `${lines.join('\n')}\n`, 'utf8');
+  return writer.write({
+    path: outPath,
+    owner: 'urlMap',
+    contents: `${lines.join('\n')}\n`,
+    // Historical behaviour is an unconditional, silent replacement.
+    onConflict: 'overwrite',
+  });
 }
 
 /**

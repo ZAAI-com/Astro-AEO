@@ -1,23 +1,23 @@
 // @ts-check
 import { writeFileSync, mkdirSync, existsSync, copyFileSync, constants } from 'node:fs';
-import { dirname, join, relative, sep } from 'node:path';
+import { dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizePath } from '../core/match.js';
 
 /**
- * One place that writes build output.
- *
- * Before this, each generator called `writeFileSync` itself under one of three
- * different collision policies (silent overwrite, warn then overwrite, warn and
- * skip), and none of them could see what the others or the project had already
- * claimed. The policies are preserved exactly, because they are the documented
- * behaviour; what is new is that a collision is detected and named rather than
- * discovered by a user wondering where their endpoint output went.
- */
-
-/**
  * @typedef {'dotmd'|'llmsTxt'|'llmsFullTxt'|'robotsTxt'|'domainProfile'|'urlMap'|'sitemapAlias'} ArtifactOwner
  */
+
+/** @type {ArtifactOwner[]} */
+const OWNER_ORDER = [
+  'dotmd',
+  'llmsTxt',
+  'llmsFullTxt',
+  'robotsTxt',
+  'domainProfile',
+  'urlMap',
+  'sitemapAlias',
+];
 
 /**
  * @typedef {object} Artifact
@@ -39,8 +39,6 @@ import { normalizePath } from '../core/match.js';
  */
 export function createArtifactWriter({ distDir, logger, routePaths, publicDir }) {
   const root = fileURLToPath(distDir);
-  // Normalize on the way in so a caller passing raw Astro route strings (which may
-  // carry a trailing slash) matches the same way a normalized set does.
   const routes = routePaths ? new Set([...routePaths].map(normalizePath)) : undefined;
   /** @type {Map<string, ArtifactOwner>} */
   const claimed = new Map();
@@ -54,9 +52,46 @@ export function createArtifactWriter({ distDir, logger, routePaths, publicDir })
   function write(artifact) {
     const { path, owner, route, onConflict, conflictMessage } = artifact;
 
-    // 1. astro-aeo colliding with itself. Always wrong, and previously invisible:
-    //    two generators pointed at one path just raced, last writer winning.
     const priorOwner = claimed.get(path);
+    const projectRouteCollision = Boolean(route && routes?.has(normalizePath(route)));
+    const publicRoot = publicDir ? fileURLToPath(publicDir) : undefined;
+    const publicFile = publicRoot
+      ? route
+        ? join(publicRoot, route.replace(/^\/+/, ''))
+        : pathWithin(publicRoot, path)
+          ? path
+          : undefined
+      : undefined;
+    const publicCollision = Boolean(publicFile && existsSync(publicFile));
+    const destinationExists = existsSync(path);
+
+    const skipCollision =
+      onConflict === 'skip' &&
+      Boolean(destinationExists || priorOwner || projectRouteCollision || publicCollision);
+
+    if (skipCollision) {
+      if (destinationExists && conflictMessage) logger.warn(conflictMessage);
+      if (priorOwner && priorOwner !== owner) {
+        logger.warn(
+          `astro-aeo: ${owner} and ${priorOwner} both claim ${displayPath(root, path)}. ` +
+            `The existing ${priorOwner} output was retained by the skip policy.`,
+        );
+      }
+      if (projectRouteCollision) {
+        logger.warn(
+          `astro-aeo: ${displayPath(root, path)} is also produced by a route in this project. ` +
+            `The project route output was retained; turn off the ${owner} output to remove this collision.`,
+        );
+      }
+      if (publicCollision) {
+        logger.warn(
+          `astro-aeo: ${displayPath(root, path)} also exists in public/. ` +
+            `The copied public file was retained; turn off the ${owner} output to remove this collision.`,
+        );
+      }
+      return false;
+    }
+
     if (priorOwner && priorOwner !== owner) {
       logger.warn(
         `astro-aeo: ${owner} and ${priorOwner} both write ${displayPath(root, path)}. ` +
@@ -64,37 +99,26 @@ export function createArtifactWriter({ distDir, logger, routePaths, publicDir })
       );
     }
 
-    // 2. A route the project defines itself. The generator would silently clobber
-    //    the endpoint's own output, which is the project's, not ours.
-    if (route && routes?.has(normalizePath(route))) {
+    if (projectRouteCollision) {
       logger.warn(
         `astro-aeo: ${displayPath(root, path)} is also produced by a route in this project. ` +
           `Astro-AEO overwrote it; remove the route, or turn off the ${owner} output.`,
       );
     }
 
-    // 3. A file the project committed to public/. Distinguishable from another
-    //    integration's output, so it gets its own wording.
-    if (route && publicDir && existsSync(join(fileURLToPath(publicDir), route.replace(/^\/+/, '')))) {
+    if (publicCollision) {
       logger.warn(
         `astro-aeo: ${displayPath(root, path)} also exists in public/. ` +
           `Astro-AEO overwrote the copied file; remove it, or turn off the ${owner} output.`,
       );
     }
 
-    // 4. Anything already at the destination, under the owner's declared policy.
-    if (existsSync(path)) {
-      if (onConflict === 'skip') {
-        if (conflictMessage) logger.warn(conflictMessage);
-        return false;
-      }
+    if (destinationExists) {
       if (onConflict === 'warn-overwrite' && conflictMessage) logger.warn(conflictMessage);
     }
 
     mkdirSync(dirname(path), { recursive: true });
     if (artifact.copyFrom) {
-      // COPYFILE_EXCL rather than a read-then-write, so the copy stays exact and
-      // the existence check above cannot race with another writer.
       try {
         copyFileSync(artifact.copyFrom, path, constants.COPYFILE_EXCL);
       } catch (err) {
@@ -133,6 +157,27 @@ export function createArtifactWriter({ distDir, logger, routePaths, publicDir })
     count(owner) {
       return counts.get(owner) ?? 0;
     },
+    /** @returns {{ total: number; byOwner: Partial<Record<ArtifactOwner, number>> }} */
+    report() {
+      /** @type {Partial<Record<ArtifactOwner, number>>} */
+      const byOwner = {};
+      let total = 0;
+      for (const owner of OWNER_ORDER) {
+        const count = counts.get(owner) ?? 0;
+        if (!count) continue;
+        byOwner[owner] = count;
+        total += count;
+      }
+
+      const details = OWNER_ORDER.flatMap((owner) =>
+        byOwner[owner] ? [`${owner}=${byOwner[owner]}`] : [],
+      ).join(', ');
+      logger.info(
+        `astro-aeo: artifact registry wrote ${total} artifact(s)` +
+          (details ? `: ${details}` : ''),
+      );
+      return { total, byOwner };
+    },
   };
 }
 
@@ -144,6 +189,15 @@ export function createArtifactWriter({ distDir, logger, routePaths, publicDir })
 function displayPath(root, path) {
   const rel = relative(root, path);
   return rel && !rel.startsWith(`..${sep}`) ? `/${rel.split(sep).join('/')}` : path;
+}
+
+/**
+ * @param {string} root
+ * @param {string} path
+ */
+function pathWithin(root, path) {
+  const rel = relative(root, path);
+  return rel === '' || (!isAbsolute(rel) && rel !== '..' && !rel.startsWith(`..${sep}`));
 }
 
 /**

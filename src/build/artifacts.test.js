@@ -1,5 +1,5 @@
 import { test, expect, describe, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
@@ -8,13 +8,15 @@ import { createArtifactWriter } from './artifacts.js';
 let dir;
 let distDir;
 let warnings;
+let infos;
 let logger;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'aeo-artifacts-'));
   distDir = pathToFileURL(`${dir}/`);
   warnings = [];
-  logger = { info: () => {}, warn: (m) => warnings.push(m) };
+  infos = [];
+  logger = { info: (m) => infos.push(m), warn: (m) => warnings.push(m) };
 });
 
 afterEach(() => {
@@ -84,6 +86,74 @@ describe('collision policies', () => {
     expect(readFileSync(join(dir, 'sitemap.xml'), 'utf8')).toBe('user-owned');
     expect(warnings).toContain('already exists');
   });
+
+  test("'skip' does not claim that a retained route or owner was overwritten", () => {
+    writeFileSync(join(dir, 'llms.txt'), 'route-owned');
+    const writer = createArtifactWriter({
+      distDir,
+      logger,
+      routePaths: new Set(['/llms.txt']),
+    });
+    writer.write(artifact({ owner: 'dotmd' }));
+    warnings = [];
+
+    expect(writer.write(artifact({ onConflict: 'skip', conflictMessage: 'kept existing' }))).toBe(
+      false,
+    );
+    expect(warnings).toEqual([
+      'kept existing',
+      expect.stringContaining('existing dotmd output was retained'),
+      expect.stringContaining('project route output was retained'),
+    ]);
+    expect(warnings.join('\n')).not.toMatch(/overwrote|later write wins/);
+  });
+
+  test("'skip' preserves an on-demand project route without a destination file", () => {
+    const path = join(dir, 'sitemap.xml');
+    const writer = createArtifactWriter({
+      distDir,
+      logger,
+      routePaths: new Set(['/sitemap.xml']),
+    });
+
+    expect(
+      writer.write(
+        artifact({
+          path,
+          owner: 'sitemapAlias',
+          route: '/sitemap.xml',
+          onConflict: 'skip',
+          conflictMessage: 'kept project route',
+        }),
+      ),
+    ).toBe(false);
+    expect(existsSync(path)).toBe(false);
+    expect(warnings).toEqual([
+      expect.stringContaining('project route output was retained'),
+    ]);
+    expect(warnings.join('\n')).not.toContain('overwrote');
+  });
+
+  test("'skip' identifies a retained public file without claiming an overwrite", () => {
+    const publicDir = join(dir, 'public');
+    mkdirSync(publicDir);
+    writeFileSync(join(publicDir, 'llms.txt'), 'public-owned');
+    writeFileSync(join(dir, 'llms.txt'), 'copied-public');
+    const writer = createArtifactWriter({
+      distDir,
+      logger,
+      publicDir: pathToFileURL(`${publicDir}/`),
+    });
+
+    expect(writer.write(artifact({ onConflict: 'skip', conflictMessage: 'kept existing' }))).toBe(
+      false,
+    );
+    expect(warnings).toEqual([
+      'kept existing',
+      expect.stringContaining('copied public file was retained'),
+    ]);
+    expect(warnings.join('\n')).not.toContain('overwrote');
+  });
 });
 
 describe('collision detection', () => {
@@ -129,6 +199,20 @@ describe('collision detection', () => {
     writer.write(artifact());
     expect(warnings.some((w) => w.includes('also exists in public/'))).toBe(true);
   });
+
+  test('an artifact written directly inside public/ is detected without a route hint', () => {
+    const publicDir = join(dir, 'public');
+    mkdirSync(publicDir);
+    const path = join(publicDir, 'Url-Map.md');
+    writeFileSync(path, 'committed');
+    const writer = createArtifactWriter({
+      distDir,
+      logger,
+      publicDir: pathToFileURL(`${publicDir}/`),
+    });
+    writer.write(artifact({ path, owner: 'urlMap', route: undefined }));
+    expect(warnings.some((w) => w.includes('also exists in public/'))).toBe(true);
+  });
 });
 
 describe('reporting', () => {
@@ -151,5 +235,20 @@ describe('reporting', () => {
     ]);
     expect(result.written).toBe(1);
     expect(result.skipped).toHaveLength(1);
+  });
+
+  test('reports successful ownership counts once all phases are complete', () => {
+    const writer = createArtifactWriter({ distDir, logger });
+    writer.write(artifact({ path: join(dir, 'a.md'), owner: 'dotmd' }));
+    writer.write(artifact({ path: join(dir, 'b.md'), owner: 'dotmd' }));
+    writer.write(artifact({ owner: 'llmsTxt' }));
+
+    expect(writer.report()).toEqual({
+      total: 3,
+      byOwner: { dotmd: 2, llmsTxt: 1 },
+    });
+    expect(infos).toEqual([
+      'astro-aeo: artifact registry wrote 3 artifact(s): dotmd=2, llmsTxt=1',
+    ]);
   });
 });
