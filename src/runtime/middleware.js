@@ -57,7 +57,9 @@ export const onRequest = async (context, next) => {
   const projectOwned = ownedByProject(pathname);
   const artifact = projectOwned ? null : artifactFor(pathname, RUNTIME.config);
   if (artifact === 'robots' || artifact === 'domain-profile') {
-    const { body, contentType } = renderStandaloneArtifact(artifact, RUNTIME);
+    const { body, contentType } = renderStandaloneArtifact(artifact, RUNTIME, {
+      sitemapAvailable: RUNTIME.sitemapAvailable,
+    });
     return textResponse({ body, contentType, request: context.request });
   }
   if (artifact === 'llms' || artifact === 'llms-full') {
@@ -311,11 +313,13 @@ function forwardSourceResponse(source, context, sourcePagePath) {
         if (decoded !== null) {
           const prefix = basePrefix(RUNTIME.site.base);
           const insideBase = !prefix || decoded === prefix || decoded.startsWith(`${prefix}/`);
-          const pagePath = normalizePath(insideBase ? stripBase(decoded, RUNTIME.site.base) : decoded);
-          if (pagePathForMdPath(pagePath) === null) {
-            target.pathname = `${insideBase ? prefix : ''}${mdPathnameFor(pagePath)}`;
+          if (insideBase) {
+            const pagePath = normalizePath(stripBase(decoded, RUNTIME.site.base));
+            if (pagePathForMdPath(pagePath) === null) {
+              target.pathname = `${prefix}${mdPathnameFor(pagePath)}`;
+            }
+            headers.set('location', `${target.pathname}${target.search}${target.hash}`);
           }
-          headers.set('location', `${target.pathname}${target.search}${target.hash}`);
         }
       }
     } catch {}

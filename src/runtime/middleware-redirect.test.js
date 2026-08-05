@@ -130,4 +130,21 @@ describe('redirect negotiation', () => {
     expect(response.status).toBe(302);
     expect(response.headers.get('location')).toBe(expected);
   });
+
+  test.each([
+    ['/login?next=/docs/old', '/login?next=/docs/old'],
+    [
+      'https://example.test/login?next=/docs/old#form',
+      'https://example.test/login?next=/docs/old#form',
+    ],
+  ])('preserves a same-origin redirect outside the configured base: %s', async (location, expected) => {
+    const ctx = context('/docs/old.md');
+    ctx.rewrite = vi.fn(async () => new Response(null, {
+      status: 302,
+      headers: { location },
+    }));
+    const response = await onRequest(ctx, vi.fn());
+    expect(response.status).toBe(302);
+    expect(response.headers.get('location')).toBe(expected);
+  });
 });

@@ -287,6 +287,18 @@ describe('robots sitemap tri-state', () => {
 });
 
 describe('discovery.sitemap.mode', () => {
+  test.each([undefined, true, false])(
+    'disabled mode suppresses robots sitemap inclusion when includeSitemap is %s',
+    (includeSitemap) => {
+      const robots = includeSitemap === undefined ? {} : { includeSitemap };
+      const c = resolveConfig({
+        discovery: { sitemap: { mode: 'disabled' }, robots },
+      });
+      expect(c.discovery.robots.sitemapPolicy).toBe('never');
+      expect(c.discovery.robots.includeSitemap).toBe(false);
+    },
+  );
+
   test('the 1.0 boolean maps onto the tri-state mode', () => {
     // `enabled: false` never meant "no sitemap", only "do not auto-register", so it
     // maps to 'external' rather than 'disabled'.

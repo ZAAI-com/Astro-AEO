@@ -1,5 +1,54 @@
 import { describe, expect, test } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import aeo from './index.js';
+
+/**
+ * @param {{ publicSitemap?: boolean; routes?: any[] }} [options]
+ * @returns {string}
+ */
+function runtimeConfigSource(options = {}) {
+  const root = mkdtempSync(join(tmpdir(), 'aeo-runtime-sitemap-'));
+  const publicRoot = join(root, 'public');
+  mkdirSync(publicRoot, { recursive: true });
+  if (options.publicSitemap) {
+    writeFileSync(join(publicRoot, 'sitemap-index.xml'), '<urlset/>');
+  }
+
+  try {
+    let updated;
+    const integration = aeo({ discovery: { robots: { enabled: true } } });
+    const logger = { warn() {}, info() {}, error() {}, debug() {} };
+    integration.hooks['astro:config:setup']({
+      config: { integrations: [], site: new URL('https://example.test') },
+      command: 'dev',
+      addMiddleware() {},
+      updateConfig: (value) => { updated = value; },
+      logger,
+    });
+    integration.hooks['astro:config:done']({
+      config: {
+        site: new URL('https://example.test'),
+        base: '/',
+        trailingSlash: 'ignore',
+        build: { format: 'directory' },
+        root: pathToFileURL(`${root}/`),
+        publicDir: pathToFileURL(`${publicRoot}/`),
+      },
+      logger,
+      injectTypes() {},
+    });
+    integration.hooks['astro:routes:resolved']({ routes: options.routes ?? [] });
+
+    const plugin = updated.vite.plugins[0];
+    const id = plugin.resolveId('astro-aeo:runtime-config');
+    return plugin.load(id);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
 
 describe('integration diagnostics and declarations', () => {
   test('warns for uncataloged dynamic pages and prerendered custom 404s', () => {
@@ -125,5 +174,22 @@ describe('integration diagnostics and declarations', () => {
       '"projectPatterns": [new RegExp("^\\\\/project\\\\/([^/]+?)\\\\.md$", "")]',
     );
     expect(source).not.toContain('new RegExp("^\\\\/([^/]+?)\\\\/?$", "")');
+  });
+
+  test('runtime sitemap availability recognizes public files and concrete routes', () => {
+    expect(runtimeConfigSource({ publicSitemap: true })).toContain(
+      '"sitemapAvailable": true',
+    );
+    expect(runtimeConfigSource({
+      routes: [
+        {
+          type: 'endpoint',
+          origin: 'project',
+          pathname: '/sitemap-index.xml',
+          prerender: false,
+        },
+      ],
+    })).toContain('"sitemapAvailable": true');
+    expect(runtimeConfigSource()).toContain('"sitemapAvailable": false');
   });
 });

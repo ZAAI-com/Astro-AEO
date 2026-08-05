@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from 'vitest';
 import { resolveConfig } from '../config.js';
 import {
   collectConcurrently,
+  renderStandaloneArtifact,
   RuntimeCorpusLimitError,
   serveLlmsIndex,
   serveMarkdown,
@@ -23,6 +24,18 @@ const runtime = (staticPaths = [], maxPages = 50) => ({
 const loaded = (body = html()) => ({
   html: body,
   response: new Response(body, { headers: { 'content-type': 'text/html' } }),
+});
+
+describe('standalone robots rendering', () => {
+  test.each([
+    [true, true],
+    [false, false],
+  ])('advertises an auto sitemap when availability is %s', (sitemapAvailable, advertised) => {
+    const robotsRuntime = runtime();
+    robotsRuntime.config = resolveConfig({ discovery: { robots: { enabled: true } } });
+    const { body } = renderStandaloneArtifact('robots', robotsRuntime, { sitemapAvailable });
+    expect(body.includes('Sitemap: https://example.com/sitemap-index.xml')).toBe(advertised);
+  });
 });
 
 describe('request-time corpus limits', () => {

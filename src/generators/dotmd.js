@@ -1,6 +1,7 @@
 // @ts-check
 import { writeFileSync, readFileSync } from 'node:fs';
 import { renderMarkdownDocument } from '../core/render/markdown-doc.js';
+import { mdPathnameFor } from '../core/page-model.js';
 import {
   hasMarkdownAlternateLink,
   matchMarkdownAlternateLinks,
@@ -30,7 +31,7 @@ export function emitDotMd(pages, config, writer) {
     const wrote = writer.write({
       path: page.mdPath,
       owner: 'dotmd',
-      route: page.mdHref,
+      route: mdPathnameFor(page.pathname),
       contents: renderMarkdownDocument(page, config),
       onConflict: 'overwrite',
     });

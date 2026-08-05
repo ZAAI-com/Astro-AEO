@@ -46,7 +46,11 @@ export function finalizeSitemapOutputs(
 
   // A matching source is sufficient to support a manual or third-party sitemap,
   // even when astro-aeo did not register or recognize its generator.
-  if (config.discovery.sitemap.alias.enabled && sourceExists) {
+  if (
+    config.discovery.sitemap.mode !== 'disabled' &&
+    config.discovery.sitemap.alias.enabled &&
+    sourceExists
+  ) {
     aliasEmitted = emitSitemapAlias(distDir, config, logger, activeWriter);
     if (aliasEmitted) {
       logger.info(`astro-aeo: emitted /${config.discovery.sitemap.alias.outputFilename}`);

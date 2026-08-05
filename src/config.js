@@ -46,8 +46,10 @@ export function resolveConfig(rawConfig = {}, logger) {
   const pages = userConfig.pages ?? {};
 
   const sitemapFilenameBase = sitemap.options?.filenameBase ?? 'sitemap';
-
-  const sitemapPolicy = resolveSitemapPolicy(robots.includeSitemap);
+  const sitemapMode = sitemap.mode ?? 'auto';
+  const sitemapPolicy = sitemapMode === 'disabled'
+    ? 'never'
+    : resolveSitemapPolicy(robots.includeSitemap);
 
   return {
     site: {
@@ -106,7 +108,7 @@ export function resolveConfig(rawConfig = {}, logger) {
     },
     discovery: {
       sitemap: {
-        mode: sitemap.mode ?? 'auto',
+        mode: sitemapMode,
         options: sitemap.options ?? {},
         alias: {
           enabled: alias.enabled ?? true,

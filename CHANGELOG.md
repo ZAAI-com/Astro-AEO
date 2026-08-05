@@ -92,11 +92,19 @@ All notable changes to this project are documented here. This project follows [S
 - Benchmark regression explanation: extraction, corpus, and local Worker-startup p95 timings can
   move by more than 10 percent on the same reference laptop when adapter builds, garbage
   collection, and OS scheduling overlap. The final changes do not add work to those measured
-  paths, no portable package or bundle metric regressed, and every absolute ceiling remains
-  enforced. The committed reference is recorded from the final 1.1 tree.
+  paths. The final fixes add less than one percent to the portable package, no bundle metric
+  regressed, and every absolute ceiling remains enforced. The committed reference is recorded from
+  the final 1.1 tree.
 
 ### Fixed
 
+- Markdown artifact collision checks now use the root-relative output route when Astro has a
+  `base`, so project routes and files in `public/` cannot be overwritten without a warning.
+- Disabled sitemap mode now suppresses aliases and `robots.txt` advertising even when a sitemap
+  source exists or `includeSitemap` is explicitly true. Dev runtime detection once again recognizes
+  configured sitemap files in `public/` and concrete Astro routes.
+- Markdown responses preserve same-origin redirect targets outside Astro's configured `base`
+  instead of appending `.md` to a path the middleware does not own.
 - Adapter preview teardown now stops the complete runtime process group and waits for descendants
   such as workerd to release fixture files. Retried fixture cleanup prevents the composed release
   check from failing with a transient `ENOTEMPTY` between runtime and performance gates.

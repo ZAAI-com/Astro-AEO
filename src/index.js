@@ -4,7 +4,11 @@ import { randomBytes } from 'node:crypto';
 import { isAbsolute, resolve } from 'node:path';
 import sitemap from '@astrojs/sitemap';
 import { resolveConfig } from './config.js';
-import { resolveSitemapPlan } from './lib/sitemap.js';
+import {
+  resolveSitemapPlan,
+  sitemapPathExists,
+  sitemapPathMatchesRoute,
+} from './lib/sitemap.js';
 import { finalizeSitemapOutputs } from './generators/sitemap-finalize.js';
 import { onBuildDone } from './hooks/build-done.js';
 import { aeoRuntimeConfigPlugin } from './virtual/plugin.js';
@@ -58,10 +62,15 @@ export default function aeo(userConfig = {}) {
    * @returns {Record<string, unknown>}
    */
   function runtimeSnapshot() {
+    const sitemapPath = config.discovery.robots.sitemapPath;
+    const sitemapAvailable =
+      Boolean(publicDir && sitemapPathExists(publicDir, sitemapPath)) ||
+      sitemapPathMatchesRoute(sitemapPath, [...resolvedRoutePaths]);
     return {
       command,
       config,
       site: { siteUrl, base, trailingSlash, buildFormat },
+      sitemapAvailable,
       staticPaths: [...runtimePagePaths],
       projectPaths: [...runtimeProjectPaths],
       projectPatterns: runtimeProjectPatterns,

@@ -14,6 +14,7 @@ import { normalizeCatalogPathname } from '../core/match.js';
  * @property {'dev'|'build'|'preview'} command
  * @property {import('../index.js').ResolvedAstroAeoConfig} config
  * @property {{ siteUrl: string; base: string; trailingSlash: 'always'|'never'|'ignore' }} site
+ * @property {boolean} [sitemapAvailable]
  * @property {string[]} staticPaths
  * @property {string[]} [projectPaths]
  * @property {RegExp[]} [projectPatterns]

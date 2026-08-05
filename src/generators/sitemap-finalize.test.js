@@ -106,6 +106,20 @@ describe('finalizeSitemapOutputs', () => {
     expect(readFileSync(join(dir, 'robots.txt'), 'utf8')).not.toContain('Sitemap:');
   });
 
+  test('disabled mode neither aliases nor advertises an existing sitemap', () => {
+    writeFileSync(join(dir, 'sitemap-index.xml'), '<manual/>');
+    const result = finalize({
+      discovery: {
+        sitemap: { mode: 'disabled' },
+        robots: { enabled: true, includeSitemap: true },
+      },
+    });
+
+    expect(result).toEqual({ aliasEmitted: false, sitemapAdvertised: false });
+    expect(existsSync(join(dir, 'sitemap.xml'))).toBe(false);
+    expect(readFileSync(join(dir, 'robots.txt'), 'utf8')).not.toContain('Sitemap:');
+  });
+
   test('manual sitemap sources are aliased without an official integration', () => {
     writeFileSync(join(dir, 'sitemap-index.xml'), '<manual/>');
     const result = finalize();
