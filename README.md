@@ -2,7 +2,7 @@
 
 Answer Engine Optimization for Astro. One integration, zero config, ten features.
 
-Astro-AEO makes your Astro site easy for AI search engines, assistants, and LLMs to discover, parse, and cite. It generates clean Markdown copies of every page, an `llms.txt` index, JSON-LD components, crawler policies, and domain identity metadata, all at build time with no external services and no runtime dependencies.
+Astro-AEO makes your Astro site easy for AI search engines, assistants, and LLMs to discover, parse, and cite. It generates clean Markdown copies of every page, an `llms.txt` index, JSON-LD components, crawler policies, and domain identity metadata with no external services or client JavaScript.
 
 It is the Astro sibling of [Jekyll-AEO](https://github.com/ZAAI-com/Jekyll-AEO).
 
@@ -14,7 +14,7 @@ A Markdown copy of a page is roughly 20 to 30 percent smaller in tokens than its
 
 ## Features
 
-- **.md companion pages**: a clean Markdown copy of every page, converted from the rendered HTML.
+- **.md companion pages**: a clean Markdown copy of every page, preserving authored Markdown when available and otherwise extracting from rendered HTML.
 - **llms.txt and llms-full.txt**: a site index and a full-content file following the [llmstxt.org](https://llmstxt.org/) spec.
 - **Alternate link tags**: `<link rel="alternate" type="text/markdown">` injected into every page so crawlers can find the Markdown.
 - **JSON-LD components**: `FaqJsonLd`, `HowToJsonLd`, `BreadcrumbJsonLd`, `OrganizationJsonLd`, `SpeakableJsonLd`, `ArticleJsonLd`.
@@ -132,6 +132,10 @@ aeo({
       enabled: false,
       outputFilepath: 'docs/Url-Map.md',
     },
+
+    runtime: {
+      maxPages: 50,                  // positive integer | 'unlimited'; refuses larger live corpora
+    },
   },
 
   discovery: {
@@ -162,7 +166,7 @@ aeo({
 
 ### Migrating from 1.0
 
-Every 1.0 key still works and produces byte-identical output. Using one emits a
+Every 1.0 key still works and produces the same output as its canonical replacement. Using one emits a
 single deprecation warning per section; the 1.0 keys are removed in 2.0.
 
 | 1.0 | 1.1 |
@@ -281,6 +285,10 @@ the one rendering the page (the build's prerender pass, or a request for the `.m
 and it is removed from every page before anything is written or served, so it never
 reaches a browser and never appears in a `.md` file.
 
+Standalone `.md` page routes need no marker: Astro-AEO reads their source directly,
+removes only leading YAML frontmatter, and embeds on-demand sources through a Vite
+`?raw` registry in the server bundle. The release bundle-size gate measures this cost.
+
 ### Pages the build cannot see
 
 Routes generated from data rather than from a file are invisible to Astro's page
@@ -295,15 +303,32 @@ aeo({ pages: { catalogs: [{ module: './src/aeo-catalog.js' }] } })
 // src/aeo-catalog.js
 export default {
   name: 'blog',
-  async listPages() {
+  async listPages(context) {
     const posts = await fetchPostsFromYourCms();
-    return posts.map((p) => ({ pathname: `/blog/${p.slug}`, lastModified: p.updatedAt }));
+    return posts.map((p) => ({
+      pathname: `/blog/${p.slug}`,
+      rendering: 'on-demand',
+      title: p.title,
+      markdown: p.markdown,
+      lastModified: p.updatedAt,
+      sourcePath: `cms:${p.id}`,
+    }));
   },
 };
 ```
 
 A catalog that fails to load warns and contributes nothing rather than failing the
-build. Astro-AEO does not crawl your site to discover routes.
+build. Catalogs run in configured order in both builds and server bundles; the first
+descriptor wins when two catalogs name the same normalized path. `context` contains
+the command, site URL, base path, and trailing-slash policy. Astro-AEO does not crawl
+your site to discover routes.
+
+Request-time `llms.txt` and `llms-full.txt` render each known route through the
+application so authentication and page markers behave normally. To prevent one
+request from causing unbounded self-fetches, `corpus.runtime.maxPages` defaults to
+50 and at most four renders run concurrently. A larger corpus returns `503` with
+`Cache-Control: no-store`, without partial output. Raise the limit or select
+`'unlimited'` only when the deployment can safely absorb that work.
 
 ### Content negotiation
 
@@ -314,6 +339,12 @@ a 303 to the `.md` URL. Default is `'off'`.
 Markdown has to be asked for explicitly and outrank HTML strictly. A wildcard
 (`*/*`), a tie, a missing header, and a malformed one all resolve to HTML, so
 browsers, curl, and crawlers that send `*/*` are unaffected.
+
+Negotiated responses preserve the page's cache policy, merge `Vary: Accept`, use a
+full SHA-256 ETag, and support `HEAD` and `If-None-Match`. A `304` avoids response
+bytes but currently still calculates the Markdown representation. Redirects, API
+responses, and negotiated error pages retain the application's original behavior.
+An explicit `.md` request may convert an HTML error body while preserving its status.
 
 **This applies to on-demand routes only.** Astro does not expose request headers to
 a prerendered route, deliberately: those pages become static files, so honouring a
@@ -336,6 +367,11 @@ extraction falls back to `<body>`.
 converting them, for a widget whose markup carries meaning. Removal wins over
 keeping, and the always-dropped tags can never be reintroduced this way.
 
+Figures and captions, definition lists, tables and captions, `time`, `address`, and
+`cite` are retained as cleaned raw HTML because flattening them would discard
+semantics Markdown cannot express. Empty links and images inherit accessible names
+from `alt`, `aria-label`, `aria-labelledby`, then `title`.
+
 An invalid or empty selector is a configuration error, not a silent no-op.
 
 ```js
@@ -352,6 +388,17 @@ Relative links and image sources in the extracted content are rewritten against 
 page's own canonical URL, because a `.md` companion is usually read away from the site
 that served it. Fragment links and non-navigational schemes (`mailto:`, `tel:`) are
 left exactly as authored.
+
+The same extractor is available to integrations and tooling without importing
+Turndown directly:
+
+```js
+import { extractHtml } from 'astro-aeo/extract';
+
+const { markdown, diagnostics } = await extractHtml(html, {
+  selectors: ['article', 'main'],
+}, { baseUrl: 'https://example.com/page/' });
+```
 
 ### Sections
 
@@ -385,6 +432,11 @@ Globs are segment-aware: `*` stays inside one path segment, `**` crosses segment
 On a project with an adapter, `.md` requests are served by Astro-AEO's own middleware,
 which sets the content type itself and re-enters your routing, so your own middleware
 and its authentication apply to a `.md` request exactly as they do to the HTML.
+
+Release gates build Node, Cloudflare, Deno, Vercel, and Netlify fixtures. Request
+contracts run locally for Node, Cloudflare in workerd, and Deno. Vercel and Netlify
+are build and provider-artifact checks only; no served behavior is claimed without
+provider accounts.
 
 On static hosting the companions are plain files, and many hosts serve unknown
 extensions as `text/plain`, `application/octet-stream`, or a download. To keep answer
@@ -493,14 +545,23 @@ pnpm test              # colocated unit + CLI + build e2e tests (Vitest)
 pnpm run test:watch    # Vitest in watch mode
 pnpm run test:dev      # dev-server e2e (spawns astro dev)
 pnpm run typecheck     # tsc --noEmit against JSDoc types
+pnpm run test:types    # public declarations on the TypeScript 5.5 floor
 pnpm run demo:dev      # run the demo site in fixtures/demo
 pnpm run demo:build    # build the demo site
 pnpm run demo:validate # run the validator CLI on the demo build
-pnpm run test:dev      # dev-server e2e (spawns astro dev)
 pnpm run test:ssr      # adapter e2e (builds and boots @astrojs/node)
+pnpm run test:adapters # build five adapters; request-test Node, workerd, and Deno
+pnpm run release:check # schema, compatibility, tarball, adapters, and benchmarks
 ```
 
-Tests are colocated next to the source they cover as `*.test.js`. The package is authored as plain ESM JavaScript with JSDoc types and a hand-written `index.d.ts`, so it needs no build step and installs cleanly as a git dependency.
+Tag publication adds `--require-clean`, checks that the numeric tag equals the package and changelog
+version, and refuses a dirty checkout before the packed-tarball and provider gates run.
+
+Tests are colocated next to the source they cover as `*.test.js`. The frozen
+`fixtures/golden-1.0` output proves static byte compatibility with the actual 1.0
+implementation, while `fixtures/config-compat` compares legacy and canonical option
+spellings. The package is authored as plain ESM JavaScript with JSDoc types and a
+hand-written `index.d.ts`, so it needs no build step and installs cleanly as a git dependency.
 
 Working on this repo with an AI agent? See [`.claude/CLAUDE.md`](.claude/CLAUDE.md) for the architecture, conventions, and test workflow. Notable changes are tracked in [`CHANGELOG.md`](CHANGELOG.md).
 
