@@ -1,0 +1,179 @@
+{
+  "version": 1,
+  "recordedAt": "2026-08-05",
+  "environment": {
+    "node": "v24.15.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "cpus": 10,
+    "ci": false,
+    "runnerClass": "astro-aeo-m2-pro-reference"
+  },
+  "package": {
+    "packedBytes": 73132,
+    "unpackedBytes": 263907,
+    "files": 64
+  },
+  "extraction": {
+    "10000": {
+      "bytes": 10208,
+      "parse": {
+        "samples": 50,
+        "medianMs": 1.001,
+        "p95Ms": 2.683,
+        "minMs": 0.458,
+        "maxMs": 3.327
+      },
+      "convert": {
+        "samples": 50,
+        "medianMs": 3.877,
+        "p95Ms": 7.539,
+        "minMs": 2.866,
+        "maxMs": 10.789
+      }
+    },
+    "100000": {
+      "bytes": 100088,
+      "parse": {
+        "samples": 100,
+        "medianMs": 5.773,
+        "p95Ms": 34.181,
+        "minMs": 4.552,
+        "maxMs": 56.693
+      },
+      "convert": {
+        "samples": 100,
+        "medianMs": 40.451,
+        "p95Ms": 59.344,
+        "minMs": 31.911,
+        "maxMs": 1688.791
+      }
+    },
+    "1000000": {
+      "bytes": 1000148,
+      "parse": {
+        "samples": 20,
+        "medianMs": 88.407,
+        "p95Ms": 306.339,
+        "minMs": 53.307,
+        "maxMs": 364.046
+      },
+      "convert": {
+        "samples": 20,
+        "medianMs": 846.746,
+        "p95Ms": 2948.906,
+        "minMs": 735.161,
+        "maxMs": 3246.547
+      }
+    }
+  },
+  "memory": {
+    "conversions": 100,
+    "retainedBytes": 0,
+    "rssDeltaBytes": -29671424,
+    "beforeHeapBytes": 41564720,
+    "afterHeapBytes": 41465184
+  },
+  "corpus": {
+    "1": {
+      "durationMs": 60.709,
+      "fetches": 1,
+      "peakConcurrency": 1,
+      "outputBytes": 47
+    },
+    "10": {
+      "durationMs": 9.767,
+      "fetches": 10,
+      "peakConcurrency": 4,
+      "outputBytes": 508
+    },
+    "50": {
+      "durationMs": 30.357,
+      "fetches": 50,
+      "peakConcurrency": 4,
+      "outputBytes": 2588
+    },
+    "51": {
+      "durationMs": 0.251,
+      "fetches": 0,
+      "refused": true
+    }
+  },
+  "requests": {
+    "firstResponseMs": 21.117,
+    "html": {
+      "samples": 400,
+      "medianMs": 0.793,
+      "p95Ms": 1.662,
+      "minMs": 0.411,
+      "maxMs": 4.001
+    },
+    "directMarkdown": {
+      "samples": 200,
+      "medianMs": 1.228,
+      "p95Ms": 2.583,
+      "minMs": 0.755,
+      "maxMs": 4.066
+    },
+    "negotiatedMarkdown": {
+      "samples": 200,
+      "medianMs": 1.177,
+      "p95Ms": 2.469,
+      "minMs": 0.699,
+      "maxMs": 4.26
+    },
+    "overhead": {
+      "directMarkdown": {
+        "samples": 200,
+        "medianMs": 0.414,
+        "p95Ms": 1.353,
+        "minMs": -1.03,
+        "maxMs": 2.996
+      },
+      "negotiatedMarkdown": {
+        "samples": 200,
+        "medianMs": 0.343,
+        "p95Ms": 1.213,
+        "minMs": -1.347,
+        "maxMs": 3.351
+      }
+    },
+    "p95OverheadMs": 1.353,
+    "conditionalStatus": 304,
+    "note": "A 304 avoids response bytes but the current runtime still calculates the representation."
+  },
+  "bundles": {
+    "node": {
+      "files": 31,
+      "rawBytes": 1317204,
+      "gzipBytes": 309776,
+      "deltaRawBytes": 70787,
+      "deltaGzipBytes": 19419,
+      "baseline": {
+        "files": 31,
+        "rawBytes": 1246417,
+        "gzipBytes": 290357
+      }
+    },
+    "cloudflare": {
+      "files": 34,
+      "rawBytes": 1498118,
+      "gzipBytes": 364226,
+      "deltaRawBytes": 845046,
+      "deltaGzipBytes": 195263,
+      "baseline": {
+        "files": 33,
+        "rawBytes": 653072,
+        "gzipBytes": 168963
+      }
+    }
+  },
+  "cloudflareStartupMs": 37.8,
+  "notes": [
+    "This is a reproducible reference measurement, not a portable performance promise.",
+    "Package and bundle byte regressions are compared across release runners; timing and memory comparisons require an equivalent environment.",
+    "Request overhead uses 200 paired, interleaved samples per Markdown mode after 20 warm-up cycles.",
+    "Portable regressions over 10 percent always require an explanation; environment-sensitive regressions do so on an equivalent runner.",
+    "Cloudflare startup is Wrangler's local active CPU time for Worker module initialization; production hardware can differ."
+  ]
+}
