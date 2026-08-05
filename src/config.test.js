@@ -12,6 +12,7 @@ describe('resolveConfig', () => {
     expect(c.corpus.index.defaultSection).toBe('Pages');
     expect(c.corpus.full.mode).toBe('all');
     expect(c.corpus.urlMap.enabled).toBe(false);
+    expect(c.corpus.runtime.maxPages).toBe(50);
     expect(c.discovery.robots.enabled).toBe(false);
     expect(c.discovery.robots.sitemapPath).toBe('/sitemap-index.xml');
     expect(c.site.profile.enabled).toBe(false);
@@ -21,6 +22,21 @@ describe('resolveConfig', () => {
     expect(c.discovery.sitemap.alias.sourceFilename).toBe('sitemap-index.xml');
     expect(c.discovery.sitemap.alias.outputFilename).toBe('sitemap.xml');
     expect(c.discovery.robots.sitemapPolicy).toBe('auto');
+  });
+
+  test('runtime corpus limits are bounded by default and explicitly overridable', () => {
+    expect(resolveConfig({ corpus: { runtime: { maxPages: 12 } } }).corpus.runtime.maxPages).toBe(12);
+    expect(resolveConfig({ corpus: { runtime: { maxPages: 'unlimited' } } }).corpus.runtime.maxPages).toBe('unlimited');
+    expect(() => resolveConfig({ corpus: { runtime: { maxPages: 0 } } })).toThrow(AeoConfigError);
+    expect(() => resolveConfig({ corpus: { runtime: { maxPages: 1.5 } } })).toThrow(AeoConfigError);
+  });
+
+  test('page catalog descriptors require a non-empty module', () => {
+    expect(resolveConfig({ pages: { catalogs: [{ module: './catalog.js' }] } }).pages.catalogs)
+      .toEqual([{ module: './catalog.js' }]);
+    expect(() => resolveConfig({ pages: { catalogs: [{}] } })).toThrow(/pages\.catalogs\[0\]\.module/);
+    expect(() => resolveConfig({ pages: { catalogs: [{ module: '  ' }] } })).toThrow(AeoConfigError);
+    expect(() => resolveConfig({ pages: { catalogs: /** @type {any} */ ({}) } })).toThrow(AeoConfigError);
   });
 
   test('dotmdMetadata is aliased to markdown.frontmatter with a warning', () => {

@@ -12,7 +12,11 @@ export default defineConfig({
     aeo({
       // stripTitleSuffix is here to guard it at request time: the runtime once
       // built no stripper of its own, so it silently stopped applying.
-      pages: { exclude: ['/private/**'], stripTitleSuffix: 'SSR Site' },
+      pages: {
+        exclude: ['/private/**'],
+        stripTitleSuffix: 'SSR Site',
+        catalogs: [{ module: './src/aeo-catalog.js' }],
+      },
       markdown: { frontmatter: true, negotiation: 'response' },
       discovery: { robots: { enabled: true, allow: ['Googlebot'] }, sitemap: { mode: 'disabled' } },
     }),

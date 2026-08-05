@@ -5,21 +5,10 @@ import { resolveSitemapPolicy } from './lib/sitemap.js';
 import { parseDocument } from './core/html-document.js';
 import { assertValidSelectors } from './core/extract/index.js';
 
-/**
- * Default llms.txt sections when the user configures none: a Home rule for "/"
- * plus the "Pages" catch-all (added implicitly via defaultSection). This keeps
- * zero-config output sensible for any site shape.
- * @type {import('./index.js').SectionRule[]}
- */
+/** @type {import('./index.js').SectionRule[]} */
 const DEFAULT_SECTIONS = [{ title: 'Home', match: '/' }];
 
 /**
- * Resolve a user config into a fully-defaulted config object.
- *
- * 1.0 keys are lifted onto their canonical paths first, so everything below reads
- * a single shape. Legacy input warns once per canonical section; a legacy key and
- * its canonical replacement set to different values is a build-stopping error.
- *
  * @param {import('./index.js').AstroAeoConfig} [rawConfig]
  * @param {{ warn: (m: string) => void }} [logger]
  * @returns {import('./index.js').ResolvedAstroAeoConfig}
@@ -35,8 +24,6 @@ export function resolveConfig(rawConfig = {}, logger) {
   );
   if (logger) for (const warning of warnings) logger.warn(warning);
 
-  // Opt-in, because a full config block in the build log is noise for anyone who
-  // is not actively migrating.
   if (logger && process.env.AEO_PRINT_MIGRATION) {
     const migration = printMigration(/** @type {Record<string, any>} */ (rawConfig));
     if (migration) logger.warn(migration);
@@ -44,33 +31,22 @@ export function resolveConfig(rawConfig = {}, logger) {
 
   const userConfig = /** @type {import('./index.js').AstroAeoConfig} */ (merged);
   validateExtractionSelectors(userConfig.markdown?.extraction);
+  validateCatalogs(userConfig.pages?.catalogs);
 
   const markdown = userConfig.markdown ?? {};
   const extraction = markdown.extraction ?? {};
   const corpusIndex = userConfig.corpus?.index ?? {};
   const corpusFull = userConfig.corpus?.full ?? {};
   const corpusUrlMap = userConfig.corpus?.urlMap ?? {};
+  const corpusRuntime = userConfig.corpus?.runtime ?? {};
   const robots = userConfig.discovery?.robots ?? {};
   const sitemap = userConfig.discovery?.sitemap ?? {};
   const alias = sitemap.alias ?? {};
   const profile = userConfig.site?.profile ?? {};
   const pages = userConfig.pages ?? {};
 
-  // The @astrojs/sitemap output name is `${filenameBase}-index.xml` (filenameBase
-  // defaults to 'sitemap'). Resolved once so both the alias source and the
-  // robots.txt Sitemap path track a single source of truth. For a separately
-  // registered integration this value is the explicit shared filename hint.
-  //
-  // Read from the MERGED config, never from the raw input: a project still using
-  // the 1.0 `sitemap.options` would otherwise fall back to the default base and
-  // advertise `/sitemap-index.xml` while its real file is `${base}-index.xml`.
   const sitemapFilenameBase = sitemap.options?.filenameBase ?? 'sitemap';
 
-  // The public setting is an optional boolean, and all three states are
-  // meaningful: omitted verifies the build output, true forces the line for a
-  // runtime-only sitemap, false suppresses it. Collapsing to a boolean here would
-  // lose "omitted", so the distinction is resolved into `sitemapPolicy` instead of
-  // being recovered from the raw user config elsewhere.
   const sitemapPolicy = resolveSitemapPolicy(robots.includeSitemap);
 
   return {
@@ -124,17 +100,16 @@ export function resolveConfig(rawConfig = {}, logger) {
         enabled: corpusUrlMap.enabled ?? false,
         outputFilepath: corpusUrlMap.outputFilepath ?? 'docs/Url-Map.md',
       },
+      runtime: {
+        maxPages: resolveRuntimeMaxPages(corpusRuntime.maxPages),
+      },
     },
     discovery: {
       sitemap: {
         mode: sitemap.mode ?? 'auto',
-        // Forwarded verbatim to the @astrojs/sitemap integration (filter,
-        // changefreq, priority, lastmod, i18n, entryLimit, ...).
         options: sitemap.options ?? {},
         alias: {
           enabled: alias.enabled ?? true,
-          // Default source tracks the @astrojs/sitemap output name. An explicit
-          // sourceFilename always wins.
           sourceFilename: alias.sourceFilename ?? `${sitemapFilenameBase}-index.xml`,
           outputFilename: alias.outputFilename ?? 'sitemap.xml',
         },
@@ -145,12 +120,7 @@ export function resolveConfig(rawConfig = {}, logger) {
         allow: robots.allow ?? [],
         disallow: robots.disallow ?? [],
         sitemapPolicy,
-        // Equivalent to the old `includeSitemap ?? true` for all three inputs, but
-        // derived from the policy so the two can never disagree.
         includeSitemap: sitemapPolicy !== 'never',
-        // Tracks the @astrojs/sitemap output name. The late finalizer verifies this
-        // root-relative path before it is interpolated as
-        // `${siteUrl}${base}${sitemapPath}` in robots-txt.js.
         sitemapPath: robots.sitemapPath ?? `/${sitemapFilenameBase}-index.xml`,
         includeLlmsTxt: robots.includeLlmsTxt ?? true,
         extraLines: robots.extraLines ?? [],
@@ -159,13 +129,22 @@ export function resolveConfig(rawConfig = {}, logger) {
   };
 }
 
-/**
- * Run each user-supplied selector once so a typo fails the build with the path
- * that caused it, rather than silently matching nothing on every page. The
- * shipped defaults are not re-validated, so a zero-config build never parses a
- * probe document.
- * @param {import('./index.js').ExtractionOptions | undefined} extraction
- */
+/** @param {{ module: string }[] | undefined} catalogs */
+function validateCatalogs(catalogs) {
+  if (catalogs === undefined) return;
+  if (!Array.isArray(catalogs)) {
+    throw new AeoConfigError('astro-aeo: pages.catalogs must be an array of module descriptors.');
+  }
+  for (let index = 0; index < catalogs.length; index++) {
+    if (!isPlainObject(catalogs[index]) || typeof catalogs[index].module !== 'string' || !catalogs[index].module.trim()) {
+      throw new AeoConfigError(
+        `astro-aeo: pages.catalogs[${index}].module must be a non-empty module specifier.`,
+      );
+    }
+  }
+}
+
+/** @param {import('./index.js').ExtractionOptions | undefined} extraction */
 function validateExtractionSelectors(extraction) {
   if (!extraction) return;
   /** @type {Document | undefined} */
@@ -178,18 +157,9 @@ function validateExtractionSelectors(extraction) {
   }
 }
 
-/**
- * Free-form subtree marker. Everything below a PASSTHROUGH is forwarded verbatim
- * to another tool, so validating it would flag that tool's own valid options.
- */
 const PASSTHROUGH = Symbol('astro-aeo.passthrough');
 
 /**
- * The whole accepted config shape, at every depth. `null` marks a scalar leaf, a
- * plain object recurses, and PASSTHROUGH stops validation for that subtree.
- *
- * Deprecated aliases (`dotmd.dotmdMetadata`, `domainProfile.contact`) are listed
- * so they are recognized rather than flagged as typos.
  * @type {Record<string, any>}
  */
 const CONFIG_SHAPE = {
@@ -210,6 +180,7 @@ const CONFIG_SHAPE = {
     index: { enabled: null, sections: null, defaultSection: null, includeDescriptions: null, showLastModified: null, includeHtmlOnly: null },
     full: { enabled: null, mode: null },
     urlMap: { enabled: null, outputFilepath: null },
+    runtime: { maxPages: null },
   },
   site: {
     name: null,
@@ -235,11 +206,19 @@ const CONFIG_SHAPE = {
 };
 
 /**
- * Warn on unknown config keys at any depth, so a typo in a three-level path is
- * caught as precisely as a top-level one.
- *
- * Warnings need a sink, so with no logger there is nothing to do. Configuration
- * *errors* are raised regardless: see `mergeLegacy` in `lib/config-migrate.js`.
+ * @param {number | 'unlimited' | undefined} value
+ * @returns {number | 'unlimited'}
+ */
+function resolveRuntimeMaxPages(value) {
+  if (value === undefined) return 50;
+  if (value === 'unlimited') return value;
+  if (Number.isInteger(value) && value > 0) return value;
+  throw new AeoConfigError(
+    'astro-aeo: corpus.runtime.maxPages must be a positive integer or "unlimited".',
+  );
+}
+
+/**
  * @param {Record<string, unknown>} value
  * @param {any} shape
  * @param {{ warn: (m: string) => void } | undefined} logger
@@ -260,5 +239,4 @@ function warnUnknownKeys(value, shape, logger, path = '') {
   }
 }
 
-// Moved to core/site-meta.js so the runtime can use it; re-exported for callers.
 export { resolveSiteMeta } from './core/site-meta.js';

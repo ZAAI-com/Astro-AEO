@@ -1,6 +1,15 @@
-import { test, expect, describe } from 'vitest';
+import { afterEach, test, expect, describe } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, isAbsolute } from 'node:path';
-import { absoluteUrl, mdHrefFor, resolveHtmlPath } from './collect.js';
+import { pathToFileURL } from 'node:url';
+import { absoluteUrl, collectPages, mdHrefFor, resolveHtmlPath, stripLeadingFrontmatter } from './collect.js';
+import { resolveConfig } from '../config.js';
+
+const roots = [];
+afterEach(() => {
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+});
 
 describe('absoluteUrl', () => {
   test('applies base and trailing slash', () => {
@@ -46,5 +55,166 @@ describe('leading-slash pathnames stay inside distRoot', () => {
     expect(mdPath).toBe(join(distRoot, 'about.md'));
     expect(mdPath.startsWith(distRoot)).toBe(true);
     expect(isAbsolute(mdPath)).toBe(true);
+  });
+});
+
+describe('collectPages serializable dates', () => {
+  test('preserves catalog dates and serializes the git/filesystem fallback', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-collect-'));
+    roots.push(root);
+    const distRoot = join(root, 'dist');
+    const sourceRoot = join(root, 'src');
+    mkdirSync(join(distRoot, 'catalog'), { recursive: true });
+    mkdirSync(join(distRoot, 'git'), { recursive: true });
+    mkdirSync(sourceRoot, { recursive: true });
+    const html = '<!doctype html><html><head><title>T</title></head><body><main>Body.</main></body></html>';
+    writeFileSync(join(distRoot, 'catalog', 'index.html'), html);
+    writeFileSync(join(distRoot, 'git', 'index.html'), html);
+    const sourcePath = join(sourceRoot, 'git.astro');
+    writeFileSync(sourcePath, '---\n---\n<p>Body.</p>\n');
+    const fallbackDate = new Date('2026-01-02T03:04:05.000Z');
+    utimesSync(sourcePath, fallbackDate, fallbackDate);
+
+    const pages = await collectPages(
+      [
+        { pathname: '/catalog', lastModified: '2026-02-15T12:30:00Z' },
+        { pathname: '/git' },
+      ],
+      resolveConfig(),
+      {
+        distDir: pathToFileURL(`${distRoot}/`),
+        siteUrl: 'https://x.com',
+        base: '',
+        trailingSlash: 'always',
+        buildFormat: 'directory',
+        projectRoot: root,
+        routeEntrypoints: new Map([['/git', 'src/git.astro']]),
+        logger: { warn() {} },
+      },
+    );
+
+    expect(pages.find((page) => page.pathname === '/catalog')?.lastModified).toBe(
+      '2026-02-15T12:30:00.000Z',
+    );
+    expect(pages.find((page) => page.pathname === '/git')?.lastModified).toBe(
+      '2026-01-02T03:04:05.000Z',
+    );
+    expect(() => JSON.stringify(pages)).not.toThrow();
+  });
+});
+
+describe('authored source resolution', () => {
+  test('standalone Markdown is preserved and leading frontmatter is removed', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-markdown-source-'));
+    roots.push(root);
+    const distRoot = join(root, 'dist');
+    mkdirSync(join(distRoot, 'guide'), { recursive: true });
+    mkdirSync(join(root, 'src', 'pages'), { recursive: true });
+    writeFileSync(
+      join(distRoot, 'guide', 'index.html'),
+      '<html><head><title>Guide</title></head><body><main><h1>Rendered approximation</h1></main></body></html>',
+    );
+    writeFileSync(
+      join(root, 'src', 'pages', 'guide.md'),
+      '---\ntitle: Guide\n---\n# Exact Guide\n\n- authored\n',
+    );
+
+    const pages = await collectPages(
+      [{ pathname: '/guide' }],
+      resolveConfig(),
+      {
+        distDir: pathToFileURL(`${distRoot}/`),
+        siteUrl: 'https://x.com',
+        base: '',
+        trailingSlash: 'always',
+        buildFormat: 'directory',
+        projectRoot: root,
+        routeEntrypoints: new Map([['/guide', 'src/pages/guide.md']]),
+        logger: { warn() {} },
+      },
+    );
+
+    expect(pages[0].markdown).toBe('# Exact Guide\n\n- authored\n');
+    expect(pages[0].source).toEqual({ strategy: 'markdown-route', path: 'src/pages/guide.md' });
+    expect(pages[0].extraction).toBeUndefined();
+  });
+
+  test('catalog metadata enriches a standalone route without replacing its source', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-catalog-markdown-route-'));
+    roots.push(root);
+    const distRoot = join(root, 'dist');
+    mkdirSync(join(distRoot, 'guide'), { recursive: true });
+    mkdirSync(join(root, 'src', 'pages'), { recursive: true });
+    writeFileSync(
+      join(distRoot, 'guide', 'index.html'),
+      '<html><head><title>Rendered</title></head><body><main>Rendered approximation</main></body></html>',
+    );
+    writeFileSync(
+      join(root, 'src', 'pages', 'guide.md'),
+      '---\ntitle: Source title\n---\n# Exact source\n\nPreserved.\n',
+    );
+
+    const [page] = await collectPages(
+      [{ pathname: '/guide', title: 'Catalog title', sourcePath: 'catalog:guide' }],
+      resolveConfig(),
+      {
+        distDir: pathToFileURL(`${distRoot}/`),
+        siteUrl: 'https://x.com',
+        base: '',
+        trailingSlash: 'always',
+        buildFormat: 'directory',
+        projectRoot: root,
+        routeEntrypoints: new Map([['/guide', 'src/pages/guide.md']]),
+        logger: { warn() {} },
+      },
+    );
+
+    expect(page.title).toBe('Catalog title');
+    expect(page.markdown).toBe('# Exact source\n\nPreserved.\n');
+    expect(page.source).toEqual({ strategy: 'markdown-route', path: 'catalog:guide' });
+    expect(page.extraction).toBeUndefined();
+  });
+
+  test('catalog source and metadata enrich a rendered route', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-catalog-source-'));
+    roots.push(root);
+    const distRoot = join(root, 'dist');
+    mkdirSync(join(distRoot, 'dynamic'), { recursive: true });
+    writeFileSync(
+      join(distRoot, 'dynamic', 'index.html'),
+      '<html><head><title>Rendered</title></head><body><main>Approximation</main></body></html>',
+    );
+    const [page] = await collectPages(
+      [{
+        pathname: '/dynamic',
+        title: 'Catalog title',
+        markdown: '# Catalog source',
+        sourcePath: 'cms:42',
+        lastModified: '2026-08-05',
+      }],
+      resolveConfig(),
+      {
+        distDir: pathToFileURL(`${distRoot}/`),
+        siteUrl: 'https://x.com',
+        base: '',
+        trailingSlash: 'always',
+        buildFormat: 'directory',
+        projectRoot: root,
+        routeEntrypoints: new Map(),
+        logger: { warn() {} },
+      },
+    );
+    expect(page).toMatchObject({
+      title: 'Catalog title',
+      markdown: '# Catalog source',
+      lastModified: '2026-08-05T00:00:00.000Z',
+      source: { strategy: 'catalog', path: 'cms:42' },
+    });
+  });
+
+  test('frontmatter stripping does not remove an ordinary horizontal rule', () => {
+    expect(stripLeadingFrontmatter('---\nnot frontmatter without a close')).toBe(
+      '---\nnot frontmatter without a close',
+    );
   });
 });

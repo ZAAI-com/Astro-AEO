@@ -7,7 +7,7 @@ const page = {
   url: 'https://x.com/about/',
   description: 'An about page.',
   markdown: '# About\n\nBody.',
-  lastModified: new Date('2026-02-15T00:00:00Z'),
+  lastModified: '2026-02-15T00:00:00.000Z',
 };
 
 describe('renderMarkdownDocument', () => {
@@ -46,6 +46,14 @@ describe('renderMarkdownDocument', () => {
     ).not.toContain('lastModified');
   });
 
+  test('an authored final newline is preserved without adding another', () => {
+    const out = renderMarkdownDocument(
+      { ...page, markdown: '# Authored\n', lastModified: undefined },
+      resolveConfig(),
+    );
+    expect(out).toBe('# Authored\n');
+  });
+
   test('an empty description is omitted rather than emitted empty', () => {
     const out = renderMarkdownDocument(
       { ...page, description: '' },
@@ -65,5 +73,5 @@ describe('renderMarkdownDocument', () => {
 });
 
 test('isoDate takes the date part only', () => {
-  expect(isoDate(new Date('2026-02-15T23:59:59Z'))).toBe('2026-02-15');
+  expect(isoDate('2026-02-15T23:59:59.000Z')).toBe('2026-02-15');
 });

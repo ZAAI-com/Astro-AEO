@@ -3,4 +3,5 @@ import Layout from '../layouts/Layout.astro';
 ---
 <Layout title="About" description="An on-demand page.">
   <h1>About</h1><p>Body with a <a href="/contact/">relative link</a>.</p>
+  {Astro.url.search && <p>Query: {Astro.url.search}</p>}
 </Layout>

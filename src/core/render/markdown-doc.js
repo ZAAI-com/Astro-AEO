@@ -6,7 +6,7 @@
  * @property {string} url
  * @property {string} description
  * @property {string} markdown
- * @property {Date | undefined} [lastModified]
+ * @property {string | undefined} [lastModified] ISO timestamp.
  */
 
 /**
@@ -31,26 +31,26 @@ export function renderMarkdownDocument(page, config) {
     body += `title: ${JSON.stringify(page.title)}\n`;
     body += `url: ${page.url}\n`;
     if (page.description) body += `description: ${JSON.stringify(page.description)}\n`;
-    if (showLastModified) body += `lastModified: ${isoDate(/** @type {Date} */ (page.lastModified))}\n`;
+    if (showLastModified) body += `lastModified: ${isoDate(/** @type {string} */ (page.lastModified))}\n`;
     body += '---\n\n';
   }
 
   body += page.markdown;
-  body += '\n';
+  if (!page.markdown.endsWith('\n')) body += '\n';
 
   // The footer is the no-frontmatter way to carry the same fact, so it is
   // suppressed when frontmatter already states it.
   if (showLastModified && !frontmatter) {
-    body += `\n_Last modified: ${isoDate(/** @type {Date} */ (page.lastModified))}_\n`;
+    body += `\n_Last modified: ${isoDate(/** @type {string} */ (page.lastModified))}_\n`;
   }
 
   return body;
 }
 
 /**
- * @param {Date} d
+ * @param {string} value ISO timestamp.
  * @returns {string}
  */
-export function isoDate(d) {
-  return d.toISOString().slice(0, 10);
+export function isoDate(value) {
+  return value.slice(0, 10);
 }

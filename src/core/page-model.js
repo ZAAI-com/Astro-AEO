@@ -7,15 +7,6 @@ import { parseDocument } from './html-document.js';
 import { readMarker, removeMarkers } from './extract/marker.js';
 
 /**
- * The normalized page record and the single step that produces it.
- *
- * Nothing here touches the filesystem. The HTML may have come from build output,
- * from a dev self-fetch, or from a rendered response at request time; past this
- * point those are indistinguishable, which is what stops the build and the server
- * from drifting apart as they previously did.
- */
-
-/**
  * @typedef {object} SiteFacts
  * @property {string} siteUrl                          Origin without a trailing slash.
  * @property {string} base                             Astro base path ("" or "/docs").
@@ -23,31 +14,32 @@ import { readMarker, removeMarkers } from './extract/marker.js';
  */
 
 /**
- * A page as every renderer sees it.
- * @typedef {object} AeoPage
+ * @typedef {object} AeoPageRecord
  * @property {string} pathname       Normalized: leading slash, no trailing slash except root.
  * @property {string} url            Absolute URL, honouring base and trailingSlash.
  * @property {string} mdHref         Root-relative, base-prefixed href to the .md companion.
  * @property {string} title
  * @property {string} description
  * @property {string} markdown
- * @property {Date | undefined} lastModified
- * @property {Set<string>} aeoTokens
+ * @property {'prerendered'|'on-demand'} rendering
+ * @property {string | undefined} lastModified  ISO timestamp when known.
+ * @property {string[]} aeoTokens
  * @property {import('./extract/index.js').ExtractionDiagnostics} [extraction]
- * @property {'marker'|'extraction'} [source]  Where the Markdown came from.
+ * @property {{ strategy: 'marker'|'markdown-route'|'rendered'|'catalog'; path?: string }} source
+ * @property {import('../index.js').Diagnostic[]} diagnostics
  */
+
+/** @typedef {AeoPageRecord} AeoPage  Compatibility alias for existing internal imports. */
 
 /**
  * A page plus the filesystem locations only a build has.
- * @typedef {AeoPage & { htmlPath: string; mdPath: string }} BuildPage
+ * @typedef {AeoPageRecord & { htmlPath: string; mdPath: string }} BuildPage
  */
 
 /** Why a page produced no record. Every branch is reported, never silently dropped. */
 /** @typedef {'excluded'|'redirect'|'noindex'|'skip-token'} SkipReason */
 
 /**
- * Display path portion of a URL, honouring trailingSlash. Exported so the build
- * collector and the server share one implementation instead of two copies.
  * @param {string} pathname
  * @param {'always'|'never'|'ignore'} trailingSlash
  * @returns {string}
@@ -58,7 +50,6 @@ export function urlPath(pathname, trailingSlash) {
 }
 
 /**
- * Absolute URL for a page: origin + base + trailing-slash-normalized path.
  * @param {string} origin  Site origin (or dev origin) without a trailing slash.
  * @param {string} base
  * @param {string} pathname
@@ -70,7 +61,6 @@ export function absoluteUrl(origin, base, pathname, trailingSlash) {
 }
 
 /**
- * Root-relative href to a page's .md companion, base-prefixed.
  * @param {string} pathname
  * @param {string} [base]
  * @returns {string}
@@ -80,7 +70,6 @@ export function mdHrefFor(pathname, base = '') {
 }
 
 /**
- * The .md pathname for a page, without any base prefix.
  * @param {string} pathname
  * @returns {string}
  */
@@ -89,8 +78,6 @@ export function mdPathnameFor(pathname) {
 }
 
 /**
- * The page a .md request refers to, or null when the path is not a companion.
- * The inverse of `mdPathnameFor`.
  * @param {string} mdPathname
  * @returns {string | null}
  */
@@ -101,8 +88,6 @@ export function pagePathForMdPath(mdPathname) {
 }
 
 /**
- * Astro's `base`, trimmed to a prefix that concatenates cleanly. "" and "/" both
- * mean no prefix.
  * @param {string} base
  * @returns {string}
  */
@@ -111,71 +96,100 @@ export function basePrefix(base) {
 }
 
 /**
- * The single normalize step: a rendered document in, a page record or a reason
- * it was skipped out.
- *
  * @param {object} input
  * @param {string} input.pathname
  * @param {string} input.html
  * @param {import('../index.js').ResolvedAstroAeoConfig} input.config
  * @param {SiteFacts} input.site
  * @param {import('turndown')} [input.td]
+ * @param {() => Promise<import('turndown')>} [input.getTurndown]
+ * @param {{ markdown?: string; title?: string; description?: string; lastModified?: string; path?: string; strategy?: 'markdown-route'|'catalog'; extraction?: import('./extract/index.js').ExtractionDiagnostics }} [input.authored]
+ * @param {boolean} [input.allowMarker]
+ * @param {'prerendered'|'on-demand'} [input.rendering]
  * @param {(title: string) => string} [input.strip]  Reused instance; derived from config when absent.
- * @returns {{ page: AeoPage } | { skip: SkipReason }}
+ * @returns {Promise<{ page: AeoPage } | { skip: SkipReason }>}
  */
-export function buildPage({ pathname: rawPathname, html, config, site, td, strip }) {
+export async function buildPage({ pathname: rawPathname, html, config, site, td, getTurndown, authored, allowMarker = true, rendering = 'on-demand', strip }) {
   const pathname = normalizePath(rawPathname || '/');
 
   if (!isIncluded(pathname, { include: config.pages.include, exclude: config.pages.exclude })) {
     return { skip: 'excluded' };
   }
 
-  // Deriving this from config when the caller does not supply one keeps the
-  // option working everywhere. Callers in a loop pass their own so the regular
-  // expression is compiled once rather than per page.
   const meta = extractPageMeta(html, strip ?? makeTitleStripper(config.pages.stripTitleSuffix));
   if (meta.isRedirect) return { skip: 'redirect' };
   if (config.pages.respectNoindex && meta.noindex) return { skip: 'noindex' };
   if (meta.aeoTokens.has('skip')) return { skip: 'skip-token' };
 
-  // The URL is computed before conversion because it is also the base that makes
-  // relative links in the extracted content absolute.
   const url = absoluteUrl(site.siteUrl, site.base, pathname, site.trailingSlash);
 
-  // The page may have handed us its own source. Parse once and remove the marker
-  // whether or not it is used: it is an internal channel and must never survive
-  // into a `.md` file or a browser.
   const document = parseDocument(html);
-  const marker = readMarker(document);
+  const marker = allowMarker ? readMarker(document) : null;
   removeMarkers(document);
 
-  const extracted = extractMarkdown(document, config.markdown.extraction, td ?? createTurndown(), {
-    baseUrl: url,
-  });
-  const useMarker = typeof marker?.markdown === 'string' && marker.markdown.trim() !== '';
+  const authoredMarkdown = typeof authored?.markdown === 'string' ? authored.markdown : undefined;
+  const markerMarkdown = typeof marker?.markdown === 'string' ? marker.markdown : undefined;
+  const markerWins = markerMarkdown !== undefined;
+  const authoredWins = !markerWins && authoredMarkdown !== undefined;
+  const sourceMarkdown = markerMarkdown ?? authoredMarkdown;
+  let markdown;
+  /** @type {import('./extract/index.js').ExtractionDiagnostics | undefined} */
+  let extraction = authoredWins ? authored?.extraction : undefined;
+  if (sourceMarkdown !== undefined) {
+    markdown = sourceMarkdown;
+  } else {
+    const extracted = extractMarkdown(
+      document,
+      config.markdown.extraction,
+      td ?? (await (getTurndown ?? createTurndown)()),
+      { baseUrl: url },
+    );
+    markdown = extracted.markdown;
+    extraction = extracted.diagnostics;
+  }
 
   return {
     page: {
       pathname,
       url,
       mdHref: mdHrefFor(pathname, site.base),
-      title: marker?.title || meta.title,
-      description: marker?.description || meta.description,
-      markdown: useMarker ? /** @type {string} */ (marker.markdown).trim() : extracted.markdown,
-      lastModified: parseDate(marker?.lastModified) ?? meta.modifiedTime,
-      aeoTokens: meta.aeoTokens,
-      extraction: extracted.diagnostics,
-      source: useMarker ? 'marker' : 'extraction',
+      title: marker?.title || authored?.title || meta.title,
+      description: marker?.description || authored?.description || meta.description,
+      markdown,
+      rendering,
+      lastModified:
+        toIsoTimestamp(marker?.lastModified) ??
+        toIsoTimestamp(authored?.lastModified) ??
+        toIsoTimestamp(meta.modifiedTime),
+      aeoTokens: [...meta.aeoTokens],
+      extraction,
+      source: {
+        strategy: markerWins
+          ? 'marker'
+          : authoredWins
+            ? authored?.strategy ?? 'markdown-route'
+            : 'rendered',
+        ...(markerWins
+          ? typeof marker?.sourcePath === 'string' && marker.sourcePath
+            ? { path: marker.sourcePath }
+            : {}
+          : typeof marker?.sourcePath === 'string' && marker.sourcePath
+              ? { path: marker.sourcePath }
+            : authored?.path
+              ? { path: authored.path }
+              : {}),
+      },
+      diagnostics: [],
     },
   };
 }
 
 /**
- * @param {string | undefined} value
- * @returns {Date | undefined}
+ * @param {Date | string | undefined} value
+ * @returns {string | undefined}
  */
-function parseDate(value) {
+export function toIsoTimestamp(value) {
   if (!value) return undefined;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+  const parsed = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
 }

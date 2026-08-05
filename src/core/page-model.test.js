@@ -56,10 +56,13 @@ describe('URL helpers', () => {
 describe('buildPage', () => {
   const config = resolveConfig();
 
-  test('produces a normalized record from rendered HTML', () => {
-    const result = buildPage({
+  test('produces a normalized record from rendered HTML', async () => {
+    const result = await buildPage({
       pathname: '/about/',
-      html: page('<h1>About</h1><p>Body.</p>', '<meta name="description" content="Desc.">'),
+      html: page(
+        '<h1>About</h1><p>Body.</p>',
+        '<meta name="description" content="Desc."><meta name="aeo" content="no-dotmd, no-llms">',
+      ),
       config,
       site,
     });
@@ -71,11 +74,16 @@ describe('buildPage', () => {
     expect(p.title).toBe('T');
     expect(p.description).toBe('Desc.');
     expect(p.markdown).toBe('# About\n\nBody.');
+    expect(p.rendering).toBe('on-demand');
+    expect(p.aeoTokens).toEqual(['no-dotmd', 'no-llms']);
+    expect(p.source).toEqual({ strategy: 'rendered' });
+    expect(p.diagnostics).toEqual([]);
     expect(p.extraction?.strategy).toBe('main');
+    expect(() => JSON.stringify(p)).not.toThrow();
   });
 
-  test('every skip is reported with a reason rather than silently dropped', () => {
-    const excluded = buildPage({
+  test('every skip is reported with a reason rather than silently dropped', async () => {
+    const excluded = await buildPage({
       pathname: '/private/x',
       html: page('<p>x</p>'),
       config: resolveConfig({ pages: { exclude: ['/private/**'] } }),
@@ -83,7 +91,7 @@ describe('buildPage', () => {
     });
     expect(excluded).toEqual({ skip: 'excluded' });
 
-    const redirect = buildPage({
+    const redirect = await buildPage({
       pathname: '/old',
       html: page('<p>x</p>', '<meta http-equiv="refresh" content="0;url=/new/">'),
       config,
@@ -91,7 +99,7 @@ describe('buildPage', () => {
     });
     expect(redirect).toEqual({ skip: 'redirect' });
 
-    const noindex = buildPage({
+    const noindex = await buildPage({
       pathname: '/x',
       html: page('<p>x</p>', '<meta name="robots" content="noindex">'),
       config,
@@ -99,7 +107,7 @@ describe('buildPage', () => {
     });
     expect(noindex).toEqual({ skip: 'noindex' });
 
-    const token = buildPage({
+    const token = await buildPage({
       pathname: '/x',
       html: page('<p>x</p>', '<meta name="aeo" content="skip">'),
       config,
@@ -108,8 +116,8 @@ describe('buildPage', () => {
     expect(token).toEqual({ skip: 'skip-token' });
   });
 
-  test('respectNoindex: false keeps a noindex page', () => {
-    const result = buildPage({
+  test('respectNoindex: false keeps a noindex page', async () => {
+    const result = await buildPage({
       pathname: '/x',
       html: page('<p>x</p>', '<meta name="robots" content="noindex">'),
       config: resolveConfig({ pages: { respectNoindex: false } }),
@@ -118,8 +126,8 @@ describe('buildPage', () => {
     expect('page' in result).toBe(true);
   });
 
-  test('relative links resolve against the page URL the record itself carries', () => {
-    const result = buildPage({
+  test('relative links resolve against the page URL the record itself carries', async () => {
+    const result = await buildPage({
       pathname: '/blog/post',
       html: page('<a href="../other/">Other</a>'),
       config,
@@ -128,16 +136,140 @@ describe('buildPage', () => {
     expect(result.page.markdown).toContain('(https://x.com/blog/other/)');
   });
 
-  test('article:modified_time becomes lastModified, and is otherwise undefined', () => {
-    const dated = buildPage({
+  test('article:modified_time becomes lastModified, and is otherwise undefined', async () => {
+    const dated = await buildPage({
       pathname: '/x',
       html: page('<p>x</p>', '<meta property="article:modified_time" content="2026-02-15">'),
       config,
       site,
     });
-    expect(dated.page.lastModified?.toISOString().slice(0, 10)).toBe('2026-02-15');
+    expect(dated.page.lastModified).toBe('2026-02-15T00:00:00.000Z');
 
-    const undated = buildPage({ pathname: '/x', html: page('<p>x</p>'), config, site });
+    const undated = await buildPage({ pathname: '/x', html: page('<p>x</p>'), config, site });
     expect(undated.page.lastModified).toBeUndefined();
+  });
+
+  test('uses authored Markdown without initializing Turndown', async () => {
+    let loads = 0;
+    const marker =
+      '<script type="application/vnd.astro-aeo+json" data-astro-aeo-marker>' +
+      '{"markdown":"# Authored\\n\\nExact source.","sourcePath":"src/content/authored.md"}' +
+      '</script>';
+    const result = await buildPage({
+      pathname: '/authored',
+      html: page(`${marker}<h1>Rendered</h1>`),
+      config,
+      site,
+      getTurndown: async () => {
+        loads++;
+        throw new Error('Turndown must not load');
+      },
+    });
+
+    expect(result.page.markdown).toBe('# Authored\n\nExact source.');
+    expect(result.page.source).toEqual({
+      strategy: 'marker',
+      path: 'src/content/authored.md',
+    });
+    expect(result.page.extraction).toBeUndefined();
+    expect(loads).toBe(0);
+  });
+
+  test('preserves explicitly empty authored Markdown without initializing Turndown', async () => {
+    let loads = 0;
+    const result = await buildPage({
+      pathname: '/empty-source',
+      html: page('<h1>Rendered fallback</h1>'),
+      config,
+      site,
+      authored: { markdown: '' },
+      getTurndown: async () => {
+        loads++;
+        throw new Error('Turndown must stay lazy');
+      },
+    });
+    expect(result.page.markdown).toBe('');
+    expect(result.page.source).toEqual({ strategy: 'markdown-route' });
+    expect(result.page.extraction).toBeUndefined();
+    expect(loads).toBe(0);
+  });
+
+  test('an explicitly empty marker owns provenance over a catalog source', async () => {
+    const marker =
+      '<script type="application/vnd.astro-aeo+json" data-astro-aeo-marker>' +
+      '{"markdown":"","sourcePath":"marker-empty.md"}' +
+      '</script>';
+    const extraction = {
+      strategy: 'cms',
+      selectedNodes: 1,
+      removedNodes: 0,
+      inputCharacters: 10,
+      outputCharacters: 8,
+    };
+    const result = await buildPage({
+      pathname: '/empty-marker',
+      html: page(`${marker}<h1>Rendered fallback</h1>`),
+      config,
+      site,
+      authored: {
+        markdown: '# Catalog',
+        path: 'catalog.md',
+        strategy: 'catalog',
+        extraction,
+      },
+    });
+
+    expect(result.page.markdown).toBe('');
+    expect(result.page.source).toEqual({ strategy: 'marker', path: 'marker-empty.md' });
+    expect(result.page.extraction).toBeUndefined();
+  });
+
+  test('preserves authored whitespace, catalog diagnostics, and marker source paths', async () => {
+    const extraction = {
+      strategy: 'cms',
+      selectedNodes: 1,
+      removedNodes: 2,
+      inputCharacters: 20,
+      outputCharacters: 12,
+      fallbackReason: undefined,
+    };
+    const marker =
+      '<script type="application/vnd.astro-aeo+json" data-astro-aeo-marker>' +
+      '{"sourcePath":"cms:marker-only"}' +
+      '</script>';
+    const result = await buildPage({
+      pathname: '/catalog',
+      html: page(`${marker}<h1>Rendered</h1>`),
+      config,
+      site,
+      authored: { markdown: '\n# Exact source\n', extraction, strategy: 'catalog' },
+    });
+    expect(result.page.markdown).toBe('\n# Exact source\n');
+    expect(result.page.extraction).toEqual(extraction);
+    expect(result.page.source).toEqual({ strategy: 'catalog', path: 'cms:marker-only' });
+  });
+
+  test('an explicit page marker wins over catalog or standalone source', async () => {
+    const marker =
+      '<script type="application/vnd.astro-aeo+json" data-astro-aeo-marker>' +
+      '{"markdown":"# Marker","title":"Marker title","sourcePath":"marker.md"}' +
+      '</script>';
+    const result = await buildPage({
+      pathname: '/authored',
+      html: page(`${marker}<h1>Rendered</h1>`),
+      config,
+      site,
+      authored: {
+        markdown: '# Catalog',
+        title: 'Catalog title',
+        path: 'catalog.md',
+        strategy: 'catalog',
+      },
+    });
+    expect(result.page).toMatchObject({
+      markdown: '# Marker',
+      title: 'Marker title',
+      source: { strategy: 'marker', path: 'marker.md' },
+    });
   });
 });

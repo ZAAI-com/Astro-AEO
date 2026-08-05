@@ -1,24 +1,11 @@
 // @ts-check
 import { AeoConfigError } from '../../lib/errors.js';
 
-/**
- * Content extraction: pick the part of a rendered page that is the page, and drop
- * the chrome around it.
- *
- * Everything here takes a parsed `Document` and never parses one itself, so the
- * same functions run over build output, a dev self-fetch, and a request-time
- * response without knowing the difference.
- */
+export const NEVER_CONTENT = ['script', 'style', 'noscript', 'iframe', 'head', 'meta', 'base', 'link'];
 
-/**
- * Nodes that are never page content and can never be restored by `keepSelectors`.
- * `head` is here so the document-level fallback below cannot leak `<title>` and
- * `<meta>` text into the Markdown.
- */
-export const NEVER_CONTENT = ['script', 'style', 'noscript', 'iframe', 'head'];
-
-/** Marks an element that `keepSelectors` should emit as raw HTML. */
 const KEEP_ATTRIBUTE = 'data-astro-aeo-keep';
+
+const SEMANTIC_HTML_SELECTOR = 'figure, dl, table, time, address, cite';
 
 /**
  * @typedef {object} ExtractionOptions
@@ -27,7 +14,6 @@ const KEEP_ATTRIBUTE = 'data-astro-aeo-keep';
  * @property {string[]} keepSelectors    Preserved as raw HTML in the Markdown.
  */
 
-/** Attributes carrying a URL that should survive being read away from the site. */
 const URL_ATTRIBUTES = [
   ['a[href]', 'href'],
   ['area[href]', 'href'],
@@ -36,7 +22,9 @@ const URL_ATTRIBUTES = [
   ['video[src]', 'src'],
   ['audio[src]', 'src'],
   ['video[poster]', 'poster'],
+  ['object[data]', 'data'],
 ];
+const ACTIVE_URL_ATTRIBUTES = ['href', 'src', 'data', 'poster', 'action', 'formaction', 'xlink:href'];
 
 /**
  * @typedef {object} ExtractionDiagnostics
@@ -45,14 +33,12 @@ const URL_ATTRIBUTES = [
  * @property {number} removedNodes       Elements dropped before conversion.
  * @property {number} inputCharacters
  * @property {number} outputCharacters
- * @property {string | undefined} fallbackReason
+ * @property {string} [fallbackReason]
  */
 
 /**
- * Validate configured selectors once, at config time, so a typo is a
- * configuration error rather than a silent no-op on every page.
- * @param {Document} probe   Any parsed document; only used to run the selector.
- * @param {string} path      Dotted config path, for the message.
+ * @param {Document} probe
+ * @param {string} path
  * @param {string[]} selectors
  * @returns {void}
  */
@@ -74,20 +60,16 @@ export function assertValidSelectors(probe, path, selectors) {
 }
 
 /**
- * Choose the elements to convert.
- *
- * Selectors are tried in order and the first one with any match wins, so
- * `['article', 'main']` prefers a semantic article and falls back to the main
- * region. Only top-level matches are kept: an `<article>` nested inside another
- * `<article>` would otherwise have its content emitted twice.
- *
  * @param {Document} document
  * @param {string[]} selectors
  * @returns {{ roots: Element[]; strategy: string; fallbackReason: string | undefined }}
  */
 export function selectContentRoots(document, selectors) {
+  const forbidden = NEVER_CONTENT.join(',');
   for (const selector of selectors) {
-    const matches = [...document.querySelectorAll(selector)];
+    const matches = [...document.querySelectorAll(selector)].filter(
+      (element) => !element.matches(forbidden) && !element.closest(forbidden),
+    );
     if (matches.length === 0) continue;
     const topLevel = matches.filter((el) => !matches.some((other) => other !== el && other.contains(el)));
     return { roots: topLevel, strategy: selector, fallbackReason: undefined };
@@ -97,10 +79,6 @@ export function selectContentRoots(document, selectors) {
     ? `no element matched ${selectors.map((s) => JSON.stringify(s)).join(', ')}`
     : 'no selectors configured';
 
-  // A parser only synthesizes <html>/<body> for a well-formed document. Given a
-  // bare fragment it leaves `body` present but empty, with the real content
-  // hanging off documentElement, so an unconditional `document.body` would
-  // silently convert nothing.
   if (document.body && document.body.childNodes.length > 0) {
     return { roots: [document.body], strategy: 'body', fallbackReason: reason };
   }
@@ -113,12 +91,6 @@ export function selectContentRoots(document, selectors) {
 }
 
 /**
- * Drop unwanted nodes, and mark the ones to preserve verbatim.
- *
- * Removal beats preservation: an element matched by both is removed, and the four
- * unsafe tags are removed before `keepSelectors` is even consulted, so no
- * configuration can reintroduce a `<script>` into the Markdown.
- *
  * @param {Element} root
  * @param {{ removeSelectors: string[]; keepSelectors: string[] }} options
  * @returns {number} elements removed
@@ -126,22 +98,69 @@ export function selectContentRoots(document, selectors) {
 export function cleanRoot(root, { removeSelectors, keepSelectors }) {
   let removed = 0;
   for (const selector of [...NEVER_CONTENT, ...removeSelectors]) {
+    if (root.matches(selector)) {
+      root.replaceChildren();
+      return removed + 1;
+    }
     for (const el of [...root.querySelectorAll(selector)]) {
       el.remove();
       removed++;
     }
-    // querySelectorAll only looks at descendants, so a root that is itself a
-    // match would survive. Its children are converted, which is the same result
-    // as removing it, so there is nothing to do but count it correctly.
   }
   for (const selector of keepSelectors) {
+    if (root.matches(selector)) root.setAttribute(KEEP_ATTRIBUTE, '');
     for (const el of [...root.querySelectorAll(selector)]) el.setAttribute(KEEP_ATTRIBUTE, '');
+  }
+  sanitizeRoot(root);
+  markTopLevelRawHtml(root, SEMANTIC_HTML_SELECTOR);
+  return removed;
+}
+
+/** @param {Element} root @returns {number} */
+export function sanitizeRoot(root) {
+  let removed = 0;
+  for (const element of [root, ...root.querySelectorAll('*')]) {
+    for (const attribute of [...element.attributes]) {
+      const name = attribute.name.toLowerCase();
+      if (
+        name.startsWith('on') ||
+        name === 'style' ||
+        name === 'srcdoc' ||
+        name === 'srcset' ||
+        name === 'ping' ||
+        (ACTIVE_URL_ATTRIBUTES.includes(name) && unsafeProtocol(attribute.value))
+      ) {
+        element.removeAttribute(attribute.name);
+        removed++;
+      }
+    }
   }
   return removed;
 }
 
+/** @param {string} value @returns {boolean} */
+function unsafeProtocol(value) {
+  const compact = value.trim().replace(/[\u0000-\u0020\u007f]+/g, '').toLowerCase();
+  const match = compact.match(/^([a-z][a-z0-9+.-]*):/);
+  return Boolean(match && !['http', 'https', 'mailto', 'tel'].includes(match[1]));
+}
+
 /**
- * Add the rule that emits `keepSelectors` matches as raw HTML.
+ * @param {Element} root
+ * @param {string} selector
+ */
+function markTopLevelRawHtml(root, selector) {
+  const matches = [
+    ...(root.matches?.(selector) ? [root] : []),
+    ...root.querySelectorAll(selector),
+  ];
+  for (const element of matches) {
+    if (matches.some((other) => other !== element && other.contains(element))) continue;
+    element.setAttribute(KEEP_ATTRIBUTE, '');
+  }
+}
+
+/**
  * @param {import('turndown')} td
  * @returns {import('turndown')}
  */
@@ -151,6 +170,9 @@ export function addKeepRule(td) {
     replacement: (_content, node) => {
       const el = /** @type {any} */ (node);
       el.removeAttribute(KEEP_ATTRIBUTE);
+      for (const nested of el.querySelectorAll?.(`[${KEEP_ATTRIBUTE}]`) ?? []) {
+        nested.removeAttribute(KEEP_ATTRIBUTE);
+      }
       return `\n\n${el.outerHTML}\n\n`;
     },
   });
@@ -158,15 +180,6 @@ export function addKeepRule(td) {
 }
 
 /**
- * Rewrite relative URLs to absolute ones.
- *
- * A `.md` companion is read away from the site that served it, so `](/about/)`
- * is a dead link the moment the file is copied into a prompt or an index. The
- * page's own canonical URL is the only correct base.
- *
- * Fragment-only links and non-navigational schemes (`mailto:`, `tel:`, `data:`,
- * and anything else without a host) are left exactly as authored.
- *
  * @param {Element} root
  * @param {string} baseUrl
  * @returns {number} attributes rewritten
@@ -183,16 +196,65 @@ export function resolveUrls(root, baseUrl) {
         if (resolved.href === value) continue;
         el.setAttribute(attribute, resolved.href);
         rewritten++;
-      } catch {
-        // Not a resolvable URL. Leave the author's value alone rather than guess.
-      }
+      } catch {}
     }
   }
   return rewritten;
 }
 
 /**
- * Extract a page's content as Markdown.
+ * @param {Element} root
+ * @returns {number} elements enriched
+ */
+export function enrichAccessibleNames(root) {
+  let enriched = 0;
+
+  for (const image of [...root.querySelectorAll('img')]) {
+    if ((image.getAttribute('alt') ?? '').trim()) continue;
+    const name = accessibleName(image);
+    if (!name) continue;
+    image.setAttribute('alt', name);
+    enriched++;
+  }
+
+  for (const link of [...root.querySelectorAll('a[href]')]) {
+    if ((link.textContent ?? '').trim()) continue;
+    if ([...link.querySelectorAll('img')].some((image) => (image.getAttribute('alt') ?? '').trim())) {
+      continue;
+    }
+    const name = accessibleName(link);
+    if (!name) continue;
+    link.textContent = name;
+    enriched++;
+  }
+
+  return enriched;
+}
+
+/** @param {Element} element @returns {string} */
+function accessibleName(element) {
+  if (element.localName === 'img') {
+    const alt = (element.getAttribute('alt') ?? '').trim();
+    if (alt) return alt;
+  }
+  const ariaLabel = (element.getAttribute('aria-label') ?? '').trim();
+  if (ariaLabel) return ariaLabel;
+
+  const labelledBy = (element.getAttribute('aria-labelledby') ?? '').trim();
+  if (labelledBy) {
+    const document = element.ownerDocument;
+    const label = labelledBy
+      .split(/\s+/)
+      .map((id) => document?.getElementById(id)?.textContent?.trim() ?? '')
+      .filter(Boolean)
+      .join(' ');
+    if (label) return label;
+  }
+
+  return (element.getAttribute('title') ?? '').trim();
+}
+
+/**
  * @param {Document} document
  * @param {ExtractionOptions} options
  * @param {import('turndown')} td
@@ -206,10 +268,15 @@ export function extractMarkdown(document, options, td, context = {}) {
   let removedNodes = 0;
   const parts = roots.map((root) => {
     removedNodes += cleanRoot(root, options);
+    enrichAccessibleNames(root);
     if (context.baseUrl) resolveUrls(root, context.baseUrl);
-    // Hand Turndown the element, not `root.innerHTML`. Re-serializing and
-    // reparsing is wasted work, and it would route the text through a second DOM
-    // implementation (Turndown's own) whose normalization need not match this one.
+    if (root.getAttribute(KEEP_ATTRIBUTE) !== null) {
+      root.removeAttribute(KEEP_ATTRIBUTE);
+      for (const nested of root.querySelectorAll(`[${KEEP_ATTRIBUTE}]`)) {
+        nested.removeAttribute(KEEP_ATTRIBUTE);
+      }
+      return root.outerHTML;
+    }
     return td.turndown(/** @type {any} */ (root)).trim();
   });
 

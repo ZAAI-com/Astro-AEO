@@ -2,16 +2,15 @@
 
 /**
  * @typedef {object} PageMeta
- * @property {string} title            Title with any configured suffix stripped.
- * @property {string} description      Meta description, or empty string.
- * @property {boolean} noindex         True if <meta name="robots"> contains "noindex".
- * @property {Set<string>} aeoTokens   Tokens from <meta name="aeo" content="...">.
- * @property {Date | undefined} modifiedTime  Parsed <meta property="article:modified_time">.
- * @property {boolean} isRedirect      True if the page looks like a redirect stub.
+ * @property {string} title
+ * @property {string} description
+ * @property {boolean} noindex
+ * @property {Set<string>} aeoTokens
+ * @property {Date | undefined} modifiedTime
+ * @property {boolean} isRedirect
  */
 
 /**
- * Build a title-suffix stripper from the configured option.
  * @param {string | string[] | RegExp | false | undefined} suffix
  * @returns {(title: string) => string}
  */
@@ -20,13 +19,11 @@ export function makeTitleStripper(suffix) {
   if (suffix instanceof RegExp) return (t) => t.replace(suffix, '').trim();
   const list = Array.isArray(suffix) ? suffix : [suffix];
   const escaped = list.map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  // Strip a trailing separator (pipe, hyphen, en dash, em dash, or middot) plus suffix.
   const re = new RegExp(`\\s*[|\\-\\u2013\\u2014\\u00b7]\\s*(?:${escaped.join('|')})\\s*$`);
   return (t) => t.replace(re, '').trim();
 }
 
 /**
- * Extract the <title> text, with the given stripper applied.
  * @param {string} html
  * @param {(title: string) => string} [strip]
  * @returns {string}
@@ -37,7 +34,6 @@ export function extractTitle(html, strip = (t) => t) {
 }
 
 /**
- * Extract a content value from a matching <meta> tag.
  * @param {string} html
  * @param {{ name?: string; property?: string }} query
  * @returns {string | undefined}
@@ -61,11 +57,6 @@ export function extractMetaContent(html, query) {
 }
 
 /**
- * Iterate every <meta> tag in the document as an attribute map. The tag regex is
- * quote-aware so a ">" inside a quoted attribute value (valid HTML5) does not
- * truncate the tag, e.g. `content="A > B"`. Every meta reader below is built on
- * this rather than a per-field regex, so attribute order and quoting style are
- * handled once, in one place.
  * @param {string} html
  * @returns {Generator<Map<string, string>>}
  */
@@ -78,7 +69,6 @@ function* eachMetaTag(html) {
 }
 
 /**
- * Extract the meta description.
  * @param {string} html
  * @returns {string}
  */
@@ -87,7 +77,6 @@ export function extractDescription(html) {
 }
 
 /**
- * Read the space-separated tokens from <meta name="aeo" content="...">.
  * @param {string} html
  * @returns {Set<string>}
  */
@@ -103,7 +92,6 @@ export function extractAeoTokens(html) {
 }
 
 /**
- * True when the page carries a noindex robots directive.
  * @param {string} html
  * @returns {boolean}
  */
@@ -113,12 +101,10 @@ export function extractNoindex(html) {
 }
 
 /**
- * Parse <meta property="article:modified_time"> (or name= variant) into a Date.
  * @param {string} html
  * @returns {Date | undefined}
  */
 export function extractModifiedTime(html) {
-  // Either spelling is accepted: Open Graph uses `property`, some generators emit `name`.
   const content = extractMetaContent(html, {
     property: 'article:modified_time',
     name: 'article:modified_time',
@@ -129,7 +115,6 @@ export function extractModifiedTime(html) {
 }
 
 /**
- * A page is treated as a redirect stub when it declares a meta refresh.
  * @param {string} html
  * @returns {boolean}
  */
@@ -141,7 +126,6 @@ export function isRedirectStub(html) {
 }
 
 /**
- * Collect all AEO-relevant metadata from a built HTML document.
  * @param {string} html
  * @param {(title: string) => string} [strip]
  * @returns {PageMeta}
@@ -158,14 +142,10 @@ export function extractPageMeta(html, strip = (t) => t) {
 }
 
 /**
- * Decode the small set of named HTML entities that show up in titles and
- * descriptions. Deliberately narrow; content bodies go through Turndown.
  * @param {string} s
  * @returns {string}
  */
 export function decodeEntities(s) {
-  // Decode `&amp;` LAST so an escaped entity like `&amp;lt;` (literal "&lt;")
-  // is not double-decoded into "<".
   return s
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
@@ -178,9 +158,6 @@ export function decodeEntities(s) {
 }
 
 /**
- * Parse a tag's attributes into a name -> value map. Handles double-quoted,
- * single-quoted, and unquoted values (e.g. `content=noindex`, terminating at
- * whitespace or `>`). Boolean attributes with no `=` are skipped.
  * @param {string} tag
  * @returns {Map<string, string>}
  */

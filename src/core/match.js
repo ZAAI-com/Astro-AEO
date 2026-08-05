@@ -28,6 +28,38 @@ export function normalizePath(p) {
 }
 
 /**
+ * Validate and normalize an untrusted catalog pathname before it reaches URL or
+ * filesystem resolution. Repeated decoding catches encoded and double-encoded
+ * dot segments; encoded separators are rejected because providers disagree on
+ * when they decode them.
+ * @param {unknown} value
+ * @returns {string | null}
+ */
+export function normalizeCatalogPathname(value) {
+  if (typeof value !== 'string' || !value.startsWith('/')) return null;
+  let decoded = value;
+  for (let pass = 0; pass <= value.length; pass++) {
+    if (
+      decoded.startsWith('//') ||
+      /[\\?#\0-\x1f\x7f]/.test(decoded) ||
+      decoded.split('/').some((segment) => segment === '.' || segment === '..')
+    ) {
+      return null;
+    }
+    let next;
+    try {
+      next = decodeURIComponent(decoded);
+    } catch {
+      return null;
+    }
+    if (next === decoded) return normalizePath(value);
+    if (next.split('/').length !== decoded.split('/').length) return null;
+    decoded = next;
+  }
+  return null;
+}
+
+/**
  * Convert a single glob string into an anchored RegExp.
  * @param {string} glob
  * @returns {RegExp}
@@ -96,6 +128,7 @@ export function matchPath(pathname, pattern) {
   if (pattern instanceof RegExp) return pattern.test(path);
   const globs = Array.isArray(pattern) ? pattern : [pattern];
   return globs.some((g) => {
+    if (typeof g !== 'string') return false;
     // Preserve "**" globs verbatim (their trailing-slash logic is meaningful);
     // normalize plain trailing slashes so "/error/" matches "/error".
     const g2 = g.includes('*') ? g : normalizePath(g);

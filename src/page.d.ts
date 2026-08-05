@@ -1,4 +1,5 @@
 import type { AeoPageProps } from '../components/index.js';
+import type { ExtractionDiagnostics } from './index.js';
 
 export type { AeoPageProps };
 
@@ -25,12 +26,37 @@ export interface AeoPageInput {
  */
 export declare function defineAeoPage(input?: AeoPageInput): AeoPageProps;
 
-/** One entry a catalog reports. */
-export interface CatalogPage {
+export interface PageSource {
+  kind: 'markdown' | 'astro' | 'cms' | 'rendered' | 'custom';
+  path?: string;
+  body?: string;
+  hash?: string;
+}
+
+/** One serializable page a catalog reports. */
+export interface PageDescriptor {
   /** Root-relative path, e.g. `/blog/hello`. */
   pathname: string;
+  routePattern?: string;
+  rendering?: 'prerendered' | 'on-demand';
+  title?: string;
+  description?: string;
+  markdown?: string;
   /** ISO date. */
   lastModified?: string;
+  sourcePath?: string;
+  source?: PageSource;
+  extraction?: ExtractionDiagnostics;
+}
+
+/** @deprecated Use PageDescriptor. */
+export type CatalogPage = PageDescriptor;
+
+export interface CatalogContext {
+  command: 'dev' | 'build' | 'preview';
+  siteUrl: string;
+  base: string;
+  trailingSlash: 'always' | 'never' | 'ignore';
 }
 
 /**
@@ -40,5 +66,5 @@ export interface CatalogPage {
  */
 export interface PageCatalog {
   name?: string;
-  listPages(): CatalogPage[] | Promise<CatalogPage[]>;
+  listPages(context: CatalogContext): PageDescriptor[] | Promise<PageDescriptor[]>;
 }

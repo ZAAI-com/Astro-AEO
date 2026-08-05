@@ -1,5 +1,26 @@
 import type { AstroIntegration } from 'astro';
 
+export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+
+export interface Diagnostic {
+  version: 1;
+  code: string;
+  severity: 'info' | 'warning' | 'error';
+  message: string;
+  pathname?: string;
+  sourcePath?: string;
+  details?: JsonValue;
+}
+
+export interface ExtractionDiagnostics {
+  strategy: string;
+  selectedNodes: number;
+  inputCharacters: number;
+  outputCharacters: number;
+  removedNodes: number;
+  fallbackReason?: string;
+}
+
 /**
  * A page as seen by section rules and match predicates.
  */
@@ -12,6 +33,23 @@ export interface AeoPage {
   title: string;
   /** Meta description, or empty string. */
   description: string;
+}
+
+/** Serializable page record shared by build, runtime, catalogs, and diagnostics. */
+export interface AeoPageRecord extends AeoPage {
+  rendering: 'prerendered' | 'on-demand';
+  /** Root-relative, base-prefixed URL of the Markdown companion. */
+  mdHref: string;
+  markdown: string;
+  /** ISO timestamp when known. */
+  lastModified?: string;
+  aeoTokens: string[];
+  source?: {
+    strategy: 'marker' | 'markdown-route' | 'rendered' | 'catalog';
+    path?: string;
+  };
+  extraction?: ExtractionDiagnostics;
+  diagnostics: Diagnostic[];
 }
 
 /**
@@ -305,6 +343,16 @@ export interface CorpusUrlMapOptions {
   outputFilepath?: string;
 }
 
+export interface CorpusRuntimeOptions {
+  /**
+   * Maximum number of known pages rendered for a request-time corpus. Requests
+   * above the limit fail with 503 instead of returning a partial corpus.
+   * Default: 50. Use 'unlimited' only when the deployment can safely absorb the
+   * self-fetch fan-out.
+   */
+  maxPages?: number | 'unlimited';
+}
+
 export interface CorpusOptions {
   /** The /llms.txt index. */
   index?: CorpusIndexOptions;
@@ -312,6 +360,8 @@ export interface CorpusOptions {
   full?: CorpusFullOptions;
   /** A committed URL map, written to the project root rather than the build output. */
   urlMap?: CorpusUrlMapOptions;
+  /** Safety limits for request-time llms.txt and llms-full.txt generation. */
+  runtime?: CorpusRuntimeOptions;
 }
 
 export interface ExtractionOptions {
@@ -479,6 +529,7 @@ export interface ResolvedAstroAeoConfig {
     index: Required<CorpusIndexOptions>;
     full: Required<CorpusFullOptions>;
     urlMap: Required<CorpusUrlMapOptions>;
+    runtime: Required<CorpusRuntimeOptions>;
   };
   discovery: {
     sitemap: {

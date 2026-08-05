@@ -1,19 +1,22 @@
 // @ts-check
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { randomBytes } from 'node:crypto';
+import { isAbsolute, resolve } from 'node:path';
 import sitemap from '@astrojs/sitemap';
 import { resolveConfig } from './config.js';
 import { resolveSitemapPlan } from './lib/sitemap.js';
 import { finalizeSitemapOutputs } from './generators/sitemap-finalize.js';
 import { onBuildDone } from './hooks/build-done.js';
 import { aeoRuntimeConfigPlugin } from './virtual/plugin.js';
+import { findNonSerializable, nonSerializableWarning } from './virtual/serialize.js';
+import { createArtifactWriter } from './build/artifacts.js';
 
 /**
- * Answer Engine Optimization integration for Astro.
- *
  * @param {import('./index.js').AstroAeoConfig} [userConfig]
  * @returns {import('astro').AstroIntegration}
  */
 export default function aeo(userConfig = {}) {
+  const internalRequestToken = randomBytes(32).toString('hex');
   /** @type {ReturnType<typeof resolveConfig>} */
   let config;
   let siteUrl = '';
@@ -36,10 +39,22 @@ export default function aeo(userConfig = {}) {
   const routeEntrypoints = new Map();
   /** @type {Set<string>} */
   const resolvedRoutePaths = new Set();
+  /** @type {Set<string>} */
+  const runtimeProjectPaths = new Set();
+  /** @type {RegExp[]} */
+  const runtimeProjectPatterns = [];
+  /** @type {Set<string>} */
+  const runtimePagePaths = new Set();
+  let serverOutput = false;
+  let hasOnDemandProjectPage = false;
+  /** @type {import('./index.js').Diagnostic[]} */
+  const buildDiagnostics = [];
+  /** @type {{ warn: (message: string) => void } | undefined} */
+  let integrationLogger;
+  /** @type {ReturnType<typeof createArtifactWriter> | undefined} */
+  let artifactWriter;
 
   /**
-   * What the runtime needs, and nothing more. Kept small deliberately: every
-   * field here is emitted as source into the consumer's bundle.
    * @returns {Record<string, unknown>}
    */
   function runtimeSnapshot() {
@@ -47,18 +62,22 @@ export default function aeo(userConfig = {}) {
       command,
       config,
       site: { siteUrl, base, trailingSlash, buildFormat },
-      staticPaths: [...resolvedRoutePaths],
+      staticPaths: [...runtimePagePaths],
+      projectPaths: [...runtimeProjectPaths],
+      projectPatterns: runtimeProjectPatterns,
+      internalRequestToken,
+      standaloneSources: {},
     };
   }
 
   return {
     name: 'astro-aeo',
     hooks: {
-      // Integrations can only be added here, so resolve config early and, when
-      // the sitemap feature is on and none is present, auto-register the
-      // official @astrojs/sitemap rather than emitting XML ourselves.
       'astro:config:setup': ({ config: astroConfig, command: astroCommand, addMiddleware, updateConfig, logger }) => {
         config = resolveConfig(userConfig, logger);
+        integrationLogger = logger;
+        const nonSerializable = findNonSerializable(config);
+        if (nonSerializable.length > 0) logger.warn(nonSerializableWarning(nonSerializable));
         command = astroCommand === 'dev' ? 'dev' : astroCommand === 'preview' ? 'preview' : 'build';
         const hasUserSitemap = (astroConfig.integrations ?? []).some(
           (i) => i && i.name === '@astrojs/sitemap',
@@ -71,50 +90,60 @@ export default function aeo(userConfig = {}) {
         if (plan.warning) logger.warn(plan.warning);
         sitemapState.expected = plan.expected;
 
-        // Astro runs build:done hooks in integration-array order. Append the
-        // finalizer after the official sitemap so it can verify real output,
-        // create the alias, and only then write robots.txt.
         const added = [];
         if (plan.register) {
           added.push(sitemap(/** @type {any} */ (config.discovery.sitemap.options)));
         }
-        if (config.discovery.sitemap.alias.enabled || config.discovery.robots.enabled) {
-          added.push(sitemapFinalizerIntegration(config, sitemapState, () => ({ routePaths: resolvedRoutePaths, publicDir })));
-        }
-        // The runtime reads its configuration from a virtual module, because an
-        // entrypoint registered with addMiddleware is a separate module and cannot
-        // close over anything here. `load()` runs on first import, which is after
-        // astro:config:done, so the snapshot is read through a callback: the site
-        // facts below do not exist yet at this point.
+        added.push(
+          sitemapFinalizerIntegration(
+            config,
+            sitemapState,
+            () => ({ routePaths: resolvedRoutePaths, publicDir }),
+            () => artifactWriter,
+          ),
+        );
         updateConfig({
           integrations: added,
-          vite: { plugins: [aeoRuntimeConfigPlugin(runtimeSnapshot)] },
+          vite: {
+            plugins: [
+              aeoRuntimeConfigPlugin(
+                runtimeSnapshot,
+                () =>
+                  config.pages.catalogs.map(({ module }) =>
+                    module.startsWith('.')
+                      ? pathToFileURL(resolve(projectRoot, module)).href
+                      : module,
+                  ),
+                () => runtimeMarkdownSourceEntries(routeEntrypoints, projectRoot),
+              ),
+            ],
+          },
         });
 
-        // One handler for every request-time surface: .md companions, Accept
-        // negotiation, and the text artifacts during `astro dev`. `order: 'pre'`
-        // makes it the outermost, so `next()` yields the fully rendered response.
-        //
-        // A bare specifier is correct here: Astro emits it verbatim into a
-        // generated import that Vite resolves, so it does not go through Node's
-        // resolver and needs no URL fallback.
         addMiddleware({ order: 'pre', entrypoint: 'astro-aeo/middleware' });
       },
 
-      'astro:config:done': ({ config: astroConfig, logger }) => {
-        // Reuse the config resolved in astro:config:setup so warnings fire once.
+      'astro:config:done': ({ config: astroConfig, logger, injectTypes }) => {
         config = config ?? resolveConfig(userConfig, logger);
         siteUrl = astroConfig.site ? astroConfig.site.toString().replace(/\/$/, '') : '';
         base = astroConfig.base && astroConfig.base !== '/' ? astroConfig.base : '';
         trailingSlash = astroConfig.trailingSlash ?? 'ignore';
         buildFormat = astroConfig.build?.format === 'file' ? 'file' : 'directory';
+        serverOutput = astroConfig.output === 'server';
         projectRoot = fileURLToPath(astroConfig.root);
         publicDir = astroConfig.publicDir;
 
-        // Astro blanks request headers for prerendered routes (core/request.js),
-        // deliberately, so that code reading them cannot work in dev and then fail
-        // once the page is a static file. Negotiation therefore only ever applies
-        // to on-demand routes, and a project with no adapter has none.
+        injectTypes({
+          filename: 'astro-aeo.d.ts',
+          content:
+            'declare namespace App {\n' +
+            '  interface Locals {\n' +
+            '    /** Internal collection flag set only while Astro-AEO renders a representation. */\n' +
+            '    astroAeoCollect?: boolean;\n' +
+            '  }\n' +
+            '}\n',
+        });
+
         if (config.markdown.negotiation !== 'off' && !astroConfig.adapter) {
           logger.warn(
             `astro-aeo: markdown.negotiation is "${config.markdown.negotiation}" but this project has no adapter, so every route is prerendered and none can negotiate. ` +
@@ -128,20 +157,93 @@ export default function aeo(userConfig = {}) {
       'astro:routes:resolved': ({ routes }) => {
         routeEntrypoints.clear();
         resolvedRoutePaths.clear();
+        runtimeProjectPaths.clear();
+        runtimeProjectPatterns.length = 0;
+        runtimePagePaths.clear();
+        hasOnDemandProjectPage = false;
+        artifactWriter = undefined;
+        buildDiagnostics.length = 0;
+        let hasUncatalogedDynamicPage = false;
+        let hasPrerenderedCustom404 = false;
         for (const route of routes) {
-          // Only static (non-parameterized) routes have a concrete pathname we
-          // can map back to a source file for git last-modified.
           const pathname = /** @type {string | undefined} */ (route.pathname);
+          const normalizedPathname = pathname ? normalize(pathname) : undefined;
           const entrypoint = /** @type {string | undefined} */ (route.entrypoint);
-          if (pathname) resolvedRoutePaths.add(normalize(pathname));
+          if (normalizedPathname) resolvedRoutePaths.add(normalizedPathname);
           if (pathname && entrypoint) {
-            routeEntrypoints.set(normalize(pathname), entrypoint);
+            routeEntrypoints.set(normalizedPathname, entrypoint);
           }
+          const type = /** @type {string | undefined} */ (route.type);
+          const origin = /** @type {string | undefined} */ (route.origin);
+          const projectRoute = origin === undefined || origin === 'project';
+          if (projectRoute && normalizedPathname) runtimeProjectPaths.add(normalizedPathname);
+          const pattern = /** @type {RegExp | undefined} */ (
+            route.patternRegex ?? (route.pattern instanceof RegExp ? route.pattern : undefined)
+          );
+          const routePattern = /** @type {string | undefined} */ (
+            typeof route.pattern === 'string' ? route.pattern : route.route
+          );
+          const prerendered = /** @type {boolean | undefined} */ (
+            route.isPrerendered ?? route.prerender
+          );
+          if (
+            projectRoute &&
+            !normalizedPathname &&
+            pattern instanceof RegExp &&
+            (type !== 'page' || Boolean(routePattern && /\.[^/]+$/.test(routePattern)))
+          ) {
+            runtimeProjectPatterns.push(pattern);
+          }
+          if (
+            projectRoute &&
+            type === 'page' &&
+            normalizedPathname &&
+            normalizedPathname !== '/404' &&
+            normalizedPathname !== '/500'
+          ) {
+            runtimePagePaths.add(normalizedPathname);
+          }
+          if (projectRoute && type === 'page' && prerendered === false) {
+            hasOnDemandProjectPage = true;
+          }
+          if (projectRoute && !pathname && type !== 'endpoint' && type !== 'redirect') {
+            hasUncatalogedDynamicPage = true;
+          }
+          if (projectRoute && normalizedPathname === '/404' && prerendered === true) {
+            hasPrerenderedCustom404 = true;
+          }
+        }
+        if (hasUncatalogedDynamicPage && config.pages.catalogs.length === 0) {
+          const diagnostic = {
+            version: /** @type {const} */ (1),
+            code: 'dynamic-routes-unindexed',
+            severity: /** @type {const} */ ('warning'),
+            message:
+              'Dynamic page routes cannot be enumerated for corpus indexes without pages.catalogs.',
+          };
+          buildDiagnostics.push(diagnostic);
+          integrationLogger?.warn(
+            'astro-aeo: dynamic page routes are not included in llms.txt because no pages.catalogs module is configured.',
+          );
+        }
+        if (hasPrerenderedCustom404 && config.markdown.negotiation !== 'off') {
+          const diagnostic = {
+            version: /** @type {const} */ (1),
+            code: 'prerendered-custom-404-negotiation',
+            severity: /** @type {const} */ ('warning'),
+            pathname: '/404',
+            message:
+              'A prerendered custom 404 cannot inspect Accept headers; direct .md requests remain available.',
+          };
+          buildDiagnostics.push(diagnostic);
+          integrationLogger?.warn(
+            'astro-aeo: the custom /404 route is prerendered and cannot negotiate Markdown. Keep direct .md companions, or render the 404 on demand.',
+          );
         }
       },
 
       'astro:build:done': async (options) => {
-        await onBuildDone(config, /** @type {any} */ (options), {
+        artifactWriter = await onBuildDone(config, /** @type {any} */ (options), {
           siteUrl,
           base,
           trailingSlash,
@@ -150,6 +252,8 @@ export default function aeo(userConfig = {}) {
           routeEntrypoints,
           resolvedRoutePaths,
           publicDir,
+          diagnostics: buildDiagnostics,
+          runtimeCorpora: serverOutput || hasOnDemandProjectPage,
         });
       },
     },
@@ -157,28 +261,56 @@ export default function aeo(userConfig = {}) {
 }
 
 /**
- * A minimal integration appended after sitemap generation. It verifies the
- * expected index, creates the non-destructive alias, then writes robots.txt
- * according to the configured auto/always/never policy.
- *
+ * @param {Map<string, string>} routeEntrypoints
+ * @param {string} projectRoot
+ * @returns {{ pathname: string; path: string; specifier: string }[]}
+ */
+function runtimeMarkdownSourceEntries(routeEntrypoints, projectRoot) {
+  const sources = [];
+  if (!projectRoot) return sources;
+  for (const [pathname, entrypoint] of routeEntrypoints) {
+    const cleaned = entrypoint.replace(/[?#].*$/, '');
+    if (!cleaned.endsWith('.md')) continue;
+    const path = cleaned.startsWith('file:')
+      ? fileURLToPath(cleaned)
+      : isAbsolute(cleaned)
+        ? cleaned
+        : resolve(projectRoot, cleaned);
+    sources.push({ pathname, path: entrypoint, specifier: path });
+  }
+  return sources;
+}
+
+/**
  * @param {ReturnType<typeof resolveConfig>} config
  * @param {{ expected: boolean; siteUrl: string; base: string }} state
  * @param {() => { routePaths: Set<string>; publicDir: URL | undefined }} collisionInputs
- *   Read lazily: routes resolve and publicDir is captured after this runs.
+ * @param {() => ReturnType<typeof createArtifactWriter> | undefined} retainedWriter
  * @returns {import('astro').AstroIntegration}
  */
-function sitemapFinalizerIntegration(config, state, collisionInputs) {
+function sitemapFinalizerIntegration(config, state, collisionInputs, retainedWriter) {
   return {
     name: 'astro-aeo/sitemap-finalizer',
     hooks: {
       'astro:build:done': ({ dir, logger }) => {
+        const inputs = collisionInputs();
+        const writer =
+          retainedWriter() ??
+          createArtifactWriter({
+            distDir: dir,
+            logger,
+            routePaths: inputs.routePaths,
+            publicDir: inputs.publicDir,
+          });
         finalizeSitemapOutputs(dir, config, {
           siteUrl: state.siteUrl,
           base: state.base,
           sitemapExpected: state.expected,
           logger,
-          ...collisionInputs(),
+          ...inputs,
+          writer,
         });
+        writer.report();
       },
     },
   };

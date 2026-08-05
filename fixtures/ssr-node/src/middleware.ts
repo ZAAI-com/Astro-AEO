@@ -8,5 +8,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
       return new Response('forbidden', { status: 403 });
     }
   }
-  return next();
+  const response = await next();
+  if (context.url.pathname.startsWith('/about')) {
+    response.headers.set('cache-control', 'private, max-age=30');
+    response.headers.set('vary', 'Origin');
+    response.headers.set('content-language', 'en');
+    response.headers.set('x-app-trace', 'preserved');
+    response.headers.append('set-cookie', 'representation=test; Path=/; HttpOnly');
+  }
+  return response;
 });

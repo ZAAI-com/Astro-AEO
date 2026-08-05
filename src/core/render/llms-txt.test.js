@@ -10,7 +10,7 @@ const page = (over) => ({
   title: 'Home',
   description: '',
   markdown: 'Body.',
-  aeoTokens: new Set(),
+  aeoTokens: [],
   lastModified: undefined,
   ...over,
 });
@@ -19,7 +19,7 @@ const SITE = { name: 'Site', description: 'A site.' };
 
 const pages = [
   page({}),
-  page({ pathname: '/blog/a', url: 'https://x.com/blog/a/', mdHref: '/blog/a.md', title: 'Post A', description: 'First.', lastModified: new Date('2026-02-15T00:00:00Z') }),
+  page({ pathname: '/blog/a', url: 'https://x.com/blog/a/', mdHref: '/blog/a.md', title: 'Post A', description: 'First.', lastModified: '2026-02-15T00:00:00.000Z' }),
   page({ pathname: '/about', url: 'https://x.com/about/', mdHref: '/about.md', title: 'About' }),
 ];
 
@@ -59,7 +59,7 @@ describe('renderLlmsTxt', () => {
   });
 
   test('a no-dotmd page is omitted by default and linked to HTML when included', () => {
-    const noMd = [page({ pathname: '/x', url: 'https://x.com/x/', mdHref: '/x.md', title: 'X', aeoTokens: new Set(['no-dotmd']) })];
+    const noMd = [page({ pathname: '/x', url: 'https://x.com/x/', mdHref: '/x.md', title: 'X', aeoTokens: ['no-dotmd'] })];
     expect(renderLlmsTxt(noMd, resolveConfig(), SITE)).not.toContain('X');
     const included = resolveConfig({ corpus: { index: { includeHtmlOnly: true } } });
     expect(renderLlmsTxt(noMd, included, SITE)).toContain('- [X](https://x.com/x/)');
@@ -72,6 +72,12 @@ describe('renderLlmsTxt', () => {
 
   test('an empty site description omits the blockquote entirely', () => {
     expect(renderLlmsTxt(pages, SECTIONED, { name: 'Site', description: '' })).not.toContain('>');
+  });
+
+  test('a runtime rule whose function match was omitted falls through safely', () => {
+    const config = resolveConfig({ corpus: { index: { defaultSection: 'Fallback' } } });
+    config.corpus.index.sections = [{ title: 'Build only', match: undefined }];
+    expect(renderLlmsTxt(pages, config, SITE)).toContain('## Fallback');
   });
 });
 
@@ -92,14 +98,14 @@ describe('selectFullTxtPages', () => {
 
   test('no-llms and no-llms-full are dropped in every mode', () => {
     const opted = [
-      page({ pathname: '/a', aeoTokens: new Set(['no-llms']) }),
-      page({ pathname: '/b', aeoTokens: new Set(['no-llms-full']) }),
+      page({ pathname: '/a', aeoTokens: ['no-llms'] }),
+      page({ pathname: '/b', aeoTokens: ['no-llms-full'] }),
     ];
     expect(selectFullTxtPages(opted, resolveConfig())).toEqual([]);
   });
 
   test('a no-dotmd page still appears, since it has content to inline', () => {
-    const opted = [page({ pathname: '/a', aeoTokens: new Set(['no-dotmd']) })];
+    const opted = [page({ pathname: '/a', aeoTokens: ['no-dotmd'] })];
     expect(selectFullTxtPages(opted, resolveConfig())).toHaveLength(1);
   });
 });

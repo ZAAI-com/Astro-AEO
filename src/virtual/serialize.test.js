@@ -84,6 +84,7 @@ describe('findNonSerializable', () => {
     const message = nonSerializableWarning(['corpus.index.sections[1].match']);
     expect(message).toContain('corpus.index.sections[1].match');
     expect(message).toContain('still apply during `astro build`');
+    expect(message).toContain('skipped in `astro dev`');
     expect(message).toContain('falls through to the default');
   });
 });

@@ -14,8 +14,8 @@ import { isoDate } from './markdown-doc.js';
  * @property {string} title
  * @property {string} description
  * @property {string} markdown
- * @property {Set<string>} aeoTokens
- * @property {Date | undefined} [lastModified]
+ * @property {string[]} aeoTokens
+ * @property {string | undefined} [lastModified]
  */
 
 /**
@@ -29,7 +29,7 @@ export function sectionFor(page, sections, defaultSection) {
   for (const rule of sections) {
     if (typeof rule.match === 'function') {
       if (rule.match(page)) return rule.title;
-    } else if (matchPath(page.pathname, rule.match)) {
+    } else if (rule.match !== undefined && matchPath(page.pathname, rule.match)) {
       return rule.title;
     }
   }
@@ -78,25 +78,25 @@ export function groupSections(pages, sections, defaultSection) {
  * dropped; pages with `no-dotmd` are dropped unless `corpus.index.includeHtmlOnly`
  * is on (they have no .md companion to link, so by default they are omitted
  * rather than left with a dangling link).
- * @param {{ aeoTokens: Set<string> }} p
+ * @param {{ aeoTokens: string[] }} p
  * @param {import('../../index.js').ResolvedAstroAeoConfig} config
  * @returns {boolean}
  */
 export function isLlmsEligible(p, config) {
-  if (p.aeoTokens.has('no-llms')) return false;
-  if (p.aeoTokens.has('no-dotmd') && !config.corpus.index.includeHtmlOnly) return false;
+  if (p.aeoTokens.includes('no-llms')) return false;
+  if (p.aeoTokens.includes('no-dotmd') && !config.corpus.index.includeHtmlOnly) return false;
   return true;
 }
 
 /**
  * The llms.txt link target for a page: its `.md` companion, or (for a `no-dotmd`
  * page listed via `includeHtmlOnly`) its HTML URL.
- * @param {{ aeoTokens: Set<string>; mdHref: string; url: string }} p
+ * @param {{ aeoTokens: string[]; mdHref: string; url: string }} p
  * @param {import('../../index.js').ResolvedAstroAeoConfig} config
  * @returns {string}
  */
 export function llmsEntryHref(p, config) {
-  return p.aeoTokens.has('no-dotmd') ? p.url : p.mdHref;
+  return p.aeoTokens.includes('no-dotmd') ? p.url : p.mdHref;
 }
 
 /**
@@ -109,7 +109,7 @@ export function llmsEntryHref(p, config) {
  */
 export function selectFullTxtPages(pages, config) {
   const eligible = pages.filter(
-    (p) => !p.aeoTokens.has('no-llms') && !p.aeoTokens.has('no-llms-full'),
+    (p) => !p.aeoTokens.includes('no-llms') && !p.aeoTokens.includes('no-llms-full'),
   );
   if (config.corpus.full.mode === 'first-page-only') return eligible.slice(0, 1);
   if (config.corpus.full.mode === 'index') return eligible.filter((p) => p.pathname === '/');

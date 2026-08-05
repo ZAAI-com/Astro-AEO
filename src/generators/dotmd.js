@@ -1,35 +1,13 @@
 // @ts-check
 import { writeFileSync, readFileSync } from 'node:fs';
 import { renderMarkdownDocument } from '../core/render/markdown-doc.js';
+import {
+  hasMarkdownAlternateLink,
+  matchMarkdownAlternateLinks,
+  withMarkdownAlternateLink,
+} from '../core/alternate-link.js';
 
-// Matches a markdown alternate <link> regardless of whether rel= or type=
-// appears first, so an existing (possibly hand-authored) link is detected in
-// either attribute order. Requires BOTH rel="alternate" and type="text/markdown"
-// so a bare type="text/markdown" link is not mistaken for an alternate.
-const MARKDOWN_ALTERNATE_SOURCE =
-  '<link\\b(?=[^>]*\\brel=(["\'])alternate\\1)(?=[^>]*\\btype=(["\'])text/markdown\\2)[^>]*>';
-const MARKDOWN_ALTERNATE_RE = new RegExp(MARKDOWN_ALTERNATE_SOURCE, 'i');
-
-/**
- * True when the HTML already contains a markdown alternate link (any attribute
- * order).
- * @param {string} html
- * @returns {boolean}
- */
-export function hasMarkdownAlternateLink(html) {
-  return MARKDOWN_ALTERNATE_RE.test(html);
-}
-
-/**
- * All markdown alternate <link> tags in the HTML (any attribute order). Shares
- * the canonical pattern with hasMarkdownAlternateLink so callers that need to
- * count links (e.g. the validator) cannot drift from the injector's definition.
- * @param {string} html
- * @returns {RegExpMatchArray | string[]}
- */
-export function matchMarkdownAlternateLinks(html) {
-  return html.match(new RegExp(MARKDOWN_ALTERNATE_SOURCE, 'gi')) || [];
-}
+export { hasMarkdownAlternateLink, matchMarkdownAlternateLinks };
 
 /**
  * Write .md companion files and inject <link rel="alternate" type="text/markdown">
@@ -46,7 +24,8 @@ export function emitDotMd(pages, config, writer) {
   let written = 0;
 
   for (const page of pages) {
-    if (page.aeoTokens.has('no-dotmd')) continue;
+    if (page.rendering === 'on-demand') continue;
+    if (page.aeoTokens.includes('no-dotmd')) continue;
 
     const wrote = writer.write({
       path: page.mdPath,
@@ -77,16 +56,6 @@ function injectAlternateLink(page, mode) {
     return;
   }
 
-  const hasExisting = hasMarkdownAlternateLink(html);
-  const tag = `<link rel="alternate" type="text/markdown" href="${page.mdHref}">`;
-
-  let updated;
-  if (hasExisting) {
-    if (mode !== 'always') return; // 'auto': leave the existing link untouched
-    updated = html.replace(MARKDOWN_ALTERNATE_RE, tag);
-  } else {
-    if (!html.includes('</head>')) return;
-    updated = html.replace('</head>', `${tag}</head>`);
-  }
+  const updated = withMarkdownAlternateLink(html, page.mdHref, mode);
   if (updated !== html) writeFileSync(page.htmlPath, updated, 'utf8');
 }

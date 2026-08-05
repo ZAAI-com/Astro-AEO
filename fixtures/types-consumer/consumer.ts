@@ -7,12 +7,15 @@
 import aeo from 'astro-aeo';
 import type {
   AeoPage,
+  AeoPageRecord,
   AstroAeoConfig,
   CanonicalAeoConfig,
   CorpusOptions,
   DiscoveryOptions,
   EntityType,
   ExtractionOptions,
+  ExtractionDiagnostics,
+  Diagnostic,
   MarkdownOptions,
   PagesOptions,
   ResolvedAeoConfig,
@@ -22,7 +25,9 @@ import type {
   SitemapPolicy,
 } from 'astro-aeo';
 import { defineAeoPage } from 'astro-aeo/page';
-import type { AeoPageInput, CatalogPage, PageCatalog } from 'astro-aeo/page';
+import { DEFAULT_EXTRACTION, extractHtml } from 'astro-aeo/extract';
+import type { ExtractedDocument } from 'astro-aeo/extract';
+import type { AeoPageInput, CatalogContext, CatalogPage, PageCatalog, PageDescriptor, PageSource } from 'astro-aeo/page';
 import type {
   AeoPageProps,
   ArticleJsonLdProps,
@@ -78,6 +83,7 @@ export const rNegotiation: 'off' | 'response' | 'redirect' = resolvedCanonical.m
 export const rSelectors: string[] = resolvedCanonical.markdown.extraction.selectors;
 export const rKeep: string[] = resolvedCanonical.markdown.extraction.keepSelectors;
 export const rMode: 'all' | 'index' | 'first-page-only' = resolvedCanonical.corpus.full.mode;
+export const rRuntimePages: number | 'unlimited' = resolvedCanonical.corpus.runtime.maxPages;
 export const rEntity: EntityType = resolvedCanonical.site.profile.entityType;
 export const rSections: SectionRule[] = resolvedCanonical.corpus.index.sections;
 export const rDefaultSection: string | false = resolvedCanonical.corpus.index.defaultSection;
@@ -112,6 +118,7 @@ export const corpusOpts: CorpusOptions = {
   index: { sections, defaultSection: 'Pages', showLastModified: true, includeHtmlOnly: false },
   full: { mode: 'index' },
   urlMap: { enabled: false, outputFilepath: 'docs/Url-Map.md' },
+  runtime: { maxPages: 50 },
 };
 
 // A 1.0 block and its 1.1 replacement must both typecheck in one literal: the
@@ -144,12 +151,23 @@ export const article: ArticleJsonLdProps = { headline: 'Hello', author: { name: 
 // The source marker: `defineAeoPage` produces exactly the component's props.
 export const markerInput: AeoPageInput = { markdown: '# X', title: 'X', lastModified: new Date() };
 export const markerProps: AeoPageProps = defineAeoPage(markerInput);
+export const source: PageSource = { kind: 'markdown', path: 'src/pages/blog/hello.md', body: '# Hello' };
+export const descriptor: PageDescriptor = { pathname: '/blog/hello', markdown: '# Hello', source };
 export const catalog: PageCatalog = {
   name: 'blog',
-  listPages(): CatalogPage[] {
+  listPages(context: CatalogContext): CatalogPage[] {
+    void context.siteUrl;
     return [{ pathname: '/blog/hello', lastModified: '2026-01-01T00:00:00.000Z' }];
   },
 };
+declare const record: AeoPageRecord;
+export const recordTokens: string[] = record.aeoTokens;
+export const recordRendering: 'prerendered' | 'on-demand' = record.rendering;
+export const recordDate: string | undefined = record.lastModified;
+export const extraction: ExtractionDiagnostics | undefined = record.extraction;
+export const diagnostic: Diagnostic = { version: 1, code: 'example', severity: 'info', message: 'Example' };
+export const extractionDefaults: string[] = DEFAULT_EXTRACTION.selectors;
+export const extractedPromise: Promise<ExtractedDocument> = extractHtml('<main>Hello</main>');
 
 // Negative assertions: these must stay errors, or the types have gone loose.
 export const unknownOption: AstroAeoConfig = {
@@ -180,6 +198,8 @@ export const noMarkdownLinkTag: AstroAeoConfig = { markdown: { linkTag: 'auto' }
 export const badCorpusMode: AstroAeoConfig = { corpus: { full: { mode: 'everything' } } };
 // @ts-expect-error `showLastmod` was renamed to `showLastModified` in the canonical block
 export const noShowLastmod: AstroAeoConfig = { corpus: { index: { showLastmod: true } } };
+// @ts-expect-error runtime maxPages is a number or the explicit unlimited sentinel
+export const badRuntimePages: AstroAeoConfig = { corpus: { runtime: { maxPages: 'many' } } };
 // @ts-expect-error discovery.sitemap.mode is a closed union
 export const badSitemapMode: AstroAeoConfig = { discovery: { sitemap: { mode: 'on' } } };
 // @ts-expect-error sitemapPolicy is resolved-only and has no public counterpart

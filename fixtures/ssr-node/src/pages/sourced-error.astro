@@ -1,0 +1,16 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { defineAeoPage } from 'astro-aeo/page';
+import { AeoPage } from 'astro-aeo/components';
+
+Astro.response.status = 500;
+const aeoPage = defineAeoPage({
+  markdown: '# Private error source\n\nThis must stay inside the representation pipeline.',
+  title: 'Sourced Error',
+});
+---
+<Layout title="Sourced Error" description="An authored error page.">
+  <AeoPage {...aeoPage} />
+  <h1>Sourced Error</h1>
+  <p>Rendered error body.</p>
+</Layout>

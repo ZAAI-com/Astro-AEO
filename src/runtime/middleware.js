@@ -1,32 +1,24 @@
 // @ts-check
-import { RUNTIME } from './config.js';
+import { RUNTIME, RUNTIME_CATALOGS } from './config.js';
 import { mdPathnameFor, pagePathForMdPath, basePrefix } from '../core/page-model.js';
-import { normalizePath } from '../core/match.js';
+import { isIncluded, normalizeCatalogPathname, normalizePath } from '../core/match.js';
+import { extractPageMeta } from '../core/page-meta.js';
 import { COLLECT_FLAG, stripMarkersFromHtml } from '../core/extract/marker.js';
+import { withMarkdownAlternateLink } from '../core/alternate-link.js';
 import { prefersMarkdown } from './negotiate.js';
-import { MARKDOWN_CONTENT_TYPE, inheritedCacheHeaders, textResponse } from './respond.js';
+import { MARKDOWN_CONTENT_TYPE, inheritedRepresentationHeaders, textResponse } from './respond.js';
 import {
   artifactFor,
   renderStandaloneArtifact,
+  RuntimeCorpusLimitError,
   serveLlmsIndex,
   serveMarkdown,
   stripBase,
 } from './serve.js';
 
-/**
- * The request-time half of astro-aeo.
- *
- * Registered with `addMiddleware({ order: 'pre' })`, so this is the outermost
- * handler and `next()` resolves to the fully rendered downstream response.
- *
- * Two behaviours rest on measured Astro facts rather than documentation, both
- * recorded in the agent guide: app middleware runs for a path that matches no
- * route, and a `Response` returned without calling `next()` arrives with its own
- * status even though the handler seeded 404 for the unmatched path.
- */
-
 const DEV_NOTE =
   '<!-- astro-aeo dev preview: dynamic routes are omitted; run `astro build` for the full file -->';
+const INTERNAL_REQUEST_HEADER = 'x-astro-aeo-internal';
 
 /**
  * @param {import('astro').APIContext} context
@@ -34,15 +26,15 @@ const DEV_NOTE =
  * @returns {Promise<Response>}
  */
 export const onRequest = async (context, next) => {
-  // Hard gate. During `astro build` the prerender pass runs this middleware for
-  // every page, and those responses become the HTML files on disk; converting one
-  // would write Markdown into a .html file. Testing `isPrerendered` alone would be
-  // wrong: in `astro dev` static routes report it true as well, which would
-  // disable the dev server entirely.
   if (RUNTIME.command === 'build' && context.isPrerendered) {
-    // This pass produces the HTML files the build then reads back, so the page
-    // should include its source marker. `stripSourceMarkers` removes it from
-    // every file afterwards, so nothing ships with it.
+    markCollecting(context);
+    return next();
+  }
+
+  if (
+    RUNTIME.internalRequestToken &&
+    context.request.headers.get(INTERNAL_REQUEST_HEADER) === RUNTIME.internalRequestToken
+  ) {
     markCollecting(context);
     return next();
   }
@@ -51,132 +43,198 @@ export const onRequest = async (context, next) => {
   if (method !== 'GET' && method !== 'HEAD') return next();
 
   const decoded = decodePathname(context.url.pathname);
-  if (decoded === null) return next();
+  if (decoded === null) return new Response(null, { status: 400 });
+  const configuredBase = basePrefix(RUNTIME.site.base);
+  if (
+    configuredBase &&
+    decoded !== configuredBase &&
+    !decoded.startsWith(`${configuredBase}/`)
+  ) {
+    return next();
+  }
   const pathname = stripBase(decoded, RUNTIME.site.base);
 
-  // 1. Artifacts we own outright. In a build these exist as static files and the
-  //    host serves them before the app runs, so in practice this is the dev path.
-  const artifact = artifactFor(pathname, RUNTIME.config);
+  const projectOwned = ownedByProject(pathname);
+  const artifact = projectOwned ? null : artifactFor(pathname, RUNTIME.config);
   if (artifact === 'robots' || artifact === 'domain-profile') {
     const { body, contentType } = renderStandaloneArtifact(artifact, RUNTIME);
     return textResponse({ body, contentType, request: context.request });
   }
   if (artifact === 'llms' || artifact === 'llms-full') {
-    const body = await serveLlmsIndex(artifact, RUNTIME, htmlFetcher(context), {
-      note: RUNTIME.command === 'dev' ? DEV_NOTE : undefined,
-    });
-    return textResponse({ body, contentType: 'text/plain; charset=utf-8', request: context.request });
+    try {
+      const body = await serveLlmsIndex(artifact, RUNTIME, htmlFetcher(context, { sanitizeCredentials: true }), {
+        note: RUNTIME.command === 'dev' ? DEV_NOTE : undefined,
+        catalogs: RUNTIME_CATALOGS,
+      });
+      return textResponse({ body, contentType: 'text/plain; charset=utf-8', request: context.request });
+    } catch (error) {
+      if (!(error instanceof RuntimeCorpusLimitError)) throw error;
+      return textResponse({
+        body: `${error.message}\n`,
+        contentType: 'text/plain; charset=utf-8',
+        request: context.request,
+        status: 503,
+        headers: { 'cache-control': 'no-store' },
+      });
+    }
   }
 
-  // 2. A direct `.md` request.
   const mdPagePath = pagePathForMdPath(pathname);
-  if (RUNTIME.config.markdown.enabled && mdPagePath !== null && !ownedByProject(pathname)) {
-    const fetcher = htmlFetcher(context);
-    const body = await serveMarkdown(pathname, RUNTIME, fetcher);
-    // Not `next()`: after the chain has been entered, `next()` resolves to the
-    // underlying page's HTML, so an excluded or `no-dotmd` page would be served in
-    // full, with a 200, at its .md URL. Mirror the upstream status when there is
-    // one, because the project's own middleware may have answered 401 or 403 and
-    // replacing that with 404 would contradict the decision it just made.
-    if (body === null) return new Response(null, { status: fetcher.upstreamStatus() ?? 404 });
+  if (RUNTIME.config.markdown.enabled && mdPagePath !== null && !projectOwned) {
+    const fetcher = htmlFetcher(context, { preserveQuery: true });
+    const { body, source } = await serveMarkdown(pathname, RUNTIME, fetcher, {
+      catalogs: RUNTIME_CATALOGS,
+    });
+    if (body === null) {
+      if (source && (!isHtml(source) || (source.status >= 300 && source.status < 400))) {
+        return forwardSourceResponse(source, context, mdPagePath);
+      }
+      return new Response(null, { status: source && !source.ok ? source.status : 404 });
+    }
     return textResponse({
       body,
       contentType: MARKDOWN_CONTENT_TYPE,
       request: context.request,
-      headers: canonicalLink(mdPagePath, context),
+      status: source?.status ?? 200,
+      headers: representationHeaders(source, mdPagePath, context, false),
     });
   }
 
-  // 3. Accept negotiation on a route that does exist.
   const negotiation = RUNTIME.config.markdown.negotiation;
-  if (negotiation === 'off' || !RUNTIME.config.markdown.enabled) return next();
-  if (!prefersMarkdown(context.request.headers.get('accept'))) return next();
-
-  if (negotiation === 'redirect') {
-    return new Response(null, {
-      status: 303,
-      headers: { location: `${basePrefix(RUNTIME.site.base)}${mdPathnameFor(normalizePath(pathname))}`, vary: 'Accept' },
-    });
-  }
-
+  if (!RUNTIME.config.markdown.enabled) return next();
+  if (negotiation === 'off' && RUNTIME.config.markdown.alternateLink === 'never') return next();
+  const wantsMarkdown =
+    negotiation !== 'off' && prefersMarkdown(context.request.headers.get('accept'));
+  if (wantsMarkdown) markCollecting(context);
   const response = await next();
   if (!isHtml(response)) return response;
-  // Only a successful page has a representation worth converting. An error page
-  // keeps its own status and body rather than being turned into Markdown.
-  if (!response.ok) return response;
+  if (!response.ok) {
+    return wantsMarkdown ? stripMarkerResponse(response, context.request) : response;
+  }
 
   const html = await response.text();
-  const body = await serveMarkdown(mdPathnameFor(normalizePath(pathname)), RUNTIME, async () => html);
-  // Declined conversion: hand back the page, minus the internal marker.
-  if (body === null) return new Response(stripMarkersFromHtml(html), response);
+  const cleanHtml = stripMarkersFromHtml(html);
+  const pagePath = normalizePath(pathname);
+  const eligible = isMarkdownEligible(pagePath, cleanHtml);
+  const vary = negotiation !== 'off';
 
-  return textResponse({
-    body,
-    contentType: MARKDOWN_CONTENT_TYPE,
-    request: context.request,
-    headers: { vary: 'Accept', ...canonicalLink(normalizePath(pathname), context), ...inheritedCacheHeaders(response) },
+  if (wantsMarkdown && eligible && negotiation === 'redirect') {
+    const headers = representationHeaders(response, pagePath, context, true);
+    headers.set(
+      'location',
+      `${basePrefix(RUNTIME.site.base)}${mdPathnameFor(pagePath)}${context.url.search}`,
+    );
+    return new Response(null, {
+      status: 303,
+      headers,
+    });
+  }
+
+  if (wantsMarkdown && eligible) {
+    const { body } = await serveMarkdown(
+      mdPathnameFor(pagePath),
+      RUNTIME,
+      async () => ({ html, response }),
+      { catalogs: RUNTIME_CATALOGS },
+    );
+    if (body !== null) {
+      return textResponse({
+        body,
+        contentType: MARKDOWN_CONTENT_TYPE,
+        request: context.request,
+        status: response.status,
+        headers: representationHeaders(response, pagePath, context, true),
+      });
+    }
+  }
+
+  const mode = RUNTIME.config.markdown.alternateLink;
+  const href = `${basePrefix(RUNTIME.site.base)}${mdPathnameFor(pagePath)}`;
+  const output = eligible && mode !== 'never'
+    ? withMarkdownAlternateLink(cleanHtml, href, mode)
+    : cleanHtml;
+  return htmlResponse(output, response, context.request, {
+    vary,
+    changed: output !== html,
   });
 };
 
+/** @param {string} pathname @param {string} html */
+function isMarkdownEligible(pathname, html) {
+  const { config } = RUNTIME;
+  if (!isIncluded(pathname, config.pages)) return false;
+  const meta = extractPageMeta(html);
+  return !meta.isRedirect &&
+    !(config.pages.respectNoindex && meta.noindex) &&
+    !meta.aeoTokens.has('skip') &&
+    !meta.aeoTokens.has('no-dotmd');
+}
+
 /**
- * Tell `<AeoPage>` that this render is for astro-aeo, so it should emit its
- * source marker. Locals survive a rewrite, which is what makes this work.
- * @param {import('astro').APIContext} context
- * @returns {void}
+ * @param {string} html
+ * @param {Response} source
+ * @param {Request} request
+ * @param {{ vary: boolean; changed: boolean }} options
  */
+function htmlResponse(html, source, request, options) {
+  const headers = new Headers(source.headers);
+  if (options.vary) headers.set('vary', mergeCommaHeader(headers.get('vary'), 'Accept'));
+  if (options.changed) {
+    for (const name of ['content-length', 'content-encoding', 'content-range', 'accept-ranges', 'etag']) {
+      headers.delete(name);
+    }
+  }
+  const bodyForbidden = request.method === 'HEAD' || source.status === 204 || source.status === 304;
+  return new Response(bodyForbidden ? null : html, {
+    status: source.status,
+    statusText: source.statusText,
+    headers,
+  });
+}
+
+/** @param {import('astro').APIContext} context @returns {void} */
 function markCollecting(context) {
   /** @type {Record<string, unknown>} */ (context.locals)[COLLECT_FLAG] = true;
 }
 
-/**
- * Whether the project defines this exact path as a route of its own.
- *
- * The same principle the build's artifact writer applies: a path the project
- * routes is the project's, so `/docs.md` as a real route is never intercepted.
- * @param {string} pathname
- * @returns {boolean}
- */
+/** @param {string} pathname @returns {boolean} */
 function ownedByProject(pathname) {
-  return RUNTIME.staticPaths.includes(pathname);
+  if ((RUNTIME.projectPaths ?? RUNTIME.staticPaths).includes(pathname)) return true;
+  return RUNTIME.projectPatterns?.some((pattern) => pattern.test(pathname)) ?? false;
 }
 
 /**
- * Render a page by rewriting into its real route.
- *
- * `next(path)` re-enters the routing chain, so the project's own middleware runs
- * and its authentication applies to a `.md` request exactly as it does to the
- * HTML. That is the reason for rewriting rather than fetching.
- *
- * Only one rewrite is possible per request, so the corpus index passes its own
- * fetcher for the pages after the first.
- *
  * @param {import('astro').APIContext} context
- * @returns {import('./serve.js').HtmlFetcher & { upstreamStatus(): number | null }}
+ * @param {{ preserveQuery?: boolean; sanitizeCredentials?: boolean }} [opts]
+ * @returns {import('./serve.js').HtmlFetcher}
  */
-function htmlFetcher(context) {
+function htmlFetcher(context, opts = {}) {
   let rewritten = false;
-  /** @type {number | null} */
-  let upstream = null;
 
   /** @param {string} pathname */
   const load = async (pathname) => {
-    const target = `${basePrefix(RUNTIME.site.base)}${withTrailingSlash(pathname)}`;
+    const target = `${basePrefix(RUNTIME.site.base)}${withTrailingSlash(pathname)}${opts.preserveQuery ? context.url.search : ''}`;
     try {
+      const targetUrl = new URL(target, context.url.origin);
+      if (targetUrl.origin !== context.url.origin) return null;
+      const headers = opts.sanitizeCredentials
+        ? new Headers()
+        : new Headers(context.request.headers);
+      headers.set(INTERNAL_REQUEST_HEADER, RUNTIME.internalRequestToken);
+      const rewriteTarget = new Request(targetUrl, {
+        method: context.request.method,
+        headers,
+      });
       const response = rewritten
-        ? await fetch(new URL(target, context.url.origin), { headers: { 'x-astro-aeo': '1' } })
-        : ((rewritten = true), markCollecting(context), await context.rewrite(target));
-      if (!response.ok) {
-        upstream = response.status;
-        return null;
-      }
-      return isHtml(response) ? await response.text() : null;
-    } catch {
-      // A rewrite into a prerendered route throws in a server build. That page's
-      // .md already exists as a build artifact, so there is nothing to do here.
-      return null;
-    }
+        ? await fetch(targetUrl, {
+            headers: { [INTERNAL_REQUEST_HEADER]: RUNTIME.internalRequestToken },
+            redirect: 'manual',
+          })
+        : ((rewritten = true), markCollecting(context), await context.rewrite(rewriteTarget));
+      return { response, html: isHtml(response) ? await response.text() : null };
+    } catch { return null; }
   };
-  return Object.assign(load, { upstreamStatus: () => upstream });
+  return load;
 }
 
 /**
@@ -200,6 +258,81 @@ function canonicalLink(pagePath, context) {
 }
 
 /**
+ * @param {Response | null | undefined} source
+ * @param {string | null} pagePath
+ * @param {import('astro').APIContext} context
+ * @param {boolean} negotiated
+ * @returns {Headers}
+ */
+function representationHeaders(source, pagePath, context, negotiated) {
+  const headers = inheritedRepresentationHeaders(source ?? undefined);
+  const generatedLink = canonicalLink(pagePath, context).link;
+  const existingLink = source?.headers.get('link');
+  if (existingLink && /\brel\s*=\s*["']?canonical\b/i.test(existingLink)) {
+    headers.set('link', existingLink);
+  } else if (existingLink && generatedLink) {
+    headers.set('link', `${existingLink}, ${generatedLink}`);
+  } else if (generatedLink) {
+    headers.set('link', generatedLink);
+  }
+  const vary = source?.headers.get('vary');
+  if (negotiated) headers.set('vary', mergeCommaHeader(vary, 'Accept'));
+  return headers;
+}
+
+/** @param {string | null} existing @param {string} value @returns {string} */
+function mergeCommaHeader(existing, value) {
+  const values = (existing ?? '')
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (!values.some((part) => part.toLowerCase() === value.toLowerCase())) values.push(value);
+  return values.join(', ');
+}
+
+/**
+ * @param {Response} source
+ * @param {import('astro').APIContext} context
+ * @param {string} sourcePagePath
+ * @returns {Response}
+ */
+function forwardSourceResponse(source, context, sourcePagePath) {
+  const headers = new Headers(source.headers);
+  const location = headers.get('location');
+  if (location && source.status >= 300 && source.status < 400) {
+    try {
+      const sourceUrl = new URL(
+        `${basePrefix(RUNTIME.site.base)}${withTrailingSlash(sourcePagePath)}${context.url.search}`,
+        context.url.origin,
+      );
+      const target = new URL(location, sourceUrl);
+      if (target.origin === context.url.origin) {
+        const decoded = decodePathname(target.pathname);
+        if (decoded !== null) {
+          const prefix = basePrefix(RUNTIME.site.base);
+          const insideBase = !prefix || decoded === prefix || decoded.startsWith(`${prefix}/`);
+          const pagePath = normalizePath(insideBase ? stripBase(decoded, RUNTIME.site.base) : decoded);
+          if (pagePathForMdPath(pagePath) === null) {
+            target.pathname = `${insideBase ? prefix : ''}${mdPathnameFor(pagePath)}`;
+          }
+          headers.set('location', `${target.pathname}${target.search}${target.hash}`);
+        }
+      }
+    } catch {}
+  }
+  const bodyForbidden =
+    context.request.method === 'HEAD' ||
+    source.status === 204 ||
+    source.status === 304 ||
+    (source.status >= 300 && source.status < 400);
+  return new Response(bodyForbidden ? null : source.body, {
+    status: source.status,
+    statusText: source.statusText,
+    headers,
+  });
+}
+
+/**
  * @param {Response} response
  * @returns {boolean}
  */
@@ -208,10 +341,33 @@ function isHtml(response) {
 }
 
 /**
+ * Collection can make an authored source marker appear in an HTML error body.
+ * Keep the application's response intact unless a marker actually needs removal.
+ * @param {Response} response
+ * @param {Request} request
+ * @returns {Promise<Response>}
+ */
+async function stripMarkerResponse(response, request) {
+  const html = await response.clone().text();
+  const stripped = stripMarkersFromHtml(html);
+  if (stripped === html) return response;
+  const headers = new Headers(response.headers);
+  for (const name of ['content-length', 'content-encoding', 'content-range', 'etag']) {
+    headers.delete(name);
+  }
+  return new Response(request.method === 'HEAD' ? null : stripped, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+/**
  * @param {string} pathname
  * @returns {string | null} null when the path is not decodable.
  */
 function decodePathname(pathname) {
+  if (normalizeCatalogPathname(pathname) === null) return null;
   try {
     return decodeURIComponent(pathname);
   } catch {

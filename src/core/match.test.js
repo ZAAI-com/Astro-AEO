@@ -1,5 +1,11 @@
 import { test, expect, describe } from 'vitest';
-import { globToRegExp, matchPath, isIncluded, normalizePath } from './match.js';
+import {
+  globToRegExp,
+  matchPath,
+  isIncluded,
+  normalizeCatalogPathname,
+  normalizePath,
+} from './match.js';
 
 describe('normalizePath', () => {
   test('adds leading slash, drops trailing slash', () => {
@@ -8,6 +14,27 @@ describe('normalizePath', () => {
     expect(normalizePath('about')).toBe('/about');
     expect(normalizePath('/')).toBe('/');
     expect(normalizePath('')).toBe('/');
+  });
+});
+
+describe('normalizeCatalogPathname', () => {
+  test('accepts safe root-relative paths', () => {
+    expect(normalizeCatalogPathname('/blog/post/')).toBe('/blog/post');
+    expect(normalizeCatalogPathname('/caf%C3%A9')).toBe('/caf%C3%A9');
+  });
+
+  test.each([
+    '/../llms.txt',
+    '/safe/./page',
+    '/%2e%2e/llms.txt',
+    '/%252e%252e/llms.txt',
+    '/safe%2f..%2fsecret',
+    '//attacker.example/secret',
+    '/%2f%2fattacker.example/secret',
+    '/safe\\..\\secret',
+    '/page?draft=true',
+  ])('rejects unsafe catalog path %s', (pathname) => {
+    expect(normalizeCatalogPathname(pathname)).toBeNull();
   });
 });
 

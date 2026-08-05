@@ -1,4 +1,4 @@
-import { test, expect, describe } from 'vitest';
+import { test, expect, describe, beforeAll } from 'vitest';
 import { parseDocument } from '../html-document.js';
 import { assertValidSelectors, cleanRoot, extractMarkdown, selectContentRoots } from './index.js';
 import { createTurndown, DEFAULT_EXTRACTION, htmlToMarkdown } from '../html-to-md.js';
@@ -6,6 +6,10 @@ import { AeoConfigError } from '../../lib/errors.js';
 
 const doc = (html) => parseDocument(html);
 const page = (body) => `<!doctype html><html><head><title>T</title></head><body>${body}</body></html>`;
+let td;
+beforeAll(async () => {
+  td = await createTurndown();
+});
 
 describe('selectContentRoots', () => {
   test('the first selector with a match wins, in order', () => {
@@ -43,6 +47,13 @@ describe('selectContentRoots', () => {
     expect(result.strategy).toBe('document');
     expect(result.fallbackReason).toContain('no populated <body>');
   });
+
+  test('never-content elements cannot become extraction roots', () => {
+    const d = doc(page('<script>SECRET_SCRIPT</script><iframe>SECRET_FRAME</iframe><main>Safe.</main>'));
+    const result = selectContentRoots(d, ['script', 'iframe', 'main']);
+    expect(result.strategy).toBe('main');
+    expect(result.roots[0].textContent).toBe('Safe.');
+  });
 });
 
 describe('cleanRoot', () => {
@@ -62,11 +73,20 @@ describe('cleanRoot', () => {
     cleanRoot(root, { removeSelectors: ['aside'], keepSelectors: ['.x'] });
     expect(root.innerHTML).toBe('');
   });
+
+  test('removeSelectors can remove the selected root itself', () => {
+    const d = doc(page('<article class="drop-root"><p>secret</p></article>'));
+    const { markdown, diagnostics } = extractMarkdown(
+      d,
+      { ...DEFAULT_EXTRACTION, selectors: ['.drop-root'], removeSelectors: ['.drop-root'] },
+      td,
+    );
+    expect(markdown).toBe('');
+    expect(diagnostics.removedNodes).toBe(1);
+  });
 });
 
 describe('extractMarkdown', () => {
-  const td = createTurndown();
-
   test('reports which selector won and how much was dropped', () => {
     const d = doc(page('<main><nav>chrome</nav><h1>Title</h1><p>Body.</p></main>'));
     const { markdown, diagnostics } = extractMarkdown(d, DEFAULT_EXTRACTION, td);
@@ -84,7 +104,7 @@ describe('extractMarkdown', () => {
     const { markdown } = extractMarkdown(
       d,
       { ...DEFAULT_EXTRACTION, keepSelectors: ['.widget'] },
-      createTurndown(),
+      td,
     );
     expect(markdown).toContain('<div class="widget"><b>raw</b></div>');
     expect(markdown).toContain('Before.');
@@ -92,16 +112,38 @@ describe('extractMarkdown', () => {
     expect(markdown).not.toContain('data-astro-aeo-keep');
   });
 
+  test('keepSelectors preserves the selected root itself as raw HTML', () => {
+    const d = doc(page('<article class="root-widget"><b>raw root</b></article>'));
+    const { markdown } = extractMarkdown(
+      d,
+      { ...DEFAULT_EXTRACTION, selectors: ['.root-widget'], keepSelectors: ['.root-widget'] },
+      td,
+    );
+    expect(markdown).toBe('<article class="root-widget"><b>raw root</b></article>');
+    expect(markdown).not.toContain('data-astro-aeo-keep');
+  });
+
   test('separate roots are joined with a blank line', () => {
     const d = doc(page('<article><p>One.</p></article><article><p>Two.</p></article>'));
     expect(extractMarkdown(d, DEFAULT_EXTRACTION, td).markdown).toBe('One.\n\nTwo.');
+  });
+
+  test('forbidden configured roots never leak their contents through fallback', () => {
+    const d = doc(page('<script>SECRET_SCRIPT</script><iframe>SECRET_FRAME</iframe><p>Safe body.</p>'));
+    const { markdown } = extractMarkdown(
+      d,
+      { ...DEFAULT_EXTRACTION, selectors: ['script', 'iframe'] },
+      td,
+    );
+    expect(markdown).toContain('Safe body.');
+    expect(markdown).not.toMatch(/SECRET_SCRIPT|SECRET_FRAME/);
   });
 });
 
 describe('resolveUrls', () => {
   const BASE = 'https://x.com/blog/post/';
   const extract = (body, baseUrl = BASE) =>
-    extractMarkdown(doc(page(body)), DEFAULT_EXTRACTION, createTurndown(), { baseUrl });
+    extractMarkdown(doc(page(body)), DEFAULT_EXTRACTION, td, { baseUrl });
 
   test('root-relative and document-relative links become absolute', () => {
     // A .md companion is read away from the site that served it, so a relative
@@ -114,6 +156,14 @@ describe('resolveUrls', () => {
   test('image sources are resolved too', () => {
     const md = extract('<main><img src="/logo.png" alt="Logo"></main>').markdown;
     expect(md).toContain('(https://x.com/logo.png)');
+  });
+
+  test('URLs inside preserved semantic HTML are resolved', () => {
+    const md = extract(
+      '<main><figure><img src="/chart.png" alt="Chart"><figcaption><a href="/data">Data</a></figcaption></figure></main>',
+    ).markdown;
+    expect(md).toContain('src="https://x.com/chart.png"');
+    expect(md).toContain('href="https://x.com/data"');
   });
 
   test('absolute URLs are left untouched', () => {
@@ -139,7 +189,7 @@ describe('resolveUrls', () => {
     const md = extractMarkdown(
       doc(page('<main><a href="/about/">A</a></main>')),
       DEFAULT_EXTRACTION,
-      createTurndown(),
+      td,
     ).markdown;
     expect(md).toContain('(/about/)');
   });
@@ -147,7 +197,7 @@ describe('resolveUrls', () => {
 
 describe('conversion fidelity', () => {
   const convert = (body) =>
-    extractMarkdown(doc(page(body)), DEFAULT_EXTRACTION, createTurndown()).markdown;
+    extractMarkdown(doc(page(body)), DEFAULT_EXTRACTION, td).markdown;
 
   test('a code language class survives as a fence info string', () => {
     const md = convert('<main><pre><code class="language-js">const a = 1;</code></pre></main>');
@@ -160,28 +210,76 @@ describe('conversion fidelity', () => {
   });
 
   test('tables convert without dropping their cells', () => {
-    const md = convert('<main><table><tr><th>A</th></tr><tr><td>1</td></tr></table></main>');
-    expect(md).toContain('A');
-    expect(md).toContain('1');
+    const md = convert('<main><table><caption>Totals</caption><tr><th>A</th></tr><tr><td colspan="2">1</td></tr></table></main>');
+    expect(md).toContain('<table>');
+    expect(md).toContain('<caption>Totals</caption>');
+    expect(md).toContain('colspan="2"');
+    expect(md).not.toContain('data-astro-aeo-keep');
+  });
+
+  test('definition lists and figures retain their authored structure', () => {
+    const md = convert(
+      '<main><dl><dt>Term</dt><dd>Definition</dd></dl><figure><img src="/chart.png" alt="Chart"><figcaption>Quarterly results</figcaption></figure></main>',
+    );
+    expect(md).toContain('<dl>');
+    expect(md).toContain('<dt>Term</dt>');
+    expect(md).toContain('<figure>');
+    expect(md).toContain('<figcaption>Quarterly results</figcaption>');
+  });
+
+  test('time, address, and citations stay semantic HTML', () => {
+    const md = convert(
+      '<main><p>Published <time datetime="2026-08-05">today</time>.</p><address>Berlin</address><p><cite>Primary source</cite></p></main>',
+    );
+    expect(md).toContain('<time datetime="2026-08-05">today</time>');
+    expect(md).toContain('<address>Berlin</address>');
+    expect(md).toContain('<cite>Primary source</cite>');
+  });
+
+  test('raw semantic HTML drops active attributes and unsafe protocols', () => {
+    const md = convert(
+      '<main><figure onclick="steal()" style="background:url(javascript:steal())"><a href="java&#10;script:steal()" ping="https://tracker.test">Unsafe</a><img src="data:image/svg+xml,unsafe" onerror="steal()" srcset="unsafe 2x"><object data="javascript:steal()">Object</object><figcaption aria-label="Safe caption">Caption</figcaption></figure></main>',
+    );
+    expect(md).toContain('<figure>');
+    expect(md).toContain('aria-label="Safe caption"');
+    expect(md).not.toMatch(/onclick|onerror|style=|javascript:|data:image|srcset|ping=|object data=/i);
+  });
+
+  test('raw semantic HTML drops active metadata and resource elements', () => {
+    const md = convert(
+      '<main><figure><meta http-equiv="refresh" content="0;url=javascript:evil"><base href="https://evil.test/"><link rel="stylesheet" href="javascript:evil"><figcaption>Safe</figcaption></figure></main>',
+    );
+    expect(md).toContain('<figure>');
+    expect(md).toContain('<figcaption>Safe</figcaption>');
+    expect(md).not.toMatch(/<meta|<base|<link|javascript:/i);
+  });
+
+  test('empty links and images inherit accessible labels', () => {
+    const md = convert(
+      '<main><span id="account-label">Account</span><a href="/account" aria-labelledby="account-label"></a><a href="/help" aria-label="Help"></a><img src="/search.svg" aria-label="Search"></main>',
+    );
+    expect(md).toContain('[Account](/account)');
+    expect(md).toContain('[Help](/help)');
+    expect(md).toContain('![Search](/search.svg)');
   });
 });
 
 describe('regressions the regex extractor could not handle', () => {
   // The previous implementation sliced <main> out of the source text with a
   // non-greedy regex, so it stopped at the first </main> wherever it appeared.
-  test('a closing tag inside a comment no longer truncates the page', () => {
-    const md = htmlToMarkdown(page('<main><h1>Real</h1><!-- </main> --><p>Kept.</p></main>'));
+  test('a closing tag inside a comment no longer truncates the page', async () => {
+    const md = await htmlToMarkdown(page('<main><h1>Real</h1><!-- </main> --><p>Kept.</p></main>'));
     expect(md).toContain('Kept.');
   });
 
-  test('a closing tag inside a script string no longer truncates the page', () => {
-    const md = htmlToMarkdown(page('<main><h1>Real</h1><script>var s = "</main>";</script><p>Kept.</p></main>'));
+  test('a closing tag inside a script string no longer truncates the page', async () => {
+    const md = await htmlToMarkdown(page('<main><h1>Real</h1><script>var s = "</main>";</script><p>Kept.</p></main>'));
     expect(md).toContain('Kept.');
     expect(md).not.toContain('var s');
   });
 
-  test('a document with no main no longer feeds <head> to the converter', () => {
-    const md = htmlToMarkdown(page('<div><p>Body.</p></div>'));
+  test('a document with no main no longer feeds <head> to the converter', async () => {
+    const md = await htmlToMarkdown(page('<div><p>Body.</p></div>'));
     expect(md).toContain('Body.');
     expect(md).not.toContain('T');
   });

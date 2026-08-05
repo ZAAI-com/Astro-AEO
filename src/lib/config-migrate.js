@@ -1,18 +1,6 @@
 // @ts-check
 
 /**
- * Migration engine for the 1.0 -> 1.1 configuration rename.
- *
- * Every 1.0 key keeps working through 1.x and is removed in 2.0. This module owns
- * the single source of truth for where each old key went (`LEGACY_MOVES`), so the
- * deprecation warnings, the conflict errors, the migration printer, and the README
- * table cannot drift apart.
- */
-
-/**
- * True only for objects that behave like config literals. A `RegExp` is
- * `typeof 'object'` and not an array, so the naive check treats it as a
- * traversable object: check the prototype instead.
  * @param {unknown} v
  * @returns {v is Record<string, any>}
  */
@@ -23,9 +11,6 @@ export function isPlainObject(v) {
 }
 
 /**
- * Read a dotted path. Returns undefined if any segment is missing or is not a
- * plain object, so `getPath({ dotmd: /re/ }, 'dotmd.linkTag')` is undefined
- * rather than a property read on a RegExp.
  * @param {Record<string, any> | undefined} obj
  * @param {string} path
  * @returns {any}
@@ -40,7 +25,6 @@ export function getPath(obj, path) {
 }
 
 /**
- * Write a dotted path, creating intermediate plain objects.
  * @param {Record<string, any>} obj
  * @param {string} path
  * @param {any} value
@@ -58,15 +42,6 @@ export function setPath(obj, path, value) {
 }
 
 /**
- * Structural equality for config values, used to decide whether a 1.0 key and its
- * 1.1 replacement agree.
- *
- * `RegExp` compares by source and flags, `Date` by time, arrays and plain objects
- * structurally. Functions compare by **reference**: deep equality on a function is
- * impossible, so two separately written callbacks count as different even when
- * their source text matches. The practical consequence is that a user who pasted
- * the same `match` callback into both the old and the new key gets a conflict
- * error telling them to delete one, which is the right advice regardless.
  * @param {any} a
  * @param {any} b
  * @returns {boolean}
@@ -91,10 +66,6 @@ export function configEqual(a, b) {
 }
 
 /**
- * Render a config value for an error message. `JSON.stringify` drops functions
- * entirely, so two `sections` arrays differing only in a `match` callback would
- * print identically and the error would look like nonsense. Functions and regular
- * expressions therefore get explicit placeholders.
  * @param {any} v
  * @returns {string}
  */
@@ -113,7 +84,6 @@ export function describeValue(v) {
 }
 
 /**
- * Truncate a rendered value so one enormous option cannot swamp an error.
  * @param {string} s
  * @param {number} [max]
  * @returns {string}
@@ -132,14 +102,7 @@ export function truncate(s, max = 120) {
  * @property {string} [supersededBy]  A 1.0 alias that wins over this one when both are set.
  */
 
-/**
- * Every 1.0 key and where it moved. Order is irrelevant to correctness but is kept
- * grouped by 1.0 block for readability.
- *
- * `supersededBy` reproduces the precedence 1.0 already had (`frontmatter ?? dotmdMetadata`
- * and `email ?? contact`) in a single pass, without a nested pre-resolution step.
- * @type {LegacyMove[]}
- */
+/** @type {LegacyMove[]} */
 export const LEGACY_MOVES = [
   { from: 'include', to: 'pages.include', section: 'pages', group: '' },
   { from: 'exclude', to: 'pages.exclude', section: 'pages', group: '' },
@@ -165,9 +128,6 @@ export const LEGACY_MOVES = [
   { from: 'urlMap.enabled', to: 'corpus.urlMap.enabled', section: 'corpus', group: 'urlMap' },
   { from: 'urlMap.outputFilepath', to: 'corpus.urlMap.outputFilepath', section: 'corpus', group: 'urlMap' },
 
-  // `sitemap.enabled: false` never meant "no sitemap", only "do not auto-register
-  // @astrojs/sitemap"; a user-registered sitemap stayed eligible. `external` carries
-  // that meaning. The new `disabled` mode has no 1.0 equivalent.
   { from: 'sitemap.enabled', to: 'discovery.sitemap.mode', section: 'discovery', group: 'sitemap', map: (v) => (v ? 'auto' : 'external') },
   { from: 'sitemap.options', to: 'discovery.sitemap.options', section: 'discovery', group: 'sitemap' },
 
@@ -195,11 +155,7 @@ export const LEGACY_MOVES = [
   { from: 'domainProfile.entityType', to: 'site.profile.entityType', section: 'site.profile', group: 'domainProfile' },
 ];
 
-/**
- * Human label for a canonical section in warning text.
- * @param {string} section
- * @returns {string}
- */
+/** @param {string} section @returns {string} */
 function canonicalLabel(section) {
   return section;
 }
@@ -211,12 +167,6 @@ function canonicalLabel(section) {
  */
 
 /**
- * Rewrite every present 1.0 key onto its canonical path.
- *
- * Presence is `!== undefined`, not `hasOwnProperty`, matching the idiom 1.0 already
- * used. That distinction matters for the sitemap tri-state: an explicitly
- * `undefined` `robotsTxt.includeSitemap` and an omitted one must both keep meaning
- * "auto", so absence has to survive the lift untouched.
  * @param {Record<string, any>} userConfig
  * @returns {LiftResult}
  */
@@ -247,11 +197,6 @@ export function liftLegacy(userConfig) {
  */
 
 /**
- * Merge lifted 1.0 values under the canonical values the user wrote directly.
- *
- * Canonical always wins. Three outcomes per canonical section:
- * legacy only, warn once that the block moved; both set and equal, warn once that
- * the canonical value is used; both set and different, throw.
  * @param {Record<string, any>} userConfig
  * @param {(message: string) => never} onConflict  Called with the assembled error text.
  * @returns {MergeResult}
@@ -285,7 +230,6 @@ export function mergeLegacy(userConfig, onConflict) {
 
     const groups = [...new Set(moves.map((m) => m.group).filter(Boolean))];
     const blocks = groups.length ? groups.map((g) => `\`${g}\``).join(', ') : 'the top-level page options';
-    // Zero groups is the top-level scalar case, whose label ("options") is plural.
     const verb = groups.length === 1 ? 'is' : 'are';
     const pairs = moves.map((m) => `${m.from} -> ${m.to}`).join(', ');
 
@@ -312,16 +256,6 @@ export function mergeLegacy(userConfig, onConflict) {
 }
 
 /**
- * Render the canonical replacement for a project's 1.0 keys as a paste-ready
- * config block.
- *
- * This runs inside Astro, on values that are already loaded, which is why it is
- * a printer rather than a codemod: rewriting `astro.config.mjs` (or `.ts`) in
- * place would need a full JS parser to preserve comments, spreads, and imported
- * constants, and the failure mode of a subtly wrong config is worse than no tool.
- *
- * Functions and regular expressions are printed as placeholders, since neither
- * survives serialization. The caller tells the user to copy those by hand.
  * @param {Record<string, any>} userConfig
  * @returns {string | null}  null when there is nothing to migrate.
  */
@@ -361,9 +295,6 @@ function renderBlock(value, depth) {
 }
 
 /**
- * Merge `over` onto `base`, recursing into plain objects only. Arrays, regular
- * expressions, dates, and functions are replaced wholesale, never merged
- * element-wise: a user who sets `discovery.robots.allow` means that exact list.
  * @param {Record<string, any>} base
  * @param {Record<string, any>} over
  * @returns {Record<string, any>}

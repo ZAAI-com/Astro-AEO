@@ -1,6 +1,6 @@
 import { test, expect, describe, beforeAll, afterAll } from 'vitest';
 import { execFileSync, spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -33,6 +33,8 @@ async function waitForReady() {
 
 beforeAll(async () => {
   execFileSync('node', [astroBin, 'build', '--root', FIXTURE], { cwd: REPO, stdio: 'ignore' });
+  expect(existsSync(join(FIXTURE, 'dist/client/llms.txt'))).toBe(false);
+  expect(existsSync(join(FIXTURE, 'dist/client/llms-full.txt'))).toBe(false);
   const env = { ...process.env, HOST: '127.0.0.1', PORT: String(PORT) };
   for (const key of Object.keys(env)) {
     if (/^(VITEST|__VITEST|TINYPOOL)/.test(key)) delete env[key];
@@ -65,12 +67,54 @@ describe('on-demand .md companions', () => {
     expect(body).not.toContain('Chrome.');
   });
 
+  test('query parameters survive the internal rewrite', async () => {
+    const body = await (await fetch(`${BASE}/about.md?mode=full`)).text();
+    expect(body).toContain('Query: ?mode=full');
+  });
+
+  test('same-origin redirects keep status and target the Markdown companion', async () => {
+    const response = await fetch(`${BASE}/old.md`, { redirect: 'manual' });
+    expect(response.status).toBe(302);
+    expect(response.headers.get('location')).toBe('/about.md?from=old');
+  });
+
+  test('external redirect targets stay unchanged', async () => {
+    const response = await fetch(`${BASE}/old-external.md`, { redirect: 'manual' });
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe('https://other.example/landing?from=old');
+  });
+
+  test('non-HTML endpoints pass through unchanged', async () => {
+    const response = await fetch(`${BASE}/api.md`);
+    expect(response.headers.get('content-type')).toContain('application/json');
+    expect(await response.json()).toEqual({ kind: 'api' });
+  });
+
+  test('an explicit Markdown request converts an HTML error without changing status', async () => {
+    const response = await fetch(`${BASE}/broken.md`);
+    expect(response.status).toBe(500);
+    expect(response.headers.get('content-type')).toContain('text/markdown');
+    expect(await response.text()).toContain('# Broken');
+    const conditional = await fetch(`${BASE}/broken.md`, {
+      headers: { 'if-none-match': response.headers.get('etag') },
+    });
+    expect(conditional.status).toBe(500);
+  });
+
   test('a prerendered page in a server build still has its build-time .md', async () => {
     // It cannot come from a rewrite: an on-demand route may not rewrite into a
     // prerendered one. It is a build artifact served as a static asset.
     const r = await fetch(`${BASE}/static-page.md`);
     expect(r.status).toBe(200);
     expect(await r.text()).toContain('# Static Page');
+  });
+
+  test('an on-demand standalone Markdown route preserves its original source', async () => {
+    expect(existsSync(join(FIXTURE, 'dist/client/source-page.md'))).toBe(false);
+    const body = await (await fetch(`${BASE}/source-page.md`)).text();
+    expect(body).toContain('[reference link][about]');
+    expect(body).toContain('[about]: /about/');
+    expect(body).not.toContain('prerender: false');
   });
 
   test('an excluded page is a 404 and its content does not appear', async () => {
@@ -119,6 +163,8 @@ describe('the source marker', () => {
   test('nor a negotiated response', async () => {
     const body = await (await fetch(`${BASE}/sourced/`, { headers: { accept: 'text/markdown' } })).text();
     expect(body).not.toContain('astro-aeo-marker');
+    expect(body).toContain('This came from `defineAeoPage`, not from the HTML.');
+    expect(body).not.toContain('RENDERED-APPROXIMATION');
   });
 
   test('marker metadata overrides what the HTML says', async () => {
@@ -132,9 +178,46 @@ describe('content negotiation', () => {
     const r = await fetch(`${BASE}/about/`, { headers: { accept: 'text/markdown' } });
     expect(r.status).toBe(200);
     expect(r.headers.get('content-type')).toContain('text/markdown');
-    expect(r.headers.get('vary')).toBe('Accept');
+    expect(r.headers.get('vary')).toBe('Origin, Accept');
+    expect(r.headers.get('cache-control')).toBe('private, max-age=30');
     expect(r.headers.get('link')).toBe('<https://ssr.example.com/about/>; rel="canonical"');
+    expect(r.headers.get('content-language')).toBe('en');
+    expect(r.headers.get('x-app-trace')).toBe('preserved');
+    expect(r.headers.get('set-cookie')).toContain('representation=test');
     expect(await r.text()).toContain('# About');
+  });
+
+  test('negotiated conversion preserves a successful non-200 status and headers', async () => {
+    const response = await fetch(`${BASE}/created`, { headers: { accept: 'text/markdown' } });
+    expect(response.status).toBe(201);
+    expect(response.headers.get('x-created')).toBe('preserved');
+    expect(response.headers.get('content-type')).toContain('text/markdown');
+    expect(await response.text()).toContain('# Created');
+  });
+
+  test('negotiation leaves HTML error responses unchanged', async () => {
+    const response = await fetch(`${BASE}/broken`, { headers: { accept: 'text/markdown' } });
+    expect(response.status).toBe(500);
+    expect(response.headers.get('content-type')).toContain('text/html');
+  });
+
+  test('an authored marker is stripped before a negotiated HTML error is returned', async () => {
+    const response = await fetch(`${BASE}/sourced-error`, { headers: { accept: 'text/markdown' } });
+    const body = await response.text();
+    expect(response.status).toBe(500);
+    expect(response.headers.get('content-type')).toContain('text/html');
+    expect(body).toContain('Rendered error body.');
+    expect(body).not.toContain('astro-aeo-marker');
+    expect(body).not.toContain('Private error source');
+  });
+
+  test('an authored marker is ignored when an explicit Markdown request returns an error', async () => {
+    const response = await fetch(`${BASE}/sourced-error.md`);
+    const body = await response.text();
+    expect(response.status).toBe(500);
+    expect(body).toContain('# Sourced Error');
+    expect(body).toContain('Rendered error body.');
+    expect(body).not.toContain('Private error source');
   });
 
   test('a browser Accept header gets HTML', async () => {
@@ -157,6 +240,17 @@ describe('content negotiation', () => {
   test('no Accept header at all gets HTML', async () => {
     const r = await fetch(`${BASE}/about/`);
     expect(r.headers.get('content-type')).toContain('text/html');
+    expect(r.headers.get('vary')).toContain('Accept');
+    expect(await r.text()).toContain(
+      '<link rel="alternate" type="text/markdown" href="/about.md">',
+    );
+  });
+
+  test('a caller cannot spoof the internal self-fetch guard', async () => {
+    const response = await fetch(`${BASE}/about/`, {
+      headers: { accept: 'text/markdown', 'x-astro-aeo-internal': '1' },
+    });
+    expect(response.headers.get('content-type')).toContain('text/markdown');
   });
 });
 
@@ -165,6 +259,7 @@ describe('response contract', () => {
     const first = await fetch(`${BASE}/about.md`);
     const etag = first.headers.get('etag');
     expect(etag).toBeTruthy();
+    expect(etag).toMatch(/^"[0-9a-f]{64}"$/);
     const second = await fetch(`${BASE}/about.md`, { headers: { 'if-none-match': etag } });
     expect(second.status).toBe(304);
   });
@@ -179,6 +274,33 @@ describe('response contract', () => {
   test('robots.txt is served with the configured policy', async () => {
     const body = await (await fetch(`${BASE}/robots.txt`)).text();
     expect(body).toContain('User-agent: Googlebot');
+  });
+
+  test('runtime catalogs contribute exact source and cannot recurse through owned artifacts', async () => {
+    const response = await fetch(`${BASE}/llms-full.txt`);
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain('# Catalog Dynamic');
+    expect(body).toContain('Exact catalog source.');
+    expect(body).toContain('# About');
+    expect(body).not.toContain('RENDERED-DYNAMIC-APPROXIMATION');
+    expect(body).not.toContain('Recursive artifact');
+  });
+
+  test('direct and negotiated catalog requests use exact authored source', async () => {
+    const direct = await fetch(`${BASE}/catalog-dynamic.md`);
+    const negotiated = await fetch(`${BASE}/catalog-dynamic/`, {
+      headers: { accept: 'text/markdown' },
+    });
+
+    for (const response of [direct, negotiated]) {
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toContain('text/markdown');
+      const body = await response.text();
+      expect(body).toContain('# Catalog Dynamic');
+      expect(body).toContain('Exact catalog source.');
+      expect(body).not.toContain('RENDERED-DYNAMIC-APPROXIMATION');
+    }
   });
 
   test('a POST is never intercepted', async () => {

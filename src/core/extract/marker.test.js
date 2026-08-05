@@ -87,6 +87,10 @@ describe('defineAeoPage', () => {
     expect(defineAeoPage({ source: {} })).toEqual({});
   });
 
+  test('preserves explicitly empty authored Markdown as a source decision', () => {
+    expect(defineAeoPage({ markdown: '' })).toEqual({ markdown: '' });
+  });
+
   test('an unparseable date is dropped rather than emitted as Invalid Date', () => {
     expect(defineAeoPage({ lastModified: 'soon' }).lastModified).toBeUndefined();
   });
@@ -105,7 +109,7 @@ describe('loadCatalogPages', () => {
       async (spec) => ({ default: { listPages: () => [{ pathname: `/${spec}` }] } }),
       log,
     );
-    expect(pages).toEqual([{ pathname: '/a', lastModified: undefined }, { pathname: '/b', lastModified: undefined }]);
+    expect(pages).toEqual([{ pathname: '/a' }, { pathname: '/b' }]);
     expect(log.warnings).toEqual([]);
   });
 
@@ -137,6 +141,53 @@ describe('loadCatalogPages', () => {
       log,
     );
     expect(pages.map((p) => p.pathname)).toEqual(['/ok']);
+  });
+
+  test('passes catalog context and preserves serializable descriptor fields', async () => {
+    const log = logger();
+    const context = {
+      command: 'build',
+      siteUrl: 'https://x.com',
+      base: '/docs',
+      trailingSlash: 'always',
+    };
+    const pages = await loadCatalogPages(
+      [{ module: 'a' }],
+      async () => ({
+        listPages(received) {
+          expect(received).toEqual(context);
+          return [{ pathname: '/post/', title: 'Post', markdown: '# Exact', sourcePath: 'cms:1' }];
+        },
+      }),
+      log,
+      context,
+    );
+    expect(pages).toEqual([
+      { pathname: '/post', title: 'Post', markdown: '# Exact', sourcePath: 'cms:1' },
+    ]);
+  });
+
+  test('the first catalog wins duplicate descriptors', async () => {
+    const log = logger();
+    const diagnostics = [];
+    const pages = await loadCatalogPages(
+      [{ module: 'a' }, { module: 'b' }],
+      async (module) => ({ listPages: () => [{ pathname: '/same', title: module }] }),
+      log,
+      { command: 'build', siteUrl: '', base: '', trailingSlash: 'ignore' },
+      diagnostics,
+    );
+    expect(pages).toEqual([{ pathname: '/same', title: 'a' }]);
+    expect(log.warnings[0]).toContain('first descriptor wins');
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        version: 1,
+        code: 'catalog-path-conflict',
+        severity: 'warning',
+        pathname: '/same',
+        sourcePath: 'b',
+      }),
+    ]);
   });
 });
 

@@ -13,8 +13,32 @@ describe('parseAccept', () => {
     expect(parseAccept('  TEXT/Markdown ; q=0.5 ')).toEqual([{ type: 'text/markdown', q: 0.5 }]);
   });
 
-  test('drops entries that are not media types', () => {
-    expect(parseAccept('garbage, text/html')).toEqual([{ type: 'text/html', q: 1 }]);
+  test('invalidates a header containing an entry that is not a media type', () => {
+    expect(parseAccept('garbage, text/html')).toEqual([]);
+  });
+
+  test('accepts syntactically valid token and quoted parameters', () => {
+    expect(parseAccept('text/markdown;level=1;note="a; b, c"')).toEqual([
+      { type: 'text/markdown', q: 1 },
+    ]);
+    expect(parseAccept('text/markdown;note="escaped \\" quote";q=0.7')).toEqual([
+      { type: 'text/markdown', q: 0.7 },
+    ]);
+  });
+
+  test('invalidates malformed parameters instead of ignoring them', () => {
+    for (const value of [
+      'text/markdown;garbage',
+      'text/markdown;;',
+      'text/markdown;foo="unterminated',
+      'text/markdown;q=1;garbage',
+      'text/markdown;foo=',
+      'text/markdown;foo="\x7f"',
+      'text/markdown;foo="\\\x7f"',
+    ]) {
+      expect(parseAccept(value), value).toEqual([]);
+      expect(prefersMarkdown(value), value).toBe(false);
+    }
   });
 
   test('drops entries with an out-of-range or unparseable q rather than clamping', () => {
@@ -22,6 +46,9 @@ describe('parseAccept', () => {
     expect(parseAccept('text/markdown;q=5')).toEqual([]);
     expect(parseAccept('text/markdown;q=-1')).toEqual([]);
     expect(parseAccept('text/markdown;q=abc')).toEqual([]);
+    for (const value of ['1garbage', '0.9.1', '1=oops', '+1', '.9', '1.001']) {
+      expect(parseAccept(`text/markdown;q=${value}`), value).toEqual([]);
+    }
   });
 
   test('an empty or absent header parses to nothing', () => {
@@ -54,6 +81,8 @@ describe('prefersMarkdown', () => {
     expect(prefersMarkdown('*/*')).toBe(false);
     expect(prefersMarkdown('text/*')).toBe(false);
     expect(prefersMarkdown('*/*;q=1.0')).toBe(false);
+    expect(prefersMarkdown('text/markdown;q=0.5, text/*;q=0.9')).toBe(false);
+    expect(prefersMarkdown('text/markdown;q=0.9, text/*;q=0.5')).toBe(true);
   });
 
   test('a browser Accept header resolves to HTML', () => {
@@ -67,6 +96,7 @@ describe('prefersMarkdown', () => {
     expect(prefersMarkdown('')).toBe(false);
     expect(prefersMarkdown(';;;')).toBe(false);
     expect(prefersMarkdown('text/markdown;q=notanumber')).toBe(false);
+    expect(prefersMarkdown('text/markdown, text/html;q=garbage')).toBe(false);
   });
 
   test('markdown at q=0 is a refusal, not a request', () => {
