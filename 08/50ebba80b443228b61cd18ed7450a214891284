@@ -1,0 +1,54 @@
+src/generators/url-map.test.js
+  s_7294d5105a5de9::t_3e0074563cc4ba 2,89-116
+  s_7294d5105a5de9::t_245eeacce8c1db 1,3-8,29-88
+  s_c115e6fa3e6d3d::t_233403f57cda73 117
+src/generators/url-map.js
+  s_7294d5105a5de9::t_14cc49bdf9c9ee 2,30-31,33-34,36-38,57-63
+  s_7294d5105a5de9::t_37126eb140b716 53
+src/build/artifacts.js
+  s_7294d5105a5de9::t_14cc49bdf9c9ee 11-21,161-179
+  s_7294d5105a5de9::t_e589f3bc5709b2 68-72
+  s_7294d5105a5de9::t_3e0074563cc4ba 3,56-67,92-94,102,109,116,198-200
+  s_7294d5105a5de9::t_6d36382e9be77d 73
+  s_7294d5105a5de9::t_7a5c5bf2df6b53 160
+  s_7294d5105a5de9::t_17dfcabc89060f 194-197
+  s_7294d5105a5de9::t_bda45c49d1f2b9 74-91
+  s_7294d5105a5de9::t_2c4ea08e69fe8d 180
+  s_7294d5105a5de9::t_6d248b44de70df 201-202
+src/build/artifacts.test.js
+  s_7294d5105a5de9::t_3e0074563cc4ba 89-102,108,156,202-213,215,253
+  s_7294d5105a5de9::t_245eeacce8c1db 11,18-19,239-252
+  s_7294d5105a5de9::t_bda45c49d1f2b9 103-107,109-110,137-155
+  s_7294d5105a5de9::t_e589f3bc5709b2 111-136
+  s_7294d5105a5de9::t_eecfd970a95aff 2
+  s_7294d5105a5de9::t_c14897c2a233fa 214
+src/generators/sitemap-finalize.js
+  s_7294d5105a5de9::t_f747c3f4a5b173 19-20,27,29-33,50,61
+src/generators/sitemap-finalize.test.js
+  s_7294d5105a5de9::t_f747c3f4a5b173 6,39-43,59,147-169
+  s_7294d5105a5de9::t_495e17996d8b49 170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "0850ebba80b443228b61cd18ed7450a214891284",
+  "prompts": {},
+  "sessions": {
+    "s_7294d5105a5de9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fce6f-6390-7790-8ab0-1380ab149d21",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_c115e6fa3e6d3d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fcd83-7256-7502-a109-1acef078110c",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
