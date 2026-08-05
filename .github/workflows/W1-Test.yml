@@ -19,6 +19,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
@@ -26,6 +27,9 @@ jobs:
           cache: 'pnpm'
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Require a Changeset or an already-versioned release
+        if: matrix.astro == '7' && github.event_name == 'pull_request'
+        run: node scripts/check-changesets.mjs --since "origin/${{ github.base_ref }}"
       - name: Pin Astro version for this leg
         if: matrix.astro != '7'
         run: pnpm add -D astro@${{ matrix.astro }}
@@ -46,6 +50,34 @@ jobs:
       - name: Adapter e2e (astro 7 leg only)
         if: matrix.astro == '7'
         run: pnpm run test:ssr
+      # Provider packages intentionally target the latest Astro only. Node,
+      # Cloudflare, and Deno emit runnable server entries; Vercel and Netlify
+      # are validated through their provider artifact formats.
+      - name: Build all supported adapters (astro 7 leg only)
+        if: matrix.astro == '7'
+        run: pnpm run test:adapters:build
+
+  adapter-runtime:
+    name: adapter runtime contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Request contract on Node, workerd, and Deno
+        env:
+          ASTRO_AEO_ADAPTER_RUNTIMES: node,cloudflare,deno
+        run: pnpm run test:adapters:runtime
 
   node-compat:
     name: node ${{ matrix.node }} compat
@@ -53,7 +85,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['20', '22', '24']
+        node: ['20.19.5', '22', '24']
     steps:
       - uses: actions/checkout@v7
         with:
@@ -82,5 +114,11 @@ jobs:
       # the fixtures instead, which import them the way a project does.
       - name: Smoke import the published JavaScript subpaths
         run: node --input-type=module -e "await Promise.all(['astro-aeo', 'astro-aeo/page'].map((s) => import(s)))"
+      - name: Core test suite under Node ${{ matrix.node }}
+        run: node node_modules/vitest/vitest.mjs run
+      - name: Current TypeScript under Node ${{ matrix.node }}
+        run: node node_modules/typescript/bin/tsc --noEmit
+      - name: TypeScript 5.5 consumer under Node ${{ matrix.node }}
+        run: node node_modules/typescript-floor/bin/tsc --noEmit -p fixtures/types-consumer/tsconfig.json
       - name: CLI runs under Node
         run: node bin/astro-aeo.js validate fixtures/dist-valid

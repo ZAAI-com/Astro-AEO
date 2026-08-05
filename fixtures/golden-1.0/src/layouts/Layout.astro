@@ -1,0 +1,18 @@
+---
+const { title, description, aeo } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>{title} | Golden Site</title>
+    <meta name="description" content={description} />
+    {aeo && <meta name="aeo" content={aeo} />}
+  </head>
+  <body>
+    <nav>Site navigation</nav>
+    <main><slot /></main>
+    <footer>Site footer</footer>
+  </body>
+</html>
