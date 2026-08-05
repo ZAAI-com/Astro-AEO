@@ -1,6 +1,9 @@
 node_modules/
 dist/
 .astro/
+.netlify/
+.vercel/
+.wrangler/
 fixtures/demo/dist/
 fixtures/demo/.astro/
 # The config-compat fixture builds twice, once per configuration era, and diffs them.

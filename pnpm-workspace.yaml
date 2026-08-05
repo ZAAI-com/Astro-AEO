@@ -6,3 +6,6 @@
 allowBuilds:
   esbuild: true
   sharp: false
+  # Cloudflare's local production preview executes the generated Worker in
+  # workerd. Its package installs the platform-specific runtime binary here.
+  workerd: true

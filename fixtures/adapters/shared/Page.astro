@@ -1,0 +1,44 @@
+---
+interface Props {
+  page: 'home' | 'about' | 'protected' | 'dynamic';
+}
+
+const { page } = Astro.props;
+const isHome = page === 'home';
+const title = {
+  home: 'Adapter Home',
+  about: 'Adapter About',
+  protected: 'Adapter Protected',
+  dynamic: 'Adapter Dynamic',
+}[page];
+const description = isHome ? 'Shared adapter fixture' : 'Adapter Markdown contract';
+const query = Astro.url.searchParams.get('value');
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="description" content={description} />
+    <title>{title}</title>
+  </head>
+  <body>
+    <nav>Fixture navigation</nav>
+    <main>
+      <h1>{title}</h1>
+      {
+        isHome ? (
+          <>
+            <p>This page is rendered by every supported server adapter.</p>
+            <a href="/about/">About the fixture</a>
+          </>
+        ) : (
+          <>
+            <p id="adapter-marker">ADAPTER-RUNTIME-MARKER</p>
+            {query && <p>QUERY-{query}</p>}
+          </>
+        )
+      }
+    </main>
+  </body>
+</html>
