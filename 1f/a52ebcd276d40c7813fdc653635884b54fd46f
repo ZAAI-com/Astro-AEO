@@ -1,0 +1,59 @@
+src/runtime/middleware-redirect.test.js
+  s_d2a9a3e313eb2d::t_3643470c1a1f00 133-149
+src/index.js
+  s_d2a9a3e313eb2d::t_ac2b63c71b9446 7-11,65-68,73
+src/config.js
+  s_d2a9a3e313eb2d::t_ac2b63c71b9446 49-52,111
+src/generators/dotmd.js
+  s_d2a9a3e313eb2d::t_ac2b63c71b9446 4,34
+src/runtime/serve.test.js
+  s_d2a9a3e313eb2d::t_3643470c1a1f00 5,29-38
+  s_d2a9a3e313eb2d::t_e6f1f8b74a9973 39-40
+src/runtime/serve.js
+  s_d2a9a3e313eb2d::t_ac2b63c71b9446 17
+src/integration-hooks.test.js
+  s_d2a9a3e313eb2d::t_627912d4931b54 2-5,8-52,178-193
+  s_2677b01a84ac61::t_a432ebadbad6ae 194
+src/generators/dotmd.test.js
+  s_d2a9a3e313eb2d::t_310027fce8f24e 8
+  s_d2a9a3e313eb2d::t_3643470c1a1f00 1-7,43-87
+  s_d2a9a3e313eb2d::t_df3538624393ae 42
+  s_d2a9a3e313eb2d::t_63ced25202dc4b 88-89
+src/generators/sitemap-finalize.test.js
+  s_d2a9a3e313eb2d::t_3643470c1a1f00 109-122
+src/runtime/middleware.js
+  s_d2a9a3e313eb2d::t_ac2b63c71b9446 60-62,316-321
+CHANGELOG.md
+  s_d2a9a3e313eb2d::t_3643470c1a1f00 101-107
+  s_d2a9a3e313eb2d::t_9ad6b858754b96 95-97
+src/config.test.js
+  s_d2a9a3e313eb2d::t_3643470c1a1f00 290-301
+benchmarks/thresholds.mjs
+  s_d2a9a3e313eb2d::t_9ad6b858754b96 3
+src/generators/sitemap-finalize.js
+  s_d2a9a3e313eb2d::t_ac2b63c71b9446 49-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "1fa52ebcd276d40c7813fdc653635884b54fd46f",
+  "prompts": {},
+  "sessions": {
+    "s_2677b01a84ac61": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fd155-227e-70c1-9d02-9cd5d71a1df9",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_d2a9a3e313eb2d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fd2fc-f781-7480-a180-17897f5778b6",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
