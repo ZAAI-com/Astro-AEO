@@ -97,6 +97,9 @@ All notable changes to this project are documented here. This project follows [S
 
 ### Fixed
 
+- Adapter preview teardown now stops the complete runtime process group and waits for descendants
+  such as workerd to release fixture files. Retried fixture cleanup prevents the composed release
+  check from failing with a transient `ENOTEMPTY` between runtime and performance gates.
 - Content extraction is now performed against a parsed DOM (`linkedom`) rather than a regular
   expression over the source text. The previous non-greedy `<main>` match stopped at the first
   `</main>` wherever it appeared, so a closing tag inside a comment, a script string, or a

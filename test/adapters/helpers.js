@@ -1,4 +1,4 @@
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import {
   existsSync,
   readFileSync,
@@ -8,6 +8,7 @@ import {
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnProcessTree, stopProcessTree } from '../../scripts/process-tree.mjs';
 
 export const REPO = fileURLToPath(new URL('../..', import.meta.url));
 export const FIXTURES = join(REPO, 'fixtures/adapters');
@@ -27,7 +28,12 @@ export function fixture(name) {
  */
 export function buildAdapter(name, options = {}) {
   for (const generated of ['dist', '.wrangler', '.vercel', '.netlify']) {
-    rmSync(join(fixture(name), generated), { recursive: true, force: true });
+    rmSync(join(fixture(name), generated), {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 100,
+    });
   }
   const args = [ASTRO_BIN, 'build', '--root', fixture(name)];
   if (options.config) args.push('--config', options.config);
@@ -105,7 +111,7 @@ export function executableAvailable(executable) {
  * @param {{ env?: NodeJS.ProcessEnv }} [options]
  */
 export function startProcess(command, args, options = {}) {
-  const child = spawn(command, args, {
+  const child = spawnProcessTree(command, args, {
     cwd: REPO,
     env: { ...cleanEnvironment(), ...options.env },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -138,13 +144,7 @@ export async function waitForReady(base, process) {
 
 /** @param {import('node:child_process').ChildProcess | undefined} child */
 export async function stopProcess(child) {
-  if (!child || child.exitCode !== null) return;
-  child.kill('SIGTERM');
-  await Promise.race([
-    new Promise((resolve) => child.once('exit', resolve)),
-    new Promise((resolve) => setTimeout(resolve, 2_000)),
-  ]);
-  if (child.exitCode === null) child.kill('SIGKILL');
+  await stopProcessTree(child);
 }
 
 function cleanEnvironment() {

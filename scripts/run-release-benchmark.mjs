@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { mkdirSync, rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnProcessTree, stopProcessTree } from './process-tree.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const nodePort = 4581;
@@ -14,7 +15,7 @@ const wranglerBin = resolve(root, 'node_modules/wrangler/bin/wrangler.js');
 for (const adapter of ['node', 'cloudflare']) rebuildAdapter(adapter);
 
 const entry = resolve(root, 'fixtures/adapters/node/dist/server/entry.mjs');
-const server = spawn(process.execPath, [entry], {
+const server = spawnProcessTree(process.execPath, [entry], {
   cwd: resolve(root, 'fixtures/adapters/node'),
   env: { ...process.env, HOST: '127.0.0.1', PORT: String(nodePort) },
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -22,7 +23,7 @@ const server = spawn(process.execPath, [entry], {
 let output = '';
 server.stdout.on('data', (chunk) => (output += chunk));
 server.stderr.on('data', (chunk) => (output += chunk));
-const cloudflare = spawn(
+const cloudflare = spawnProcessTree(
   process.execPath,
   [
     resolve(root, 'node_modules/astro/bin/astro.mjs'),
@@ -156,19 +157,18 @@ function measureCloudflareStartup() {
 }
 
 async function stop(child) {
-  if (child.exitCode !== null) return;
-  child.kill('SIGTERM');
-  await Promise.race([
-    new Promise((done) => child.once('exit', done)),
-    new Promise((done) => setTimeout(done, 2_000)),
-  ]);
-  if (child.exitCode === null) child.kill('SIGKILL');
+  await stopProcessTree(child);
 }
 
 function rebuildAdapter(adapter) {
   const fixture = resolve(root, 'fixtures/adapters', adapter);
   for (const generated of ['dist', '.wrangler']) {
-    rmSync(resolve(fixture, generated), { recursive: true, force: true });
+    rmSync(resolve(fixture, generated), {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 100,
+    });
   }
   const result = spawnSync(process.execPath, [astroBin, 'build', '--root', fixture], {
     cwd: root,
