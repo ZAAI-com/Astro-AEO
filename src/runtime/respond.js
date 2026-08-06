@@ -3,6 +3,24 @@
 export const MARKDOWN_CONTENT_TYPE = 'text/markdown; charset=utf-8';
 
 /**
+ * Statuses whose responses cannot carry a body under the Fetch standard.
+ * @param {number} status
+ * @returns {boolean}
+ */
+export function isNullBodyStatus(status) {
+  return status === 204 || status === 205 || status === 304;
+}
+
+/**
+ * @param {Request} request
+ * @param {number} status
+ * @returns {boolean}
+ */
+export function responseBodyForbidden(request, status) {
+  return request.method === 'HEAD' || isNullBodyStatus(status);
+}
+
+/**
  * @param {string} body
  * @returns {Promise<string>}
  */
@@ -51,8 +69,10 @@ export async function textResponse({ body, contentType, request, status = 200, h
     return new Response(null, { status: 304, headers: revalidation });
   }
 
-  const isHead = request.method === 'HEAD';
-  return new Response(isHead ? null : body, { status, headers: base });
+  return new Response(responseBodyForbidden(request, status) ? null : body, {
+    status,
+    headers: base,
+  });
 }
 
 /**

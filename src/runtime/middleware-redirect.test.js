@@ -15,7 +15,7 @@ vi.mock('./config.js', async () => {
       internalRequestToken: 'opaque-test-token',
       standaloneSources: {},
     },
-    RUNTIME_CATALOGS: [],
+    RUNTIME_CATALOG_LOADERS: [],
   };
 });
 
@@ -63,6 +63,31 @@ describe('redirect negotiation', () => {
       const ctx = context('/docs/about');
       expect(await onRequest(ctx, vi.fn(async () => response))).toBe(response);
     }
+  });
+
+  test.each([204, 205])('passes negotiated bodyless status %s through unchanged', async (status) => {
+    const ctx = context('/docs/about');
+    const source = new Response(null, {
+      status,
+      headers: { 'content-type': 'text/html', 'x-source': String(status) },
+    });
+    const response = await onRequest(ctx, vi.fn(async () => source));
+
+    expect(response).toBe(source);
+    expect(await response.text()).toBe('');
+  });
+
+  test.each([204, 205])('forwards direct Markdown bodyless status %s', async (status) => {
+    const ctx = context('/docs/empty.md');
+    ctx.rewrite = vi.fn(async () => new Response(null, {
+      status,
+      headers: { 'content-type': 'text/html', 'x-source': String(status) },
+    }));
+    const response = await onRequest(ctx, vi.fn());
+
+    expect(response.status).toBe(status);
+    expect(response.headers.get('x-source')).toBe(String(status));
+    expect(await response.text()).toBe('');
   });
 
   test('HTML selection receives an alternate link and a cache-safe Vary header', async () => {

@@ -26,6 +26,11 @@ const loaded = (body = html()) => ({
   response: new Response(body, { headers: { 'content-type': 'text/html' } }),
 });
 
+const catalogLoader = (catalog, module = './catalog.js') => ({
+  module,
+  load: async () => catalog,
+});
+
 describe('standalone robots rendering', () => {
   test.each([
     [true, true],
@@ -94,7 +99,9 @@ describe('request-time corpus limits', () => {
         return [{ pathname: '/dynamic', title: 'Dynamic', markdown: '# Exact dynamic source' }];
       },
     };
-    const body = await serveLlmsIndex('llms-full', runtime([], 50), fetcher, { catalogs: [catalog] });
+    const body = await serveLlmsIndex('llms-full', runtime([], 50), fetcher, {
+      catalogLoaders: [catalogLoader(catalog)],
+    });
     expect(body).toContain('# Dynamic');
     expect(body).toContain('# Exact dynamic source');
     expect(fetcher).toHaveBeenCalledOnce();
@@ -110,7 +117,9 @@ describe('request-time corpus limits', () => {
     const catalog = {
       listPages: () => [{ pathname: '/private', title: 'Private', markdown: '# Protected source' }],
     };
-    const body = await serveLlmsIndex('llms-full', runtime([], 50), fetcher, { catalogs: [catalog] });
+    const body = await serveLlmsIndex('llms-full', runtime([], 50), fetcher, {
+      catalogLoaders: [catalogLoader(catalog)],
+    });
     expect(fetcher).toHaveBeenCalledWith('/private');
     expect(body).not.toContain('Protected source');
   });
@@ -118,7 +127,9 @@ describe('request-time corpus limits', () => {
   test('an owned artifact listed by a runtime catalog is excluded before rendering', async () => {
     const fetcher = vi.fn(async () => loaded());
     const catalog = { listPages: () => [{ pathname: '/llms.txt', markdown: '# recursive' }] };
-    const body = await serveLlmsIndex('llms', runtime([], 1), fetcher, { catalogs: [catalog] });
+    const body = await serveLlmsIndex('llms', runtime([], 1), fetcher, {
+      catalogLoaders: [catalogLoader(catalog)],
+    });
     expect(body).not.toContain('recursive');
     expect(fetcher).not.toHaveBeenCalled();
   });
@@ -128,7 +139,9 @@ describe('request-time corpus limits', () => {
     async (pathname) => {
       const fetcher = vi.fn(async () => loaded());
       const catalog = { listPages: () => [{ pathname, markdown: '# Secret' }] };
-      const body = await serveLlmsIndex('llms-full', runtime([], 1), fetcher, { catalogs: [catalog] });
+      const body = await serveLlmsIndex('llms-full', runtime([], 1), fetcher, {
+        catalogLoaders: [catalogLoader(catalog)],
+      });
       expect(body).not.toContain('Secret');
       expect(fetcher).not.toHaveBeenCalled();
     },
@@ -155,7 +168,9 @@ describe('serveMarkdown', () => {
     const catalog = {
       listPages: () => [{ pathname: '/dynamic', title: 'Catalog Dynamic', markdown: '# Exact source' }],
     };
-    const result = await serveMarkdown('/dynamic.md', runtime(), fetcher, { catalogs: [catalog] });
+    const result = await serveMarkdown('/dynamic.md', runtime(), fetcher, {
+      catalogLoaders: [catalogLoader(catalog)],
+    });
     expect(fetcher).toHaveBeenCalledWith('/dynamic');
     expect(result.body).toContain('# Exact source');
     expect(result.body).not.toContain('Rendered Dynamic');
@@ -171,7 +186,7 @@ describe('serveMarkdown', () => {
       '/private.md',
       runtime(),
       async () => ({ html: await denied.clone().text(), response: denied }),
-      { catalogs: [catalog] },
+      { catalogLoaders: [catalogLoader(catalog)] },
     );
     expect(result.source?.status).toBe(401);
     expect(result.body).toContain('# Denied');
@@ -200,5 +215,120 @@ describe('serveMarkdown', () => {
     expect(result.source?.status).toBe(401);
     expect(result.body).toContain('# Denied');
     expect(result.body).not.toMatch(/Marker secret|Standalone secret/);
+  });
+
+  test('uses the request origin when Astro has no configured site', async () => {
+    const requestRuntime = runtime();
+    requestRuntime.site.siteUrl = '';
+    requestRuntime.config = resolveConfig({ markdown: { frontmatter: true } });
+    const source = html('About').replace(
+      '</main>',
+      '<a href="contact">Contact</a></main>',
+    );
+    const result = await serveMarkdown('/about.md', requestRuntime, async () => loaded(source), {
+      origin: 'https://request.example',
+    });
+
+    expect(result.body).toContain('url: https://request.example/about');
+    expect(result.body).toContain('[Contact](https://request.example/about/contact)');
+  });
+
+  test('keeps the configured site authoritative over the request origin', async () => {
+    const source = html('About').replace(
+      '</main>',
+      '<a href="contact">Contact</a></main>',
+    );
+    const result = await serveMarkdown('/about.md', runtime(), async () => loaded(source), {
+      origin: 'https://request.example',
+    });
+
+    expect(result.body).toContain('[Contact](https://example.com/about/contact)');
+    expect(result.body).not.toContain('request.example');
+  });
+
+  test('passes the effective request site to catalogs and caches per origin', async () => {
+    const requestRuntime = runtime([], 50);
+    requestRuntime.site.siteUrl = '';
+    const listPages = vi.fn(({ siteUrl }) => [{
+      pathname: '/dynamic',
+      title: new URL(siteUrl).hostname,
+      markdown: '# Dynamic',
+    }]);
+    const loaders = [catalogLoader({ listPages })];
+
+    const first = await serveLlmsIndex('llms', requestRuntime, async () => loaded(), {
+      catalogLoaders: loaders,
+      origin: 'https://one.example',
+    });
+    const second = await serveLlmsIndex('llms', requestRuntime, async () => loaded(), {
+      catalogLoaders: loaders,
+      origin: 'https://two.example',
+    });
+
+    expect(first).toContain('one.example');
+    expect(second).toContain('two.example');
+    expect(listPages).toHaveBeenCalledTimes(2);
+  });
+
+  test('passes bodyless source statuses through without conversion', async () => {
+    for (const status of [204, 205]) {
+      const response = new Response(null, {
+        status,
+        headers: { 'content-type': 'text/html', 'x-source': String(status) },
+      });
+      const result = await serveMarkdown('/empty.md', runtime(), async () => ({
+        html: '<html><body><main>not served</main></body></html>',
+        response,
+      }));
+      expect(result).toEqual({ body: null, source: response });
+    }
+  });
+
+  test('caches a rejected runtime catalog loader and warns once', async () => {
+    const requestRuntime = runtime();
+    const load = vi.fn(async () => {
+      throw new Error('runtime-only failure');
+    });
+    const loaders = [{ module: './runtime-broken.js', load }];
+    const warnings = [];
+    const warning = vi.spyOn(console, 'warn').mockImplementation((message) => {
+      warnings.push(message);
+    });
+    try {
+      await serveLlmsIndex('llms', requestRuntime, async () => loaded(), {
+        catalogLoaders: loaders,
+      });
+      await serveLlmsIndex('llms', requestRuntime, async () => loaded(), {
+        catalogLoaders: loaders,
+      });
+    } finally {
+      warning.mockRestore();
+    }
+
+    expect(load).toHaveBeenCalledOnce();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('./runtime-broken.js');
+  });
+});
+
+describe('request-origin standalone rendering', () => {
+  test('uses the request origin for robots and the domain profile without Astro site', () => {
+    const requestRuntime = runtime();
+    requestRuntime.site.siteUrl = '';
+    requestRuntime.config = resolveConfig({
+      discovery: { robots: { enabled: true, sitemapPolicy: 'always' } },
+      site: { profile: { enabled: true, name: 'Example' } },
+    });
+
+    const robots = renderStandaloneArtifact('robots', requestRuntime, {
+      origin: 'https://request.example',
+      sitemapAvailable: true,
+    });
+    const profile = renderStandaloneArtifact('domain-profile', requestRuntime, {
+      origin: 'https://request.example',
+    });
+
+    expect(robots.body).toContain('https://request.example/sitemap-index.xml');
+    expect(JSON.parse(profile.body).url).toBe('https://request.example');
   });
 });

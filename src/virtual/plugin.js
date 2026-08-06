@@ -6,13 +6,13 @@ const RESOLVED_ID = `\0${RUNTIME_CONFIG_ID}`;
 
 /**
  * @param {() => Record<string, unknown>} getSnapshot
- * @param {() => string[]} [getCatalogSpecifiers]
+ * @param {() => { module: string; specifier: string }[]} [getCatalogModules]
  * @param {() => { pathname: string; path: string; specifier: string }[]} [getMarkdownSources]
  * @returns {{ name: string; enforce: 'pre'; resolveId(id: string): string | undefined; load(id: string): string | undefined }}
  */
 export function aeoRuntimeConfigPlugin(
   getSnapshot,
-  getCatalogSpecifiers = () => [],
+  getCatalogModules = () => [],
   getMarkdownSources = () => [],
 ) {
   return {
@@ -25,12 +25,11 @@ export function aeoRuntimeConfigPlugin(
     /** @param {string} id */
     load(id) {
       if (id !== RESOLVED_ID) return undefined;
-      const specifiers = getCatalogSpecifiers();
-      const catalogImports = specifiers
-        .map((specifier, index) => `import * as __astroAeoCatalog${index} from ${JSON.stringify(specifier)};`)
-        .join('\n');
-      const catalogs = specifiers
-        .map((_, index) => `(__astroAeoCatalog${index}.default ?? __astroAeoCatalog${index})`)
+      const catalogLoaders = getCatalogModules()
+        .map(
+          ({ module, specifier }) =>
+            `{ module: ${JSON.stringify(module)}, load: () => import(${JSON.stringify(specifier)}).then((namespace) => namespace.default ?? namespace) }`,
+        )
         .join(', ');
       const sources = getMarkdownSources();
       const sourceImports = sources
@@ -45,10 +44,10 @@ export function aeoRuntimeConfigPlugin(
             `${JSON.stringify(pathname)}: { markdown: __astroAeoStripFrontmatter(__astroAeoMarkdown${index}), path: ${JSON.stringify(path)} }`,
         )
         .join(', ');
-      const imports = [catalogImports, sourceImports].filter(Boolean).join('\n');
+      const imports = [sourceImports].filter(Boolean).join('\n');
       return (
         `${imports}${imports ? '\n' : ''}` +
-        `export const CATALOGS = [${catalogs}];\n` +
+        `export const CATALOG_LOADERS = [${catalogLoaders}];\n` +
         `const __astroAeoStripFrontmatter = (markdown) => markdown.startsWith('---') ? markdown.replace(/^---[\\t ]*\\r?\\n[\\s\\S]*?\\r?\\n---[\\t ]*(?:\\r?\\n|$)/, '') : markdown;\n` +
         `export const RUNTIME = ${toSource(getSnapshot())};\n` +
         `RUNTIME.standaloneSources = { ${sourceRegistry} };\n` +

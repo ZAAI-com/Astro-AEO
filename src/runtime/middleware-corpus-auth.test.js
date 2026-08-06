@@ -11,7 +11,7 @@ vi.mock('./config.js', async () => {
       internalRequestToken: 'opaque-test-token',
       standaloneSources: {},
     },
-    RUNTIME_CATALOGS: [],
+    RUNTIME_CATALOG_LOADERS: [],
   };
 });
 
@@ -30,6 +30,9 @@ describe('runtime corpus subrequests', () => {
       expect(target.headers.get('authorization')).toBeNull();
       expect(target.headers.get('cookie')).toBeNull();
       expect(target.headers.get('x-astro-aeo-internal')).toBe('opaque-test-token');
+      expect(target.headers.get('x-astro-aeo-internal-purpose')).toBe('corpus');
+      expect(target.headers.get('cache-control')).toBe('no-store');
+      expect(target.cache).toBe('no-store');
       return new Response('Forbidden', {
         status: 403,
         headers: { 'content-type': 'text/plain' },
@@ -40,6 +43,9 @@ describe('runtime corpus subrequests', () => {
       expect(headers.get('authorization')).toBeNull();
       expect(headers.get('cookie')).toBeNull();
       expect(headers.get('x-astro-aeo-internal')).toBe('opaque-test-token');
+      expect(headers.get('x-astro-aeo-internal-purpose')).toBe('corpus');
+      expect(headers.get('cache-control')).toBe('no-store');
+      expect(init?.cache).toBe('no-store');
       const html = '<html><head><title>Public</title></head><body><main><h1>Public</h1></main></body></html>';
       return new Response(html, { headers: { 'content-type': 'text/html' } });
     });
@@ -55,5 +61,47 @@ describe('runtime corpus subrequests', () => {
     expect(body).not.toContain('secret');
     expect(rewrite).toHaveBeenCalledOnce();
     expect(selfFetch).toHaveBeenCalledOnce();
+  });
+
+  test('force marker-bearing corpus responses out of shared caches', async () => {
+    const url = new URL('https://example.test/public/');
+    const request = new Request(url, {
+      headers: {
+        'x-astro-aeo-internal': 'opaque-test-token',
+        'x-astro-aeo-internal-purpose': 'corpus',
+      },
+    });
+    const marker = '<script data-astro-aeo-marker>authored source</script>';
+    const response = await onRequest(
+      { request, url, locals: {}, isPrerendered: false },
+      vi.fn(async () => new Response(marker, {
+        headers: {
+          'cache-control': 'public, max-age=3600',
+          'content-type': 'text/html',
+          vary: 'Accept-Encoding',
+        },
+      })),
+    );
+
+    expect(await response.text()).toBe(marker);
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(response.headers.get('vary')).toBe(
+      'Accept-Encoding, x-astro-aeo-internal-purpose',
+    );
+  });
+
+  test('leave direct Markdown source cache policy unchanged', async () => {
+    const url = new URL('https://example.test/public/');
+    const request = new Request(url, {
+      headers: { 'x-astro-aeo-internal': 'opaque-test-token' },
+    });
+    const response = await onRequest(
+      { request, url, locals: {}, isPrerendered: false },
+      vi.fn(async () => new Response('page', {
+        headers: { 'cache-control': 'public, max-age=3600' },
+      })),
+    );
+
+    expect(response.headers.get('cache-control')).toBe('public, max-age=3600');
   });
 });

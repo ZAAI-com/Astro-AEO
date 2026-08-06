@@ -12,10 +12,10 @@
  */
 
 // @ts-expect-error resolved at build time by src/virtual/plugin.js
-import { CATALOGS as VIRTUAL_CATALOGS, RUNTIME as VIRTUAL } from 'astro-aeo:runtime-config';
+import { CATALOG_LOADERS as VIRTUAL_CATALOG_LOADERS, RUNTIME as VIRTUAL } from 'astro-aeo:runtime-config';
 
 /** @type {import('./serve.js').Runtime} */
 export const RUNTIME = VIRTUAL;
 
-/** @type {import('../page.js').PageCatalog[]} */
-export const RUNTIME_CATALOGS = VIRTUAL_CATALOGS;
+/** @type {{ module: string; load: () => Promise<import('../page.js').PageCatalog> }[]} */
+export const RUNTIME_CATALOG_LOADERS = VIRTUAL_CATALOG_LOADERS;

@@ -91,13 +91,25 @@ All notable changes to this project are documented here. This project follows [S
   during Worker module initialization, alongside a successful workerd-backed preview request.
 - Benchmark regression explanation: extraction, corpus, and local Worker-startup p95 timings can
   move by more than 10 percent on the same reference laptop when adapter builds, garbage
-  collection, and OS scheduling overlap. The final changes do not add work to those measured
-  paths. The final fixes add less than one percent to the portable package, no bundle metric
-  regressed, and every absolute ceiling remains enforced. The committed reference is recorded from
-  the final 1.1 tree.
+  collection, and OS scheduling overlap. Cache isolation, origin threading, response guards, and
+  resilient catalog loading add about three percent to the unpacked portable package. Packed output
+  remains below its existing ceiling, no bundle metric regressed, and every absolute ceiling remains
+  enforced. The committed reference is recorded from the final 1.1 tree.
 
 ### Fixed
 
+- Runtime corpus source requests are isolated from shared caches, so an authored-source marker
+  cannot be retained and served to a later browser request. Direct `.md` requests keep the
+  application's original cache policy.
+- Request-time Markdown, corpus metadata, robots output, domain profiles, and catalog context use
+  the request origin when Astro `site` is unset. Relative links therefore remain absolute in
+  adapter deployments without a configured canonical site.
+- Bodyless `204`, `205`, and `304` responses now pass through without giving the Fetch `Response`
+  constructor a generated body.
+- Catalog resolution, parsing, and module evaluation failures now warn once and are omitted before
+  Vite constructs the server import graph. Successful catalogs load lazily at request time, where
+  environment-specific evaluation and `listPages()` failures also contribute nothing instead of
+  preventing server startup.
 - Markdown artifact collision checks now use the root-relative output route when Astro has a
   `base`, so project routes and files in `public/` cannot be overwritten without a warning.
 - Disabled sitemap mode now suppresses aliases and `robots.txt` advertising even when a sitemap

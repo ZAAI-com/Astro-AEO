@@ -15,7 +15,10 @@ export default defineConfig({
       pages: {
         exclude: ['/private/**'],
         stripTitleSuffix: 'SSR Site',
-        catalogs: [{ module: './src/aeo-catalog.js' }],
+        catalogs: [
+          { module: './src/aeo-catalog.js' },
+          { module: './src/runtime-failing-catalog.js' },
+        ],
       },
       markdown: { frontmatter: true, negotiation: 'response' },
       discovery: { robots: { enabled: true, allow: ['Googlebot'] }, sitemap: { mode: 'disabled' } },

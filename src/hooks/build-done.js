@@ -1,11 +1,14 @@
 // @ts-check
-import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { collectPages } from '../build/collect.js';
 import { createArtifactWriter } from '../build/artifacts.js';
 import { createDistHtmlSource } from '../sources/dist-html.js';
 import { stripSourceMarkers } from '../build/strip-markers.js';
-import { loadCatalogPages, mergeCatalogPages } from '../build/catalogs.js';
+import {
+  importCatalogModule,
+  loadCatalogPages,
+  mergeCatalogPages,
+  resolveCatalogSpecifier,
+} from '../build/catalogs.js';
 import { resolveSiteMeta } from '../config.js';
 import { emitDotMd } from '../generators/dotmd.js';
 import { emitLlmsTxt, emitLlmsFullTxt } from '../generators/llms-txt.js';
@@ -13,17 +16,6 @@ import { emitDomainProfile } from '../generators/domain-profile.js';
 import { emitUrlMap } from '../generators/url-map.js';
 import { writeDiagnosticsManifest } from '../build/diagnostics.js';
 import { isOwnedArtifactPath } from '../core/owned-artifacts.js';
-
-/**
- * Resolve a catalog specifier the way the project wrote it: a relative path is
- * relative to the project root, and a bare specifier resolves as an import.
- * @param {string} specifier
- * @param {string} projectRoot
- * @returns {string}
- */
-function resolveCatalog(specifier, projectRoot) {
-  return specifier.startsWith('.') ? pathToFileURL(join(projectRoot, specifier)).href : specifier;
-}
 
 /**
  * @typedef {object} BuildEnv
@@ -37,6 +29,7 @@ function resolveCatalog(specifier, projectRoot) {
  * @property {URL} [publicDir]                   Astro's publicDir, for collision checks.
  * @property {import('../index.js').Diagnostic[]} [diagnostics]
  * @property {boolean} [runtimeCorpora]            Leave corpus paths to middleware.
+ * @property {{ module: string; specifier: string; namespace: any }[]} [catalogModules]
  */
 
 /**
@@ -51,10 +44,19 @@ export async function onBuildDone(config, options, env) {
 
   // Routes generated from data are invisible to Astro's own page list, so a
   // catalog is the only way they can appear in the corpus.
-  const loadedCatalogPages = config.pages.catalogs.length
+  const catalogModules = env.catalogModules;
+  const buildCatalogs = catalogModules
+    ? catalogModules.map(({ module }) => ({ module }))
+    : config.pages.catalogs;
+  const loadedCatalogPages = buildCatalogs.length
     ? await loadCatalogPages(
-        config.pages.catalogs,
-        (/** @type {string} */ m) => import(resolveCatalog(m, env.projectRoot)),
+        buildCatalogs,
+        (/** @type {string} */ module) => {
+          const preloaded = catalogModules?.find((candidate) => candidate.module === module);
+          return preloaded
+            ? Promise.resolve(preloaded.namespace)
+            : importCatalogModule(resolveCatalogSpecifier(module, env.projectRoot));
+        },
         logger,
         {
           command: 'build',

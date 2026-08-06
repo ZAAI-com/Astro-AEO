@@ -9,7 +9,7 @@ import aeo from './index.js';
  * @param {{ publicSitemap?: boolean; routes?: any[] }} [options]
  * @returns {string}
  */
-function runtimeConfigSource(options = {}) {
+async function runtimeConfigSource(options = {}) {
   const root = mkdtempSync(join(tmpdir(), 'aeo-runtime-sitemap-'));
   const publicRoot = join(root, 'public');
   mkdirSync(publicRoot, { recursive: true });
@@ -28,7 +28,7 @@ function runtimeConfigSource(options = {}) {
       updateConfig: (value) => { updated = value; },
       logger,
     });
-    integration.hooks['astro:config:done']({
+    await integration.hooks['astro:config:done']({
       config: {
         site: new URL('https://example.test'),
         base: '/',
@@ -51,7 +51,7 @@ function runtimeConfigSource(options = {}) {
 }
 
 describe('integration diagnostics and declarations', () => {
-  test('warns for uncataloged dynamic pages and prerendered custom 404s', () => {
+  test('warns for uncataloged dynamic pages and prerendered custom 404s', async () => {
     const warnings = [];
     const injected = [];
     const integration = aeo({
@@ -66,7 +66,7 @@ describe('integration diagnostics and declarations', () => {
       updateConfig() {},
       logger,
     });
-    integration.hooks['astro:config:done']({
+    await integration.hooks['astro:config:done']({
       config: {
         site: new URL('https://example.test'),
         base: '/',
@@ -111,7 +111,7 @@ describe('integration diagnostics and declarations', () => {
     expect(warnings.some((message) => message.includes('dynamic page routes'))).toBe(false);
   });
 
-  test('runtime corpus candidates contain project pages, not endpoints or error routes', () => {
+  test('runtime corpus candidates contain project pages, not endpoints or error routes', async () => {
     let updated;
     const integration = aeo({ discovery: { sitemap: { mode: 'disabled' } } });
     const logger = { warn() {}, info() {}, error() {}, debug() {} };
@@ -122,7 +122,7 @@ describe('integration diagnostics and declarations', () => {
       updateConfig: (value) => { updated = value; },
       logger,
     });
-    integration.hooks['astro:config:done']({
+    await integration.hooks['astro:config:done']({
       config: {
         site: new URL('https://example.test'),
         base: '/',
@@ -176,11 +176,11 @@ describe('integration diagnostics and declarations', () => {
     expect(source).not.toContain('new RegExp("^\\\\/([^/]+?)\\\\/?$", "")');
   });
 
-  test('runtime sitemap availability recognizes public files and concrete routes', () => {
-    expect(runtimeConfigSource({ publicSitemap: true })).toContain(
+  test('runtime sitemap availability recognizes public files and concrete routes', async () => {
+    expect(await runtimeConfigSource({ publicSitemap: true })).toContain(
       '"sitemapAvailable": true',
     );
-    expect(runtimeConfigSource({
+    expect(await runtimeConfigSource({
       routes: [
         {
           type: 'endpoint',
@@ -190,6 +190,6 @@ describe('integration diagnostics and declarations', () => {
         },
       ],
     })).toContain('"sitemapAvailable": true');
-    expect(runtimeConfigSource()).toContain('"sitemapAvailable": false');
+    expect(await runtimeConfigSource()).toContain('"sitemapAvailable": false');
   });
 });

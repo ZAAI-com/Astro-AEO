@@ -1,4 +1,6 @@
 // @ts-check
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { normalizeCatalogPathname, normalizePath } from '../core/match.js';
 import { toIsoTimestamp } from '../core/page-model.js';
 
@@ -8,6 +10,77 @@ import { toIsoTimestamp } from '../core/page-model.js';
  * Build-only, and deliberately not part of `astro-aeo/page`: that subpath is the
  * public surface a page imports, and it should stay `defineAeoPage` plus types.
  */
+
+/** @typedef {{ module: string; specifier: string; namespace: any }} LoadedCatalogModule */
+
+/**
+ * Vite executes Astro integrations through a module runner and rewrites direct
+ * dynamic imports. Some adapters close that runner before `config:done`, so use
+ * an indirect native import for project-owned catalog modules.
+ */
+const nativeImport = /** @type {(specifier: string) => Promise<any>} */ (
+  new Function('specifier', 'return import(specifier)')
+);
+
+/** @param {string} specifier @returns {Promise<any>} */
+export function importCatalogModule(specifier) {
+  return nativeImport(specifier);
+}
+
+/**
+ * Resolve a catalog the same way for preflight, build collection, and runtime
+ * bundling. Relative modules belong to the Astro project root; bare specifiers
+ * remain package imports.
+ * @param {string} specifier
+ * @param {string} projectRoot
+ * @returns {string}
+ */
+export function resolveCatalogSpecifier(specifier, projectRoot) {
+  return specifier.startsWith('.')
+    ? pathToFileURL(resolve(projectRoot, specifier)).href
+    : specifier;
+}
+
+/**
+ * Import catalogs before Vite creates the runtime graph. A module that cannot
+ * resolve, parse, or evaluate is omitted from that graph and cannot fail a
+ * consumer's server build or startup.
+ * @param {{ module: string }[]} catalogs
+ * @param {string} projectRoot
+ * @param {{ warn: (m: string) => void }} logger
+ * @param {import('../index.js').Diagnostic[]} [diagnostics]
+ * @param {(specifier: string) => Promise<any>} [load]
+ * @returns {Promise<LoadedCatalogModule[]>}
+ */
+export async function preloadCatalogModules(
+  catalogs,
+  projectRoot,
+  logger,
+  diagnostics = [],
+  load = importCatalogModule,
+) {
+  /** @type {LoadedCatalogModule[]} */
+  const loaded = [];
+  for (const catalog of catalogs) {
+    const specifier = resolveCatalogSpecifier(catalog.module, projectRoot);
+    try {
+      loaded.push({
+        module: catalog.module,
+        specifier,
+        namespace: await load(specifier),
+      });
+    } catch (error) {
+      reportCatalogDiagnostic(diagnostics, logger, {
+        code: 'catalog-load-failed',
+        message: `astro-aeo: the page catalog "${catalog.module}" failed to load, so it contributed nothing: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        sourcePath: catalog.module,
+      });
+    }
+  }
+  return loaded;
+}
 
 /**
  * Load the configured page catalogs.

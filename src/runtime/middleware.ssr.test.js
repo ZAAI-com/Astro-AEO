@@ -35,7 +35,12 @@ beforeAll(async () => {
   execFileSync('node', [astroBin, 'build', '--root', FIXTURE], { cwd: REPO, stdio: 'ignore' });
   expect(existsSync(join(FIXTURE, 'dist/client/llms.txt'))).toBe(false);
   expect(existsSync(join(FIXTURE, 'dist/client/llms-full.txt'))).toBe(false);
-  const env = { ...process.env, HOST: '127.0.0.1', PORT: String(PORT) };
+  const env = {
+    ...process.env,
+    HOST: '127.0.0.1',
+    PORT: String(PORT),
+    ASTRO_AEO_RUNTIME_CATALOG_FAILURE: '1',
+  };
   for (const key of Object.keys(env)) {
     if (/^(VITEST|__VITEST|TINYPOOL)/.test(key)) delete env[key];
   }
@@ -285,6 +290,7 @@ describe('response contract', () => {
     expect(body).toContain('# About');
     expect(body).not.toContain('RENDERED-DYNAMIC-APPROXIMATION');
     expect(body).not.toContain('Recursive artifact');
+    expect(body).not.toContain('Runtime failure leaked');
   });
 
   test('direct and negotiated catalog requests use exact authored source', async () => {

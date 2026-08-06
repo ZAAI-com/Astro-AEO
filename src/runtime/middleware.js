@@ -1,12 +1,18 @@
 // @ts-check
-import { RUNTIME, RUNTIME_CATALOGS } from './config.js';
+import { RUNTIME, RUNTIME_CATALOG_LOADERS } from './config.js';
 import { mdPathnameFor, pagePathForMdPath, basePrefix } from '../core/page-model.js';
 import { isIncluded, normalizeCatalogPathname, normalizePath } from '../core/match.js';
 import { extractPageMeta } from '../core/page-meta.js';
 import { COLLECT_FLAG, stripMarkersFromHtml } from '../core/extract/marker.js';
 import { withMarkdownAlternateLink } from '../core/alternate-link.js';
 import { prefersMarkdown } from './negotiate.js';
-import { MARKDOWN_CONTENT_TYPE, inheritedRepresentationHeaders, textResponse } from './respond.js';
+import {
+  MARKDOWN_CONTENT_TYPE,
+  inheritedRepresentationHeaders,
+  isNullBodyStatus,
+  responseBodyForbidden,
+  textResponse,
+} from './respond.js';
 import {
   artifactFor,
   renderStandaloneArtifact,
@@ -19,6 +25,8 @@ import {
 const DEV_NOTE =
   '<!-- astro-aeo dev preview: dynamic routes are omitted; run `astro build` for the full file -->';
 const INTERNAL_REQUEST_HEADER = 'x-astro-aeo-internal';
+const INTERNAL_PURPOSE_HEADER = 'x-astro-aeo-internal-purpose';
+const CORPUS_PURPOSE = 'corpus';
 
 /**
  * @param {import('astro').APIContext} context
@@ -36,7 +44,10 @@ export const onRequest = async (context, next) => {
     context.request.headers.get(INTERNAL_REQUEST_HEADER) === RUNTIME.internalRequestToken
   ) {
     markCollecting(context);
-    return next();
+    const response = await next();
+    return context.request.headers.get(INTERNAL_PURPOSE_HEADER) === CORPUS_PURPOSE
+      ? isolateCorpusResponse(response, context.request)
+      : response;
   }
 
   const method = context.request.method;
@@ -59,6 +70,7 @@ export const onRequest = async (context, next) => {
   if (artifact === 'robots' || artifact === 'domain-profile') {
     const { body, contentType } = renderStandaloneArtifact(artifact, RUNTIME, {
       sitemapAvailable: RUNTIME.sitemapAvailable,
+      origin: context.url.origin,
     });
     return textResponse({ body, contentType, request: context.request });
   }
@@ -66,7 +78,8 @@ export const onRequest = async (context, next) => {
     try {
       const body = await serveLlmsIndex(artifact, RUNTIME, htmlFetcher(context, { sanitizeCredentials: true }), {
         note: RUNTIME.command === 'dev' ? DEV_NOTE : undefined,
-        catalogs: RUNTIME_CATALOGS,
+        catalogLoaders: RUNTIME_CATALOG_LOADERS,
+        origin: context.url.origin,
       });
       return textResponse({ body, contentType: 'text/plain; charset=utf-8', request: context.request });
     } catch (error) {
@@ -85,10 +98,16 @@ export const onRequest = async (context, next) => {
   if (RUNTIME.config.markdown.enabled && mdPagePath !== null && !projectOwned) {
     const fetcher = htmlFetcher(context, { preserveQuery: true });
     const { body, source } = await serveMarkdown(pathname, RUNTIME, fetcher, {
-      catalogs: RUNTIME_CATALOGS,
+      catalogLoaders: RUNTIME_CATALOG_LOADERS,
+      origin: context.url.origin,
     });
     if (body === null) {
-      if (source && (!isHtml(source) || (source.status >= 300 && source.status < 400))) {
+      if (
+        source &&
+        (isNullBodyStatus(source.status) ||
+          !isHtml(source) ||
+          (source.status >= 300 && source.status < 400))
+      ) {
         return forwardSourceResponse(source, context, mdPagePath);
       }
       return new Response(null, { status: source && !source.ok ? source.status : 404 });
@@ -109,6 +128,7 @@ export const onRequest = async (context, next) => {
     negotiation !== 'off' && prefersMarkdown(context.request.headers.get('accept'));
   if (wantsMarkdown) markCollecting(context);
   const response = await next();
+  if (isNullBodyStatus(response.status)) return response;
   if (!isHtml(response)) return response;
   if (!response.ok) {
     return wantsMarkdown ? stripMarkerResponse(response, context.request) : response;
@@ -137,7 +157,10 @@ export const onRequest = async (context, next) => {
       mdPathnameFor(pagePath),
       RUNTIME,
       async () => ({ html, response }),
-      { catalogs: RUNTIME_CATALOGS },
+      {
+        catalogLoaders: RUNTIME_CATALOG_LOADERS,
+        origin: context.url.origin,
+      },
     );
     if (body !== null) {
       return textResponse({
@@ -186,8 +209,7 @@ function htmlResponse(html, source, request, options) {
       headers.delete(name);
     }
   }
-  const bodyForbidden = request.method === 'HEAD' || source.status === 204 || source.status === 304;
-  return new Response(bodyForbidden ? null : html, {
+  return new Response(responseBodyForbidden(request, source.status) ? null : html, {
     status: source.status,
     statusText: source.statusText,
     headers,
@@ -223,13 +245,22 @@ function htmlFetcher(context, opts = {}) {
         ? new Headers()
         : new Headers(context.request.headers);
       headers.set(INTERNAL_REQUEST_HEADER, RUNTIME.internalRequestToken);
+      if (opts.sanitizeCredentials) {
+        headers.set(INTERNAL_PURPOSE_HEADER, CORPUS_PURPOSE);
+        headers.set('cache-control', 'no-store');
+      }
+      const cacheInit = opts.sanitizeCredentials && supportsRequestCacheOption()
+        ? /** @type {const} */ ({ cache: 'no-store' })
+        : {};
       const rewriteTarget = new Request(targetUrl, {
         method: context.request.method,
         headers,
+        ...cacheInit,
       });
       const response = rewritten
         ? await fetch(targetUrl, {
-            headers: { [INTERNAL_REQUEST_HEADER]: RUNTIME.internalRequestToken },
+            headers,
+            ...cacheInit,
             redirect: 'manual',
           })
         : ((rewritten = true), markCollecting(context), await context.rewrite(rewriteTarget));
@@ -237,6 +268,24 @@ function htmlFetcher(context, opts = {}) {
     } catch { return null; }
   };
   return load;
+}
+
+let supportsRequestCache;
+
+/**
+ * Workerd rejects the standard Request `cache` initializer. The no-store request
+ * header remains authoritative there; other runtimes also receive the Fetch mode.
+ * @returns {boolean}
+ */
+function supportsRequestCacheOption() {
+  if (supportsRequestCache !== undefined) return supportsRequestCache;
+  try {
+    supportsRequestCache =
+      new Request('https://astro-aeo.invalid/', { cache: 'no-store' }).cache === 'no-store';
+  } catch {
+    supportsRequestCache = false;
+  }
+  return supportsRequestCache;
 }
 
 /**
@@ -325,9 +374,7 @@ function forwardSourceResponse(source, context, sourcePagePath) {
     } catch {}
   }
   const bodyForbidden =
-    context.request.method === 'HEAD' ||
-    source.status === 204 ||
-    source.status === 304 ||
+    responseBodyForbidden(context.request, source.status) ||
     (source.status >= 300 && source.status < 400);
   return new Response(bodyForbidden ? null : source.body, {
     status: source.status,
@@ -359,7 +406,25 @@ async function stripMarkerResponse(response, request) {
   for (const name of ['content-length', 'content-encoding', 'content-range', 'etag']) {
     headers.delete(name);
   }
-  return new Response(request.method === 'HEAD' ? null : stripped, {
+  return new Response(responseBodyForbidden(request, response.status) ? null : stripped, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+/**
+ * Marker-bearing corpus source responses are internal implementation details.
+ * Keep them out of shared caches even when the application response was cacheable.
+ * @param {Response} response
+ * @param {Request} request
+ * @returns {Response}
+ */
+function isolateCorpusResponse(response, request) {
+  const headers = new Headers(response.headers);
+  headers.set('cache-control', 'private, no-store');
+  headers.set('vary', mergeCommaHeader(headers.get('vary'), INTERNAL_PURPOSE_HEADER));
+  return new Response(responseBodyForbidden(request, response.status) ? null : response.body, {
     status: response.status,
     statusText: response.statusText,
     headers,

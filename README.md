@@ -317,11 +317,12 @@ export default {
 };
 ```
 
-A catalog that fails to load warns and contributes nothing rather than failing the
-build. Catalogs run in configured order in both builds and server bundles; the first
-descriptor wins when two catalogs name the same normalized path. `context` contains
-the command, site URL, base path, and trailing-slash policy. Astro-AEO does not crawl
-your site to discover routes.
+A catalog that cannot resolve, import, evaluate, or run `listPages()` warns and
+contributes nothing rather than failing the build or server startup. Catalogs run in
+configured order in both builds and server bundles; the first descriptor wins when
+two catalogs name the same normalized path. `context` contains the command, site URL,
+base path, and trailing-slash policy. Astro-AEO does not crawl your site to discover
+routes.
 
 Request-time `llms.txt` and `llms-full.txt` render each known route through the
 application so authentication and page markers behave normally. To prevent one
@@ -344,6 +345,7 @@ Negotiated responses preserve the page's cache policy, merge `Vary: Accept`, use
 full SHA-256 ETag, and support `HEAD` and `If-None-Match`. A `304` avoids response
 bytes but currently still calculates the Markdown representation. Redirects, API
 responses, and negotiated error pages retain the application's original behavior.
+Responses with bodyless statuses (`204`, `205`, and `304`) pass through unchanged.
 An explicit `.md` request may convert an HTML error body while preserving its status.
 
 **This applies to on-demand routes only.** Astro does not expose request headers to

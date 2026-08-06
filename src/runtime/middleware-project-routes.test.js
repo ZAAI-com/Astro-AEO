@@ -13,7 +13,7 @@ vi.mock('./config.js', async () => {
       internalRequestToken: 'opaque-test-token',
       standaloneSources: {},
     },
-    RUNTIME_CATALOGS: [],
+    RUNTIME_CATALOG_LOADERS: [],
   };
 });
 

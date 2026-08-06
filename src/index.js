@@ -1,5 +1,5 @@
 // @ts-check
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { isAbsolute, resolve } from 'node:path';
 import sitemap from '@astrojs/sitemap';
@@ -14,6 +14,7 @@ import { onBuildDone } from './hooks/build-done.js';
 import { aeoRuntimeConfigPlugin } from './virtual/plugin.js';
 import { findNonSerializable, nonSerializableWarning } from './virtual/serialize.js';
 import { createArtifactWriter } from './build/artifacts.js';
+import { preloadCatalogModules } from './build/catalogs.js';
 
 /**
  * @param {import('./index.js').AstroAeoConfig} [userConfig]
@@ -53,6 +54,10 @@ export default function aeo(userConfig = {}) {
   let hasOnDemandProjectPage = false;
   /** @type {import('./index.js').Diagnostic[]} */
   const buildDiagnostics = [];
+  /** @type {import('./index.js').Diagnostic[]} */
+  const catalogDiagnostics = [];
+  /** @type {{ module: string; specifier: string; namespace: any }[]} */
+  let catalogModules = [];
   /** @type {{ warn: (message: string) => void } | undefined} */
   let integrationLogger;
   /** @type {ReturnType<typeof createArtifactWriter> | undefined} */
@@ -117,12 +122,7 @@ export default function aeo(userConfig = {}) {
             plugins: [
               aeoRuntimeConfigPlugin(
                 runtimeSnapshot,
-                () =>
-                  config.pages.catalogs.map(({ module }) =>
-                    module.startsWith('.')
-                      ? pathToFileURL(resolve(projectRoot, module)).href
-                      : module,
-                  ),
+                () => catalogModules.map(({ module, specifier }) => ({ module, specifier })),
                 () => runtimeMarkdownSourceEntries(routeEntrypoints, projectRoot),
               ),
             ],
@@ -132,7 +132,7 @@ export default function aeo(userConfig = {}) {
         addMiddleware({ order: 'pre', entrypoint: 'astro-aeo/middleware' });
       },
 
-      'astro:config:done': ({ config: astroConfig, logger, injectTypes }) => {
+      'astro:config:done': async ({ config: astroConfig, logger, injectTypes }) => {
         config = config ?? resolveConfig(userConfig, logger);
         siteUrl = astroConfig.site ? astroConfig.site.toString().replace(/\/$/, '') : '';
         base = astroConfig.base && astroConfig.base !== '/' ? astroConfig.base : '';
@@ -141,6 +141,13 @@ export default function aeo(userConfig = {}) {
         serverOutput = astroConfig.output === 'server';
         projectRoot = fileURLToPath(astroConfig.root);
         publicDir = astroConfig.publicDir;
+        catalogDiagnostics.length = 0;
+        catalogModules = await preloadCatalogModules(
+          config.pages.catalogs,
+          projectRoot,
+          logger,
+          catalogDiagnostics,
+        );
 
         injectTypes({
           filename: 'astro-aeo.d.ts',
@@ -172,6 +179,7 @@ export default function aeo(userConfig = {}) {
         hasOnDemandProjectPage = false;
         artifactWriter = undefined;
         buildDiagnostics.length = 0;
+        buildDiagnostics.push(...catalogDiagnostics);
         let hasUncatalogedDynamicPage = false;
         let hasPrerenderedCustom404 = false;
         for (const route of routes) {
@@ -263,6 +271,7 @@ export default function aeo(userConfig = {}) {
           publicDir,
           diagnostics: buildDiagnostics,
           runtimeCorpora: serverOutput || hasOnDemandProjectPage,
+          catalogModules,
         });
       },
     },

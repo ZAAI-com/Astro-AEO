@@ -44,7 +44,7 @@ framework code that both builds share.
 
 `--enforce` applies the 1.1 safety ceilings embedded in the report:
 
-- Packed package at most 79,793 bytes and unpacked package at most 264,188 bytes.
+- Packed package at most 79,793 bytes and unpacked package at most 275,000 bytes.
 - 100 KB parse p95 below 50 ms and conversion p95 below 150 ms.
 - Retained heap after 100 conversions at most 10 MB.
 - Paired Markdown-minus-HTML p95 request overhead at most 10 ms. Direct and negotiated modes each

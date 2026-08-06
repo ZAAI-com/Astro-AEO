@@ -14,23 +14,27 @@ describe('aeoRuntimeConfigPlugin', () => {
     const plugin = aeoRuntimeConfigPlugin(() => ({ command: 'dev', config: resolveConfig() }));
     const code = plugin.load(`\0${RUNTIME_CONFIG_ID}`);
     expect(code).toContain('export const RUNTIME =');
-    expect(code).toContain('export const CATALOGS = []');
+    expect(code).toContain('export const CATALOG_LOADERS = []');
     expect(code).toContain('export default RUNTIME;');
 
-    const { RUNTIME, CATALOGS } = new Function(
-      `${code.replace(/export const /g, 'const ').replace('export default RUNTIME;', '')} return { RUNTIME, CATALOGS };`,
+    const { RUNTIME, CATALOG_LOADERS } = new Function(
+      `${code.replace(/export const /g, 'const ').replace('export default RUNTIME;', '')} return { RUNTIME, CATALOG_LOADERS };`,
     )();
     expect(RUNTIME.command).toBe('dev');
     expect(RUNTIME.config.markdown.enabled).toBe(true);
-    expect(CATALOGS).toEqual([]);
+    expect(CATALOG_LOADERS).toEqual([]);
   });
 
-  test('catalog modules are emitted as static imports for edge bundlers', () => {
-    const plugin = aeoRuntimeConfigPlugin(() => ({}), () => ['./catalog.js', 'pkg/catalog']);
+  test('catalog modules are emitted as lazy literal imports for edge bundlers', () => {
+    const plugin = aeoRuntimeConfigPlugin(() => ({}), () => [
+      { module: './catalog.js', specifier: 'file:///project/catalog.js' },
+      { module: 'pkg/catalog', specifier: 'pkg/catalog' },
+    ]);
     const code = plugin.load(`\0${RUNTIME_CONFIG_ID}`);
-    expect(code).toContain('import * as __astroAeoCatalog0 from "./catalog.js";');
-    expect(code).toContain('import * as __astroAeoCatalog1 from "pkg/catalog";');
-    expect(code).toContain('__astroAeoCatalog0.default ?? __astroAeoCatalog0');
+    expect(code).toContain('module: "./catalog.js"');
+    expect(code).toContain('load: () => import("file:///project/catalog.js")');
+    expect(code).toContain('module: "pkg/catalog"');
+    expect(code).not.toContain('import * as');
   });
 
   test('standalone Markdown sources use a virtual raw-import registry', () => {
