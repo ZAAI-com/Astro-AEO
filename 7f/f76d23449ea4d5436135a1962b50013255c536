@@ -1,0 +1,102 @@
+src/catalog-failure.e2e.test.js
+  s_c4ea61125aac30::t_0e62d34926b98c 1-43
+benchmarks/thresholds.mjs
+  s_c4ea61125aac30::t_a27c88dcd7b715 3
+src/runtime/config.js
+  s_c4ea61125aac30::t_4779092f8a7ca6 15
+  s_c4ea61125aac30::t_9d3be4636a718c 20-21
+CHANGELOG.md
+  s_c4ea61125aac30::t_a27c88dcd7b715 94-97
+  s_c4ea61125aac30::t_cc41aa4e93cb4d 101-112
+src/hooks/build-done.js
+  s_c4ea61125aac30::t_9bcdfbcf63fb69 6,8-11,32,47-51,53-57,59
+  s_c4ea61125aac30::t_38498e81db40ec 7,58
+src/integration-hooks.test.js
+  s_c4ea61125aac30::t_8d3cd77fbf518f 12,31,54,69,114,125,179-180,183,193
+src/runtime/respond.js
+  s_c4ea61125aac30::t_9d3be4636a718c 5-22,72-75
+fixtures/catalog-failures/src/healthy-catalog.js
+  s_c4ea61125aac30::t_0e62d34926b98c 1-11
+fixtures/ssr-node/astro.config.mjs
+  s_c4ea61125aac30::t_0e62d34926b98c 18-21
+src/runtime/middleware-redirect.test.js
+  s_c4ea61125aac30::t_0525722efa9291 18
+  s_c4ea61125aac30::t_8d3cd77fbf518f 68-92
+fixtures/catalog-failures/src/throwing-catalog.js
+  s_c4ea61125aac30::t_0e62d34926b98c 1-7
+src/runtime/serve.test.js
+  s_c4ea61125aac30::t_0525722efa9291 29-33,102-104,120-122,130-132,142-144,171-173,189,219-232,234-244,246-285,312-332
+  s_c4ea61125aac30::t_ae1af93242f6c4 233,245,293-296,309-310
+  s_c4ea61125aac30::t_8d3cd77fbf518f 286-292,297-308,311,333
+fixtures/catalog-failures/src/syntax-catalog.js
+  s_c4ea61125aac30::t_0e62d34926b98c 1-5
+fixtures/catalog-failures/astro.config.mjs
+  s_c4ea61125aac30::t_0e62d34926b98c 1-19
+src/runtime/middleware.js
+  s_c4ea61125aac30::t_9d3be4636a718c 2,9-15,28-29,47-50,73,81-82,101-102,105-110,131,160-163,212,248-251,262,289,377,409-427
+  s_c4ea61125aac30::t_0a89cdaa1cc9a5 252-254,258,263,273-288
+  s_c4ea61125aac30::t_0889a9e43b7638 290
+src/runtime/middleware-corpus-auth.test.js
+  s_c4ea61125aac30::t_0525722efa9291 14,33-35,46-48,65-106
+src/virtual/plugin.js
+  s_c4ea61125aac30::t_9bcdfbcf63fb69 9,15,28-32,47,50
+src/runtime/middleware-project-routes.test.js
+  s_c4ea61125aac30::t_0525722efa9291 16
+README.md
+  s_c4ea61125aac30::t_cc41aa4e93cb4d 320-325,348
+src/build/catalogs.js
+  s_c4ea61125aac30::t_9bcdfbcf63fb69 2-3,14-16,31-59,61-83
+  s_c4ea61125aac30::t_38498e81db40ec 17-20,24-30,60
+  s_c4ea61125aac30::t_1bd26b9915adf4 21-23
+  s_4f0c7c99267429::t_cc451184314b46 84
+src/runtime/middleware-limit.test.js
+  s_c4ea61125aac30::t_0525722efa9291 14
+benchmarks/README.md
+  s_c4ea61125aac30::t_a27c88dcd7b715 47
+src/virtual/plugin.test.js
+  s_c4ea61125aac30::t_0525722efa9291 17,20-21,25,28-32,34-37
+fixtures/catalog-failures/package.json
+  s_c4ea61125aac30::t_0e62d34926b98c 1-6
+src/runtime/middleware.ssr.test.js
+  s_c4ea61125aac30::t_0e62d34926b98c 38-43
+  s_c4ea61125aac30::t_4a12fc436fced7 293
+src/index.js
+  s_c4ea61125aac30::t_4779092f8a7ca6 2
+  s_c4ea61125aac30::t_9bcdfbcf63fb69 17,57-60,125,135,144-150,182,274
+fixtures/ssr-node/src/runtime-failing-catalog.js
+  s_c4ea61125aac30::t_0e62d34926b98c 1-6,14-15
+  s_c4ea61125aac30::t_4a12fc436fced7 7-13
+fixtures/catalog-failures/src/pages/index.astro
+  s_c4ea61125aac30::t_0e62d34926b98c 1-8
+src/runtime/serve.js
+  s_c4ea61125aac30::t_9d3be4636a718c 11,29,45,77,82,87,92,101,104-107,136,148,155-159,165-167,176-180,192,196-200,221-224,229-233,238-244,246-257,262,264,267,273,277,279,297,306-321
+  s_c4ea61125aac30::t_ebf433634b6ab8 322
+src/runtime/respond.test.js
+  s_c4ea61125aac30::t_0525722efa9291 1-29
+src/build/catalogs.test.js
+  s_c4ea61125aac30::t_8d3cd77fbf518f 2-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "7ff76d23449ea4d5436135a1962b50013255c536",
+  "prompts": {},
+  "sessions": {
+    "s_4f0c7c99267429": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fd3bc-bbd7-7be3-a26d-edd629394883",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_c4ea61125aac30": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fd664-d9c8-7422-bc83-6d4e0a151dcf",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
