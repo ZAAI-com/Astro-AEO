@@ -1,0 +1,337 @@
+src/index-config.test.js
+  s_cfa5ec296b2092::t_a79b501e58ec4b 1-48
+fixtures/adapters/shared/transport.js
+  s_cfa5ec296b2092::t_2b5dec27dbbc98 1-78
+src/marker-paths.e2e.test.js
+  s_cfa5ec296b2092::t_eda2b5f9caa962 27
+  s_cfa5ec296b2092::t_9596a47cea0872 2,16,21-22
+  s_cfa5ec296b2092::t_49a276e7d54f92 1,3-15,17-20,23-26,28-39
+src/build/catalogs.test.js
+  s_cfa5ec296b2092::t_f0eafb6d2f05a5 2-4,85-104
+  s_cfa5ec296b2092::t_10b5d0b4909253 130,132-156
+  s_cfa5ec296b2092::t_5be0b935eac1c8 41-84,105
+  s_cfa5ec296b2092::t_19ffc858ac4a31 106-129
+  s_cfa5ec296b2092::t_3dfbc328b69174 131
+src/runtime/middleware-project-routes.test.js
+  s_cfa5ec296b2092::t_1db82ab34b65cd 57-81
+benchmarks/README.md
+  s_cfa5ec296b2092::t_43e368ad785d07 53
+  s_cfa5ec296b2092::t_c65d31a2a237c2 47
+src/page.d.ts
+  s_cfa5ec296b2092::t_8b26b590a045f0 65-67
+fixtures/marker-paths/astro.config.mjs
+  s_cfa5ec296b2092::t_49a276e7d54f92 1-14
+fixtures/marker-paths/src/pages/about.astro
+  s_cfa5ec296b2092::t_49a276e7d54f92 1-6
+fixtures/adapters/cloudflare/src/pages/about.astro
+  s_cfa5ec296b2092::t_2b5dec27dbbc98 3-6
+src/runtime/respond.js
+  s_cfa5ec296b2092::t_43e368ad785d07 35,54-63
+  s_cfa5ec296b2092::t_de0f8374ea04ac 90-91
+  s_cfa5ec296b2092::t_3de7c484de982e 5-34,64-79,94-100,154-155,159,165-166,176
+  s_cfa5ec296b2092::t_6ceaf9a6a29d37 36-53,80-89,92-93
+fixtures/marker-paths/src/layouts/Layout.astro
+  s_cfa5ec296b2092::t_49a276e7d54f92 1-13
+src/build/collect.test.js
+  s_cfa5ec296b2092::t_3084149d6e0b5e 52-60,116-146
+src/config.test.js
+  s_cfa5ec296b2092::t_89853fb7dd9059 42-51
+src/virtual/serialize.test.js
+  s_cfa5ec296b2092::t_89853fb7dd9059 2,91-100
+  s_cfa5ec296b2092::t_d4d50f92a12c06 101-102
+src/runtime/middleware-corpus-auth.test.js
+  s_cfa5ec296b2092::t_2c7c70230b2d7e 85-88,132,150-153,157-162,165,187-188,236-250,253-254,260-261
+  s_cfa5ec296b2092::t_01b54213025dd6 74-81,83-84,136-137,148-149
+  s_cfa5ec296b2092::t_9ceeb0641d9942 94-131,133
+  s_cfa5ec296b2092::t_add02697729812 224
+  s_cfa5ec296b2092::t_db877a7d11028c 263-321
+  s_cfa5ec296b2092::t_0d710d079ae51e 262,322,327,336-338,342-343,345,352,354-355,362,366-367
+  s_cfa5ec296b2092::t_39f8a9968c6c2a 323-326,328-335,339-341,344,346-351,353,356-361,363-365,369,371-372,374,377-382,387,389,392
+  s_cfa5ec296b2092::t_6527a4b9c31ea7 370,373,375-376
+  s_cfa5ec296b2092::t_52ce119d45fbdd 18-66,89-93,134,140,147,154-156,191,196-205,207,209-211,218-219,223,226,231-232
+  s_cfa5ec296b2092::t_ca4ed952d53378 71-72
+  s_cfa5ec296b2092::t_bf6162f01270ba 368,383-386,388,390-391
+  s_cfa5ec296b2092::t_32131d15b2944b 192-195,206,208,212-217,220-222,225,227-230,233-235
+  s_cfa5ec296b2092::t_43e368ad785d07 181-182,258-259
+src/runtime/respond.test.js
+  s_cfa5ec296b2092::t_fe160b708fb631 1
+  s_cfa5ec296b2092::t_6ceaf9a6a29d37 3,8,107-129
+  s_cfa5ec296b2092::t_43e368ad785d07 11,92-100
+  s_cfa5ec296b2092::t_1a8a850eae25b3 2,4-7,9-10,12,40-91,101-106,130
+fixtures/marker-paths/src/pages/500.astro
+  s_cfa5ec296b2092::t_eda2b5f9caa962 1-6
+fixtures/ssr-node/src/aeo-catalog.js
+  s_cfa5ec296b2092::t_8b9c73f046294a 14-22
+src/runtime/middleware.ssr.test.js
+  s_cfa5ec296b2092::t_ba8c3aa9b4cbb0 350,364-366
+  s_cfa5ec296b2092::t_8b9c73f046294a 4,35-51,314-315,322-349,351-357,361-363,367-447
+  s_cfa5ec296b2092::t_21a522dc3042fd 98-103
+  s_cfa5ec296b2092::t_a66f2cc8b15070 358-360
+  s_cfa5ec296b2092::t_f9ee7c65138b96 448
+src/core/html-document.js
+  s_cfa5ec296b2092::t_745368014b78ee 24-27
+  s_cfa5ec296b2092::t_ff5c5dd3b700b2 28-29,31,41,43-88
+  s_cfa5ec296b2092::t_19ffc858ac4a31 34-37,42
+  s_cfa5ec296b2092::t_e722b86728502b 38-40
+  s_cfa5ec296b2092::t_6ceaf9a6a29d37 30,32-33
+src/core/extract/index.js
+  s_cfa5ec296b2092::t_6d8067f180fc9b 100-104
+  s_cfa5ec296b2092::t_cdcde4a22cef23 63-78
+  s_cfa5ec296b2092::t_95b64350e25729 319-322
+  s_cfa5ec296b2092::t_eb52514ddd0169 191
+  s_cfa5ec296b2092::t_745368014b78ee 82,85-86,116-130,143-144,150,225,247,255,301-305
+  s_cfa5ec296b2092::t_b359ef35e458fb 62
+  s_cfa5ec296b2092::t_20cb4b2a8ce0f9 115
+test/adapters/runtime.test.js
+  s_cfa5ec296b2092::t_cadddac9f04abb 431-433
+  s_cfa5ec296b2092::t_8b9c73f046294a 56-68,302-303,357-392,402-430,434-437,439-440
+  s_cfa5ec296b2092::t_fe160b708fb631 163
+  s_cfa5ec296b2092::t_35d2a24e1f8a30 438
+  s_cfa5ec296b2092::t_5acd4379dd593d 396-398,400
+  s_cfa5ec296b2092::t_8f3a9526f0ed8f 393-395
+  s_cfa5ec296b2092::t_1c3e0c2ad5d20f 324
+  s_cfa5ec296b2092::t_c93b64dd084f5f 399,401
+  s_cfa5ec296b2092::t_9fb1d933668370 441
+src/core/match.js
+  s_cfa5ec296b2092::t_597cc70d1d70ef 69
+  s_cfa5ec296b2092::t_ceabda0fbb112a 6,43-54,57,83
+  s_cfa5ec296b2092::t_673de56c330f43 3-5,56,58,60-62,66-68,70,73-79,84-86
+fixtures/marker-paths/src/pages/[slug].md.js
+  s_cfa5ec296b2092::t_49a276e7d54f92 1-9
+src/core/extract/index.test.js
+  s_cfa5ec296b2092::t_6d8067f180fc9b 62-71
+  s_cfa5ec296b2092::t_19ffc858ac4a31 196-204
+  s_cfa5ec296b2092::t_0490787c0e4d24 183
+  s_cfa5ec296b2092::t_89853fb7dd9059 43,45-46,55-61,156-161,215-219,275-284,354-361
+  s_cfa5ec296b2092::t_eda2b5f9caa962 205-210,213-214,362
+  s_cfa5ec296b2092::t_b29d3b9d476d2d 211-212
+  s_cfa5ec296b2092::t_0cf24c824d5c6b 171-179
+  s_cfa5ec296b2092::t_ff5c5dd3b700b2 180-182,184-195
+  s_cfa5ec296b2092::t_e722b86728502b 162-170
+src/config.js
+  s_cfa5ec296b2092::t_cdcde4a22cef23 6,152-156
+src/sources/dist-html.js
+  s_cfa5ec296b2092::t_899d66aa572b56 5,23-33
+fixtures/ssr-node/src/middleware.ts
+  s_cfa5ec296b2092::t_a5bd81018cad7f 3-6,10-13,16-17,21-25,27-36,40-43,46,50,52-53,60-75
+  s_cfa5ec296b2092::t_a66f2cc8b15070 7-9,37-39
+  s_cfa5ec296b2092::t_ba8c3aa9b4cbb0 14-15,45,49
+  s_cfa5ec296b2092::t_8fca884af67aba 44,47-48
+  s_cfa5ec296b2092::t_21a522dc3042fd 54-59
+fixtures/marker-paths/package.json
+  s_cfa5ec296b2092::t_49a276e7d54f92 1-6
+src/generators/sitemap-finalize.js
+  s_cfa5ec296b2092::t_8e0b22d47c9246 18-19,29,35
+fixtures/marker-paths/src/pages/404.astro
+  s_cfa5ec296b2092::t_49a276e7d54f92 1-6
+src/runtime/middleware.js
+  s_cfa5ec296b2092::t_77b7f63208f3b6 113,294,363
+  s_cfa5ec296b2092::t_de0f8374ea04ac 894,898,904-907
+  s_cfa5ec296b2092::t_31204d2a604e5e 772
+  s_cfa5ec296b2092::t_3e3999ce3c0b66 51-59
+  s_cfa5ec296b2092::t_9854e171308702 147
+  s_cfa5ec296b2092::t_166ff345aaf9de 157
+  s_cfa5ec296b2092::t_4c885949c0be2f 41,68,111,135,140,202,237
+  s_cfa5ec296b2092::t_0e79f99172e500 185-186,188-196,199-201,203-206,211-215,221,260
+  s_cfa5ec296b2092::t_77d318fdfa6870 89
+  s_cfa5ec296b2092::t_bf6162f01270ba 102,104-109,494,522-533
+  s_cfa5ec296b2092::t_39019eb122ed33 38-39,62-63,134,137-138,141-144,148,298-300,312-333,357,380-381,408,459,666,743,783
+  s_cfa5ec296b2092::t_b899cebd1f4540 64-67,69,404-405,407,415,611,614,798,807,836,844-845,848,850-852
+  s_cfa5ec296b2092::t_43e368ad785d07 20,295,808-811,815-816,820,824
+  s_cfa5ec296b2092::t_75ac15b21ae31d 91,336-337,339-351
+  s_cfa5ec296b2092::t_6795e13fc9002e 410,414,418-424,431
+  s_cfa5ec296b2092::t_17c1b23c2019c1 356,360,389-390,393,400-401,403,406,409,411-413,416-417,425-427,429-430,439-450,452-455,457-458,468-470,472-493,495-515,517-519,521,534-563,795
+  s_cfa5ec296b2092::t_21a522dc3042fd 392,432-438
+  s_cfa5ec296b2092::t_eb52514ddd0169 652,654
+  s_cfa5ec296b2092::t_a28e46178a2a37 577,615
+  s_cfa5ec296b2092::t_e9d4d17857c243 234,238-240,247,253-254
+  s_cfa5ec296b2092::t_3653daa74d418d 4,13-14,18,159,267,361-362,365,368,372,375-376,385,462-466,646-651,653,655-665,667-672,940
+  s_cfa5ec296b2092::t_786fc7d03fd1e8 796,803-805,819,822,825-832,853-866,869,873-893,895-897,899-903,908-909,912-925
+  s_cfa5ec296b2092::t_c2c25e9d161b55 145
+  s_cfa5ec296b2092::t_867497421af27b 42,402,471,617-629
+  s_cfa5ec296b2092::t_3cc397c95863f5 722,756,800,926-933
+  s_cfa5ec296b2092::t_c48f2c8f89b2c5 74-76,162-166,207,209-210,750,754,761-762,765,782
+  s_cfa5ec296b2092::t_35e58fcbf370fd 146,168,208,257,451,456,516,520,806,834,910-911
+  s_cfa5ec296b2092::t_05d7b064498199 301-305
+  s_cfa5ec296b2092::t_ae23849a0bf404 833
+  s_cfa5ec296b2092::t_f6b85536a8dac2 40,364,467,564-566,569-571,573-576,578-596,600-601,604,610,613
+  s_cfa5ec296b2092::t_9934bc299a159d 602-603,605-609,612,616
+  s_cfa5ec296b2092::t_6ceaf9a6a29d37 10,16,226,248
+  s_cfa5ec296b2092::t_e066a9134ec03c 131-132,136,139,152,176,224,244,263,369-370,774
+  s_cfa5ec296b2092::t_7fcc0828920209 36-37,101,103,391,394-399,428,567-568,572,597-599,630-640
+  s_cfa5ec296b2092::t_68c1c846a1348a 641-645
+  s_cfa5ec296b2092::t_e9851ba4b6f426 261
+  s_cfa5ec296b2092::t_ccee717df53c79 297
+  s_cfa5ec296b2092::t_c6153174681ad2 799
+  s_cfa5ec296b2092::t_83edaf87be43e0 801-802
+  s_cfa5ec296b2092::t_d28d30791b6e33 934
+  s_cfa5ec296b2092::t_c4e24025cee5a4 792-793
+src/index.js
+  s_cfa5ec296b2092::t_f16fe71bf575dc 14-18,80,96
+  s_cfa5ec296b2092::t_894ce8b6d97ed1 272-276,287
+  s_cfa5ec296b2092::t_8e0b22d47c9246 49-50,118,179,212-214,285,320,336
+  s_cfa5ec296b2092::t_47bd8c32170b08 226
+  s_cfa5ec296b2092::t_75ac15b21ae31d 191-193,202,227-228,230,312,362-364
+  s_cfa5ec296b2092::t_6ceaf9a6a29d37 365
+  s_cfa5ec296b2092::t_5fc999da21c0a8 366
+src/extract.js
+  s_cfa5ec296b2092::t_cdcde4a22cef23 3,18-22
+src/lib/config-migrate.js
+  s_cfa5ec296b2092::t_745368014b78ee 266-267,273-274,284,287,292,297-298,300-315,324-325,331-343
+  s_cfa5ec296b2092::t_7c66313a9e60c8 316-323,326-330
+  s_cfa5ec296b2092::t_a38dc287bbb510 299
+  s_164ebb1705f665::t_a2bed723aa65d1 344
+src/core/page-model.js
+  s_cfa5ec296b2092::t_e066a9134ec03c 109,113,115,126,157
+src/index.d.ts
+  s_cfa5ec296b2092::t_11317bf20b7aef 351,432-434
+src/build/catalogs.js
+  s_cfa5ec296b2092::t_5be0b935eac1c8 16,18,80-89,109-117,119-121,124-128
+  s_cfa5ec296b2092::t_19ffc858ac4a31 3,17,42-48,118,122-123
+  s_cfa5ec296b2092::t_10b5d0b4909253 49-55
+  s_cfa5ec296b2092::t_f0eafb6d2f05a5 2
+  s_cfa5ec296b2092::t_9dd65994c1becb 129-130
+src/build/artifacts.test.js
+  s_cfa5ec296b2092::t_9b13103932e3c1 194-236,254-269
+  s_cfa5ec296b2092::t_cfac1747fa4510 270-283
+  s_cfa5ec296b2092::t_61d560c2e5b1b7 237-253
+fixtures/adapters/node/src/pages/about.astro
+  s_cfa5ec296b2092::t_2b5dec27dbbc98 3-6
+CHANGELOG.md
+  s_cfa5ec296b2092::t_45d5e0e3ded12c 108-111
+  s_cfa5ec296b2092::t_1d7b259728e1a4 96,99
+  s_cfa5ec296b2092::t_1c3e0c2ad5d20f 106,132-133,156-157
+  s_cfa5ec296b2092::t_c00e7c48561b5e 98,100-101
+  s_cfa5ec296b2092::t_11317bf20b7aef 34-35,105,107,112-125
+  s_cfa5ec296b2092::t_c65d31a2a237c2 97
+fixtures/ssr-node/src/pages/about.astro
+  s_cfa5ec296b2092::t_a5bd81018cad7f 3-84
+src/runtime/middleware.dev.test.js
+  s_cfa5ec296b2092::t_8b9c73f046294a 160-170
+src/runtime/middleware-redirect.test.js
+  s_cfa5ec296b2092::t_de1974fca09ecb 148-160,162-166,203,207-234
+  s_cfa5ec296b2092::t_12b294cdee94eb 132,147,161,175
+  s_cfa5ec296b2092::t_c9a4fb830a2a51 177
+  s_cfa5ec296b2092::t_6bdc2f9368f578 270-287
+  s_cfa5ec296b2092::t_43e368ad785d07 186,405-409,416-417
+  s_cfa5ec296b2092::t_6b6a8043e6f492 108-109,111-112,119-121,123-124,301-303,320-328
+  s_cfa5ec296b2092::t_3c5e7a079fa5c8 110,113-118
+  s_cfa5ec296b2092::t_23883fff42505e 238-240,242,244
+  s_cfa5ec296b2092::t_db877a7d11028c 331-336,341-349,354-366,371-381
+  s_cfa5ec296b2092::t_ac9bb5e498a5b8 337-340,350-353
+  s_cfa5ec296b2092::t_166ff345aaf9de 304-319
+  s_cfa5ec296b2092::t_eb52514ddd0169 389,391,399,401
+  s_cfa5ec296b2092::t_77b7f63208f3b6 125-131,133-146,268-269,288-300,329
+  s_cfa5ec296b2092::t_90bbbaba824368 41,53,178,188,235-237,241,243,245-267,382-388,390,392-398,400,402-404,410-415,418-439
+  s_cfa5ec296b2092::t_2e3efbca9c3662 122
+  s_cfa5ec296b2092::t_6795e13fc9002e 330
+  s_cfa5ec296b2092::t_32131d15b2944b 367-370
+  s_cfa5ec296b2092::t_66939555ef9cf5 440
+src/runtime/middleware-limit.test.js
+  s_cfa5ec296b2092::t_68c1c846a1348a 21-25,32
+  s_cfa5ec296b2092::t_da914150eb990f 58,60-64
+src/integration-hooks.test.js
+  s_cfa5ec296b2092::t_894ce8b6d97ed1 2,54-133
+fixtures/adapters/shared/catalog.js
+  s_cfa5ec296b2092::t_8b9c73f046294a 13-18
+  s_25b868a9c28fd7::t_44cd4fbfcbe946 12
+src/build/strip-markers.js
+  s_cfa5ec296b2092::t_899d66aa572b56 2,22-24
+src/runtime/negotiate.js
+  s_cfa5ec296b2092::t_77b7f63208f3b6 9,11
+  s_cfa5ec296b2092::t_ac29513cf7dbd6 76
+  s_cfa5ec296b2092::t_3de7c484de982e 3-8,10,12,19,23-24,27,32,37,40-41,46-48,51-61,64,68,73-75,77-84,118,121-122,125-138,140-152,158-162,164
+src/virtual/serialize.js
+  s_cfa5ec296b2092::t_745368014b78ee 5-24
+  s_cfa5ec296b2092::t_f86d7798225b6e 4
+src/runtime/negotiate.test.js
+  s_cfa5ec296b2092::t_77b7f63208f3b6 95-97
+  s_cfa5ec296b2092::t_ac29513cf7dbd6 69-70
+  s_cfa5ec296b2092::t_1a8a850eae25b3 7-8,13-15,19,22,24-31,33-38,52,59-61,63,67-68,71-72,128-144
+  s_25b868a9c28fd7::t_128a94dbc7e9a1 73,145
+CONTRIBUTING.md
+  s_cfa5ec296b2092::t_11317bf20b7aef 8-9
+src/extract.test.js
+  s_cfa5ec296b2092::t_cdcde4a22cef23 3,18-44
+src/build/artifacts.js
+  s_cfa5ec296b2092::t_9b13103932e3c1 33-34,40,43,46,62-63,79-81,84,237-246,254
+  s_cfa5ec296b2092::t_61d560c2e5b1b7 49-50,64-78,82-83
+  s_cfa5ec296b2092::t_cfac1747fa4510 247-253,255
+  s_164ebb1705f665::t_462723f5b78824 256
+src/runtime/serve.js
+  s_cfa5ec296b2092::t_55bf4e53b26d51 242
+  s_cfa5ec296b2092::t_e066a9134ec03c 100,139,148
+  s_cfa5ec296b2092::t_fd2e3b063d9ab1 382-385
+  s_cfa5ec296b2092::t_4589dba0ad4af3 10,152-153,161,163-164,168,190,212-214,216-224,226-228,230-234,244,255-256,258,321,325,376-378,380-381
+  s_cfa5ec296b2092::t_ae478a7d724e8b 229,389-390,392-393,396,408
+  s_cfa5ec296b2092::t_6b6a8043e6f492 363-364
+  s_cfa5ec296b2092::t_ceabda0fbb112a 44,175-177,245-250,281-282,287-288
+  s_cfa5ec296b2092::t_6ceaf9a6a29d37 11,154,162,165-167,215,225,251-254,320,365-375,379,386,388
+  s_cfa5ec296b2092::t_7e23552745638d 387
+src/lib/config-migrate.test.js
+  s_cfa5ec296b2092::t_89853fb7dd9059 274,278-282,284-290,292
+  s_cfa5ec296b2092::t_a38dc287bbb510 283,291,293-294
+  s_cfa5ec296b2092::t_7c66313a9e60c8 295,297-315
+  s_164ebb1705f665::t_294df27784d0a4 296
+src/build/strip-markers.test.js
+  s_cfa5ec296b2092::t_3084149d6e0b5e 1-63
+src/runtime/serve.test.js
+  s_cfa5ec296b2092::t_95429ef749fd65 355,373-376,380-398,415-429
+  s_cfa5ec296b2092::t_d0a342fc611c6e 123-145,227-239,257
+  s_cfa5ec296b2092::t_6b6a8043e6f492 146-185,240-256
+  s_cfa5ec296b2092::t_55bf4e53b26d51 93-105
+  s_cfa5ec296b2092::t_3faa31b1c821e8 430
+fixtures/adapters/deno/src/pages/about.astro
+  s_cfa5ec296b2092::t_2b5dec27dbbc98 3-6
+src/core/match.test.js
+  s_cfa5ec296b2092::t_eb52514ddd0169 59-63
+  s_cfa5ec296b2092::t_9d7b55a78bab13 4,41-49,52-56
+  s_cfa5ec296b2092::t_673de56c330f43 51
+  s_cfa5ec296b2092::t_d76fafe3fb0a59 57-58
+  s_cfa5ec296b2092::t_597cc70d1d70ef 25,50
+README.md
+  s_cfa5ec296b2092::t_45d5e0e3ded12c 344-349
+  s_cfa5ec296b2092::t_11317bf20b7aef 328-331,336,338-339,341-343,359-361,370,398-399
+  s_cfa5ec296b2092::t_1c3e0c2ad5d20f 340,365-368
+  s_cfa5ec296b2092::t_88fddd75f8c50a 196-198
+  s_cfa5ec296b2092::t_a8b2f72081e3a8 332-335
+benchmarks/thresholds.mjs
+  s_cfa5ec296b2092::t_c65d31a2a237c2 2-3
+  s_cfa5ec296b2092::t_55bf4e53b26d51 8
+src/hooks/build-done.js
+  s_cfa5ec296b2092::t_8e0b22d47c9246 29-30,113
+src/build/collect.js
+  s_cfa5ec296b2092::t_3084149d6e0b5e 53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "ca9ef244a01c4ec123904c4a9a641c46c2a2db64",
+  "prompts": {},
+  "sessions": {
+    "s_164ebb1705f665": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fe709-4765-79a1-82dd-53e3282b895d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_25b868a9c28fd7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fe206-77dc-7a42-b866-dfbf3d17adb1",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_cfa5ec296b2092": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fe206-c74c-7511-a21f-b737354a828b",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
