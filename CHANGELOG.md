@@ -4,193 +4,64 @@ All notable changes to this project are documented here. This project follows [S
 
 ## 1.1.0
 
-### Added
+Astro-AEO 1.1 makes configuration clearer, improves Markdown quality, and brings consistent,
+secure request-time behavior to development and adapter deployments.
 
-- Canonical nested configuration. Options are now grouped by what they produce: `site` (including
-  `site.profile`), `pages`, `markdown`, `corpus` (`index`, `full`, `urlMap`), and `discovery`
-  (`sitemap`, `sitemap.alias`, `robots`). The flat 1.0 surface had grown to thirteen top-level keys
-  whose names described implementation details (`dotmd`, `llmsTxt`) rather than outputs.
-- `discovery.sitemap.mode`: `'auto'` (auto-register `@astrojs/sitemap`), `'external'` (use a
-  sitemap the project registers itself), or `'disabled'` (opt out entirely, including the alias and
-  the `robots.txt` `Sitemap:` line). `'disabled'` has no 1.0 equivalent.
-- `markdown.extraction`: `selectors` (default `['article', 'main']`, tried in order, first with a
-  match wins), `removeSelectors` (default `['nav', 'footer']`), and `keepSelectors` (emit matching
-  elements as raw HTML). `script`, `style`, `noscript`, `iframe`, and `head` are always dropped and
-  can never be reintroduced by `keepSelectors`. An invalid or empty selector is a configuration
-  error rather than a silent no-op.
-- `markdown.negotiation` (`'off'` by default, `'response'` or `'redirect'`): serve Markdown at a
-  page's own URL when a client asks for it. Markdown must be requested explicitly and outrank HTML
-  strictly, so a wildcard, a tie, a missing header, or a malformed one all resolve to HTML. Applies
-  to on-demand routes only, because Astro does not expose request headers to a prerendered route;
-  configuring it on a project with no adapter warns.
-- `astro-aeo/page` and the `AeoPage` component: a page can hand Astro-AEO the Markdown it was
-  built from instead of having it recovered from the rendered HTML. `defineAeoPage` reads a
-  content-collection entry, or takes the fields directly. The marker it emits is internal, written
-  only while Astro-AEO is reading the page, and removed from every page before anything is written
-  or served.
-- `pages.catalogs`: modules listing routes generated from data, which Astro's own page list cannot
-  see. A catalog that fails to load warns and contributes nothing rather than failing the build.
-- `corpus.runtime.maxPages`, default `50`, bounds request-time corpus fan-out. Live corpora use at
-  most one in-process render at a time and refuse larger indexes with `503` and
-  `Cache-Control: no-store`.
-- Serializable page, descriptor, catalog-context, source, extraction, and versioned diagnostic
-  types. `astro-aeo/extract` exposes the shared extractor without exposing Turndown internals.
-- Standalone Markdown routes and catalog Markdown preserve authored source before rendered
-  extraction. Vite `?raw` imports carry standalone sources into server bundles; catalogs run in
-  build and server bundles and merge in configuration order.
-- A committed `astro-aeo/schema.json` export, Changesets configuration, contribution and security
-  policies, packed-package installation checks, adapter fixtures, and reproducible benchmarks.
-- `AEO_PRINT_MIGRATION=1` prints a paste-ready canonical config block derived from the 1.0 keys a
-  project actually sets. It runs inside Astro, so it works for `.mjs` and `.ts` configs alike.
-- `pnpm run test:types`: a consumer typecheck of `fixtures/types-consumer/` against the oldest
-  supported TypeScript (the `typescript-floor` devDependency alias, currently 5.5). It imports the
-  package through its real `exports` map, so the hand-written `.d.ts` files are covered the way a
-  downstream project sees them.
+### Highlights
 
-### Changed
+- Configuration is now organized by output under `site`, `pages`, `markdown`, `corpus`, and
+  `discovery`. The [migration guide](README.md#migrating-from-10) maps every 1.0 key, and running
+  `AEO_PRINT_MIGRATION=1 astro build` prints a paste-ready config from the options a project uses.
+- [Markdown extraction](README.md#extraction) now uses a real DOM, supports ordered content roots,
+  removable chrome, and HTML-preserving selectors, and retains structures and accessible names
+  that the previous conversion could lose.
+- Pages built from Markdown can preserve their authored source with
+  [`AeoPage` and `defineAeoPage`](README.md#giving-a-page-its-own-source). Standalone Markdown
+  routes also carry their original source into server bundles.
+- [Page catalogs](README.md#pages-the-build-cannot-see) can add data-generated routes that Astro's
+  route list cannot discover, so eligible routes receive companions and appear in corpora.
+- [Content negotiation](README.md#content-negotiation) can return Markdown at a page URL or redirect
+  to its `.md` companion when Markdown is explicitly preferred on an on-demand route.
+- Live `llms.txt` and `llms-full.txt` generation renders known pages serially and limits work
+  with `corpus.runtime.maxPages`, which defaults to 50 and returns `503` instead of partial output
+  when exceeded.
+- [Sitemap handling](README.md#sitemap) now has `auto`, `external`, and `disabled` modes, with its
+  alias and `robots.txt` advertising tied to sitemap output that actually exists.
+- New serializable page, catalog, source, extraction, and diagnostic types support integrations and
+  tooling. The release also exports `astro-aeo/extract`, `ResolvedAstroAeoConfig`, and the
+  committed [configuration schema](schema/astro-aeo.schema.json).
 
-- Every 1.0 configuration key still works and produces output identical to its canonical spelling. This is asserted by
-  `fixtures/config-compat`, one site written twice (once fully in 1.0 keys, once fully in 1.1 keys)
-  and built twice, with the two outputs diffed file by file. Using a 1.0 key emits one deprecation
-  warning per section. They are removed in 2.0.
-- `fixtures/golden-1.0` freezes output generated by the actual 1.0 implementation and compares
-  every current static artifact byte for byte, independently of the configuration spelling test.
-- Setting a 1.0 key and its 1.1 replacement to **different** values is now a build-stopping error
-  naming both paths. Silently preferring one could publish the wrong `robots.txt` policy. Mixing
-  eras is fine when the two address different settings.
-- Metadata extraction (description, `aeo` tokens, `robots`, `article:modified_time`, redirect
-  stubs) now shares one quote-aware `<meta>` scanner instead of a regular expression per field.
-  Attribute order, unquoted values, and a `>` inside a quoted value are handled for every field.
-  Previously only `extractMetaContent`, which `extractPageMeta` did not use, was that robust.
-- Request-time output is now served by one Astro middleware, registered with `addMiddleware`,
-  replacing the dev-only Connect middleware. `.md` companions, the text artifacts, and negotiation
-  are handled by the same code in `astro dev` and on an adapter, rather than dev having its own
-  implementation. A `.md` request rewrites into the underlying route, so the project's own
-  middleware runs and its authentication applies exactly as it does to the HTML.
-- All build output now goes through one artifact writer, which reports a collision instead of
-  letting it pass silently. Three cases are newly diagnosed: two astro-aeo generators claiming one
-  path, a path also produced by a route in the project (a `src/pages/llms.txt.ts` endpoint had its
-  output clobbered with no indication of what did it), and a path also committed to `public/`. The
-  per-output collision policies are unchanged: `robots.txt` still warns before overwriting, and the
-  sitemap alias still refuses to replace an existing file.
-- The artifact writer is retained through late sitemap and robots finalization. The project-root
-  URL map now participates in the same ownership registry after its confinement check.
-- Unknown-key warnings are emitted at any depth, so a typo in `discovery.sitemap.alias.enabld` is
-  reported as precisely as a top-level one. Options forwarded to `@astrojs/sitemap` are never
-  inspected.
-- The `robots.txt` `Sitemap:` tri-state (omitted, `true`, `false`) is resolved once into the
-  config as `discovery.robots.sitemapPolicy`, rather than being recovered from raw user input in
-  the integration entry point.
-- Dev toolchain and CI actions updated to their latest versions.
-- Build gates cover Node, Cloudflare, Deno, Vercel, and Netlify. Request contracts run locally for
-  Node, workerd, and Deno; Vercel and Netlify are provider-artifact checks only.
-- Benchmark regressions in portable package and bundle byte counts are now compared on every
-  release runner. Timing and retained-heap comparisons remain limited to equivalent environments.
-  A consumed Changeset can retain an explicit benchmark-regression explanation in this release's
-  changelog while tag publication continues to reject unconsumed Changesets.
-- The 800 ms Cloudflare benchmark uses `wrangler check startup` to measure local active CPU time
-  during Worker module initialization, alongside a successful workerd-backed preview request.
-- Benchmark regression explanation: extraction, corpus, and local Worker-startup p95 timings can
-  move by more than 10 percent on the same reference laptop when adapter builds, garbage
-  collection, and OS scheduling overlap. Cache isolation, origin threading, response guards, and
-  resilient catalog loading plus the review hardening add about 17 percent packed and 18 percent
-  unpacked to the portable package. The ceilings are 90 KB packed and 320 KB unpacked with this
-  explanation retained; the committed baseline is unchanged. The Node integration delta grows by
-  about 46 percent raw and 44 percent gzip because the request-isolation and response-hardening code
-  ships in the consumer's server bundle. Every absolute package, bundle, startup, memory, and timing
-  ceiling remains enforced.
+### Upgrade notes
 
-### Fixed
+- Every 1.0 configuration key remains supported until 2.0 and produces the same output as its
+  canonical replacement. If both spellings set the same option to different values, the build now
+  stops and names the conflict instead of choosing silently.
+- Relative links and image sources in generated Markdown now resolve against the page's canonical
+  URL. The improved extraction also deliberately changes Markdown where older output lost
+  structure or accessible names; other renderer formats remain stable.
+- `ResolvedAeoConfig` is deprecated and frozen at the 1.0 shape. Type consumers should move to
+  `ResolvedAstroAeoConfig`; this is a type-only change.
+- Live request-time corpora require Astro 6.3 or newer so each rendered page can use disposable
+  request state. Astro 5 and Astro 6.0 through 6.2 fail closed with `503`; build artifacts and
+  direct authenticated `.md` requests remain supported.
 
-- Runtime corpora render every page through serialized in-process Astro rewrites instead of a
-  Host-derived network fetch. The trusted rewrite capability exists only in process, forged Host
-  headers cannot redirect server requests, and the catalog cache no longer grows once per origin.
-  Astro 6.3 and newer use a disposable request state per page, including while application stream
-  cancellation remains pending. Astro 5 and Astro 6.0-6.2 fail closed with `503` for request-time
-  corpora because their closure-held client address, cookies, and session cannot be replaced
-  securely; build artifacts and direct authenticated `.md` requests remain supported.
-- Request pathname validation now performs a fixed number of decoding passes, accepts encoded
-  literal percent signs, and still rejects raw, encoded, double-encoded, and over-encoded traversal.
-- Markdown negotiation now matches media types and parameters strictly, recognizes HTML content
-  types case-insensitively, leaves encoded and partial responses untouched, removes stale digest
-  metadata from generated bodies, and preserves legal redirect bodies.
-- Source markers are removed from custom 404/500 output and file-format pages with trailing-slash
-  pathnames. Dynamic project endpoints also participate in artifact collision diagnostics.
-- Catalog entrypoints now reject source-only module formats consistently across supported Node
-  versions, and explicitly empty authored Markdown remains a valid catalog page.
-- Fragment, text-only, and empty HTML extraction preserves every top-level node without throwing;
-  roots inside removed chrome cannot win selection, and URL/accessibility processing includes the
-  selected root itself. Selector options now reject non-array values.
-- The migration printer quotes non-identifier keys and emits executable Date and RegExp values.
-  Build-only sitemap callbacks no longer produce request-time serialization warnings.
-- Runtime corpus source requests are isolated from shared caches, so an authored-source marker
-  cannot be retained and served to a later browser request. Direct `.md` requests keep the
-  application's original cache policy.
-- Request-time Markdown, corpus metadata, robots output, domain profiles, and catalog context use
-  the request origin when Astro `site` is unset. Relative links therefore remain absolute in
-  adapter deployments without a configured canonical site.
-- Bodyless `204` and `205` responses, plus `304` responses outside strict Markdown negotiation,
-  now pass through without giving the Fetch `Response` constructor a generated body.
-- Catalog resolution, parsing, and module evaluation failures now warn once and are omitted before
-  Vite constructs the server import graph. Successful catalogs load lazily at request time, where
-  environment-specific evaluation and `listPages()` failures also contribute nothing instead of
-  preventing server startup.
-- Markdown artifact collision checks now use the root-relative output route when Astro has a
-  `base`, so project routes and files in `public/` cannot be overwritten without a warning.
-- Disabled sitemap mode now suppresses aliases and `robots.txt` advertising even when a sitemap
-  source exists or `includeSitemap` is explicitly true. Dev runtime detection once again recognizes
-  configured sitemap files in `public/` and concrete Astro routes.
-- Markdown responses preserve same-origin redirect targets outside Astro's configured `base`
-  instead of appending `.md` to a path the middleware does not own.
-- Adapter preview teardown now stops the complete runtime process group and waits for descendants
-  such as workerd to release fixture files. Retried fixture cleanup prevents the composed release
-  check from failing with a transient `ENOTEMPTY` between runtime and performance gates.
-- Content extraction is now performed against a parsed DOM (`linkedom`) rather than a regular
-  expression over the source text. The previous non-greedy `<main>` match stopped at the first
-  `</main>` wherever it appeared, so a closing tag inside a comment, a script string, or a
-  `<template>` truncated the page; and when a document had no `<main>` at all, the entire
-  document including `<head>` was handed to the converter.
-- Turndown is imported lazily after a temporary `linkedom/worker` DOMParser shim is installed, so
-  initialization cannot fall through to a CommonJS Domino `require` on workerd or Deno. Native
-  DOMParser globals are preserved and the shim is removed after initialization.
-- Corpus rewrites use trusted in-process state checked before artifact dispatch. Owned artifact paths
-  are excluded, preventing a catalog entry such as `/llms.txt` from recursively serving itself.
-- Runtime corpus renders now remove caller credentials consistently and count only concrete project
-  pages. Catalog pathnames reject raw, encoded, and double-encoded traversal before URL or
-  filesystem resolution.
-- Direct and negotiated Markdown preserve queries, status, cache policy, redirects, non-HTML
-  responses, merged `Vary`, full SHA-256 ETags, `HEAD`, and conditional requests. Negotiation
-  renders before redirecting and never redirects an error or API response.
-- Conditional tags cannot replace explicit error or corpus-refusal statuses, and authored source
-  markers are removed before a collected HTML error is returned.
-- Figures, captions, definition lists, tables, time, address, citations, and accessible names retain
-  semantics that the previous conversion flattened or omitted.
-- Configured extraction roots inside `script`, `style`, `noscript`, `iframe`, or `head` are ignored,
-  so never-content remains excluded even when a selector names it directly.
+### Reliability
 
-### Output
-
-- Relative links and image sources in `.md` companions are resolved against the page's own
-  canonical URL. A companion is normally read away from the site that served it, where a
-  root-relative href is a dead link. Fragment links and non-navigational schemes (`mailto:`,
-  `tel:`) are left exactly as authored. **This changes existing `.md` and `llms-full.txt` output
-  for pages containing relative links**, and is the one deliberate output change in this release.
-- Legacy and canonical configuration spellings remain byte-identical to each other. The extraction
-  improvements above deliberately change Markdown where the former output lost structure or
-  accessible names; other renderer formats remain stable.
-
-### Types
-
-- `ResolvedAeoConfig` is deprecated and frozen at the 1.0 shape. The resolved config is now
-  `ResolvedAstroAeoConfig`. This is a type-only change: `resolveConfig` is not part of the package
-  `exports` map, so no value of that type was ever obtainable at runtime.
-- The public config type is now `AstroAeoConfig extends CanonicalAeoConfig, LegacyAeoConfig`, and
-  the resolved type is hand-written rather than derived. The previous derived type collapsed
-  `Record<string, unknown>` index signatures to `Record<string, {}>`, which forced a cast on
-  `sitemap.options`.
-- `AeoPageRecord` adds the serializable normalized page contract while the existing four-field
-  `AeoPage` used by section predicates remains compatible. Catalog, diagnostic, source, and
-  extraction types are exported from their documented subpaths.
+- One Astro middleware now serves direct companions, text artifacts, and negotiated Markdown in
+  development and adapter deployments. Direct `.md` rewrites pass through application middleware
+  so authentication applies, while statuses, redirects, cache policy, `HEAD`, conditional
+  requests, and non-HTML responses are preserved.
+- A shared artifact writer now diagnoses collisions between Astro-AEO outputs, project routes,
+  `public/` files, and existing destinations while preserving each output's established overwrite
+  policy.
+- Live corpora use serialized, anonymous in-process rewrites rather than Host-derived network
+  requests. Caller credentials and shared caches are isolated, traversal is rejected, and internal
+  source markers are removed before content is written or served.
+- Benchmark regression explanation: The extraction, corpus, catalog, request-isolation, and
+  response-hardening work adds about 17 percent packed and 18 percent unpacked to the portable
+  package. The Node integration bundle grows by about 46 percent raw and 44 percent gzip because
+  the request-isolation and response-hardening code ships in the consumer's server bundle. Every
+  absolute package, bundle, startup, memory, and timing ceiling remains enforced.
 
 ## 1.0.0
 

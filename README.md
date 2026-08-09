@@ -587,7 +587,7 @@ implementation, while `fixtures/config-compat` compares legacy and canonical opt
 spellings. The package is authored as plain ESM JavaScript with JSDoc types and a
 hand-written `index.d.ts`, so it needs no build step and installs cleanly as a git dependency.
 
-Working on this repo with an AI agent? See [`.claude/CLAUDE.md`](.claude/CLAUDE.md) for the architecture, conventions, and test workflow. Notable changes are tracked in [`CHANGELOG.md`](CHANGELOG.md).
+Working on this repo with an AI agent? See [`AGENTS.md`](AGENTS.md) for the architecture, conventions, and test workflow. Notable changes are tracked in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## License
 
