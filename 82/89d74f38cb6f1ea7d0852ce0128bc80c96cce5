@@ -1,0 +1,27 @@
+CHANGELOG.md
+  s_d922e54131a06d::t_849ac2454f2f2c 7-12,15-21,23-27,30-64
+  s_d922e54131a06d::t_f686a1d519a2dc 13-14,22,28-29
+README.md
+  s_d922e54131a06d::t_24a3287b913e4e 590
+AGENTS.md
+  s_d922e54131a06d::t_24a3287b913e4e 1-33,36-39,41-55,58-149
+  s_d922e54131a06d::t_f686a1d519a2dc 34-35,40,56-57
+.claude/CLAUDE.md
+  s_d922e54131a06d::t_24a3287b913e4e 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "8289d74f38cb6f1ea7d0852ce0128bc80c96cce5",
+  "prompts": {},
+  "sessions": {
+    "s_d922e54131a06d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fe7d1-5f83-7451-83bd-ed463a1de455",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
