@@ -30,18 +30,24 @@ const OWNER_ORDER = [
  * @property {string} [conflictMessage]   Emitted verbatim for 'warn-overwrite' and 'skip'.
  */
 
+/** @typedef {{ pattern: RegExp; prerendered: boolean }} RouteMatcher */
+
 /**
  * @param {object} deps
  * @param {URL} deps.distDir
  * @param {{ info: (m: string) => void; warn: (m: string) => void }} deps.logger
  * @param {Set<string>} [deps.routePaths]   Concrete route pathnames from astro:routes:resolved.
+ * @param {RouteMatcher[]} [deps.routeMatchers] Dynamic project routes from astro:routes:resolved.
  * @param {URL} [deps.publicDir]            Astro's publicDir, for committed-file detection.
  */
-export function createArtifactWriter({ distDir, logger, routePaths, publicDir }) {
+export function createArtifactWriter({ distDir, logger, routePaths, routeMatchers, publicDir }) {
   const root = fileURLToPath(distDir);
   const routes = routePaths ? new Set([...routePaths].map(normalizePath)) : undefined;
+  const matchers = routeMatchers ?? [];
   /** @type {Map<string, ArtifactOwner>} */
   const claimed = new Map();
+  /** @type {Set<string>} */
+  const prerenderedRouteDestinations = new Set();
   /** @type {Map<ArtifactOwner, number>} */
   const counts = new Map();
 
@@ -53,7 +59,29 @@ export function createArtifactWriter({ distDir, logger, routePaths, publicDir })
     const { path, owner, route, onConflict, conflictMessage } = artifact;
 
     const priorOwner = claimed.get(path);
-    const projectRouteCollision = Boolean(route && routes?.has(normalizePath(route)));
+    const destinationExists = existsSync(path);
+    const normalizedRoute = route ? normalizePath(route) : undefined;
+    const onDemandRouteCollision = Boolean(
+      normalizedRoute &&
+        matchers.some(
+          ({ pattern, prerendered }) => !prerendered && patternMatches(pattern, normalizedRoute),
+        ),
+    );
+    const prerenderedRouteCollision = Boolean(
+      normalizedRoute &&
+        matchers.some(
+          ({ pattern, prerendered }) => prerendered && patternMatches(pattern, normalizedRoute),
+        ),
+    );
+    if (!priorOwner && destinationExists && prerenderedRouteCollision) {
+      prerenderedRouteDestinations.add(path);
+    }
+    const projectRouteCollision = Boolean(
+      normalizedRoute &&
+        (routes?.has(normalizedRoute) ||
+          onDemandRouteCollision ||
+          prerenderedRouteDestinations.has(path)),
+    );
     const publicRoot = publicDir ? fileURLToPath(publicDir) : undefined;
     const publicFile = publicRoot
       ? route
@@ -63,7 +91,6 @@ export function createArtifactWriter({ distDir, logger, routePaths, publicDir })
           : undefined
       : undefined;
     const publicCollision = Boolean(publicFile && existsSync(publicFile));
-    const destinationExists = existsSync(path);
 
     const skipCollision =
       onConflict === 'skip' &&
@@ -206,4 +233,24 @@ function pathWithin(root, path) {
  */
 function isAlreadyExistsError(err) {
   return Boolean(err) && /** @type {any} */ (err).code === 'EEXIST';
+}
+
+/**
+ * RegExp instances from Astro are shared with other integration state. Reset
+ * stateful patterns before and after testing so `g` or `y` flags cannot make
+ * collision detection depend on call order.
+ * @param {RegExp} pattern
+ * @param {string} route
+ * @returns {boolean}
+ */
+function patternMatches(pattern, route) {
+  for (const candidate of route === '/' ? [route] : [route, `${route}/`]) {
+    pattern.lastIndex = 0;
+    if (pattern.test(candidate)) {
+      pattern.lastIndex = 0;
+      return true;
+    }
+  }
+  pattern.lastIndex = 0;
+  return false;
 }

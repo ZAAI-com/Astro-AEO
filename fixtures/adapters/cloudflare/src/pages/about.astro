@@ -1,5 +1,9 @@
 ---
 import Page from '../../../shared/Page.astro';
+import { transportResponse } from '../../../shared/transport.js';
+
+const transport = transportResponse(Astro.request);
+if (transport) return transport;
 ---
 
 <Page page="about" />

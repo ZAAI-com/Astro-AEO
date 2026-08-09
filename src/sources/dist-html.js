@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { normalizePath } from '../core/match.js';
 
 /**
  * The build's HTML source: rendered pages read back out of the build output.
@@ -19,9 +20,17 @@ import { fileURLToPath } from 'node:url';
  * @returns {string}
  */
 export function resolveHtmlPath(distRoot, pathname, buildFormat) {
-  if (pathname === '/') return join(distRoot, 'index.html');
-  if (buildFormat === 'file') return join(distRoot, `${pathname}.html`);
-  return join(distRoot, pathname, 'index.html');
+  const normalized = normalizePath(pathname || '/');
+  if (normalized === '/') return join(distRoot, 'index.html');
+
+  const relativePath = normalized.replace(/^\/+/, '');
+  // Astro always writes status pages as flat files, even when the rest of a
+  // directory-format build uses `<pathname>/index.html`.
+  if (normalized === '/404' || normalized === '/500') {
+    return join(distRoot, `${relativePath}.html`);
+  }
+  if (buildFormat === 'file') return join(distRoot, `${relativePath}.html`);
+  return join(distRoot, relativePath, 'index.html');
 }
 
 /**

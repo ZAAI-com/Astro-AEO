@@ -8,7 +8,6 @@ vi.mock('./config.js', async () => {
       config: resolveConfig({ corpus: { runtime: { maxPages: 50 } } }),
       site: { siteUrl: 'https://example.test', base: '', trailingSlash: 'ignore' },
       staticPaths: Array.from({ length: 51 }, (_, index) => `/page-${index}`),
-      internalRequestToken: 'opaque-test-token',
       standaloneSources: {},
     },
     RUNTIME_CATALOG_LOADERS: [],
@@ -19,12 +18,18 @@ const { onRequest } = await import('./middleware.js');
 
 function context(headers = {}) {
   const url = new URL('https://example.test/llms.txt');
+  class FakeState {
+    constructor() { this.pipeline = {}; }
+    async rewrite() { throw new Error('limit must be checked before rendering'); }
+  }
+  const state = new FakeState();
   return {
     request: new Request(url, { headers }),
     url,
     locals: {},
     isPrerendered: false,
     rewrite: vi.fn(),
+    [Symbol.for('astro.fetchState')]: state,
   };
 }
 
@@ -50,12 +55,12 @@ describe('request-level corpus loop and limit guards', () => {
     expect(response.headers.get('cache-control')).toBe('no-store');
   });
 
-  test('a valid nested render bypasses artifact dispatch and enters the application', async () => {
+  test('a caller cannot forge the in-process rewrite sentinel', async () => {
     const ctx = context({ 'x-astro-aeo-internal': 'opaque-test-token' });
-    const expected = new Response('application route');
-    const next = vi.fn(async () => expected);
-    expect(await onRequest(ctx, next)).toBe(expected);
-    expect(next).toHaveBeenCalledOnce();
-    expect(ctx.locals.astroAeoCollect).toBe(true);
+    const next = vi.fn();
+    const response = await onRequest(ctx, next);
+    expect(response.status).toBe(503);
+    expect(next).not.toHaveBeenCalled();
+    expect(ctx.locals.astroAeoCollect).toBeUndefined();
   });
 });

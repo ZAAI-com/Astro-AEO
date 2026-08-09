@@ -26,6 +26,8 @@ import { isOwnedArtifactPath } from '../core/owned-artifacts.js';
  * @property {string} projectRoot
  * @property {Map<string, string>} routeEntrypoints
  * @property {Set<string>} [resolvedRoutePaths]  Concrete route pathnames, for collision checks.
+ * @property {{ pattern: RegExp; prerendered: boolean }[]} [resolvedRouteMatchers]
+ *   Dynamic project routes, for collision checks.
  * @property {URL} [publicDir]                   Astro's publicDir, for collision checks.
  * @property {import('../index.js').Diagnostic[]} [diagnostics]
  * @property {boolean} [runtimeCorpora]            Leave corpus paths to middleware.
@@ -108,6 +110,7 @@ export async function onBuildDone(config, options, env) {
     distDir: dir,
     logger,
     routePaths: env.resolvedRoutePaths,
+    routeMatchers: env.resolvedRouteMatchers,
     publicDir: env.publicDir,
   });
 

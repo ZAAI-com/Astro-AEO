@@ -1,6 +1,6 @@
 // @ts-check
 import { parseDocument } from './core/html-document.js';
-import { extractMarkdown } from './core/extract/index.js';
+import { assertValidExtractionOptions, extractMarkdown } from './core/extract/index.js';
 import { createTurndown, DEFAULT_EXTRACTION } from './core/html-to-md.js';
 
 export { DEFAULT_EXTRACTION } from './core/html-to-md.js';
@@ -15,6 +15,11 @@ export { DEFAULT_EXTRACTION } from './core/html-to-md.js';
  * @returns {Promise<import('./extract.js').ExtractedDocument>}
  */
 export async function extractHtml(html, options = {}, context = {}) {
+  assertValidExtractionOptions(
+    parseDocument('<html></html>'),
+    'markdown.extraction',
+    options,
+  );
   const extraction = {
     selectors: options.selectors ?? DEFAULT_EXTRACTION.selectors,
     removeSelectors: options.removeSelectors ?? DEFAULT_EXTRACTION.removeSelectors,

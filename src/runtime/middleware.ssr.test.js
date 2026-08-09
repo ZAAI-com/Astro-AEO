@@ -1,6 +1,7 @@
 import { test, expect, describe, beforeAll, afterAll } from 'vitest';
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { createServer, request as httpRequest } from 'node:http';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -29,6 +30,23 @@ async function waitForReady() {
     }
   }
   throw new Error('SSR server did not become ready');
+}
+
+/** @param {string} path @param {Record<string, string>} headers */
+function rawRequest(path, headers) {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(
+      { hostname: '127.0.0.1', port: PORT, path, headers },
+      (response) => {
+        let body = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk) => (body += chunk));
+        response.on('end', () => resolve({ status: response.statusCode, headers: response.headers, body }));
+      },
+    );
+    request.on('error', reject);
+    request.end();
+  });
 }
 
 beforeAll(async () => {
@@ -75,6 +93,12 @@ describe('on-demand .md companions', () => {
   test('query parameters survive the internal rewrite', async () => {
     const body = await (await fetch(`${BASE}/about.md?mode=full`)).text();
     expect(body).toContain('Query: ?mode=full');
+  });
+
+  test('direct source cookie mutations survive the internal rewrite', async () => {
+    const response = await fetch(`${BASE}/about.md?set-source-cookie=1`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('set-cookie')).toContain('direct-source-cookie=preserved');
   });
 
   test('same-origin redirects keep status and target the Markdown companion', async () => {
@@ -287,10 +311,139 @@ describe('response contract', () => {
     const body = await response.text();
     expect(body).toContain('# Catalog Dynamic');
     expect(body).toContain('Exact catalog source.');
+    expect(body).toContain('# Catalog Secondary');
+    expect(body).toContain('Second exact catalog source.');
     expect(body).toContain('# About');
     expect(body).not.toContain('RENDERED-DYNAMIC-APPROXIMATION');
     expect(body).not.toContain('Recursive artifact');
     expect(body).not.toContain('Runtime failure leaked');
+  });
+
+  test('corpus rendering stays in process, serial, and isolated from caller credentials', async () => {
+    await fetch(`${BASE}/__aeo-runtime-probe?reset=1`);
+    let trapHits = 0;
+    const trap = createServer((_request, response) => {
+      trapHits++;
+      response.writeHead(500, { 'content-type': 'text/plain' });
+      response.end('OUTBOUND-REQUEST-TRAP');
+    });
+    await new Promise((resolve) => trap.listen(0, '127.0.0.1', resolve));
+
+    try {
+      const address = trap.address();
+      expect(address && typeof address === 'object').toBe(true);
+      const forgedHost = `127.0.0.1:${address.port}`;
+      const corpus = await rawRequest('/llms-full.txt', {
+        host: forgedHost,
+        accept: 'text/markdown',
+        'accept-encoding': 'gzip',
+        authorization: 'Bearer caller-secret',
+        cookie: 'session=caller-secret',
+        range: 'bytes=0-20',
+        'x-token': 'letmein',
+      });
+      expect(corpus.status).toBe(200);
+      expect(corpus.body).toContain('# Catalog Secondary');
+      expect(corpus.body).not.toContain('caller-secret');
+      expect(corpus.headers['x-astro-aeo-internal']).toBeUndefined();
+      expect(corpus.headers['x-astro-aeo-internal-purpose']).toBeUndefined();
+      expect(corpus.headers['set-cookie']).toBeUndefined();
+      expect(trapHits).toBe(0);
+
+      const probe = await (await fetch(`${BASE}/__aeo-runtime-probe`)).json();
+      expect(probe.activeCorpusRequests).toBe(0);
+      expect(probe.peakCorpusRequests).toBe(1);
+      expect(probe.corpusRequests.length).toBeGreaterThan(2);
+      for (const request of probe.corpusRequests) {
+        expect(request.hasAuthorization, request.pathname).toBe(false);
+        expect(request.hasCookie, request.pathname).toBe(false);
+        expect(request.hasXToken, request.pathname).toBe(false);
+        expect(request.accept, request.pathname).toBe('text/html, application/xhtml+xml');
+        expect(request.acceptEncoding, request.pathname).toBe('identity');
+        expect(request.range, request.pathname).toBeNull();
+        expect(request.hasInternalToken, request.pathname).toBe(false);
+        expect(request.hasLeakedLocal, request.pathname).toBe(false);
+        expect(request.hasLeakedCookie, request.pathname).toBe(false);
+      }
+    } finally {
+      await new Promise((resolve, reject) =>
+        trap.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+
+  test('recognizes mixed-case HTML and strips stale byte metadata after conversion', async () => {
+    const mixed = await fetch(`${BASE}/about.md?transport=mixed-content-type`);
+    expect(mixed.status).toBe(200);
+    expect(mixed.headers.get('content-type')).toContain('text/markdown');
+    expect(await mixed.text()).toContain('# Transport');
+
+    const metadata = await fetch(`${BASE}/about.md?transport=metadata`);
+    expect(metadata.status).toBe(200);
+    expect(metadata.headers.get('etag')).toMatch(/^"[0-9a-f]{64}"$/);
+    expect(metadata.headers.get('etag')).not.toBe('"stale-source"');
+    for (const name of [
+      'accept-ranges',
+      'content-digest',
+      'content-md5',
+      'content-range',
+      'digest',
+      'repr-digest',
+    ]) {
+      expect(metadata.headers.get(name), name).toBeNull();
+    }
+  });
+
+  test('passes ordinary partial and encoded HTML through without Markdown conversion', async () => {
+    const partial = await fetch(`${BASE}/about/?transport=partial`, {
+      headers: { accept: 'text/markdown', range: 'bytes=0-9' },
+    });
+    expect(partial.status).toBe(206);
+    expect(partial.headers.get('content-type')).toContain('text/html');
+    expect(partial.headers.get('content-range')).toBe('bytes 0-9/100');
+    expect(partial.headers.get('etag')).toBe('"partial-source"');
+
+    const encoded = await fetch(`${BASE}/about/?transport=compressed`, {
+      headers: { accept: 'text/markdown' },
+    });
+    expect(encoded.status).toBe(200);
+    expect(encoded.headers.get('content-type')).toContain('text/html');
+    expect(encoded.headers.get('content-encoding')).toBe('gzip');
+    expect(encoded.headers.get('etag')).toBe('"compressed-source"');
+    expect(await encoded.text()).toContain('<h1>Encoded</h1>');
+  });
+
+  test('sanitizes Range for direct Markdown and never emits a partial Markdown response', async () => {
+    const generated = await fetch(`${BASE}/about.md?transport=partial`, {
+      headers: { range: 'bytes=0-9' },
+    });
+    expect(generated.status).toBe(200);
+    expect(generated.headers.get('content-type')).toContain('text/markdown');
+    expect(generated.headers.get('content-range')).toBeNull();
+    expect(generated.headers.get('accept-ranges')).toBeNull();
+    expect(await generated.text()).toContain('# Transport');
+
+    const forcedPartial = await fetch(`${BASE}/about.md?transport=forced-partial`);
+    expect(forcedPartial.status).toBe(404);
+    expect(forcedPartial.headers.get('content-type') ?? '').not.toContain('text/markdown');
+  });
+
+  test('preserves legal redirect bodies and matching metadata for GET but not HEAD', async () => {
+    const get = await fetch(`${BASE}/about.md?transport=redirect-body`, { redirect: 'manual' });
+    const head = await fetch(`${BASE}/about.md?transport=redirect-body`, {
+      method: 'HEAD',
+      redirect: 'manual',
+    });
+    expect(get.status).toBe(302);
+    expect(get.headers.get('location')).toBe('/about.md?from=body');
+    expect(get.headers.get('content-digest')).toBe('sha-256=:redirect-body:');
+    expect(get.headers.get('content-length')).toBe('40');
+    expect(await get.text()).toBe('Moved with an application response body.');
+    expect(head.status).toBe(get.status);
+    expect(head.headers.get('location')).toBe(get.headers.get('location'));
+    expect(head.headers.get('content-digest')).toBe(get.headers.get('content-digest'));
+    expect(head.headers.get('content-length')).toBe(get.headers.get('content-length'));
+    expect(await head.text()).toBe('');
   });
 
   test('direct and negotiated catalog requests use exact authored source', async () => {

@@ -62,7 +62,9 @@ export interface CatalogContext {
 /**
  * Lists pages the build cannot discover for itself, which is every route
  * generated from data rather than from a file. Without a catalog such a route is
- * simply absent from the corpus; astro-aeo does not crawl to find them.
+ * simply absent from the corpus; astro-aeo does not crawl to find them. A module
+ * exporting this contract must be compiled to Node-loadable `.js`, `.mjs`, or
+ * `.cjs` before it is configured as a catalog entrypoint.
  */
 export interface PageCatalog {
   name?: string;

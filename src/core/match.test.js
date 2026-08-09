@@ -1,6 +1,7 @@
 import { test, expect, describe } from 'vitest';
 import {
   globToRegExp,
+  inspectRootPathname,
   matchPath,
   isIncluded,
   normalizeCatalogPathname,
@@ -21,6 +22,7 @@ describe('normalizeCatalogPathname', () => {
   test('accepts safe root-relative paths', () => {
     expect(normalizeCatalogPathname('/blog/post/')).toBe('/blog/post');
     expect(normalizeCatalogPathname('/caf%C3%A9')).toBe('/caf%C3%A9');
+    expect(normalizeCatalogPathname('/sale-100%25')).toBe('/sale-100%25');
   });
 
   test.each([
@@ -35,6 +37,29 @@ describe('normalizeCatalogPathname', () => {
     '/page?draft=true',
   ])('rejects unsafe catalog path %s', (pathname) => {
     expect(normalizeCatalogPathname(pathname)).toBeNull();
+  });
+
+  test('bounds repeated percent decoding', () => {
+    expect(normalizeCatalogPathname('/%252525252e%252525252e/secret')).toBeNull();
+  });
+});
+
+describe('inspectRootPathname', () => {
+  test('returns the once-decoded request pathname', () => {
+    expect(inspectRootPathname('/caf%C3%A9/')).toEqual({ decoded: '/café/' });
+    expect(inspectRootPathname('/sale-100%25')).toEqual({ decoded: '/sale-100%' });
+    expect(inspectRootPathname('/sale-%25beef')).toEqual({ decoded: '/sale-%beef' });
+  });
+
+  test('rejects separators and traversal hidden behind repeated encoding', () => {
+    expect(inspectRootPathname('/safe%252f..%252fsecret')).toBeNull();
+    expect(inspectRootPathname('/%25252e%25252e/secret')).toBeNull();
+    expect(inspectRootPathname('/%25zz/%252e%252e/secret')).toBeNull();
+    expect(inspectRootPathname('/literal%25/%252fsecret')).toBeNull();
+  });
+
+  test('rejects encodings deeper than the double-encoded form', () => {
+    expect(inspectRootPathname('/nested%252520space')).toBeNull();
   });
 });
 

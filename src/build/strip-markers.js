@@ -1,5 +1,5 @@
 // @ts-check
-import { readFileSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { stripMarkersFromHtml } from '../core/extract/marker.js';
 
 /**
@@ -19,13 +19,9 @@ import { stripMarkersFromHtml } from '../core/extract/marker.js';
 export function stripSourceMarkers(rawPages, source) {
   let stripped = 0;
   for (const raw of rawPages) {
-    const htmlPath = source.htmlPathFor(raw.pathname || '/');
-    let html;
-    try {
-      html = readFileSync(htmlPath, 'utf8');
-    } catch {
-      continue;
-    }
+    const read = source.read(raw.pathname || '/');
+    if (!read) continue;
+    const { html, htmlPath } = read;
     // A substring test first: most pages have no marker, and this avoids running
     // the pattern over every byte of every page in the build.
     if (!html.includes('data-astro-aeo-marker')) continue;

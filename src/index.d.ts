@@ -348,7 +348,7 @@ export interface CorpusRuntimeOptions {
    * Maximum number of known pages rendered for a request-time corpus. Requests
    * above the limit fail with 503 instead of returning a partial corpus.
    * Default: 50. Use 'unlimited' only when the deployment can safely absorb the
-   * self-fetch fan-out.
+   * serial in-process renders.
    */
   maxPages?: number | 'unlimited';
 }
@@ -429,7 +429,9 @@ export interface PagesOptions {
    * Modules listing pages the build cannot discover for itself, which is every
    * route generated from data rather than from a file. Each module default-exports
    * a `PageCatalog` (see `astro-aeo/page`). Without one, such a route is simply
-   * absent from the corpus; astro-aeo does not crawl to find them. Default: [].
+   * absent from the corpus; astro-aeo does not crawl to find them. Entrypoints must
+   * be Node-loadable JavaScript (`.js`, `.mjs`, or `.cjs`); compile TypeScript catalog
+   * sources before configuring them here. Default: [].
    */
   catalogs?: { module: string }[];
 }

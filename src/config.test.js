@@ -39,6 +39,16 @@ describe('resolveConfig', () => {
     expect(() => resolveConfig({ pages: { catalogs: /** @type {any} */ ({}) } })).toThrow(AeoConfigError);
   });
 
+  test('extraction selector properties must be arrays when supplied', () => {
+    for (const key of ['selectors', 'removeSelectors', 'keepSelectors']) {
+      expect(() => resolveConfig({ markdown: { extraction: { [key]: 'main' } } })).toThrow(
+        new RegExp(`markdown\\.extraction\\.${key} must be an array`),
+      );
+    }
+    expect(resolveConfig({ markdown: { extraction: { selectors: [], removeSelectors: [], keepSelectors: [] } } }))
+      .toMatchObject({ markdown: { extraction: { selectors: [], removeSelectors: [], keepSelectors: [] } } });
+  });
+
   test('dotmdMetadata is aliased to markdown.frontmatter with a warning', () => {
     const warnings = [];
     const c = resolveConfig({ dotmd: { dotmdMetadata: true } }, { warn: (m) => warnings.push(m) });

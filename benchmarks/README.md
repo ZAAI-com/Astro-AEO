@@ -44,13 +44,13 @@ framework code that both builds share.
 
 `--enforce` applies the 1.1 safety ceilings embedded in the report:
 
-- Packed package at most 79,793 bytes and unpacked package at most 275,000 bytes.
+- Packed package at most 90,000 bytes and unpacked package at most 320,000 bytes.
 - 100 KB parse p95 below 50 ms and conversion p95 below 150 ms.
 - Retained heap after 100 conversions at most 10 MB.
 - Paired Markdown-minus-HTML p95 request overhead at most 10 ms. Direct and negotiated modes each
   use 200 interleaved pairs after 20 warm-up cycles, with alternating request order. Raw latency
   and overhead samples remain in the JSON report.
-- Runtime corpus fan-out at most four concurrent renders, with 51 pages refused before fetching.
+- Runtime corpus fan-out at most one render at a time, with 51 pages refused before rewriting.
 - Cloudflare output at most 51.2 MB raw and 2.4 MB gzip, with locally profiled Worker startup
   active time below 800 ms.
 

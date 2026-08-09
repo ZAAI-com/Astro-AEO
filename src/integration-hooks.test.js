@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
@@ -51,6 +51,86 @@ async function runtimeConfigSource(options = {}) {
 }
 
 describe('integration diagnostics and declarations', () => {
+  test.each([
+    ['routes before config completion', false],
+    ['routes after config completion', true],
+  ])('retains catalog diagnostics once when %s', async (_label, configFirst) => {
+    const root = mkdtempSync(join(tmpdir(), 'aeo-catalog-hook-order-'));
+    const distRoot = join(root, 'dist');
+    const publicRoot = join(root, 'public');
+    mkdirSync(distRoot, { recursive: true });
+    mkdirSync(publicRoot, { recursive: true });
+
+    try {
+      const warnings = [];
+      const integration = aeo({
+        pages: { catalogs: [{ module: './missing-catalog.js' }] },
+        markdown: { enabled: false },
+        corpus: { index: { enabled: false }, full: { enabled: false } },
+        discovery: { sitemap: { mode: 'disabled' } },
+      });
+      const logger = {
+        warn: (message) => warnings.push(message),
+        info() {},
+        error() {},
+        debug() {},
+      };
+      integration.hooks['astro:config:setup']({
+        config: { integrations: [] },
+        command: 'build',
+        addMiddleware() {},
+        updateConfig() {},
+        logger,
+      });
+
+      const resolveRoutes = () =>
+        integration.hooks['astro:routes:resolved']({ routes: [] });
+      const finishConfig = () =>
+        integration.hooks['astro:config:done']({
+          config: {
+            site: new URL('https://example.test'),
+            base: '/',
+            trailingSlash: 'ignore',
+            build: { format: 'directory' },
+            root: pathToFileURL(`${root}/`),
+            publicDir: pathToFileURL(`${publicRoot}/`),
+          },
+          logger,
+          injectTypes() {},
+        });
+
+      if (configFirst) {
+        await finishConfig();
+        resolveRoutes();
+      } else {
+        resolveRoutes();
+        await finishConfig();
+      }
+
+      await integration.hooks['astro:build:done']({
+        dir: pathToFileURL(`${distRoot}/`),
+        pages: [],
+        assets: new Map(),
+        logger,
+      });
+
+      const manifest = JSON.parse(
+        readFileSync(join(root, '.astro', 'aeo-cache', 'diagnostics-v1.json'), 'utf8'),
+      );
+      const failures = manifest.diagnostics.filter(
+        (diagnostic) => diagnostic.code === 'catalog-load-failed',
+      );
+      expect(failures).toEqual([
+        expect.objectContaining({ sourcePath: './missing-catalog.js' }),
+      ]);
+      expect(
+        warnings.filter((message) => message.includes('./missing-catalog.js')),
+      ).toHaveLength(1);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test('warns for uncataloged dynamic pages and prerendered custom 404s', async () => {
     const warnings = [];
     const injected = [];

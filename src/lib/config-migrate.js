@@ -263,15 +263,15 @@ export function printMigration(userConfig) {
   const { lifted, movesBySection } = liftLegacy(userConfig);
   if (movesBySection.size === 0) return null;
 
-  const body = renderBlock(lifted, 1);
-  const hasPlaceholder = /\[Function|\/.*\/[gimsuy]*$/m.test(body);
+  const state = { hasFunction: false };
+  const body = renderBlock(lifted, 1, state);
   return [
     'astro-aeo: canonical replacement for your 1.0 keys:',
     '',
     body,
     '',
-    hasPlaceholder
-      ? 'Functions and regular expressions are printed as placeholders, copy those by hand.'
+    state.hasFunction
+      ? 'Functions are printed as placeholders, copy those by hand.'
       : null,
   ]
     .filter((line) => line !== null)
@@ -281,17 +281,65 @@ export function printMigration(userConfig) {
 /**
  * @param {Record<string, any>} value
  * @param {number} depth
+ * @param {{ hasFunction: boolean }} state
  * @returns {string}
  */
-function renderBlock(value, depth) {
+function renderBlock(value, depth, state) {
   const pad = '  '.repeat(depth);
   return Object.keys(value)
     .map((key) => {
       const next = value[key];
-      if (isPlainObject(next)) return `${pad}${key}: {\n${renderBlock(next, depth + 1)}\n${pad}},`;
-      return `${pad}${key}: ${describeValue(next)},`;
+      return `${pad}${renderPropertyKey(key)}: ${renderMigrationValue(next, depth, state)},`;
     })
     .join('\n');
+}
+
+/** @param {string} key @returns {string} */
+function renderPropertyKey(key) {
+  if (key === '__proto__') return `[${JSON.stringify(key)}]`;
+  return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key) ? key : JSON.stringify(key);
+}
+
+/**
+ * @param {any} value
+ * @param {number} depth
+ * @param {{ hasFunction: boolean }} state
+ * @returns {string}
+ */
+function renderMigrationValue(value, depth, state) {
+  if (typeof value === 'function') {
+    state.hasFunction = true;
+    return 'undefined /* TODO */';
+  }
+  if (value === undefined) return 'undefined';
+  if (value === null) return 'null';
+  if (typeof value === 'number') {
+    if (Number.isNaN(value)) return 'Number.NaN';
+    if (value === Infinity) return 'Infinity';
+    if (value === -Infinity) return '-Infinity';
+    if (Object.is(value, -0)) return '-0';
+    return String(value);
+  }
+  if (typeof value === 'bigint') return `${value}n`;
+  if (value instanceof RegExp) {
+    return `new RegExp(${JSON.stringify(value.source)}, ${JSON.stringify(value.flags)})`;
+  }
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime())
+      ? 'new Date(Number.NaN)'
+      : `new Date(${JSON.stringify(value.toISOString())})`;
+  }
+  if (value instanceof Set) return `new Set(${renderMigrationValue([...value], depth, state)})`;
+  if (value instanceof Map) return `new Map(${renderMigrationValue([...value], depth, state)})`;
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => renderMigrationValue(entry, depth, state)).join(', ')}]`;
+  }
+  if (isPlainObject(value)) {
+    const pad = '  '.repeat(depth);
+    return `{\n${renderBlock(value, depth + 1, state)}\n${pad}}`;
+  }
+  const json = JSON.stringify(value);
+  return json === undefined ? 'undefined' : json;
 }
 
 /**

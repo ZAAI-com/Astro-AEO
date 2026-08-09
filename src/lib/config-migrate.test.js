@@ -271,8 +271,46 @@ describe('printMigration', () => {
 
   test('flags values that cannot be serialized', () => {
     const out = printMigration({ llmsTxt: { sections: [{ title: 'Blog', match: () => true }] } });
-    expect(out).toContain('[Function');
+    expect(out).toContain('undefined /* TODO */');
     expect(out).toContain('copy those by hand');
+  });
+
+  test('emits syntactically valid JavaScript for passthrough values', () => {
+    const out = printMigration({
+      sitemap: {
+        options: {
+          locales: { 'pt-BR': new Date('2026-01-01T00:00:00.000Z') },
+          nested: { ['__proto__']: { safe: true } },
+          pattern: /^blog$/i,
+        },
+      },
+    });
+    const block = out.split('\n\n')[1];
+    expect(() => new Function(`return ({\n${block}\n});`)()).not.toThrow();
+    expect(block).toContain('"pt-BR": new Date("2026-01-01T00:00:00.000Z")');
+    expect(block).toContain('["__proto__"]: {');
+    expect(block).toContain('new RegExp("^blog$", "i")');
+    const migrated = new Function(`return ({\n${block}\n});`)();
+    expect(Object.hasOwn(migrated.discovery.sitemap.options.nested, '__proto__')).toBe(true);
+  });
+
+  test('preserves nested JavaScript numeric values', () => {
+    const out = printMigration({
+      sitemap: {
+        options: {
+          values: [Number.NaN, Infinity, -Infinity, -0, 42n, new Date(Number.NaN)],
+        },
+      },
+    });
+    const block = out.split('\n\n')[1];
+    const migrated = new Function(`return ({\n${block}\n});`)();
+    const values = migrated.discovery.sitemap.options.values;
+    expect(Number.isNaN(values[0])).toBe(true);
+    expect(values[1]).toBe(Infinity);
+    expect(values[2]).toBe(-Infinity);
+    expect(Object.is(values[3], -0)).toBe(true);
+    expect(values[4]).toBe(42n);
+    expect(Number.isNaN(values[5].getTime())).toBe(true);
   });
 
   test('returns null when there is nothing to migrate', () => {

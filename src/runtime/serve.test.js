@@ -17,7 +17,6 @@ const runtime = (staticPaths = [], maxPages = 50) => ({
   site: { siteUrl: 'https://example.com', base: '', trailingSlash: 'ignore' },
   staticPaths,
   projectPaths: staticPaths,
-  internalRequestToken: 'test-token',
   standaloneSources: {},
 });
 
@@ -91,6 +90,19 @@ describe('request-time corpus limits', () => {
     expect(peak).toBe(4);
   });
 
+  test('request-time corpus collection is serial by default', async () => {
+    let active = 0;
+    let peak = 0;
+    await serveLlmsIndex('llms', runtime(['/first', '/second', '/third']), async () => {
+      active++;
+      peak = Math.max(peak, active);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      active--;
+      return loaded();
+    });
+    expect(peak).toBe(1);
+  });
+
   test('runtime catalogs preserve authored Markdown after rendering the application route', async () => {
     const fetcher = vi.fn(async () => loaded());
     const catalog = {
@@ -106,6 +118,69 @@ describe('request-time corpus limits', () => {
     expect(body).toContain('# Exact dynamic source');
     expect(fetcher).toHaveBeenCalledOnce();
     expect(fetcher).toHaveBeenCalledWith('/dynamic');
+  });
+
+  test('deduplicates encoded percent catalog paths against decoded project routes', async () => {
+    const fetcher = vi.fn(async () => loaded(html('Rendered sale')));
+    const catalog = {
+      listPages: () => [{
+        pathname: '/sale-100%25',
+        title: 'Catalog sale',
+        markdown: '# Exact percent source',
+      }],
+    };
+    const body = await serveLlmsIndex(
+      'llms-full',
+      runtime(['/sale-100%'], 50),
+      fetcher,
+      { catalogLoaders: [catalogLoader(catalog)] },
+    );
+
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(fetcher).toHaveBeenCalledWith('/sale-100%25');
+    expect(body).toContain('# Exact percent source');
+    expect(body).toContain('URL: https://example.com/sale-100%25/');
+    expect(body).not.toContain('# Rendered sale');
+  });
+
+  test('does not decode literal percent escapes in canonical runtime paths twice', async () => {
+    const fetcher = vi.fn(async () => loaded(html('Rendered escaped name')));
+    const catalog = {
+      listPages: () => [{
+        pathname: '/escaped%2520name',
+        title: 'Catalog escaped name',
+        markdown: '# Exact escaped source',
+      }],
+    };
+    const body = await serveLlmsIndex(
+      'llms-full',
+      runtime(['/escaped%20name'], 50),
+      fetcher,
+      { catalogLoaders: [catalogLoader(catalog)] },
+    );
+
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(fetcher).toHaveBeenCalledWith('/escaped%2520name');
+    expect(body).toContain('# Exact escaped source');
+    expect(body).toContain('URL: https://example.com/escaped%2520name/');
+    expect(body).not.toContain('# Rendered escaped name');
+  });
+
+  test('cancels an unread corpus response when its bytes cannot be transformed', async () => {
+    const source = new Response('encoded bytes', {
+      headers: {
+        'content-encoding': 'gzip',
+        'content-type': 'text/html',
+      },
+    });
+    const cancel = vi.spyOn(source.body, 'cancel').mockResolvedValue();
+    const body = await serveLlmsIndex('llms-full', runtime(['/encoded']), async () => ({
+      html: null,
+      response: source,
+    }));
+
+    expect(body).not.toContain('encoded bytes');
+    expect(cancel).toHaveBeenCalledOnce();
   });
 
   test('catalog source is never published when the application route rejects the request', async () => {
@@ -149,6 +224,37 @@ describe('request-time corpus limits', () => {
 });
 
 describe('serveMarkdown', () => {
+
+  test('matches encoded catalog descriptors to a decoded percent request path', async () => {
+    const fetcher = vi.fn(async () => loaded(html('Rendered sale')));
+    const result = await serveMarkdown('/sale-100%.md', runtime(), fetcher, {
+      catalogLoaders: [catalogLoader({
+        listPages: () => [{ pathname: '/sale-100%25', markdown: '# Exact percent source' }],
+      })],
+      publicPathname: '/sale-100%25',
+    });
+
+    expect(fetcher).toHaveBeenCalledWith('/sale-100%25');
+    expect(result.body).toContain('# Exact percent source');
+    expect(result.body).not.toContain('# Rendered sale');
+  });
+
+  test('matches a once-decoded literal escape without decoding it again', async () => {
+    const fetcher = vi.fn(async () => loaded(html('Rendered escaped name')));
+    const result = await serveMarkdown('/escaped%20name.md', runtime(), fetcher, {
+      catalogLoaders: [catalogLoader({
+        listPages: () => [{
+          pathname: '/escaped%2520name',
+          markdown: '# Exact escaped source',
+        }],
+      })],
+      publicPathname: '/escaped%2520name',
+    });
+
+    expect(fetcher).toHaveBeenCalledWith('/escaped%2520name');
+    expect(result.body).toContain('# Exact escaped source');
+    expect(result.body).not.toContain('# Rendered escaped name');
+  });
   test('returns the upstream response with the representation', async () => {
     const source = new Response(html('About'), {
       status: 404,
@@ -246,7 +352,7 @@ describe('serveMarkdown', () => {
     expect(result.body).not.toContain('request.example');
   });
 
-  test('passes the effective request site to catalogs and caches per origin', async () => {
+  test('passes the effective request site to catalogs with a bounded last-origin cache', async () => {
     const requestRuntime = runtime([], 50);
     requestRuntime.site.siteUrl = '';
     const listPages = vi.fn(({ siteUrl }) => [{
@@ -264,10 +370,32 @@ describe('serveMarkdown', () => {
       catalogLoaders: loaders,
       origin: 'https://two.example',
     });
+    const third = await serveLlmsIndex('llms', requestRuntime, async () => loaded(), {
+      catalogLoaders: loaders,
+      origin: 'https://one.example',
+    });
 
     expect(first).toContain('one.example');
     expect(second).toContain('two.example');
-    expect(listPages).toHaveBeenCalledTimes(2);
+    expect(third).toContain('one.example');
+    expect(listPages).toHaveBeenCalledTimes(3);
+  });
+
+  test('uses one stable catalog cache entry when the site is configured', async () => {
+    const requestRuntime = runtime([], 50);
+    const listPages = vi.fn(() => [{ pathname: '/dynamic', markdown: '# Dynamic' }]);
+    const loaders = [catalogLoader({ listPages })];
+
+    await serveLlmsIndex('llms', requestRuntime, async () => loaded(), {
+      catalogLoaders: loaders,
+      origin: 'https://one.example',
+    });
+    await serveLlmsIndex('llms', requestRuntime, async () => loaded(), {
+      catalogLoaders: loaders,
+      origin: 'https://two.example',
+    });
+
+    expect(listPages).toHaveBeenCalledOnce();
   });
 
   test('passes bodyless source statuses through without conversion', async () => {
@@ -282,6 +410,22 @@ describe('serveMarkdown', () => {
       }));
       expect(result).toEqual({ body: null, source: response });
     }
+  });
+
+  test.each([
+    [206, {}],
+    [200, { 'content-encoding': 'gzip' }],
+  ])('does not convert an untransformable source response (%s, %o)', async (status, headers) => {
+    const source = new Response(html('Partial'), {
+      status,
+      headers: { 'content-type': 'text/html', ...headers },
+    });
+    const result = await serveMarkdown('/partial.md', runtime(), async () => ({
+      html: html('Partial'),
+      response: source,
+    }));
+
+    expect(result).toEqual({ body: null, source });
   });
 
   test('caches a rejected runtime catalog loader and warns once', async () => {

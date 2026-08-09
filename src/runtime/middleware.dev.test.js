@@ -157,6 +157,17 @@ describe('request-time contract', () => {
     expect(await head.text()).toBe('');
   });
 
+  test('Range and compression preferences cannot turn generated Markdown into a partial response', async () => {
+    const response = await fetch(`${BASE}/about.md`, {
+      headers: { 'accept-encoding': 'gzip', range: 'bytes=0-9' },
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/markdown');
+    expect(response.headers.get('content-range')).toBeNull();
+    expect(response.headers.get('accept-ranges')).toBeNull();
+    expect(await response.text()).toContain('# About');
+  });
+
   test('a POST is never intercepted', async () => {
     const r = await fetch(`${BASE}/about.md`, { method: 'POST' });
     expect(r.status).not.toBe(200);

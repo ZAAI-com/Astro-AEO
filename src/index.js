@@ -1,6 +1,5 @@
 // @ts-check
 import { fileURLToPath } from 'node:url';
-import { randomBytes } from 'node:crypto';
 import { isAbsolute, resolve } from 'node:path';
 import sitemap from '@astrojs/sitemap';
 import { resolveConfig } from './config.js';
@@ -12,7 +11,11 @@ import {
 import { finalizeSitemapOutputs } from './generators/sitemap-finalize.js';
 import { onBuildDone } from './hooks/build-done.js';
 import { aeoRuntimeConfigPlugin } from './virtual/plugin.js';
-import { findNonSerializable, nonSerializableWarning } from './virtual/serialize.js';
+import {
+  findNonSerializable,
+  nonSerializableWarning,
+  runtimeConfigProjection,
+} from './virtual/serialize.js';
 import { createArtifactWriter } from './build/artifacts.js';
 import { preloadCatalogModules } from './build/catalogs.js';
 
@@ -21,7 +24,6 @@ import { preloadCatalogModules } from './build/catalogs.js';
  * @returns {import('astro').AstroIntegration}
  */
 export default function aeo(userConfig = {}) {
-  const internalRequestToken = randomBytes(32).toString('hex');
   /** @type {ReturnType<typeof resolveConfig>} */
   let config;
   let siteUrl = '';
@@ -44,6 +46,8 @@ export default function aeo(userConfig = {}) {
   const routeEntrypoints = new Map();
   /** @type {Set<string>} */
   const resolvedRoutePaths = new Set();
+  /** @type {{ pattern: RegExp; prerendered: boolean }[]} */
+  const resolvedRouteMatchers = [];
   /** @type {Set<string>} */
   const runtimeProjectPaths = new Set();
   /** @type {RegExp[]} */
@@ -73,13 +77,12 @@ export default function aeo(userConfig = {}) {
       sitemapPathMatchesRoute(sitemapPath, [...resolvedRoutePaths]);
     return {
       command,
-      config,
+      config: runtimeConfigProjection(config),
       site: { siteUrl, base, trailingSlash, buildFormat },
       sitemapAvailable,
       staticPaths: [...runtimePagePaths],
       projectPaths: [...runtimeProjectPaths],
       projectPatterns: runtimeProjectPatterns,
-      internalRequestToken,
       standaloneSources: {},
     };
   }
@@ -90,7 +93,7 @@ export default function aeo(userConfig = {}) {
       'astro:config:setup': ({ config: astroConfig, command: astroCommand, addMiddleware, updateConfig, logger }) => {
         config = resolveConfig(userConfig, logger);
         integrationLogger = logger;
-        const nonSerializable = findNonSerializable(config);
+        const nonSerializable = findNonSerializable(runtimeConfigProjection(config));
         if (nonSerializable.length > 0) logger.warn(nonSerializableWarning(nonSerializable));
         command = astroCommand === 'dev' ? 'dev' : astroCommand === 'preview' ? 'preview' : 'build';
         const hasUserSitemap = (astroConfig.integrations ?? []).some(
@@ -112,7 +115,7 @@ export default function aeo(userConfig = {}) {
           sitemapFinalizerIntegration(
             config,
             sitemapState,
-            () => ({ routePaths: resolvedRoutePaths, publicDir }),
+            () => ({ routePaths: resolvedRoutePaths, routeMatchers: resolvedRouteMatchers, publicDir }),
             () => artifactWriter,
           ),
         );
@@ -173,18 +176,21 @@ export default function aeo(userConfig = {}) {
       'astro:routes:resolved': ({ routes }) => {
         routeEntrypoints.clear();
         resolvedRoutePaths.clear();
+        resolvedRouteMatchers.length = 0;
         runtimeProjectPaths.clear();
         runtimeProjectPatterns.length = 0;
         runtimePagePaths.clear();
         hasOnDemandProjectPage = false;
         artifactWriter = undefined;
         buildDiagnostics.length = 0;
-        buildDiagnostics.push(...catalogDiagnostics);
         let hasUncatalogedDynamicPage = false;
         let hasPrerenderedCustom404 = false;
         for (const route of routes) {
           const pathname = /** @type {string | undefined} */ (route.pathname);
           const normalizedPathname = pathname ? normalize(pathname) : undefined;
+          const runtimePathname = normalizedPathname
+            ? canonicalRuntimePath(normalizedPathname)
+            : undefined;
           const entrypoint = /** @type {string | undefined} */ (route.entrypoint);
           if (normalizedPathname) resolvedRoutePaths.add(normalizedPathname);
           if (pathname && entrypoint) {
@@ -193,7 +199,7 @@ export default function aeo(userConfig = {}) {
           const type = /** @type {string | undefined} */ (route.type);
           const origin = /** @type {string | undefined} */ (route.origin);
           const projectRoute = origin === undefined || origin === 'project';
-          if (projectRoute && normalizedPathname) runtimeProjectPaths.add(normalizedPathname);
+          if (projectRoute && runtimePathname) runtimeProjectPaths.add(runtimePathname);
           const pattern = /** @type {RegExp | undefined} */ (
             route.patternRegex ?? (route.pattern instanceof RegExp ? route.pattern : undefined)
           );
@@ -203,6 +209,9 @@ export default function aeo(userConfig = {}) {
           const prerendered = /** @type {boolean | undefined} */ (
             route.isPrerendered ?? route.prerender
           );
+          if (projectRoute && !normalizedPathname && pattern instanceof RegExp) {
+            resolvedRouteMatchers.push({ pattern, prerendered: prerendered !== false });
+          }
           if (
             projectRoute &&
             !normalizedPathname &&
@@ -214,11 +223,11 @@ export default function aeo(userConfig = {}) {
           if (
             projectRoute &&
             type === 'page' &&
-            normalizedPathname &&
-            normalizedPathname !== '/404' &&
-            normalizedPathname !== '/500'
+            runtimePathname &&
+            runtimePathname !== '/404' &&
+            runtimePathname !== '/500'
           ) {
-            runtimePagePaths.add(normalizedPathname);
+            runtimePagePaths.add(runtimePathname);
           }
           if (projectRoute && type === 'page' && prerendered === false) {
             hasOnDemandProjectPage = true;
@@ -260,6 +269,11 @@ export default function aeo(userConfig = {}) {
       },
 
       'astro:build:done': async (options) => {
+        // Astro 5 resolves routes before config:done, while newer versions run
+        // these hooks in the opposite order. Merge here, after catalog preflight
+        // is guaranteed to have completed, and keep the route array catalog-free
+        // so the newer hook order cannot add the same diagnostics twice.
+        const diagnostics = [...catalogDiagnostics, ...buildDiagnostics];
         artifactWriter = await onBuildDone(config, /** @type {any} */ (options), {
           siteUrl,
           base,
@@ -268,8 +282,9 @@ export default function aeo(userConfig = {}) {
           projectRoot,
           routeEntrypoints,
           resolvedRoutePaths,
+          resolvedRouteMatchers,
           publicDir,
-          diagnostics: buildDiagnostics,
+          diagnostics,
           runtimeCorpora: serverOutput || hasOnDemandProjectPage,
           catalogModules,
         });
@@ -294,7 +309,7 @@ function runtimeMarkdownSourceEntries(routeEntrypoints, projectRoot) {
       : isAbsolute(cleaned)
         ? cleaned
         : resolve(projectRoot, cleaned);
-    sources.push({ pathname, path: entrypoint, specifier: path });
+    sources.push({ pathname: canonicalRuntimePath(pathname), path: entrypoint, specifier: path });
   }
   return sources;
 }
@@ -302,7 +317,7 @@ function runtimeMarkdownSourceEntries(routeEntrypoints, projectRoot) {
 /**
  * @param {ReturnType<typeof resolveConfig>} config
  * @param {{ expected: boolean; siteUrl: string; base: string }} state
- * @param {() => { routePaths: Set<string>; publicDir: URL | undefined }} collisionInputs
+ * @param {() => { routePaths: Set<string>; routeMatchers: { pattern: RegExp; prerendered: boolean }[]; publicDir: URL | undefined }} collisionInputs
  * @param {() => ReturnType<typeof createArtifactWriter> | undefined} retainedWriter
  * @returns {import('astro').AstroIntegration}
  */
@@ -318,6 +333,7 @@ function sitemapFinalizerIntegration(config, state, collisionInputs, retainedWri
             distDir: dir,
             logger,
             routePaths: inputs.routePaths,
+            routeMatchers: inputs.routeMatchers,
             publicDir: inputs.publicDir,
           });
         finalizeSitemapOutputs(dir, config, {
@@ -342,4 +358,9 @@ function normalize(p) {
   let s = p.startsWith('/') ? p : `/${p}`;
   if (s.length > 1) s = s.replace(/\/$/, '');
   return s;
+}
+
+/** @param {string} pathname @returns {string} */
+function canonicalRuntimePath(pathname) {
+  return normalize(pathname);
 }

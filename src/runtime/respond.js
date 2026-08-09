@@ -2,6 +2,102 @@
 
 export const MARKDOWN_CONTENT_TYPE = 'text/markdown; charset=utf-8';
 
+const REPRESENTATION_METADATA = [
+  'content-type',
+  'content-length',
+  'content-encoding',
+  'content-range',
+  'accept-ranges',
+  'etag',
+  'content-digest',
+  'repr-digest',
+  'digest',
+  'content-md5',
+];
+
+/**
+ * @param {Response} response
+ * @returns {string | null}
+ */
+export function mediaType(response) {
+  const value = response.headers.get('content-type');
+  if (!value) return null;
+  const type = value.split(';', 1)[0].trim().toLowerCase();
+  return /^[!#$%&'*+.^_`|~\w-]+\/[!#$%&'*+.^_`|~\w-]+$/.test(type) ? type : null;
+}
+
+/** @param {Response} response @returns {boolean} */
+export function isHtmlResponse(response) {
+  const type = mediaType(response);
+  return type === 'text/html' || type === 'application/xhtml+xml';
+}
+
+/**
+ * Response.text() always decodes as UTF-8. Treat a declared legacy charset as
+ * opaque bytes so ordinary requests can forward it unchanged and generated
+ * representations can skip it safely.
+ * @param {Response} response
+ * @returns {boolean}
+ */
+export function isUtf8HtmlResponse(response) {
+  if (!isHtmlResponse(response)) return false;
+  const value = response.headers.get('content-type') ?? '';
+  const declarations = [...value.matchAll(/;\s*charset\s*=\s*(?:"([^"]*)"|([^;\s"]+))/gi)];
+  if (declarations.length === 0) return !/;\s*charset\s*=/i.test(value);
+  return declarations.every((match) => {
+    const charset = (match[1] ?? match[2] ?? '').trim().toLowerCase();
+    return charset === 'utf-8' || charset === 'utf8';
+  });
+}
+
+/**
+ * A transformed string response is encoded as UTF-8 by the Fetch implementation.
+ * Preserve the source HTML media type, but never a stale source charset.
+ * @param {Response} response
+ * @returns {string}
+ */
+export function transformedHtmlContentType(response) {
+  const type = mediaType(response);
+  return `${type === 'application/xhtml+xml' ? type : 'text/html'}; charset=utf-8`;
+}
+
+/** @param {Response} response @returns {boolean} */
+export function isIdentityEncoded(response) {
+  const value = response.headers.get('content-encoding');
+  if (!value) return true;
+  const codings = value.split(',').map((coding) => coding.trim().toLowerCase());
+  return codings.length > 0 && codings.every((coding) => coding === 'identity');
+}
+
+/**
+ * Remove metadata that describes bytes which a generated representation replaces.
+ * @param {Headers} headers
+ * @returns {Headers}
+ */
+export function stripRepresentationMetadata(headers) {
+  for (const name of REPRESENTATION_METADATA) headers.delete(name);
+  return headers;
+}
+
+/**
+ * Release a response stream when Astro-AEO replaces or skips its bytes.
+ * @param {Response | null | undefined} response
+ * @returns {void}
+ */
+export function cancelResponseBody(response) {
+  if (!response?.body || response.bodyUsed) return;
+  try {
+    // Application-controlled cancellation may never settle. Invoke it so the
+    // stream is disturbed, but never let its promise hold a request open.
+    void response.body.cancel().catch(() => {});
+  } catch {}
+}
+
+/** @param {number} status @returns {number} */
+export function generatedStatus(status) {
+  return status === 206 ? 200 : status;
+}
+
 /**
  * Statuses whose responses cannot carry a body under the Fetch standard.
  * @param {number} status
@@ -55,22 +151,19 @@ export function isNotModified(request, etag) {
  */
 export async function textResponse({ body, contentType, request, status = 200, headers = {} }) {
   const etag = await etagFor(body);
-  const base = new Headers(headers);
+  const effectiveStatus = generatedStatus(status);
+  const base = stripRepresentationMetadata(new Headers(headers));
   base.set('content-type', contentType);
   base.set('etag', etag);
-  base.delete('content-length');
-  base.delete('content-encoding');
-  base.delete('content-range');
-  base.delete('accept-ranges');
 
-  if (status >= 200 && status < 300 && isNotModified(request, etag)) {
+  if (effectiveStatus >= 200 && effectiveStatus < 300 && isNotModified(request, etag)) {
     const revalidation = new Headers(base);
     revalidation.delete('content-type');
     return new Response(null, { status: 304, headers: revalidation });
   }
 
-  return new Response(responseBodyForbidden(request, status) ? null : body, {
-    status,
+  return new Response(responseBodyForbidden(request, effectiveStatus) ? null : body, {
+    status: effectiveStatus,
     headers: base,
   });
 }
@@ -80,16 +173,5 @@ export async function textResponse({ body, contentType, request, status = 200, h
  * @returns {Headers}
  */
 export function inheritedRepresentationHeaders(source) {
-  const headers = new Headers(source?.headers);
-  for (const name of [
-    'content-type',
-    'content-length',
-    'content-encoding',
-    'content-range',
-    'accept-ranges',
-    'etag',
-  ]) {
-    headers.delete(name);
-  }
-  return headers;
+  return stripRepresentationMetadata(new Headers(source?.headers));
 }

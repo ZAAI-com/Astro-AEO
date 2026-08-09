@@ -191,6 +191,96 @@ describe('collision detection', () => {
     expect(warnings).toEqual([]);
   });
 
+  test('an on-demand dynamic route collides without a destination file', () => {
+    const path = join(dir, 'sitemap.xml');
+    const writer = createArtifactWriter({
+      distDir,
+      logger,
+      routeMatchers: [{ pattern: /^\/[^/]+\.xml\/?$/, prerendered: false }],
+    });
+
+    expect(
+      writer.write(
+        artifact({
+          path,
+          owner: 'sitemapAlias',
+          route: '/sitemap.xml',
+          onConflict: 'skip',
+        }),
+      ),
+    ).toBe(false);
+    expect(existsSync(path)).toBe(false);
+    expect(warnings).toEqual([expect.stringContaining('project route output was retained')]);
+  });
+
+  test('a prerendered dynamic route collides only when it emitted the destination', () => {
+    const matcher = { pattern: /^\/[^/]+\.txt\/?$/, prerendered: true };
+    const absentPath = join(dir, 'absent.txt');
+    const absentWriter = createArtifactWriter({ distDir, logger, routeMatchers: [matcher] });
+    expect(
+      absentWriter.write(artifact({ path: absentPath, route: '/absent.txt' })),
+    ).toBe(true);
+    expect(warnings).toEqual([]);
+
+    warnings = [];
+    const generatedPath = join(dir, 'generated.txt');
+    writeFileSync(generatedPath, 'project route');
+    const generatedWriter = createArtifactWriter({ distDir, logger, routeMatchers: [matcher] });
+    expect(
+      generatedWriter.write(artifact({ path: generatedPath, route: '/generated.txt' })),
+    ).toBe(true);
+    expect(warnings).toEqual([
+      expect.stringContaining('also produced by a route in this project'),
+    ]);
+  });
+
+  test('does not mistake an earlier artifact for a prerendered route destination', () => {
+    const path = join(dir, 'generated.txt');
+    const writer = createArtifactWriter({
+      distDir,
+      logger,
+      routeMatchers: [{ pattern: /^\/[^/]+\.txt$/, prerendered: true }],
+    });
+
+    writer.write(artifact({ path, route: '/generated.txt', owner: 'llmsTxt' }));
+    writer.write(artifact({ path, route: '/generated.txt', owner: 'urlMap' }));
+
+    expect(warnings).toEqual([
+      expect.stringContaining('urlMap and llmsTxt both write /generated.txt'),
+    ]);
+    expect(warnings.join('\n')).not.toContain('route in this project');
+  });
+
+  test('stateful dynamic route patterns are reset for every collision check', () => {
+    const pattern = /^\/[^/]+\.txt\/?$/g;
+    pattern.lastIndex = 99;
+    const writer = createArtifactWriter({
+      distDir,
+      logger,
+      routeMatchers: [{ pattern, prerendered: false }],
+    });
+
+    writer.write(artifact({ path: join(dir, 'first.txt'), route: '/first.txt' }));
+    writer.write(artifact({ path: join(dir, 'second.txt'), route: '/second.txt' }));
+
+    expect(warnings).toHaveLength(2);
+    expect(pattern.lastIndex).toBe(0);
+  });
+
+  test('matches Astro 6 dynamic endpoint patterns that retain a trailing slash', () => {
+    const writer = createArtifactWriter({
+      distDir,
+      logger,
+      routeMatchers: [{ pattern: /^\/[^/]+\.md\/$/, prerendered: false }],
+    });
+
+    writer.write(artifact({ path: join(dir, 'about.md'), route: '/about.md' }));
+
+    expect(warnings).toEqual([
+      expect.stringContaining('/about.md is also produced by a route in this project'),
+    ]);
+  });
+
   test('a committed public/ file gets its own wording', () => {
     const publicDir = join(dir, 'public');
     mkdirSync(publicDir);

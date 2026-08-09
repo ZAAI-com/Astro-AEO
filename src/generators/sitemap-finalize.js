@@ -15,6 +15,8 @@ import { createArtifactWriter } from '../build/artifacts.js';
  * @param {string} options.base
  * @param {boolean} options.sitemapExpected
  * @param {Set<string>} [options.routePaths]  Concrete route pathnames, for collision checks.
+ * @param {{ pattern: RegExp; prerendered: boolean }[]} [options.routeMatchers]
+ *   Dynamic project routes, for collision checks.
  * @param {URL} [options.publicDir]           Astro's publicDir, for collision checks.
  * @param {ReturnType<typeof createArtifactWriter>} [options.writer]
  *   The writer retained from the main build phase.
@@ -24,13 +26,13 @@ import { createArtifactWriter } from '../build/artifacts.js';
 export function finalizeSitemapOutputs(
   distDir,
   config,
-  { siteUrl, base, sitemapExpected, logger, routePaths, publicDir, writer },
+  { siteUrl, base, sitemapExpected, logger, routePaths, routeMatchers, publicDir, writer },
 ) {
   // Direct generator tests and third-party callers may not have a main build
   // phase, but the integration retains and supplies its writer so claims made
   // before @astrojs/sitemap remain visible here.
   const activeWriter =
-    writer ?? createArtifactWriter({ distDir, logger, routePaths, publicDir });
+    writer ?? createArtifactWriter({ distDir, logger, routePaths, routeMatchers, publicDir });
   // Resolved from the optional `includeSitemap` tri-state in resolveConfig, so the
   // omitted-versus-false distinction never has to be recovered from raw user input.
   const sitemapPolicy = config.discovery.robots.sitemapPolicy;

@@ -10,6 +10,13 @@ export default {
         sourcePath: 'adapter-catalog:dynamic',
       },
       {
+        pathname: '/catalog-secondary',
+        rendering: 'on-demand',
+        title: 'Catalog Secondary',
+        markdown: '# Catalog Secondary\n\nSecond exact adapter catalog source.',
+        sourcePath: 'adapter-catalog:secondary',
+      },
+      {
         pathname: '/llms.txt',
         rendering: 'on-demand',
         title: 'Recursive Artifact',

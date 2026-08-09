@@ -31,7 +31,8 @@ All notable changes to this project are documented here. This project follows [S
 - `pages.catalogs`: modules listing routes generated from data, which Astro's own page list cannot
   see. A catalog that fails to load warns and contributes nothing rather than failing the build.
 - `corpus.runtime.maxPages`, default `50`, bounds request-time corpus fan-out. Live corpora use at
-  most four concurrent renders and refuse larger indexes with `503` and `Cache-Control: no-store`.
+  most one in-process render at a time and refuse larger indexes with `503` and
+  `Cache-Control: no-store`.
 - Serializable page, descriptor, catalog-context, source, extraction, and versioned diagnostic
   types. `astro-aeo/extract` exposes the shared extractor without exposing Turndown internals.
 - Standalone Markdown routes and catalog Markdown preserve authored source before rendered
@@ -92,20 +93,44 @@ All notable changes to this project are documented here. This project follows [S
 - Benchmark regression explanation: extraction, corpus, and local Worker-startup p95 timings can
   move by more than 10 percent on the same reference laptop when adapter builds, garbage
   collection, and OS scheduling overlap. Cache isolation, origin threading, response guards, and
-  resilient catalog loading add about three percent to the unpacked portable package. Packed output
-  remains below its existing ceiling, no bundle metric regressed, and every absolute ceiling remains
-  enforced. The committed reference is recorded from the final 1.1 tree.
+  resilient catalog loading plus the review hardening add about 17 percent packed and 18 percent
+  unpacked to the portable package. The ceilings are 90 KB packed and 320 KB unpacked with this
+  explanation retained; the committed baseline is unchanged. The Node integration delta grows by
+  about 46 percent raw and 44 percent gzip because the request-isolation and response-hardening code
+  ships in the consumer's server bundle. Every absolute package, bundle, startup, memory, and timing
+  ceiling remains enforced.
 
 ### Fixed
 
+- Runtime corpora render every page through serialized in-process Astro rewrites instead of a
+  Host-derived network fetch. The trusted rewrite capability exists only in process, forged Host
+  headers cannot redirect server requests, and the catalog cache no longer grows once per origin.
+  Astro 6.3 and newer use a disposable request state per page, including while application stream
+  cancellation remains pending. Astro 5 and Astro 6.0-6.2 fail closed with `503` for request-time
+  corpora because their closure-held client address, cookies, and session cannot be replaced
+  securely; build artifacts and direct authenticated `.md` requests remain supported.
+- Request pathname validation now performs a fixed number of decoding passes, accepts encoded
+  literal percent signs, and still rejects raw, encoded, double-encoded, and over-encoded traversal.
+- Markdown negotiation now matches media types and parameters strictly, recognizes HTML content
+  types case-insensitively, leaves encoded and partial responses untouched, removes stale digest
+  metadata from generated bodies, and preserves legal redirect bodies.
+- Source markers are removed from custom 404/500 output and file-format pages with trailing-slash
+  pathnames. Dynamic project endpoints also participate in artifact collision diagnostics.
+- Catalog entrypoints now reject source-only module formats consistently across supported Node
+  versions, and explicitly empty authored Markdown remains a valid catalog page.
+- Fragment, text-only, and empty HTML extraction preserves every top-level node without throwing;
+  roots inside removed chrome cannot win selection, and URL/accessibility processing includes the
+  selected root itself. Selector options now reject non-array values.
+- The migration printer quotes non-identifier keys and emits executable Date and RegExp values.
+  Build-only sitemap callbacks no longer produce request-time serialization warnings.
 - Runtime corpus source requests are isolated from shared caches, so an authored-source marker
   cannot be retained and served to a later browser request. Direct `.md` requests keep the
   application's original cache policy.
 - Request-time Markdown, corpus metadata, robots output, domain profiles, and catalog context use
   the request origin when Astro `site` is unset. Relative links therefore remain absolute in
   adapter deployments without a configured canonical site.
-- Bodyless `204`, `205`, and `304` responses now pass through without giving the Fetch `Response`
-  constructor a generated body.
+- Bodyless `204` and `205` responses, plus `304` responses outside strict Markdown negotiation,
+  now pass through without giving the Fetch `Response` constructor a generated body.
 - Catalog resolution, parsing, and module evaluation failures now warn once and are omitted before
   Vite constructs the server import graph. Successful catalogs load lazily at request time, where
   environment-specific evaluation and `listPages()` failures also contribute nothing instead of
@@ -128,8 +153,8 @@ All notable changes to this project are documented here. This project follows [S
 - Turndown is imported lazily after a temporary `linkedom/worker` DOMParser shim is installed, so
   initialization cannot fall through to a CommonJS Domino `require` on workerd or Deno. Native
   DOMParser globals are preserved and the shim is removed after initialization.
-- Corpus self-fetches use an opaque per-start token checked before artifact dispatch. Owned artifact
-  paths are excluded, preventing a catalog entry such as `/llms.txt` from recursively serving itself.
+- Corpus rewrites use trusted in-process state checked before artifact dispatch. Owned artifact paths
+  are excluded, preventing a catalog entry such as `/llms.txt` from recursively serving itself.
 - Runtime corpus renders now remove caller credentials consistently and count only concrete project
   pages. Catalog pathnames reject raw, encoded, and double-encoded traversal before URL or
   filesystem resolution.

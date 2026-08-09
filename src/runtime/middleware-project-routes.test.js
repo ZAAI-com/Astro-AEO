@@ -10,7 +10,6 @@ vi.mock('./config.js', async () => {
       staticPaths: [],
       projectPaths: ['/feed.md', '/legacy.md', '/llms.txt'],
       projectPatterns: [/^\/project\/[^/]+\.md$/, /^\/(?:llms|robots)\.txt$/],
-      internalRequestToken: 'opaque-test-token',
       standaloneSources: {},
     },
     RUNTIME_CATALOG_LOADERS: [],
@@ -55,4 +54,29 @@ describe('literal project route ownership', () => {
       expect(rewrite).not.toHaveBeenCalled();
     },
   );
+
+  test('accepts an encoded literal percent in an ordinary project path', async () => {
+    const url = new URL('/sale-100%25', 'https://example.test');
+    const expected = new Response('sale page');
+    const next = vi.fn(async () => expected);
+    const response = await onRequest(
+      { request: new Request(url), url, locals: {}, isPrerendered: false, rewrite: vi.fn() },
+      next,
+    );
+
+    expect(response).toBe(expected);
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  test('rejects percent encodings beyond the bounded validation depth', async () => {
+    const url = new URL('/%252525252e%252525252e/secret.md', 'https://example.test');
+    const next = vi.fn();
+    const response = await onRequest(
+      { request: new Request(url), url, locals: {}, isPrerendered: false, rewrite: vi.fn() },
+      next,
+    );
+
+    expect(response.status).toBe(400);
+    expect(next).not.toHaveBeenCalled();
+  });
 });

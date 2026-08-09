@@ -40,12 +40,10 @@ describe('selectContentRoots', () => {
     expect(result.fallbackReason).toContain('no element matched');
   });
 
-  test('falls back past an unpopulated body to the document', () => {
-    // A parser only synthesizes html/body for a well-formed document; given a
-    // fragment it leaves `body` present but empty. Using it blindly converts nothing.
+  test('normalizes fragments into a populated body without losing siblings', () => {
     const result = selectContentRoots(doc('<h2>Fragment</h2>'), ['main']);
-    expect(result.strategy).toBe('document');
-    expect(result.fallbackReason).toContain('no populated <body>');
+    expect(result.strategy).toBe('body');
+    expect(result.roots[0].textContent).toContain('Fragment');
   });
 
   test('never-content elements cannot become extraction roots', () => {
@@ -53,6 +51,23 @@ describe('selectContentRoots', () => {
     const result = selectContentRoots(d, ['script', 'iframe', 'main']);
     expect(result.strategy).toBe('main');
     expect(result.roots[0].textContent).toBe('Safe.');
+  });
+
+  test('does not select content nested inside configured chrome', () => {
+    const d = doc(page('<nav><article>Navigation teaser</article></nav><main>Actual content</main>'));
+    const result = selectContentRoots(d, ['article', 'main'], ['nav', 'footer']);
+    expect(result.strategy).toBe('main');
+    expect(result.roots[0].textContent).toBe('Actual content');
+  });
+
+  test('does not restore fallback content inside a removed document ancestor', () => {
+    const d = doc(page('<main>Must stay removed</main>'));
+    const { markdown } = extractMarkdown(
+      d,
+      { ...DEFAULT_EXTRACTION, selectors: ['article'], removeSelectors: ['html'] },
+      td,
+    );
+    expect(markdown).toBe('');
   });
 });
 
@@ -138,6 +153,70 @@ describe('extractMarkdown', () => {
     expect(markdown).toContain('Safe body.');
     expect(markdown).not.toMatch(/SECRET_SCRIPT|SECRET_FRAME/);
   });
+
+  test('preserves every top-level fragment node', () => {
+    const { markdown } = extractMarkdown(doc('<h1>Hello</h1><p>Body</p>'), DEFAULT_EXTRACTION, td);
+    expect(markdown).toBe('# Hello\n\nBody');
+  });
+
+  test('normalizes a doctype-prefixed fragment without corrupting its siblings', () => {
+    const { markdown } = extractMarkdown(
+      doc('<!DOCTYPE html><meta charset="utf-8"><h1>Fragment title</h1><p>Body</p>'),
+      DEFAULT_EXTRACTION,
+      td,
+    );
+    expect(markdown).toBe('# Fragment title\n\nBody');
+  });
+
+  test('normalizes a doctype after leading comments without corrupting siblings', () => {
+    const { markdown } = extractMarkdown(
+      doc('<!-- lead --><!DOCTYPE html><meta charset="utf-8"><h1>Fragment title</h1><p>Body</p>'),
+      DEFAULT_EXTRACTION,
+      td,
+    );
+    expect(markdown).toBe('# Fragment title\n\nBody');
+  });
+
+  test('normalizes processing instructions and quoted doctype identifiers', () => {
+    const processingInstruction = extractMarkdown(
+      doc('<?xml version="1.0"?><!doctype html><main>B</main><p>C</p>'),
+      { ...DEFAULT_EXTRACTION, selectors: ['body'] },
+      td,
+    );
+    const quotedIdentifier = extractMarkdown(
+      doc('<!DOCTYPE html PUBLIC "foo>bar"><h1>A</h1><p>B</p>'),
+      DEFAULT_EXTRACTION,
+      td,
+    );
+
+    expect(processingInstruction.markdown).toBe('B\n\nC');
+    expect(quotedIdentifier.markdown).toBe('# A\n\nB');
+  });
+
+  test('keeps fragment content that begins with a closing body tag', () => {
+    const { markdown } = extractMarkdown(
+      doc('</body><p>After</p>'),
+      DEFAULT_EXTRACTION,
+      td,
+    );
+    expect(markdown).toBe('After');
+  });
+
+  test('treats embedded html-like text as fragment content', () => {
+    const { markdown } = extractMarkdown(
+      doc('<p>Before &lt;html&gt;</p><p>After</p>'),
+      DEFAULT_EXTRACTION,
+      td,
+    );
+    expect(markdown).toContain('Before');
+    expect(markdown).toContain('After');
+  });
+
+  test('returns empty Markdown for empty, text-only, and comment-only documents', () => {
+    expect(extractMarkdown(doc(''), DEFAULT_EXTRACTION, td).markdown).toBe('');
+    expect(extractMarkdown(doc('<!-- comment -->'), DEFAULT_EXTRACTION, td).markdown).toBe('');
+    expect(extractMarkdown(doc('Just text'), DEFAULT_EXTRACTION, td).markdown).toBe('Just text');
+  });
 });
 
 describe('resolveUrls', () => {
@@ -192,6 +271,16 @@ describe('resolveUrls', () => {
       td,
     ).markdown;
     expect(md).toContain('(/about/)');
+  });
+
+  test('rewrites a selected link root itself', () => {
+    const { markdown } = extractMarkdown(
+      doc(page('<a class="root" href="/about">About</a>')),
+      { ...DEFAULT_EXTRACTION, selectors: ['.root'] },
+      td,
+      { baseUrl: BASE },
+    );
+    expect(markdown).toBe('[About](https://x.com/about)');
   });
 });
 
@@ -261,6 +350,15 @@ describe('conversion fidelity', () => {
     expect(md).toContain('[Account](/account)');
     expect(md).toContain('[Help](/help)');
     expect(md).toContain('![Search](/search.svg)');
+  });
+
+  test('enriches a selected image root with its accessible label', () => {
+    const { markdown } = extractMarkdown(
+      doc(page('<img class="root" src="/search.svg" aria-label="Search">')),
+      { ...DEFAULT_EXTRACTION, selectors: ['.root'] },
+      td,
+    );
+    expect(markdown).toBe('![Search](/search.svg)');
   });
 });
 

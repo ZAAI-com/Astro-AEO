@@ -60,12 +60,30 @@ export function assertValidSelectors(probe, path, selectors) {
 }
 
 /**
+ * @param {Document} probe
+ * @param {string} path
+ * @param {Partial<ExtractionOptions> | undefined} extraction
+ */
+export function assertValidExtractionOptions(probe, path, extraction) {
+  if (!extraction) return;
+  for (const key of /** @type {const} */ (['selectors', 'removeSelectors', 'keepSelectors'])) {
+    const value = extraction[key];
+    if (value === undefined) continue;
+    if (!Array.isArray(value)) {
+      throw new AeoConfigError(`astro-aeo: ${path}.${key} must be an array of CSS selectors.`);
+    }
+    if (value.length > 0) assertValidSelectors(probe, `${path}.${key}`, value);
+  }
+}
+
+/**
  * @param {Document} document
  * @param {string[]} selectors
+ * @param {string[]} [removeSelectors]
  * @returns {{ roots: Element[]; strategy: string; fallbackReason: string | undefined }}
  */
-export function selectContentRoots(document, selectors) {
-  const forbidden = NEVER_CONTENT.join(',');
+export function selectContentRoots(document, selectors, removeSelectors = []) {
+  const forbidden = [...NEVER_CONTENT, ...removeSelectors].join(',');
   for (const selector of selectors) {
     const matches = [...document.querySelectorAll(selector)].filter(
       (element) => !element.matches(forbidden) && !element.closest(forbidden),
@@ -79,7 +97,11 @@ export function selectContentRoots(document, selectors) {
     ? `no element matched ${selectors.map((s) => JSON.stringify(s)).join(', ')}`
     : 'no selectors configured';
 
-  if (document.body && document.body.childNodes.length > 0) {
+  if (
+    document.body &&
+    document.body.childNodes.length > 0 &&
+    !document.body.closest(forbidden)
+  ) {
     return { roots: [document.body], strategy: 'body', fallbackReason: reason };
   }
   const root = document.documentElement ?? /** @type {any} */ (document);
@@ -88,6 +110,22 @@ export function selectContentRoots(document, selectors) {
     strategy: 'document',
     fallbackReason: `${reason}, and no populated <body> element`,
   };
+}
+
+/**
+ * Return matching descendants and the root itself when it matches. Native
+ * `querySelectorAll()` deliberately excludes the root, which otherwise makes
+ * selected links, images, and preserved roots behave differently from children.
+ *
+ * @param {Element} root
+ * @param {string} selector
+ * @returns {Element[]}
+ */
+function matchingElements(root, selector) {
+  return [
+    ...(root.matches(selector) ? [root] : []),
+    ...root.querySelectorAll(selector),
+  ];
 }
 
 /**
@@ -102,14 +140,14 @@ export function cleanRoot(root, { removeSelectors, keepSelectors }) {
       root.replaceChildren();
       return removed + 1;
     }
-    for (const el of [...root.querySelectorAll(selector)]) {
+    for (const el of matchingElements(root, selector)) {
+      if (el === root) continue;
       el.remove();
       removed++;
     }
   }
   for (const selector of keepSelectors) {
-    if (root.matches(selector)) root.setAttribute(KEEP_ATTRIBUTE, '');
-    for (const el of [...root.querySelectorAll(selector)]) el.setAttribute(KEEP_ATTRIBUTE, '');
+    for (const el of matchingElements(root, selector)) el.setAttribute(KEEP_ATTRIBUTE, '');
   }
   sanitizeRoot(root);
   markTopLevelRawHtml(root, SEMANTIC_HTML_SELECTOR);
@@ -150,10 +188,7 @@ function unsafeProtocol(value) {
  * @param {string} selector
  */
 function markTopLevelRawHtml(root, selector) {
-  const matches = [
-    ...(root.matches?.(selector) ? [root] : []),
-    ...root.querySelectorAll(selector),
-  ];
+  const matches = matchingElements(root, selector);
   for (const element of matches) {
     if (matches.some((other) => other !== element && other.contains(element))) continue;
     element.setAttribute(KEEP_ATTRIBUTE, '');
@@ -187,7 +222,7 @@ export function addKeepRule(td) {
 export function resolveUrls(root, baseUrl) {
   let rewritten = 0;
   for (const [selector, attribute] of URL_ATTRIBUTES) {
-    for (const el of [...root.querySelectorAll(selector)]) {
+    for (const el of matchingElements(root, selector)) {
       const value = el.getAttribute(attribute);
       if (!value || value.startsWith('#')) continue;
       try {
@@ -209,7 +244,7 @@ export function resolveUrls(root, baseUrl) {
 export function enrichAccessibleNames(root) {
   let enriched = 0;
 
-  for (const image of [...root.querySelectorAll('img')]) {
+  for (const image of matchingElements(root, 'img')) {
     if ((image.getAttribute('alt') ?? '').trim()) continue;
     const name = accessibleName(image);
     if (!name) continue;
@@ -217,7 +252,7 @@ export function enrichAccessibleNames(root) {
     enriched++;
   }
 
-  for (const link of [...root.querySelectorAll('a[href]')]) {
+  for (const link of matchingElements(root, 'a[href]')) {
     if ((link.textContent ?? '').trim()) continue;
     if ([...link.querySelectorAll('img')].some((image) => (image.getAttribute('alt') ?? '').trim())) {
       continue;
@@ -263,7 +298,11 @@ function accessibleName(element) {
  */
 export function extractMarkdown(document, options, td, context = {}) {
   const inputCharacters = document.documentElement?.outerHTML?.length ?? 0;
-  const { roots, strategy, fallbackReason } = selectContentRoots(document, options.selectors);
+  const { roots, strategy, fallbackReason } = selectContentRoots(
+    document,
+    options.selectors,
+    options.removeSelectors,
+  );
 
   let removedNodes = 0;
   const parts = roots.map((root) => {
@@ -277,7 +316,10 @@ export function extractMarkdown(document, options, td, context = {}) {
       }
       return root.outerHTML;
     }
-    return td.turndown(/** @type {any} */ (root)).trim();
+    // Turndown accepts an Element but converts only its children. Supplying the
+    // serialized root preserves selected links, images, and other semantic
+    // elements that are themselves the extraction root.
+    return td.turndown(root.outerHTML).trim();
   });
 
   const markdown = parts.filter(Boolean).join('\n\n');

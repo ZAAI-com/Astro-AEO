@@ -106,11 +106,13 @@ export function basePrefix(base) {
  * @param {{ markdown?: string; title?: string; description?: string; lastModified?: string; path?: string; strategy?: 'markdown-route'|'catalog'; extraction?: import('./extract/index.js').ExtractionDiagnostics }} [input.authored]
  * @param {boolean} [input.allowMarker]
  * @param {'prerendered'|'on-demand'} [input.rendering]
+ * @param {string} [input.publicPathname] URL-encoded pathname used for emitted links.
  * @param {(title: string) => string} [input.strip]  Reused instance; derived from config when absent.
  * @returns {Promise<{ page: AeoPage } | { skip: SkipReason }>}
  */
-export async function buildPage({ pathname: rawPathname, html, config, site, td, getTurndown, authored, allowMarker = true, rendering = 'on-demand', strip }) {
+export async function buildPage({ pathname: rawPathname, html, config, site, td, getTurndown, authored, allowMarker = true, rendering = 'on-demand', publicPathname, strip }) {
   const pathname = normalizePath(rawPathname || '/');
+  const emittedPathname = normalizePath(publicPathname ?? pathname);
 
   if (!isIncluded(pathname, { include: config.pages.include, exclude: config.pages.exclude })) {
     return { skip: 'excluded' };
@@ -121,7 +123,7 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
   if (config.pages.respectNoindex && meta.noindex) return { skip: 'noindex' };
   if (meta.aeoTokens.has('skip')) return { skip: 'skip-token' };
 
-  const url = absoluteUrl(site.siteUrl, site.base, pathname, site.trailingSlash);
+  const url = absoluteUrl(site.siteUrl, site.base, emittedPathname, site.trailingSlash);
 
   const document = parseDocument(html);
   const marker = allowMarker ? readMarker(document) : null;
@@ -152,7 +154,7 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
     page: {
       pathname,
       url,
-      mdHref: mdHrefFor(pathname, site.base),
+      mdHref: mdHrefFor(emittedPathname, site.base),
       title: marker?.title || authored?.title || meta.title,
       description: marker?.description || authored?.description || meta.description,
       markdown,

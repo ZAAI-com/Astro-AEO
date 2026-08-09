@@ -257,7 +257,6 @@ function runtimeFor(pageCount) {
       index === 0 ? '/' : `/benchmark-${index}`,
     ),
     standaloneSources: {},
-    internalRequestToken: 'benchmark-only',
   };
 }
 

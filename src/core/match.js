@@ -1,5 +1,9 @@
 // @ts-check
 
+// Inspect the raw path plus its first two decoded forms. A remaining escape is
+// deeper than the traversal forms we intentionally support and is rejected.
+const MAX_PATHNAME_FORMS = 3;
+
 /**
  * Minimal, dependency-free path glob matcher for URL pathnames.
  *
@@ -36,25 +40,50 @@ export function normalizePath(p) {
  * @returns {string | null}
  */
 export function normalizeCatalogPathname(value) {
+  if (inspectRootPathname(value) === null) return null;
+  return normalizePath(/** @type {string} */ (value));
+}
+
+/**
+ * Validate an untrusted root-relative pathname and return its once-decoded form.
+ * Repeated validation catches nested encodings, while the fixed pass limit keeps
+ * adversarial input linear with a small constant factor.
+ * @param {unknown} value
+ * @returns {{ decoded: string } | null}
+ */
+export function inspectRootPathname(value) {
   if (typeof value !== 'string' || !value.startsWith('/')) return null;
-  let decoded = value;
-  for (let pass = 0; pass <= value.length; pass++) {
+  let current = value;
+  let decodedOnce = value;
+  for (let pass = 0; pass < MAX_PATHNAME_FORMS; pass++) {
     if (
-      decoded.startsWith('//') ||
-      /[\\?#\0-\x1f\x7f]/.test(decoded) ||
-      decoded.split('/').some((segment) => segment === '.' || segment === '..')
+      current.startsWith('//') ||
+      /[\\?#\0-\x1f\x7f]/.test(current) ||
+      current.split('/').some((segment) => segment === '.' || segment === '..')
     ) {
       return null;
     }
+    const hasEscape = /%[0-9a-f]{2}/i.test(current);
+    if (pass === MAX_PATHNAME_FORMS - 1) {
+      return hasEscape ? null : { decoded: decodedOnce };
+    }
+    if (pass > 0 && !hasEscape) return { decoded: decodedOnce };
     let next;
     try {
-      next = decodeURIComponent(decoded);
+      // The first pass produces the actual request pathname. Later passes only
+      // validate nested ASCII escapes, so an encoded literal percent followed
+      // by hex-looking text remains valid even when it is not UTF-8.
+      next = pass === 0
+        ? decodeURIComponent(current)
+        : current.replace(/%([0-9a-f]{2})/gi, (_, hex) =>
+            String.fromCharCode(Number.parseInt(hex, 16)));
     } catch {
       return null;
     }
-    if (next === decoded) return normalizePath(value);
-    if (next.split('/').length !== decoded.split('/').length) return null;
-    decoded = next;
+    if (pass === 0) decodedOnce = next;
+    if (next === current) return { decoded: decodedOnce };
+    if (next.split('/').length !== current.split('/').length) return null;
+    current = next;
   }
   return null;
 }

@@ -1,5 +1,5 @@
 import { test, expect, describe } from 'vitest';
-import { findNonSerializable, nonSerializableWarning, toSource } from './serialize.js';
+import { findNonSerializable, nonSerializableWarning, runtimeConfigProjection, toSource } from './serialize.js';
 import { resolveConfig } from '../config.js';
 
 /** Evaluate emitted source the way the virtual module's importer would. */
@@ -86,5 +86,17 @@ describe('findNonSerializable', () => {
     expect(message).toContain('still apply during `astro build`');
     expect(message).toContain('skipped in `astro dev`');
     expect(message).toContain('falls through to the default');
+  });
+});
+
+describe('runtimeConfigProjection', () => {
+  test('removes build-only sitemap options without mutating the resolved config', () => {
+    const config = resolveConfig({
+      discovery: { sitemap: { options: { filter: () => true, locales: { 'pt-BR': 'pt' } } } },
+    });
+    const projected = runtimeConfigProjection(config);
+    expect(projected.discovery.sitemap.options).toEqual({});
+    expect(config.discovery.sitemap.options.locales).toEqual({ 'pt-BR': 'pt' });
+    expect(findNonSerializable(projected)).toEqual([]);
   });
 });

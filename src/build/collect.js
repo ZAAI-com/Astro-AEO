@@ -50,7 +50,7 @@ export async function collectPages(rawPages, config, ctx) {
 
     const read = source.read(pathname);
     const authored = authoredSource(raw, pathname, ctx);
-    if (!read && !authored?.markdown) {
+    if (!read && authored?.markdown === undefined) {
       ctx.logger.warn(`astro-aeo: could not read built HTML for ${pathname}, skipping`);
       continue;
     }

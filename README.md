@@ -193,8 +193,9 @@ To see the canonical replacement for your own config, build once with the printe
 AEO_PRINT_MIGRATION=1 astro build
 ```
 
-It prints a paste-ready block derived from the keys you actually set. Functions and
-regular expressions appear as placeholders, so copy those by hand.
+It prints a paste-ready block derived from the keys you actually set. Dates and regular
+expressions retain executable constructors. Functions appear as `undefined` TODO
+placeholders, so copy those callbacks by hand.
 
 Two rules are worth knowing:
 
@@ -324,12 +325,28 @@ two catalogs name the same normalized path. `context` contains the command, site
 base path, and trailing-slash policy. Astro-AEO does not crawl your site to discover
 routes.
 
+Catalog entrypoints must be JavaScript that Node's native module loader can execute:
+`.js`, `.mjs`, or `.cjs`. This keeps build preflight identical on every supported Node
+version. Catalog logic may be authored in TypeScript, but it must be compiled to a
+JavaScript entrypoint before Astro loads the integration. Source `.ts`, `.tsx`, `.mts`,
+`.cts`, `.jsx`, and `.astro` catalog entrypoints warn and contribute nothing. Node's
+built-in TypeScript support is not a portable substitute: it is unavailable on Node 20,
+handles only erasable syntax by default, and ignores `tsconfig.json` behavior. See the
+[Node TypeScript documentation](https://nodejs.org/api/typescript.html).
+
 Request-time `llms.txt` and `llms-full.txt` render each known route through the
-application so authentication and page markers behave normally. To prevent one
-request from causing unbounded self-fetches, `corpus.runtime.maxPages` defaults to
-50 and at most four renders run concurrently. A larger corpus returns `503` with
-`Cache-Control: no-store`, without partial output. Raise the limit or select
-`'unlimited'` only when the deployment can safely absorb that work.
+application so page markers behave normally. Each route is rendered serially through
+Astro's in-process rewrite pipeline: no network destination is derived from the Host
+header, the trusted rewrite capability exists only in process, and caller credentials
+are not copied into corpus renders. `corpus.runtime.maxPages` defaults to 50. A larger
+corpus returns `503` with `Cache-Control: no-store`, without partial output. Raise the
+limit or select `'unlimited'` only when the deployment can safely absorb that work.
+Astro 5 and Astro 6.0-6.2 receive `503` for request-time corpora because those
+versions do not expose a disposable request state. Their closure-held client address,
+cookies, and session cannot be replaced securely for an anonymous corpus render.
+Build-time corpus artifacts and authenticated direct `.md` requests are unaffected.
+Astro 6.3 and newer use a separate disposable request state for every serialized
+corpus render, including streams whose cancellation never settles.
 
 ### Content negotiation
 
@@ -339,14 +356,18 @@ a 303 to the `.md` URL. Default is `'off'`.
 
 Markdown has to be asked for explicitly and outrank HTML strictly. A wildcard
 (`*/*`), a tie, a missing header, and a malformed one all resolve to HTML, so
-browsers, curl, and crawlers that send `*/*` are unaffected.
+browsers, curl, and crawlers that send `*/*` are unaffected. Media parameters must
+match the emitted `text/markdown; charset=utf-8` representation. The legacy
+`text/x-markdown` type is distinct and does not opt a client into `text/markdown`.
 
 Negotiated responses preserve the page's cache policy, merge `Vary: Accept`, use a
 full SHA-256 ETag, and support `HEAD` and `If-None-Match`. A `304` avoids response
-bytes but currently still calculates the Markdown representation. Redirects, API
-responses, and negotiated error pages retain the application's original behavior.
-Responses with bodyless statuses (`204`, `205`, and `304`) pass through unchanged.
+bytes but currently still calculates the Markdown representation. A source `304` is
+re-evaluated with a sanitized GET only when Markdown is strictly preferred; otherwise
+it passes through unchanged. Redirects, API responses, negotiated error pages, and
+`204`/`205` responses retain the application's original behavior.
 An explicit `.md` request may convert an HTML error body while preserving its status.
+Encoded and partial (`206`) HTML responses are not transformed.
 
 **This applies to on-demand routes only.** Astro does not expose request headers to
 a prerendered route, deliberately: those pages become static files, so honouring a
@@ -374,7 +395,8 @@ Figures and captions, definition lists, tables and captions, `time`, `address`, 
 semantics Markdown cannot express. Empty links and images inherit accessible names
 from `alt`, `aria-label`, `aria-labelledby`, then `title`.
 
-An invalid or empty selector is a configuration error, not a silent no-op.
+Selector options must be arrays. A non-array value, invalid selector, or empty
+selector string is a configuration error, not a silent no-op; an empty array is valid.
 
 ```js
 markdown: {

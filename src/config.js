@@ -3,7 +3,7 @@ import { isPlainObject, mergeLegacy, printMigration } from './lib/config-migrate
 import { AeoConfigError } from './lib/errors.js';
 import { resolveSitemapPolicy } from './lib/sitemap.js';
 import { parseDocument } from './core/html-document.js';
-import { assertValidSelectors } from './core/extract/index.js';
+import { assertValidExtractionOptions } from './core/extract/index.js';
 
 /** @type {import('./index.js').SectionRule[]} */
 const DEFAULT_SECTIONS = [{ title: 'Home', match: '/' }];
@@ -149,14 +149,11 @@ function validateCatalogs(catalogs) {
 /** @param {import('./index.js').ExtractionOptions | undefined} extraction */
 function validateExtractionSelectors(extraction) {
   if (!extraction) return;
-  /** @type {Document | undefined} */
-  let probe;
-  for (const key of /** @type {const} */ (['selectors', 'removeSelectors', 'keepSelectors'])) {
-    const value = extraction[key];
-    if (!Array.isArray(value) || value.length === 0) continue;
-    probe = probe ?? parseDocument('<html></html>');
-    assertValidSelectors(probe, `markdown.extraction.${key}`, value);
-  }
+  assertValidExtractionOptions(
+    parseDocument('<html></html>'),
+    'markdown.extraction',
+    extraction,
+  );
 }
 
 const PASSTHROUGH = Symbol('astro-aeo.passthrough');

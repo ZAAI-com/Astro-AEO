@@ -7,8 +7,8 @@ import { buildRobotsTxt } from '../core/render/robots-txt.js';
 import { buildDomainProfile } from '../core/render/domain-profile.js';
 import { resolveSiteMeta } from '../core/site-meta.js';
 import { isOwnedArtifactPath } from '../core/owned-artifacts.js';
-import { normalizeCatalogPathname } from '../core/match.js';
-import { isNullBodyStatus } from './respond.js';
+import { inspectRootPathname, normalizeCatalogPathname } from '../core/match.js';
+import { cancelResponseBody, isIdentityEncoded, isNullBodyStatus } from './respond.js';
 
 /**
  * @typedef {object} Runtime
@@ -19,7 +19,6 @@ import { isNullBodyStatus } from './respond.js';
  * @property {string[]} staticPaths
  * @property {string[]} [projectPaths]
  * @property {RegExp[]} [projectPatterns]
- * @property {string} internalRequestToken
  * @property {Record<string, { markdown: string; path: string }>} standaloneSources
  */
 
@@ -42,7 +41,7 @@ export class RuntimeCorpusLimitError extends Error {
 
 /** @type {WeakMap<Runtime, Promise<import('turndown')>>} */
 const runtimeTurndown = new WeakMap();
-/** @type {WeakMap<Runtime, { loaders: RuntimeCatalogLoader[]; pagesBySite: Map<string, Promise<import('../page.js').PageDescriptor[]>> }>} */
+/** @type {WeakMap<Runtime, { loaders: RuntimeCatalogLoader[]; siteUrl: string; pages: Promise<import('../page.js').PageDescriptor[]> }>} */
 const runtimeCatalogPages = new WeakMap();
 
 /**
@@ -98,7 +97,7 @@ export function renderStandaloneArtifact(kind, runtime, opts = {}) {
  * @param {string} pathname
  * @param {string} html
  * @param {Runtime} runtime
- * @param {{ descriptor?: import('../page.js').PageDescriptor; allowAuthored?: boolean; origin?: string }} [opts]
+ * @param {{ descriptor?: import('../page.js').PageDescriptor; allowAuthored?: boolean; origin?: string; publicPathname?: string }} [opts]
  * @returns {Promise<import('../core/page-model.js').AeoPage | null>}
  */
 export async function pageFromHtml(pathname, html, runtime, opts = {}) {
@@ -137,6 +136,7 @@ export async function pageFromHtml(pathname, html, runtime, opts = {}) {
     getTurndown: () => runtimeTurndownFor(runtime),
     authored,
     allowMarker: allowAuthored,
+    publicPathname: opts.publicPathname,
   });
   return 'skip' in result ? null : result.page;
 }
@@ -145,24 +145,34 @@ export async function pageFromHtml(pathname, html, runtime, opts = {}) {
  * @param {string} mdPathname
  * @param {Runtime} runtime
  * @param {HtmlFetcher} fetchHtml
- * @param {{ catalogLoaders?: RuntimeCatalogLoader[]; origin?: string }} [opts]
+ * @param {{ catalogLoaders?: RuntimeCatalogLoader[]; origin?: string; publicPathname?: string }} [opts]
  * @returns {Promise<MarkdownResult>}
  */
 export async function serveMarkdown(mdPathname, runtime, fetchHtml, opts = {}) {
-  const pagePath = pagePathForMdPath(mdPathname);
-  if (pagePath === null) return { body: null, source: null };
+  const requestedPagePath = pagePathForMdPath(mdPathname);
+  if (requestedPagePath === null) return { body: null, source: null };
+  const pagePath = canonicalRuntimePath(requestedPagePath).canonical;
 
   const descriptors = await runtimeCatalogPagesFor(
     opts.catalogLoaders ?? [],
     runtime,
     opts.origin,
   );
-  const descriptor = descriptors.find((candidate) => candidate.pathname === pagePath);
-  const loaded = await fetchHtml(pagePath);
+  const descriptor = descriptors.find(
+    (candidate) => catalogRuntimePath(candidate.pathname).canonical === pagePath,
+  );
+  const publicPathname = opts.publicPathname ??
+    (descriptor
+      ? catalogRuntimePath(descriptor.pathname).publicPathname
+      : canonicalRuntimePath(requestedPagePath).publicPathname);
+  const loaded = await fetchHtml(publicPathname);
   if (loaded === null || loaded.html === null) {
     return { body: null, source: loaded?.response ?? null };
   }
   if (isNullBodyStatus(loaded.response.status)) {
+    return { body: null, source: loaded.response };
+  }
+  if (loaded.response.status === 206 || !isIdentityEncoded(loaded.response)) {
     return { body: null, source: loaded.response };
   }
   if (loaded.response.status >= 300 && loaded.response.status < 400) {
@@ -177,6 +187,7 @@ export async function serveMarkdown(mdPathname, runtime, fetchHtml, opts = {}) {
       descriptor,
       allowAuthored: loaded.response.ok,
       origin: opts.origin,
+      publicPathname,
     },
   );
   if (!page || page.aeoTokens.includes('no-dotmd')) {
@@ -198,14 +209,29 @@ export async function serveLlmsIndex(kind, runtime, fetchHtml, opts = {}) {
     runtime,
     opts.origin,
   );
-  const descriptorByPath = new Map(descriptors.map((descriptor) => [descriptor.pathname, descriptor]));
-  const paths = [
-    ...new Set(
-      [...runtime.staticPaths, ...descriptorByPath.keys()]
-        .map((pathname) => normalizeRuntimePath(pathname))
-        .filter((pathname) => !isOwnedArtifactPath(pathname, runtime.config)),
-    ),
-  ];
+  /** @type {Map<string, { pathname: string; publicPathname: string; descriptor?: import('../page.js').PageDescriptor }>} */
+  const pagesByPath = new Map();
+  for (const value of runtime.staticPaths) {
+    const path = canonicalRuntimePath(value);
+    if (isOwnedArtifactPath(path.canonical, runtime.config)) continue;
+    if (!pagesByPath.has(path.canonical)) {
+      pagesByPath.set(path.canonical, {
+        pathname: path.canonical,
+        publicPathname: path.publicPathname,
+      });
+    }
+  }
+  for (const descriptor of descriptors) {
+    const path = catalogRuntimePath(descriptor.pathname);
+    if (isOwnedArtifactPath(path.canonical, runtime.config)) continue;
+    const current = pagesByPath.get(path.canonical);
+    pagesByPath.set(path.canonical, {
+      pathname: current?.pathname ?? path.canonical,
+      publicPathname: path.publicPathname,
+      descriptor,
+    });
+  }
+  const paths = [...pagesByPath.values()];
   const maxPages = runtime.config.corpus.runtime.maxPages;
   if (maxPages !== 'unlimited' && paths.length > maxPages) {
     throw new RuntimeCorpusLimitError(paths.length, maxPages);
@@ -213,14 +239,23 @@ export async function serveLlmsIndex(kind, runtime, fetchHtml, opts = {}) {
 
   const pages = await collectConcurrently(
     paths,
-    Math.min(Math.max(opts.concurrency ?? 4, 1), 4),
+    Math.min(Math.max(opts.concurrency ?? 1, 1), 4),
     async (pathname) => {
-      const descriptor = descriptorByPath.get(pathname);
-      const loaded = await fetchHtml(pathname);
-      if (loaded === null || loaded.html === null || !loaded.response.ok) return null;
-      return await pageFromHtml(pathname, loaded.html, runtime, {
-        descriptor,
+      const loaded = await fetchHtml(pathname.publicPathname);
+      if (
+        loaded === null ||
+        loaded.html === null ||
+        !loaded.response.ok ||
+        loaded.response.status === 206 ||
+        !isIdentityEncoded(loaded.response)
+      ) {
+        cancelResponseBody(loaded?.response);
+        return null;
+      }
+      return await pageFromHtml(pathname.pathname, loaded.html, runtime, {
+        descriptor: pathname.descriptor,
         origin: opts.origin,
+        publicPathname: pathname.publicPathname,
       });
     },
   );
@@ -243,17 +278,14 @@ export async function serveLlmsIndex(kind, runtime, fetchHtml, opts = {}) {
 function runtimeCatalogPagesFor(loaders, runtime, origin) {
   const siteUrl = effectiveSiteUrl(runtime, origin);
   const cached = runtimeCatalogPages.get(runtime);
-  if (cached && cached.loaders === loaders) {
-    const pages = cached.pagesBySite.get(siteUrl);
-    if (pages) return pages;
-    const loaded = loadRuntimeCatalogPages(loaders, runtime, siteUrl);
-    cached.pagesBySite.set(siteUrl, loaded);
-    return loaded;
+  if (cached && cached.loaders === loaders && cached.siteUrl === siteUrl) {
+    return cached.pages;
   }
   const pages = loadRuntimeCatalogPages(loaders, runtime, siteUrl);
   runtimeCatalogPages.set(runtime, {
     loaders,
-    pagesBySite: new Map([[siteUrl, pages]]),
+    siteUrl,
+    pages,
   });
   return pages;
 }
@@ -285,11 +317,12 @@ async function loadRuntimeCatalogPages(loaders, runtime, siteUrl) {
           console.warn('astro-aeo: a runtime page catalog returned an unsafe or non-root-relative pathname; it was ignored.');
           continue;
         }
-        if (seen.has(pathname)) {
+        const canonicalPathname = catalogRuntimePath(pathname).canonical;
+        if (seen.has(canonicalPathname)) {
           console.warn(`astro-aeo: more than one runtime catalog described ${pathname}; the first descriptor wins.`);
           continue;
         }
-        seen.add(pathname);
+        seen.add(canonicalPathname);
         descriptors.push({ ...value, pathname });
       }
     } catch (error) {
@@ -327,14 +360,40 @@ function normalizeRuntimePath(pathname) {
 }
 
 /**
- * @template T
- * @param {string[]} items
+ * Keep an already-decoded request or Astro route key for matching while
+ * retaining a valid URL spelling for rewrites and emitted links.
+ * @param {string} pathname
+ * @returns {{ canonical: string; publicPathname: string }}
+ */
+function canonicalRuntimePath(pathname) {
+  const normalized = normalizeRuntimePath(pathname);
+  return { canonical: normalized, publicPathname: encodeURI(normalized) };
+}
+
+/**
+ * Catalog pathnames use URL spelling, unlike already-decoded request and Astro
+ * route keys. Decode them exactly once before matching those canonical keys.
+ * @param {string} pathname
+ * @returns {{ canonical: string; publicPathname: string }}
+ */
+function catalogRuntimePath(pathname) {
+  const normalized = normalizeRuntimePath(pathname);
+  const inspected = inspectRootPathname(normalized);
+  const canonical = inspected
+    ? normalizeRuntimePath(inspected.decoded)
+    : normalized;
+  return { canonical, publicPathname: encodeURI(canonical) };
+}
+
+/**
+ * @template TItem, TResult
+ * @param {TItem[]} items
  * @param {number} limit
- * @param {(item: string) => Promise<T | null>} run
- * @returns {Promise<T[]>}
+ * @param {(item: TItem) => Promise<TResult | null>} run
+ * @returns {Promise<TResult[]>}
  */
 export async function collectConcurrently(items, limit, run) {
-  /** @type {(T | null)[]} */
+  /** @type {(TResult | null)[]} */
   const results = new Array(items.length).fill(null);
   let cursor = 0;
 
@@ -346,7 +405,7 @@ export async function collectConcurrently(items, limit, run) {
   }
 
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-  return /** @type {T[]} */ (results.filter((r) => r !== null));
+  return /** @type {TResult[]} */ (results.filter((r) => r !== null));
 }
 
 /**

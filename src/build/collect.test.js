@@ -49,6 +49,15 @@ describe('leading-slash pathnames stay inside distRoot', () => {
     expect(resolveHtmlPath(distRoot, '/about', 'directory').startsWith(distRoot)).toBe(true);
   });
 
+  test('normalizes Astro page names and keeps status pages flat', () => {
+    expect(resolveHtmlPath(distRoot, 'about/', 'file')).toBe(join(distRoot, 'about.html'));
+    expect(resolveHtmlPath(distRoot, '/about/', 'directory')).toBe(
+      join(distRoot, 'about', 'index.html'),
+    );
+    expect(resolveHtmlPath(distRoot, '404/', 'directory')).toBe(join(distRoot, '404.html'));
+    expect(resolveHtmlPath(distRoot, '/500/', 'directory')).toBe(join(distRoot, '500.html'));
+  });
+
   test('the .md companion join keeps the file under distRoot', () => {
     // Mirrors collect.js: join(distRoot, `${pathname}.md`) with pathname "/about".
     const mdPath = join(distRoot, '/about.md');
@@ -104,6 +113,37 @@ describe('collectPages serializable dates', () => {
 });
 
 describe('authored source resolution', () => {
+  test('an explicitly empty catalog source is preserved without built HTML', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-empty-catalog-source-'));
+    roots.push(root);
+    const distRoot = join(root, 'dist');
+    const warnings = [];
+
+    const pages = await collectPages(
+      [{ pathname: '/empty', title: 'Empty', markdown: '' }],
+      resolveConfig(),
+      {
+        distDir: pathToFileURL(`${distRoot}/`),
+        siteUrl: 'https://x.com',
+        base: '',
+        trailingSlash: 'always',
+        buildFormat: 'directory',
+        projectRoot: root,
+        routeEntrypoints: new Map(),
+        logger: { warn: (message) => warnings.push(message) },
+      },
+    );
+
+    expect(pages).toHaveLength(1);
+    expect(pages[0]).toMatchObject({
+      pathname: '/empty',
+      title: 'Empty',
+      markdown: '',
+      source: { strategy: 'catalog' },
+    });
+    expect(warnings).toEqual([]);
+  });
+
   test('standalone Markdown is preserved and leading frontmatter is removed', async () => {
     const root = mkdtempSync(join(tmpdir(), 'astro-aeo-markdown-source-'));
     roots.push(root);

@@ -1,6 +1,6 @@
 // @ts-check
-import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { extname, isAbsolute, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { normalizeCatalogPathname, normalizePath } from '../core/match.js';
 import { toIsoTimestamp } from '../core/page-model.js';
 
@@ -12,6 +12,9 @@ import { toIsoTimestamp } from '../core/page-model.js';
  */
 
 /** @typedef {{ module: string; specifier: string; namespace: any }} LoadedCatalogModule */
+
+const UNSUPPORTED_LOCAL_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts', '.jsx', '.astro']);
+const FILE_URL = /^file:/i;
 
 /**
  * Vite executes Astro integrations through a module runner and rewrites direct
@@ -36,9 +39,20 @@ export function importCatalogModule(specifier) {
  * @returns {string}
  */
 export function resolveCatalogSpecifier(specifier, projectRoot) {
-  return specifier.startsWith('.')
-    ? pathToFileURL(resolve(projectRoot, specifier)).href
-    : specifier;
+  if (FILE_URL.test(specifier)) {
+    try {
+      return new URL(specifier).href;
+    } catch {
+      return specifier;
+    }
+  }
+  if (specifier.startsWith('.') || isAbsolute(specifier)) {
+    const suffixAt = specifier.search(/[?#]/);
+    const pathname = suffixAt === -1 ? specifier : specifier.slice(0, suffixAt);
+    const suffix = suffixAt === -1 ? '' : specifier.slice(suffixAt);
+    return `${pathToFileURL(resolve(projectRoot, pathname)).href}${suffix}`;
+  }
+  return specifier;
 }
 
 /**
@@ -63,6 +77,16 @@ export async function preloadCatalogModules(
   const loaded = [];
   for (const catalog of catalogs) {
     const specifier = resolveCatalogSpecifier(catalog.module, projectRoot);
+    const extension = localCatalogExtension(catalog.module, specifier);
+    if (extension && UNSUPPORTED_LOCAL_EXTENSIONS.has(extension)) {
+      reportCatalogDiagnostic(diagnostics, logger, {
+        code: 'catalog-unsupported-module-format',
+        message:
+          `astro-aeo: the page catalog "${catalog.module}" uses ${extension}, but catalogs are loaded directly by Node and must be compiled to .js, .mjs, or .cjs so they work on Node 20.19.5; it contributed nothing.`,
+        sourcePath: catalog.module,
+      });
+      continue;
+    }
     try {
       loaded.push({
         module: catalog.module,
@@ -80,6 +104,28 @@ export async function preloadCatalogModules(
     }
   }
   return loaded;
+}
+
+/**
+ * Return the extension only for project-local modules. Bare package specifiers
+ * may expose compiled JavaScript through their exports map regardless of the
+ * package subpath's spelling, so Node remains the authority for those.
+ * @param {string} module
+ * @param {string} specifier
+ * @returns {string | null}
+ */
+function localCatalogExtension(module, specifier) {
+  if (!module.startsWith('.') && !isAbsolute(module) && !FILE_URL.test(module)) {
+    return null;
+  }
+  try {
+    const pathname = FILE_URL.test(specifier)
+      ? fileURLToPath(new URL(specifier))
+      : specifier.replace(/[?#].*$/, '');
+    return extname(pathname).toLowerCase();
+  } catch {
+    return extname(module.replace(/[?#].*$/, '')).toLowerCase();
+  }
 }
 
 /**

@@ -2,6 +2,27 @@
 import { isPlainObject } from '../lib/config-migrate.js';
 
 /**
+ * Keep build-only sitemap callbacks out of the runtime snapshot without
+ * mutating the resolved configuration used by the build integration.
+ *
+ * @template T
+ * @param {T & { discovery: { sitemap: object } }} config
+ * @returns {T}
+ */
+export function runtimeConfigProjection(config) {
+  return /** @type {T} */ ({
+    ...config,
+    discovery: {
+      ...config.discovery,
+      sitemap: {
+        ...config.discovery.sitemap,
+        options: {},
+      },
+    },
+  });
+}
+
+/**
  * @param {unknown} value
  * @param {string} [path]
  * @returns {string[]}
