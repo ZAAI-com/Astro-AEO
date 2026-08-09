@@ -2,6 +2,67 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## 1.1.0
+
+Astro-AEO 1.1 makes configuration clearer, improves Markdown quality, and brings consistent,
+secure request-time behavior to development and adapter deployments.
+
+### Highlights
+
+- Configuration is now organized by output under `site`, `pages`, `markdown`, `corpus`, and
+  `discovery`. The [migration guide](README.md#migrating-from-10) maps every 1.0 key, and running
+  `AEO_PRINT_MIGRATION=1 astro build` prints a paste-ready config from the options a project uses.
+- [Markdown extraction](README.md#extraction) now uses a real DOM, supports ordered content roots,
+  removable chrome, and HTML-preserving selectors, and retains structures and accessible names
+  that the previous conversion could lose.
+- Pages built from Markdown can preserve their authored source with
+  [`AeoPage` and `defineAeoPage`](README.md#giving-a-page-its-own-source). Standalone Markdown
+  routes also carry their original source into server bundles.
+- [Page catalogs](README.md#pages-the-build-cannot-see) can add data-generated routes that Astro's
+  route list cannot discover, so eligible routes receive companions and appear in corpora.
+- [Content negotiation](README.md#content-negotiation) can return Markdown at a page URL or redirect
+  to its `.md` companion when Markdown is explicitly preferred on an on-demand route.
+- Live `llms.txt` and `llms-full.txt` generation renders known pages serially and limits work
+  with `corpus.runtime.maxPages`, which defaults to 50 and returns `503` instead of partial output
+  when exceeded.
+- [Sitemap handling](README.md#sitemap) now has `auto`, `external`, and `disabled` modes, with its
+  alias and `robots.txt` advertising tied to sitemap output that actually exists.
+- New serializable page, catalog, source, extraction, and diagnostic types support integrations and
+  tooling. The release also exports `astro-aeo/extract`, `ResolvedAstroAeoConfig`, and the
+  committed [configuration schema](schema/astro-aeo.schema.json).
+
+### Upgrade notes
+
+- Every 1.0 configuration key remains supported until 2.0 and produces the same output as its
+  canonical replacement. If both spellings set the same option to different values, the build now
+  stops and names the conflict instead of choosing silently.
+- Relative links and image sources in generated Markdown now resolve against the page's canonical
+  URL. The improved extraction also deliberately changes Markdown where older output lost
+  structure or accessible names; other renderer formats remain stable.
+- `ResolvedAeoConfig` is deprecated and frozen at the 1.0 shape. Type consumers should move to
+  `ResolvedAstroAeoConfig`; this is a type-only change.
+- Live request-time corpora require Astro 6.3 or newer so each rendered page can use disposable
+  request state. Astro 5 and Astro 6.0 through 6.2 fail closed with `503`; build artifacts and
+  direct authenticated `.md` requests remain supported.
+
+### Reliability
+
+- One Astro middleware now serves direct companions, text artifacts, and negotiated Markdown in
+  development and adapter deployments. Direct `.md` rewrites pass through application middleware
+  so authentication applies, while statuses, redirects, cache policy, `HEAD`, conditional
+  requests, and non-HTML responses are preserved.
+- A shared artifact writer now diagnoses collisions between Astro-AEO outputs, project routes,
+  `public/` files, and existing destinations while preserving each output's established overwrite
+  policy.
+- Live corpora use serialized, anonymous in-process rewrites rather than Host-derived network
+  requests. Caller credentials and shared caches are isolated, traversal is rejected, and internal
+  source markers are removed before content is written or served.
+- Benchmark regression explanation: The extraction, corpus, catalog, request-isolation, and
+  response-hardening work adds about 17 percent packed and 18 percent unpacked to the portable
+  package. The Node integration bundle grows by about 46 percent raw and 44 percent gzip because
+  the request-isolation and response-hardening code ships in the consumer's server bundle. Every
+  absolute package, bundle, startup, memory, and timing ceiling remains enforced.
+
 ## 1.0.0
 
 ### Changed

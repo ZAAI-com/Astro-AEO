@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
+import { createArtifactWriter } from '../build/artifacts.js';
 import { resolveConfig } from '../config.js';
 import { finalizeSitemapOutputs } from './sitemap-finalize.js';
 
@@ -35,7 +36,11 @@ describe('finalizeSitemapOutputs', () => {
 
   /**
    * @param {import('../index.js').AstroAeoConfig} [userConfig]
-   * @param {{ sitemapPolicy?: 'auto'|'always'|'never'; sitemapExpected?: boolean }} [options]
+   * @param {{
+   *   sitemapPolicy?: 'auto'|'always'|'never';
+   *   sitemapExpected?: boolean;
+   *   writer?: ReturnType<typeof createArtifactWriter>;
+   * }} [options]
    */
   function finalize(userConfig = {}, options = {}) {
     const { robotsTxt, ...otherConfig } = userConfig;
@@ -51,6 +56,7 @@ describe('finalizeSitemapOutputs', () => {
         sitemapPolicy: options.sitemapPolicy ?? 'auto',
         sitemapExpected: options.sitemapExpected ?? false,
         logger,
+        writer: options.writer,
       },
     );
   }
@@ -100,6 +106,20 @@ describe('finalizeSitemapOutputs', () => {
     expect(readFileSync(join(dir, 'robots.txt'), 'utf8')).not.toContain('Sitemap:');
   });
 
+  test('disabled mode neither aliases nor advertises an existing sitemap', () => {
+    writeFileSync(join(dir, 'sitemap-index.xml'), '<manual/>');
+    const result = finalize({
+      discovery: {
+        sitemap: { mode: 'disabled' },
+        robots: { enabled: true, includeSitemap: true },
+      },
+    });
+
+    expect(result).toEqual({ aliasEmitted: false, sitemapAdvertised: false });
+    expect(existsSync(join(dir, 'sitemap.xml'))).toBe(false);
+    expect(readFileSync(join(dir, 'robots.txt'), 'utf8')).not.toContain('Sitemap:');
+  });
+
   test('manual sitemap sources are aliased without an official integration', () => {
     writeFileSync(join(dir, 'sitemap-index.xml'), '<manual/>');
     const result = finalize();
@@ -137,5 +157,29 @@ describe('finalizeSitemapOutputs', () => {
     expect(readFileSync(join(dir, 'robots.txt'), 'utf8')).toContain(
       'Sitemap: https://example.com/sitemap.xml',
     );
+  });
+
+  test('retains main-phase claims while writing late outputs', () => {
+    const writer = createArtifactWriter({ distDir, logger });
+    writer.write({
+      path: join(dir, 'robots.txt'),
+      owner: 'llmsTxt',
+      route: '/robots.txt',
+      contents: 'earlier phase',
+      onConflict: 'overwrite',
+    });
+
+    finalize({}, { writer });
+
+    expect(readFileSync(join(dir, 'robots.txt'), 'utf8')).not.toBe('earlier phase');
+    expect(
+      warnings.some((warning) =>
+        warning.includes('robotsTxt and llmsTxt both write /robots.txt'),
+      ),
+    ).toBe(true);
+    expect(warnings).toContain(
+      'astro-aeo: overwriting an existing robots.txt in the build output',
+    );
+    expect(writer.count('robotsTxt')).toBe(1);
   });
 });

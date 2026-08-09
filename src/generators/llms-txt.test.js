@@ -5,7 +5,7 @@ import { resolveConfig } from '../config.js';
 /** @param {string} pathname @param {Partial<any>} [extra] */
 function page(pathname, extra = {}) {
   const mdHref = pathname === '/' ? '/index.md' : `${pathname}.md`;
-  return { pathname, url: `https://x${pathname}`, mdHref, title: pathname, description: '', markdown: '', aeoTokens: new Set(), ...extra };
+  return { pathname, url: `https://x${pathname}`, mdHref, title: pathname, description: '', markdown: '', aeoTokens: [], ...extra };
 }
 
 describe('sectionFor', () => {
@@ -65,15 +65,15 @@ describe('isLlmsEligible / llmsEntryHref', () => {
   const withNoDotmd = resolveConfig({ llmsTxt: { includeNoDotmd: true } });
 
   test('no-llms pages are never eligible', () => {
-    expect(isLlmsEligible(page('/x', { aeoTokens: new Set(['no-llms']) }), base)).toBe(false);
+    expect(isLlmsEligible(page('/x', { aeoTokens: ['no-llms'] }), base)).toBe(false);
   });
 
   test('no-dotmd pages are dropped by default', () => {
-    expect(isLlmsEligible(page('/x', { aeoTokens: new Set(['no-dotmd']) }), base)).toBe(false);
+    expect(isLlmsEligible(page('/x', { aeoTokens: ['no-dotmd'] }), base)).toBe(false);
   });
 
   test('no-dotmd pages are kept and link to HTML when includeNoDotmd is on', () => {
-    const p = page('/x', { aeoTokens: new Set(['no-dotmd']) });
+    const p = page('/x', { aeoTokens: ['no-dotmd'] });
     expect(isLlmsEligible(p, withNoDotmd)).toBe(true);
     expect(llmsEntryHref(p, withNoDotmd)).toBe(p.url);
   });

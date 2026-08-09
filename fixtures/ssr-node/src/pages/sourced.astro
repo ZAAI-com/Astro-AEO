@@ -1,0 +1,21 @@
+---
+import Layout from '../layouts/Layout.astro';
+// Bare specifiers, exactly as a consumer writes them, so the exports map is
+// exercised rather than bypassed by a relative path.
+import { defineAeoPage } from 'astro-aeo/page';
+import { AeoPage } from 'astro-aeo/components';
+
+// Authored Markdown handed to astro-aeo directly. Extraction would recover an
+// approximation of this from the rendered HTML; the source is exact.
+const aeoPage = defineAeoPage({
+  markdown: '# Sourced\n\nThis came from `defineAeoPage`, not from the HTML.\n\n- exact\n- list',
+  title: 'Sourced',
+  description: 'Carries its own Markdown.',
+  lastModified: '2026-03-01',
+});
+---
+<Layout title="Sourced" description="Carries its own Markdown.">
+  <AeoPage {...aeoPage} />
+  <h1>Sourced</h1>
+  <p>RENDERED-APPROXIMATION</p>
+</Layout>

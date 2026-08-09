@@ -1,0 +1,8 @@
+---
+import Layout from '../layouts/Layout.astro';
+const title = Astro.params.slug === 'catalog-dynamic' ? 'Rendered Catalog Dynamic' : 'Dynamic';
+---
+<Layout title={title} description="Rendered dynamic fallback.">
+  <h1>{title}</h1>
+  <p>RENDERED-DYNAMIC-APPROXIMATION</p>
+</Layout>

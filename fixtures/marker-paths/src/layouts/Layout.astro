@@ -1,0 +1,13 @@
+---
+import AeoPage from '../../../../components/AeoPage.astro';
+
+const { title, markdown } = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+  <head><title>{title}</title></head>
+  <body>
+    <AeoPage markdown={markdown} title={title} sourcePath={`fixture:${title}`} />
+    <main><slot /></main>
+  </body>
+</html>

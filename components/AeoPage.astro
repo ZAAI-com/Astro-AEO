@@ -1,0 +1,24 @@
+---
+import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
+
+// Carries what a page knows about itself to the astro-aeo pipeline, which reads
+// and removes it before anything is written or served. The MIME type is unknown
+// to browsers, so the content is never executed or rendered, and the payload goes
+// through the same XSS-safe serializer as the JSON-LD components.
+//
+// Emitted only when astro-aeo is the one reading the page: the build's prerender
+// pass, or a request-time rewrite. On an ordinary page request nothing is
+// emitted, because shipping a page's own source to a browser is overhead at best
+// and a disclosure at worst.
+const marker = Astro.props ?? {};
+const collecting = Boolean(Astro.locals?.astroAeoCollect);
+const emit = collecting && Object.keys(marker).length > 0;
+---
+{emit && (
+  <script
+    type="application/vnd.astro-aeo+json"
+    data-astro-aeo-marker
+    is:inline
+    set:html={serializeJsonLd(marker)}
+  />
+)}

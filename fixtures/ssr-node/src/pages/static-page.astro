@@ -1,0 +1,9 @@
+---
+// Prerendered inside a server build: served as a static asset, so its .md comes
+// from the build artifact rather than from the middleware.
+export const prerender = true;
+import Layout from '../layouts/Layout.astro';
+---
+<Layout title="Static Page" description="Prerendered in a server build.">
+  <h1>Static Page</h1><p>Built ahead of time.</p>
+</Layout>

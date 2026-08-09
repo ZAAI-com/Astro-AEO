@@ -11,18 +11,18 @@ import {
 } from './sitemap.js';
 
 describe('resolveSitemapPlan', () => {
-  test('enabled with site and no user sitemap: auto-register and expect output', () => {
-    const plan = resolveSitemapPlan({ enabled: true, hasUserSitemap: false, hasSite: true });
+  test('auto with site and no user sitemap: auto-register and expect output', () => {
+    const plan = resolveSitemapPlan({ mode: 'auto', hasUserSitemap: false, hasSite: true });
     expect(plan).toEqual({ register: true, expected: true });
   });
 
-  test('enabled but user already has a sitemap: do not re-register, still expect output', () => {
-    const plan = resolveSitemapPlan({ enabled: true, hasUserSitemap: true, hasSite: true });
+  test('auto but user already has a sitemap: do not re-register, still expect output', () => {
+    const plan = resolveSitemapPlan({ mode: 'auto', hasUserSitemap: true, hasSite: true });
     expect(plan).toEqual({ register: false, expected: true });
   });
 
-  test('enabled without site: no expected output, warning, or registration', () => {
-    const plan = resolveSitemapPlan({ enabled: true, hasUserSitemap: false, hasSite: false });
+  test('auto without site: no expected output, warning, or registration', () => {
+    const plan = resolveSitemapPlan({ mode: 'auto', hasUserSitemap: false, hasSite: false });
     expect(plan.register).toBe(false);
     expect(plan.expected).toBe(false);
     expect(plan.warning).toMatch(/site/);
@@ -31,20 +31,35 @@ describe('resolveSitemapPlan', () => {
   test('user sitemap wins even without an astro-aeo-known site', () => {
     // A user who registered @astrojs/sitemap owns the site requirement; we stay
     // out of the way and let the finalizer verify the expected output.
-    const plan = resolveSitemapPlan({ enabled: true, hasUserSitemap: true, hasSite: false });
+    const plan = resolveSitemapPlan({ mode: 'auto', hasUserSitemap: true, hasSite: false });
     expect(plan).toEqual({ register: false, expected: true });
   });
 
-  test('disabled: never register or expect output, no warning', () => {
-    const plan = resolveSitemapPlan({ enabled: false, hasUserSitemap: false, hasSite: true });
+  test('external: never auto-register, and expect nothing without a user sitemap', () => {
+    const plan = resolveSitemapPlan({ mode: 'external', hasUserSitemap: false, hasSite: true });
     expect(plan).toEqual({ register: false, expected: false });
   });
 
-  test('user sitemap with the feature disabled remains expected (no double-register)', () => {
-    // Turning the feature off must not hide a sitemap the user registered: it is
-    // still expected, but the finalizer verifies the file before advertising it.
-    const plan = resolveSitemapPlan({ enabled: false, hasUserSitemap: true, hasSite: true });
+  test('external with a user sitemap remains expected (no double-register)', () => {
+    // 'external' only turns off auto-registration. It must not hide a sitemap the
+    // user registered: that stays expected, and the finalizer verifies the file
+    // before advertising it. This is the meaning the 1.0 `sitemap.enabled: false`
+    // always had, which is why it maps here rather than to 'disabled'.
+    const plan = resolveSitemapPlan({ mode: 'external', hasUserSitemap: true, hasSite: true });
     expect(plan).toEqual({ register: false, expected: true });
+  });
+
+  test('disabled opts out even when the user registered a sitemap', () => {
+    // The one state with no 1.0 equivalent: no auto-registration, no alias, and
+    // no robots.txt Sitemap line, regardless of what else is present.
+    expect(resolveSitemapPlan({ mode: 'disabled', hasUserSitemap: true, hasSite: true })).toEqual({
+      register: false,
+      expected: false,
+    });
+    expect(resolveSitemapPlan({ mode: 'disabled', hasUserSitemap: false, hasSite: false })).toEqual({
+      register: false,
+      expected: false,
+    });
   });
 });
 

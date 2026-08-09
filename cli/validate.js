@@ -2,7 +2,7 @@
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { matchMarkdownAlternateLinks } from '../src/generators/dotmd.js';
-import { extractMetaContent, extractTitle } from '../src/lib/page-meta.js';
+import { extractMetaContent, extractTitle } from '../src/core/page-meta.js';
 
 /**
  * @typedef {object} Finding
