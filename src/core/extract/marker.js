@@ -10,8 +10,15 @@ export const COLLECT_FLAG = 'astroAeoCollect';
  * @property {string} [markdown]
  * @property {string} [title]
  * @property {string} [description]
+ * @property {string} [image]
+ * @property {string} [language]
  * @property {string} [sourcePath]
+ * @property {'markdown'|'mdx'|'astro'|'cms'|'rendered'|'custom'} [sourceKind]
+ * @property {string} [published]
  * @property {string} [lastModified]
+ * @property {unknown[]} [authors]
+ * @property {unknown[]} [entities]
+ * @property {{ index?: boolean; includeInLlms?: boolean; includeInLlmsFull?: boolean; generateMarkdown?: boolean }} [directives]
  */
 
 /**

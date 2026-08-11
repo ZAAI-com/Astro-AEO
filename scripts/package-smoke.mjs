@@ -68,6 +68,11 @@ try {
     'src/page.d.ts',
     'src/extract.js',
     'src/extract.d.ts',
+    'src/schema.js',
+    'src/schema.d.ts',
+    'src/adapters.d.ts',
+    'src/adapters/mdx.js',
+    'src/adapters/defuddle.js',
     'src/runtime/middleware.js',
     'src/runtime/middleware.d.ts',
     'components/index.js',
@@ -112,6 +117,7 @@ try {
       resolve(consumer, 'pnpm-workspace.yaml'),
       'allowBuilds:\n  esbuild: true\n  sharp: false\n',
     );
+    await writeFile(resolve(consumer, '.npmrc'), 'auto-install-peers=false\n');
     await writeFile(
       resolve(consumer, 'src/pages/index.astro'),
       `---\nimport { AeoPage, FaqJsonLd } from 'astro-aeo/components';\n---\n<html><head><title>Packed consumer</title><meta name="description" content="Tarball smoke test" /></head><body><main><AeoPage markdown="# Authored source" title="Packed consumer" /><h1>Packed consumer</h1><FaqJsonLd items={[{ question: 'Packed?', answer: 'Yes.' }]} /></main></body></html>\n`,
@@ -121,7 +127,7 @@ try {
     // while allowing pnpm to fill a missing optional tarball. This also avoids
     // npm independently re-resolving Astro's fast-moving prerelease graph.
     run('pnpm', ['install', '--prefer-offline'], { cwd: consumer });
-    const importTargets = ['astro-aeo', 'astro-aeo/page', 'astro-aeo/extract'];
+    const importTargets = ['astro-aeo', 'astro-aeo/page', 'astro-aeo/extract', 'astro-aeo/schema'];
     run(
       'node',
       [
@@ -148,6 +154,44 @@ if (schema.title !== 'Astro-AEO configuration' || pkg.name !== 'astro-aeo') proc
     if (installedSchema.title !== 'Astro-AEO configuration') {
       throw new Error('installed configuration schema is missing or invalid');
     }
+
+    run(
+      'node',
+      [
+        '--input-type=module',
+        '-e',
+        `for (const [specifier, peer] of [['astro-aeo/mdx', '@mdx-js/mdx'], ['astro-aeo/defuddle', 'defuddle']]) {
+  try { await import(specifier); process.exit(1); }
+  catch (error) { if (!String(error).includes(peer)) process.exit(1); }
+}`,
+      ],
+      { cwd: consumer },
+    );
+
+    // Installing optional peers must be the only action that activates their
+    // importable adapter subpaths. Core imports and the ordinary Astro build
+    // above deliberately run before either peer is declared by the consumer.
+    const installedMdx = JSON.parse(
+      await readFile(resolve(root, 'node_modules/@mdx-js/mdx/package.json'), 'utf8'),
+    ).version;
+    const installedDefuddle = JSON.parse(
+      await readFile(resolve(root, 'node_modules/defuddle/package.json'), 'utf8'),
+    ).version;
+    const consumerPackage = JSON.parse(await readFile(resolve(consumer, 'package.json'), 'utf8'));
+    consumerPackage.dependencies['@mdx-js/mdx'] = installedMdx;
+    consumerPackage.dependencies.defuddle = installedDefuddle;
+    await writeFile(resolve(consumer, 'package.json'), `${JSON.stringify(consumerPackage, null, 2)}\n`);
+    run('pnpm', ['install', '--prefer-offline'], { cwd: consumer });
+    run(
+      'node',
+      [
+        '--input-type=module',
+        '-e',
+        `const adapters = await Promise.all([import('astro-aeo/mdx'), import('astro-aeo/defuddle')]);
+if (adapters.some((namespace) => namespace.default?.apiVersion !== 1)) process.exit(1);`,
+      ],
+      { cwd: consumer },
+    );
     console.log('Packed tarball imports and Astro fixture build passed.');
   }
 } finally {

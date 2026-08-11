@@ -1,5 +1,6 @@
 import type { AeoPageProps } from '../components/index.js';
 import type { ExtractionDiagnostics } from './index.js';
+import type { EntityReference, SchemaEntity } from './schema.js';
 
 export type { AeoPageProps };
 
@@ -13,9 +14,21 @@ export interface AeoPageInput {
   source?: unknown;
   title?: string;
   description?: string;
+  image?: string;
+  language?: string;
+  published?: Date | string;
   lastModified?: Date | string;
+  authors?: EntityReference[];
+  entities?: SchemaEntity[];
+  directives?: Partial<{
+    index: boolean;
+    includeInLlms: boolean;
+    includeInLlmsFull: boolean;
+    generateMarkdown: boolean;
+  }>;
   /** Where the content came from, recorded in diagnostics. */
   sourcePath?: string;
+  sourceKind?: PageSource['kind'];
 }
 
 /**
@@ -27,7 +40,7 @@ export interface AeoPageInput {
 export declare function defineAeoPage(input?: AeoPageInput): AeoPageProps;
 
 export interface PageSource {
-  kind: 'markdown' | 'astro' | 'cms' | 'rendered' | 'custom';
+  kind: 'markdown' | 'mdx' | 'astro' | 'cms' | 'rendered' | 'custom';
   path?: string;
   body?: string;
   hash?: string;
@@ -41,7 +54,18 @@ export interface PageDescriptor {
   rendering?: 'prerendered' | 'on-demand';
   title?: string;
   description?: string;
+  image?: string;
+  language?: string;
   markdown?: string;
+  dates?: { published?: string; modified?: string };
+  authors?: EntityReference[];
+  entities?: SchemaEntity[];
+  directives?: Partial<{
+    index: boolean;
+    includeInLlms: boolean;
+    includeInLlmsFull: boolean;
+    generateMarkdown: boolean;
+  }>;
   /** ISO date. */
   lastModified?: string;
   sourcePath?: string;

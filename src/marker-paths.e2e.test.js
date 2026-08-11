@@ -32,8 +32,10 @@ describe('marker path and dynamic collision build', () => {
     }
   });
 
-  test('reports a generated dynamic endpoint collision', () => {
-    expect(output).toContain('/about.md is also produced by a route in this project');
-    expect(readFileSync(join(DIST, 'about.md'), 'utf8')).toContain('# Authored about');
+  test('preserves a generated dynamic endpoint on an artifact collision', () => {
+    expect(output).toContain('/about.md is owned by a project route');
+    expect(readFileSync(join(DIST, 'about.md'), 'utf8')).toBe(
+      'project-owned dynamic endpoint\n',
+    );
   });
 });

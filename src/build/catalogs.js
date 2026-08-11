@@ -93,12 +93,10 @@ export async function preloadCatalogModules(
         specifier,
         namespace: await load(specifier),
       });
-    } catch (error) {
+    } catch {
       reportCatalogDiagnostic(diagnostics, logger, {
         code: 'catalog-load-failed',
-        message: `astro-aeo: the page catalog "${catalog.module}" failed to load, so it contributed nothing: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        message: `astro-aeo: the page catalog "${catalog.module}" failed to load, so it contributed nothing.`,
         sourcePath: catalog.module,
       });
     }

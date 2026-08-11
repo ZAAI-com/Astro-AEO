@@ -1,4 +1,4 @@
-import { test, expect, describe } from 'vitest';
+import { test, expect, describe, vi } from 'vitest';
 import {
   absoluteUrl,
   basePrefix,
@@ -76,7 +76,22 @@ describe('buildPage', () => {
     expect(p.markdown).toBe('# About\n\nBody.');
     expect(p.rendering).toBe('on-demand');
     expect(p.aeoTokens).toEqual(['no-dotmd', 'no-llms']);
-    expect(p.source).toEqual({ strategy: 'rendered' });
+    expect(p).toMatchObject({
+      id: '/about',
+      canonicalUrl: 'https://x.com/about/',
+      markdownUrl: 'https://x.com/about.md',
+      metadata: { title: 'T', description: 'Desc.', canonicalSource: 'inferred' },
+      representations: { markdown: '# About\n\nBody.', plainText: 'About Body.' },
+      authors: [],
+      entities: [],
+      directives: {
+        index: true,
+        includeInLlms: false,
+        includeInLlmsFull: true,
+        generateMarkdown: false,
+      },
+    });
+    expect(p.source).toEqual({ kind: 'rendered', strategy: 'rendered' });
     expect(p.diagnostics).toEqual([]);
     expect(p.extraction?.strategy).toBe('main');
     expect(() => JSON.stringify(p)).not.toThrow();
@@ -168,6 +183,7 @@ describe('buildPage', () => {
 
     expect(result.page.markdown).toBe('# Authored\n\nExact source.');
     expect(result.page.source).toEqual({
+      kind: 'markdown',
       strategy: 'marker',
       path: 'src/content/authored.md',
     });
@@ -189,7 +205,7 @@ describe('buildPage', () => {
       },
     });
     expect(result.page.markdown).toBe('');
-    expect(result.page.source).toEqual({ strategy: 'markdown-route' });
+    expect(result.page.source).toEqual({ kind: 'custom', strategy: 'markdown-route' });
     expect(result.page.extraction).toBeUndefined();
     expect(loads).toBe(0);
   });
@@ -220,7 +236,7 @@ describe('buildPage', () => {
     });
 
     expect(result.page.markdown).toBe('');
-    expect(result.page.source).toEqual({ strategy: 'marker', path: 'marker-empty.md' });
+    expect(result.page.source).toEqual({ kind: 'markdown', strategy: 'marker', path: 'marker-empty.md' });
     expect(result.page.extraction).toBeUndefined();
   });
 
@@ -246,7 +262,7 @@ describe('buildPage', () => {
     });
     expect(result.page.markdown).toBe('\n# Exact source\n');
     expect(result.page.extraction).toEqual(extraction);
-    expect(result.page.source).toEqual({ strategy: 'catalog', path: 'cms:marker-only' });
+    expect(result.page.source).toEqual({ kind: 'custom', strategy: 'catalog', path: 'cms:marker-only' });
   });
 
   test('an explicit page marker wins over catalog or standalone source', async () => {
@@ -271,5 +287,67 @@ describe('buildPage', () => {
       title: 'Marker title',
       source: { strategy: 'marker', path: 'marker.md' },
     });
+  });
+
+  test('runs renderers only after exact authored Markdown and before DOM extraction', async () => {
+    const exactRenderer = { name: 'must-not-run', render: vi.fn() };
+    const exact = await buildPage({
+      pathname: '/exact',
+      html: page('<h1>Rendered</h1>'),
+      config,
+      site,
+      authored: { markdown: '# Exact' },
+      renderers: [exactRenderer],
+    });
+    expect(exact.page.markdown).toBe('# Exact');
+    expect(exactRenderer.render).not.toHaveBeenCalled();
+
+    const fallbackLoader = vi.fn(async () => { throw new Error('DOM extraction must stay lazy'); });
+    const rendered = await buildPage({
+      pathname: '/mdx',
+      html: page('<h1>Rendered fallback</h1>'),
+      config,
+      site,
+      authored: { body: '# Authored MDX', kind: 'mdx', path: 'src/pages/mdx.mdx' },
+      routePattern: '/[slug]',
+      renderers: [{
+        name: 'source-aware',
+        render(input) {
+          expect(input.source).toEqual({
+            kind: 'mdx',
+            path: 'src/pages/mdx.mdx',
+            body: '# Authored MDX',
+          });
+          expect(input.canonicalUrl).toBe('https://x.com/mdx/');
+          expect(input.routePattern).toBe('/[slug]');
+          return { status: 'rendered', markdown: '' };
+        },
+      }],
+      getTurndown: fallbackLoader,
+    });
+    expect(rendered.page.markdown).toBe('');
+    expect(rendered.page.extraction).toMatchObject({ strategy: 'renderer:source-aware' });
+    expect(fallbackLoader).not.toHaveBeenCalled();
+  });
+
+  test('continues to rendered HTML after renderer diagnostics or fallback requests', async () => {
+    const result = await buildPage({
+      pathname: '/fallback',
+      html: page('<h1>Rendered fallback</h1><p>Body.</p>'),
+      config,
+      site,
+      renderers: [{
+        name: 'unsupported',
+        render: () => ({
+          status: 'fallback-to-html',
+          diagnostics: [{ code: 'unsupported-source', message: 'Use the HTML.' }],
+        }),
+      }],
+    });
+    expect(result.page.markdown).toBe('# Rendered fallback\n\nBody.');
+    expect(result.page.diagnostics).toEqual([
+      expect.objectContaining({ code: 'unsupported-source', pathname: '/fallback' }),
+    ]);
+    expect(result.page.extraction?.strategy).toBe('main');
   });
 });

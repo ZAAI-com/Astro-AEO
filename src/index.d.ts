@@ -1,4 +1,27 @@
 import type { AstroIntegration } from 'astro';
+import type { AeoGraph, EntityReference, GraphInput, SchemaEntity } from './schema.js';
+
+export type {
+  AeoGraph,
+  EntityId,
+  EntityReference,
+  GraphConflict,
+  GraphConflictPolicy,
+  GraphEntry,
+  GraphEntryInput,
+  GraphFinding,
+  GraphInput,
+  GraphMergeOptions,
+  GraphProvenance,
+  GraphProvenanceSource,
+  GraphRole,
+  GraphValidationOptions,
+  GraphValidationResult,
+  SchemaEntity,
+  SchemaValidationResult,
+} from './schema.js';
+export type { CatalogContext, PageCatalog, PageDescriptor, PageSource } from './page.js';
+export type { ExtractedDocument } from './extract.js';
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
@@ -10,6 +33,22 @@ export interface Diagnostic {
   pathname?: string;
   sourcePath?: string;
   details?: JsonValue;
+}
+
+export interface DiagnosticManifestPageV1 {
+  pathname: string;
+  /** Sanitized source strategy only. Source bodies never enter this manifest. */
+  source?: string;
+  sourcePath?: string;
+  extraction?: ExtractionDiagnostics;
+  diagnostics: Diagnostic[];
+}
+
+export interface DiagnosticManifestV1 {
+  version: 1;
+  generatedAt: string;
+  pages: DiagnosticManifestPageV1[];
+  diagnostics: Diagnostic[];
 }
 
 export interface ExtractionDiagnostics {
@@ -37,7 +76,33 @@ export interface AeoPage {
 
 /** Serializable page record shared by build, runtime, catalogs, and diagnostics. */
 export interface AeoPageRecord extends AeoPage {
+  /** Stable route identity. In 1.2 this is the normalized app-relative pathname. */
+  id: string;
+  routePattern?: string;
   rendering: 'prerendered' | 'on-demand';
+  canonicalUrl?: string;
+  markdownUrl?: string;
+  language?: string;
+  metadata: {
+    title: string;
+    description?: string;
+    image?: string;
+    canonicalSource?: 'authored' | 'inferred';
+  };
+  representations: {
+    html?: string;
+    markdown?: string;
+    plainText?: string;
+  };
+  dates?: { published?: string; modified?: string };
+  authors: EntityReference[];
+  entities: SchemaEntity[];
+  directives: {
+    index: boolean;
+    includeInLlms: boolean;
+    includeInLlmsFull: boolean;
+    generateMarkdown: boolean;
+  };
   /** Root-relative, base-prefixed URL of the Markdown companion. */
   mdHref: string;
   markdown: string;
@@ -45,11 +110,91 @@ export interface AeoPageRecord extends AeoPage {
   lastModified?: string;
   aeoTokens: string[];
   source?: {
-    strategy: 'marker' | 'markdown-route' | 'rendered' | 'catalog';
+    kind: 'markdown' | 'mdx' | 'astro' | 'cms' | 'rendered' | 'custom';
+    /** @deprecated Compatibility mirror retained through 1.x. */
+    strategy?: 'marker' | 'markdown-route' | 'rendered' | 'catalog';
     path?: string;
+    body?: string;
+    hash?: string;
   };
   extraction?: ExtractionDiagnostics;
   diagnostics: Diagnostic[];
+}
+
+export interface Representation {
+  readonly body: string;
+  readonly contentType: string;
+}
+
+export interface Artifact {
+  /** Browser-visible pathname, including Astro's configured base. */
+  readonly pathname: string;
+  readonly representation: Representation;
+  /** Plugin claims only: authorize replacing external ownership at this exact path. */
+  readonly replace?: boolean;
+}
+
+export type GeneratedArtifactOwner =
+  | { readonly kind: 'core'; readonly name: string }
+  | { readonly kind: 'plugin'; readonly name: string; readonly claimId?: string };
+
+export type ExternalArtifactOwner =
+  | { readonly kind: 'project-route'; readonly rendering: 'prerendered' | 'on-demand'; readonly routePattern?: string }
+  | { readonly kind: 'integration-route'; readonly name?: string }
+  | { readonly kind: 'public-file' }
+  | { readonly kind: 'existing-output' };
+
+export type ArtifactOwner = GeneratedArtifactOwner | ExternalArtifactOwner;
+
+export interface ArtifactRepresentationManifestV1 {
+  contentType: string;
+  byteLength: number;
+  etag: string;
+}
+
+export interface ArtifactClaimantManifestV1 {
+  owner: GeneratedArtifactOwner;
+  count: number;
+}
+
+export type ArtifactOwnershipManifestEntryV1 =
+  | {
+      pathname: string;
+      status: 'emitted';
+      owner: GeneratedArtifactOwner;
+      outputPath: string;
+      representation: ArtifactRepresentationManifestV1;
+      replacedOwners?: ExternalArtifactOwner[];
+      group?: string;
+    }
+  | {
+      pathname: string;
+      status: 'preserved';
+      owner: GeneratedArtifactOwner;
+      blockingOwners: ExternalArtifactOwner[];
+      group?: string;
+    }
+  | {
+      pathname: string;
+      status: 'conflict';
+      claimants: ArtifactClaimantManifestV1[];
+      group?: string;
+    }
+  | {
+      pathname: string;
+      status: 'group-skipped';
+      owner: GeneratedArtifactOwner;
+      group: string;
+      causedBy: string[];
+    };
+
+export interface ArtifactOwnershipManifestV1 {
+  version: 1;
+  generatedAt: string;
+  base: string;
+  outputRootId: string;
+  artifacts: ArtifactOwnershipManifestEntryV1[];
+  groups: { id: string; mode: 'all-or-none'; pathnames: string[]; status: 'emitted' | 'skipped' }[];
 }
 
 /**
@@ -383,9 +528,55 @@ export interface ExtractionOptions {
   keepSelectors?: string[];
 }
 
+export interface MarkdownRendererDescriptor {
+  module: string | URL;
+  options?: JsonValue;
+}
+
+export interface RendererDiagnostic {
+  code: string;
+  severity?: 'info' | 'warning' | 'error';
+  message: string;
+}
+
+export interface MarkdownRendererInput {
+  readonly pathname: string;
+  readonly routePattern?: string;
+  readonly rendering: 'prerendered' | 'on-demand';
+  readonly canonicalUrl?: string;
+  readonly source?: import('./page.js').PageSource;
+  /** Already-rendered local HTML. Astro-AEO never fetches it. */
+  readonly html: string;
+  /** DOM extraction options used by the rendered-HTML fallback. */
+  readonly extraction: ExtractionOptions;
+  readonly options?: JsonValue;
+}
+
+export type MarkdownRendererResult =
+  | { status: 'rendered'; markdown: string; diagnostics?: readonly RendererDiagnostic[] }
+  | { status: 'decline' }
+  | { status: 'continue'; diagnostics: readonly RendererDiagnostic[] }
+  | { status: 'fallback-to-html'; diagnostics?: readonly RendererDiagnostic[] };
+
+export type MarkdownRenderer = (
+  input: Readonly<MarkdownRendererInput>,
+) => MarkdownRendererResult | Promise<MarkdownRendererResult>;
+
+export interface MarkdownRendererModule {
+  readonly name: string;
+  readonly apiVersion: 1;
+  readonly render: MarkdownRenderer;
+}
+
+export type MarkdownRendererConfig = MarkdownRendererDescriptor | MarkdownRenderer;
+
 export interface MarkdownOptions {
   /** Generate .md companion pages. Default: true. */
   enabled?: boolean;
+  /** Shared source resolution strategy. The only 1.2 value is `auto`. */
+  strategy?: 'auto';
+  /** Importable renderers, or build-only inline renderer functions. */
+  renderers?: MarkdownRendererConfig[];
   /**
    * Inject <link rel="alternate" type="text/markdown"> into each page's <head>.
    * - 'auto' (default): inject only if the page has no such link yet.
@@ -462,8 +653,151 @@ export interface SiteOptions {
   name?: string;
   /** Site description for llms.txt headers. Falls back to the profile description. */
   description?: string;
+  /** Default BCP 47 locale used only when the page supplies none. */
+  defaultLocale?: string;
+  /** Explicit organization facts. Astro-AEO never invents organization data. */
+  organization?: SchemaEntity | EntityReference;
   /** The published domain profile at /.well-known/domain-profile.json. */
   profile?: ProfileOptions;
+}
+
+export interface ArtifactsOptions {
+  /** Exact normalized served pathnames that core generators may replace. No globs. */
+  replace?: string[];
+}
+
+export interface MetadataDefaults {
+  title?: string;
+  description?: string;
+  robots?: string | string[];
+  openGraph?: JsonValue;
+  twitter?: JsonValue;
+  locale?: string;
+  themeColor?: string | JsonValue;
+  author?: string | JsonValue;
+}
+
+export interface MetadataOptions {
+  /** Fill the small supported set of absent metadata fields. Default: false. */
+  fillMissing?: boolean;
+  defaults?: MetadataDefaults;
+}
+
+export type SchemaInference = 'website' | 'webpage' | 'breadcrumbs';
+
+export interface SchemaCorpusOptions {
+  enabled?: boolean;
+  graphPath?: string;
+  mapPath?: string;
+}
+
+export interface SchemaOptions {
+  /** Inject one managed graph on eligible pages. Default: true. */
+  autoInject?: boolean;
+  infer?: SchemaInference[];
+  strictReferences?: boolean;
+  corpus?: SchemaCorpusOptions;
+}
+
+export interface ValidationOptions {
+  onBuild?: 'artifacts' | 'recommended' | 'off';
+  failOn?: 'error' | 'warning';
+}
+
+export type AstroAeoPluginStage =
+  | 'page:discovered'
+  | 'page:extract'
+  | 'page:transform'
+  | 'page:metadata'
+  | 'graph:build'
+  | 'artifact:generate'
+  | 'artifact:validate'
+  | 'build:complete';
+
+export interface PluginDiagnostic {
+  code: string;
+  severity?: 'info' | 'warning' | 'error';
+  message: string;
+  recoverable?: boolean;
+}
+
+export type AstroAeoPluginHookResult<T> =
+  | void
+  | { action: 'keep'; diagnostics?: readonly PluginDiagnostic[] }
+  | { action: 'replace'; value: T; diagnostics?: readonly PluginDiagnostic[] }
+  | { action: 'isolate'; diagnostics?: readonly PluginDiagnostic[] };
+
+/** Recursive readonly view used for values crossing a plugin hook boundary. */
+export type ImmutablePluginValue<T> =
+  T extends (...args: any[]) => unknown
+    ? T
+    : T extends readonly (infer Item)[]
+      ? readonly ImmutablePluginValue<Item>[]
+      : T extends object
+        ? { readonly [Key in keyof T]: ImmutablePluginValue<T[Key]> }
+        : T;
+
+/** Sanitized page data available through a runtime plugin's lazy page handle. */
+export interface RuntimePluginPageRecord {
+  readonly id: string;
+  readonly pathname: string;
+  readonly routePattern?: string;
+  readonly rendering?: 'prerendered' | 'on-demand';
+  readonly canonicalUrl?: string;
+  readonly markdownUrl?: string;
+  readonly language?: string;
+  readonly metadata?: ImmutablePluginValue<AeoPageRecord['metadata']>;
+  readonly representations: {
+    readonly markdown?: string;
+    readonly plainText?: string;
+  };
+  readonly dates?: ImmutablePluginValue<NonNullable<AeoPageRecord['dates']>>;
+  readonly authors?: readonly EntityReference[];
+  readonly entities?: readonly SchemaEntity[];
+  readonly directives?: ImmutablePluginValue<AeoPageRecord['directives']>;
+  readonly extraction?: ImmutablePluginValue<ExtractionDiagnostics>;
+}
+
+export interface RuntimePluginPageHandle {
+  readonly id: string;
+  readonly pathname: string;
+  read(): Promise<RuntimePluginPageRecord | null>;
+}
+
+export interface AstroAeoPluginHookInput<T> {
+  readonly value: ImmutablePluginValue<T>;
+  readonly pathname?: string;
+  readonly mode: 'build' | 'runtime';
+  /** Present only for runtime hooks and confined to pages Astro-AEO already enumerated. */
+  readonly pages?: readonly RuntimePluginPageHandle[];
+}
+
+export type AstroAeoPluginHook<T = unknown> = (
+  input: Readonly<AstroAeoPluginHookInput<T>>,
+) => AstroAeoPluginHookResult<T> | Promise<AstroAeoPluginHookResult<T>>;
+
+export interface PluginArtifactClaim {
+  id: string;
+  pathname: string;
+  replace?: boolean;
+}
+
+export interface AstroAeoPluginApi {
+  readonly command: 'dev' | 'build' | 'preview';
+  /** Present only in an importable runtime module, after strict JSON validation. */
+  readonly options?: JsonValue;
+  on<T>(stage: AstroAeoPluginStage, hook: AstroAeoPluginHook<T>): void;
+  claimArtifact(claim: PluginArtifactClaim): void;
+}
+
+export interface AstroAeoPlugin {
+  name: string;
+  apiVersion: 1;
+  setup(api: AstroAeoPluginApi): void;
+  runtime?: {
+    entrypoint: string | URL;
+    options?: JsonValue;
+  };
 }
 
 /**
@@ -475,6 +809,11 @@ export interface CanonicalAeoConfig {
   markdown?: MarkdownOptions;
   corpus?: CorpusOptions;
   discovery?: DiscoveryOptions;
+  artifacts?: ArtifactsOptions;
+  metadata?: MetadataOptions;
+  schema?: SchemaOptions;
+  validation?: ValidationOptions;
+  plugins?: AstroAeoPlugin[];
 }
 
 /**
@@ -523,10 +862,22 @@ export interface ResolvedAstroAeoConfig {
   site: {
     name: string;
     description: string;
+    defaultLocale: string | undefined;
+    organization: SchemaEntity | EntityReference | undefined;
     profile: Required<ProfileOptions>;
   };
   pages: Required<PagesOptions>;
   markdown: Omit<Required<MarkdownOptions>, 'extraction'> & { extraction: Required<ExtractionOptions> };
+  artifacts: { replace: string[] };
+  metadata: { fillMissing: boolean; defaults: MetadataDefaults };
+  schema: {
+    autoInject: boolean;
+    infer: SchemaInference[];
+    strictReferences: boolean;
+    corpus: Required<SchemaCorpusOptions>;
+  };
+  validation: Required<ValidationOptions>;
+  plugins: AstroAeoPlugin[];
   corpus: {
     index: Required<CorpusIndexOptions>;
     full: Required<CorpusFullOptions>;

@@ -6,8 +6,15 @@
  * @property {unknown} [source]       A content-collection entry; its body and data are read from it.
  * @property {string} [title]
  * @property {string} [description]
+ * @property {string} [image]
+ * @property {string} [language]
+ * @property {Date | string} [published]
  * @property {Date | string} [lastModified]
+ * @property {unknown[]} [authors]
+ * @property {unknown[]} [entities]
+ * @property {{ index?: boolean; includeInLlms?: boolean; includeInLlmsFull?: boolean; generateMarkdown?: boolean }} [directives]
  * @property {string} [sourcePath]    Where the content came from, for diagnostics.
+ * @property {'markdown'|'mdx'|'astro'|'cms'|'rendered'|'custom'} [sourceKind]
  */
 
 /**
@@ -28,12 +35,33 @@ export function defineAeoPage(input = {}) {
   const description = input.description ?? entry?.data?.description;
   if (typeof description === 'string' && description) marker.description = description;
 
+  const image = input.image ?? entry?.data?.image;
+  if (typeof image === 'string' && image) marker.image = image;
+
+  const language = input.language ?? entry?.data?.language ?? entry?.data?.lang;
+  if (typeof language === 'string' && language) marker.language = language;
+
+  const published = input.published ?? entry?.data?.published ?? entry?.data?.pubDate;
+  const publishedIso = toIsoDate(published);
+  if (publishedIso) marker.published = publishedIso;
+
   const lastModified = input.lastModified ?? entry?.data?.updatedDate ?? entry?.data?.pubDate;
   const iso = toIsoDate(lastModified);
   if (iso) marker.lastModified = iso;
 
   const sourcePath = input.sourcePath ?? entry?.filePath ?? entry?.id;
-  if (typeof sourcePath === 'string' && sourcePath) marker.sourcePath = sourcePath;
+  if (typeof sourcePath === 'string' && sourcePath) {
+    marker.sourcePath = sourcePath;
+    marker.sourceKind = input.sourceKind ?? (/\.mdx(?:$|[?#])/i.test(sourcePath) ? 'mdx' : 'markdown');
+  }
+
+  if (Array.isArray(input.authors)) marker.authors = input.authors;
+  if (Array.isArray(input.entities)) marker.entities = input.entities;
+  if (input.directives && typeof input.directives === 'object') {
+    marker.directives = Object.fromEntries(
+      Object.entries(input.directives).filter(([, value]) => typeof value === 'boolean'),
+    );
+  }
 
   return marker;
 }

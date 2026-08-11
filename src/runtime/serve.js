@@ -9,23 +9,30 @@ import { resolveSiteMeta } from '../core/site-meta.js';
 import { isOwnedArtifactPath } from '../core/owned-artifacts.js';
 import { inspectRootPathname, normalizeCatalogPathname } from '../core/match.js';
 import { cancelResponseBody, isIdentityEncoded, isNullBodyStatus } from './respond.js';
+import { enrichHtmlHead, stripAeoHeadMarkers } from '../core/head.js';
+import { renderSchemaCorpus } from '../core/schema-corpus.js';
+import { stableCanonical } from '../core/canonical.js';
+import { loadRuntimeMarkdownRenderers } from './markdown-renderers.js';
+import { loadRuntimePlugins } from './plugins.js';
 
 /**
  * @typedef {object} Runtime
  * @property {'dev'|'build'|'preview'} command
  * @property {import('../index.js').ResolvedAstroAeoConfig} config
- * @property {{ siteUrl: string; base: string; trailingSlash: 'always'|'never'|'ignore' }} site
+ * @property {{ siteUrl: string; stableSiteUrl?: string; base: string; trailingSlash: 'always'|'never'|'ignore' }} site
  * @property {boolean} [sitemapAvailable]
  * @property {string[]} staticPaths
  * @property {string[]} [projectPaths]
  * @property {RegExp[]} [projectPatterns]
- * @property {Record<string, { markdown: string; path: string }>} standaloneSources
+ * @property {Record<string, { kind?: 'markdown'|'mdx'; body?: string; markdown?: string; path: string }>} standaloneSources
  */
 
 /** @typedef {{ html: string | null; response: Response }} HtmlLoad */
 /** @typedef {(pathname: string) => Promise<HtmlLoad | null>} HtmlFetcher */
 /** @typedef {{ body: string | null; source: Response | null }} MarkdownResult */
 /** @typedef {{ module: string; load: () => Promise<import('../page.js').PageCatalog> }} RuntimeCatalogLoader */
+/** @typedef {import('./markdown-renderers.js').RuntimeMarkdownRendererLoader} RuntimeMarkdownRendererLoader */
+/** @typedef {import('./plugins.js').RuntimePluginLoader} RuntimePluginLoader */
 
 export class RuntimeCorpusLimitError extends Error {
   /** @param {number} pages @param {number} limit */
@@ -58,7 +65,7 @@ export function stripBase(pathname, base) {
 /**
  * @param {string} pathname
  * @param {import('../index.js').ResolvedAstroAeoConfig} config
- * @returns {'robots'|'domain-profile'|'llms'|'llms-full'|null}
+ * @returns {'robots'|'domain-profile'|'llms'|'llms-full'|'schema-graph'|'schema-map'|null}
  */
 export function artifactFor(pathname, config) {
   if (pathname === '/robots.txt' && config.discovery.robots.enabled) return 'robots';
@@ -67,6 +74,8 @@ export function artifactFor(pathname, config) {
   }
   if (pathname === '/llms.txt' && config.corpus.index.enabled) return 'llms';
   if (pathname === '/llms-full.txt' && config.corpus.full.enabled) return 'llms-full';
+  if (config.schema.corpus.enabled && pathname === config.schema.corpus.graphPath) return 'schema-graph';
+  if (config.schema.corpus.enabled && pathname === config.schema.corpus.mapPath) return 'schema-map';
   return null;
 }
 
@@ -97,31 +106,78 @@ export function renderStandaloneArtifact(kind, runtime, opts = {}) {
  * @param {string} pathname
  * @param {string} html
  * @param {Runtime} runtime
- * @param {{ descriptor?: import('../page.js').PageDescriptor; allowAuthored?: boolean; origin?: string; publicPathname?: string }} [opts]
+ * @param {{ descriptor?: import('../page.js').PageDescriptor; allowAuthored?: boolean; origin?: string; publicPathname?: string; rendererLoaders?: RuntimeMarkdownRendererLoader[]; pluginLoaders?: RuntimePluginLoader[] }} [opts]
  * @returns {Promise<import('../core/page-model.js').AeoPage | null>}
  */
 export async function pageFromHtml(pathname, html, runtime, opts = {}) {
   const { descriptor: configuredDescriptor, origin } = opts;
   const allowAuthored = opts.allowAuthored ?? true;
-  let descriptor = configuredDescriptor;
+  const pluginLoaders = opts.pluginLoaders ?? [];
+  const plugins = pluginLoaders.length > 0
+    ? await loadRuntimePlugins(pluginLoaders, runtime.command)
+    : null;
+  /** @type {import('../page.js').PageDescriptor | undefined} */
+  let descriptor = allowAuthored ? configuredDescriptor : undefined;
+  /** @type {import('../index.js').Diagnostic[]} */
+  const lifecycleDiagnostics = [];
+  if (plugins) {
+    const initialDescriptor = descriptor ?? { pathname };
+    const discovered = await plugins.run('page:discovered', initialDescriptor, {
+      pathname,
+      validate: (value) => isPageDescriptor(value) && value.pathname === pathname,
+    });
+    lifecycleDiagnostics.push(...discovered.diagnostics);
+    if (discovered.isolated) return null;
+    const candidate = /** @type {import('../page.js').PageDescriptor} */ (/** @type {unknown} */ (discovered.value));
+    descriptor = configuredDescriptor !== undefined || !isMinimalPageDescriptor(candidate, pathname)
+      ? candidate
+      : undefined;
+  }
   const standalone = allowAuthored ? runtime.standaloneSources?.[pathname] : undefined;
-  if (!allowAuthored) descriptor = undefined;
-  const descriptorMarkdown =
+  const configuredMarkdown =
     typeof descriptor?.markdown === 'string'
       ? descriptor.markdown
-      : typeof descriptor?.source?.body === 'string'
+      : descriptor?.source?.kind === 'markdown' && typeof descriptor.source.body === 'string'
         ? descriptor.source.body
         : undefined;
+  const descriptorMarkdown = configuredMarkdown ??
+    (typeof standalone?.markdown === 'string' ? standalone.markdown : undefined);
+  const sourceBody =
+    descriptorMarkdown === undefined && typeof descriptor?.source?.body === 'string'
+      ? descriptor.source.body
+      : descriptorMarkdown === undefined && standalone?.kind === 'mdx' && typeof standalone.body === 'string'
+        ? standalone.body
+        : undefined;
+  /** @type {'catalog' | 'markdown-route'} */
+  const exactStrategy = configuredMarkdown !== undefined ? 'catalog' : 'markdown-route';
+  /** @type {'catalog' | 'markdown-route'} */
+  const authoredStrategy = descriptor ? 'catalog' : 'markdown-route';
   const authored = descriptor || standalone
     ? {
         ...(descriptorMarkdown !== undefined
-          ? { markdown: descriptorMarkdown, strategy: /** @type {const} */ ('catalog') }
-          : standalone
-            ? { markdown: standalone.markdown, strategy: /** @type {const} */ ('markdown-route') }
+          ? {
+              markdown: descriptorMarkdown,
+              strategy: exactStrategy,
+            }
+          : sourceBody !== undefined
+            ? { body: sourceBody, strategy: authoredStrategy }
             : {}),
         ...(descriptor?.title !== undefined ? { title: descriptor.title } : {}),
         ...(descriptor?.description !== undefined ? { description: descriptor.description } : {}),
-        ...(descriptor?.lastModified !== undefined ? { lastModified: descriptor.lastModified } : {}),
+        ...(descriptor?.image !== undefined ? { image: descriptor.image } : {}),
+        ...(descriptor?.language !== undefined ? { language: descriptor.language } : {}),
+        ...(descriptor?.dates?.published !== undefined ? { published: descriptor.dates.published } : {}),
+        ...(descriptor?.dates?.modified !== undefined || descriptor?.lastModified !== undefined
+          ? { lastModified: descriptor?.dates?.modified ?? descriptor?.lastModified }
+          : {}),
+        ...(descriptor?.authors ? { authors: descriptor.authors } : {}),
+        ...(descriptor?.entities ? { entities: descriptor.entities } : {}),
+        ...(descriptor?.directives ? { directives: descriptor.directives } : {}),
+        ...(descriptor?.source?.kind
+          ? { kind: descriptor.source.kind }
+          : standalone?.kind
+            ? { kind: standalone.kind }
+            : {}),
         ...(descriptor?.extraction ? { extraction: descriptor.extraction } : {}),
         ...(descriptor?.sourcePath || descriptor?.source?.path || standalone?.path
           ? { path: descriptor?.sourcePath ?? descriptor?.source?.path ?? standalone?.path }
@@ -135,17 +191,132 @@ export async function pageFromHtml(pathname, html, runtime, opts = {}) {
     site: siteForRequest(runtime, origin),
     getTurndown: () => runtimeTurndownFor(runtime),
     authored,
+    renderers: await loadRuntimeMarkdownRenderers(opts.rendererLoaders ?? []),
     allowMarker: allowAuthored,
     publicPathname: opts.publicPathname,
+    routePattern: descriptor?.routePattern,
   });
-  return 'skip' in result ? null : result.page;
+  if ('skip' in result) return null;
+  let page = result.page;
+  if (!plugins) return page;
+
+  const extracted = await plugins.run('page:extract', {
+    representations: page.representations,
+    extraction: page.extraction ?? null,
+    source: page.source,
+  }, {
+    pathname,
+    validate: isExtractionEnvelope,
+  });
+  lifecycleDiagnostics.push(...extracted.diagnostics);
+  if (extracted.isolated) return null;
+  const extraction = /** @type {any} */ (extracted.value);
+  page = {
+    ...page,
+    representations: extraction.representations,
+    ...('extraction' in extraction ? { extraction: extraction.extraction ?? undefined } : {}),
+    ...('source' in extraction ? { source: extraction.source ?? undefined } : {}),
+    markdown: extraction.representations.markdown ?? '',
+  };
+
+  const transformed = await plugins.run('page:transform', page, {
+    pathname,
+    validate: (value) => isPageRecord(value) && value.id === page.id && value.pathname === page.pathname,
+  });
+  lifecycleDiagnostics.push(...transformed.diagnostics);
+  if (transformed.isolated) return null;
+  const replacement = /** @type {import('../core/page-model.js').AeoPage} */ (/** @type {unknown} */ (transformed.value));
+  page = {
+    ...page,
+    ...replacement,
+    title: replacement.metadata.title,
+    description: replacement.metadata.description ?? '',
+    markdown: replacement.representations.markdown ?? '',
+    diagnostics: [...page.diagnostics, ...lifecycleDiagnostics],
+  };
+
+  const metadata = await plugins.run('page:metadata', page.metadata, {
+    pathname,
+    validate: isPageMetadata,
+  });
+  if (metadata.isolated) return null;
+  page = {
+    ...page,
+    metadata: /** @type {import('../core/page-model.js').AeoPage['metadata']} */ (metadata.value),
+    title: /** @type {import('../core/page-model.js').AeoPage['metadata']} */ (metadata.value).title,
+    description: /** @type {import('../core/page-model.js').AeoPage['metadata']} */ (metadata.value).description ?? '',
+    diagnostics: [...page.diagnostics, ...metadata.diagnostics],
+  };
+  return page;
+}
+
+/**
+ * Run the internal semantic transform first, then the public runtime graph
+ * hooks from their build-validated manifest. A nonrecoverable user hook
+ * isolates semantic output while leaving the application HTML available.
+ *
+ * @param {string} html
+ * @param {import('../core/page-model.js').AeoPage} page
+ * @param {Runtime} runtime
+ * @param {{ pluginLoaders?: RuntimePluginLoader[]; allowGlobal?: boolean }} [opts]
+ */
+export async function enrichRuntimePageGraph(html, page, runtime, opts = {}) {
+  const internal = enrichHtmlHead({
+    html,
+    page,
+    config: runtime.config,
+    site: runtime.site,
+    allowGlobal: opts.allowGlobal ?? true,
+  });
+  const loaders = opts.pluginLoaders ?? [];
+  if (loaders.length === 0) return { ...internal, isolated: false };
+
+  const plugins = await loadRuntimePlugins(loaders, runtime.command);
+  const initial = {
+    html: internal.html,
+    page: {
+      ...page,
+      ...(internal.canonicalUrl ? { canonicalUrl: internal.canonicalUrl } : {}),
+    },
+    site: runtime.site,
+    graph: internal.graph,
+    normalizedGraph: internal.normalizedGraph,
+    explicit: internal.explicit,
+  };
+  const semantic = await plugins.run('graph:build', initial, {
+    pathname: page.pathname,
+    validate: isGraphEnvelope,
+  });
+  if (semantic.isolated) {
+    return {
+      html: stripAeoHeadMarkers(html),
+      graph: null,
+      normalizedGraph: undefined,
+      explicit: internal.explicit,
+      canonicalUrl: internal.canonicalUrl,
+      diagnostics: [...internal.diagnostics, ...semantic.diagnostics],
+      isolated: true,
+    };
+  }
+  const value = /** @type {any} */ (semantic.value);
+  return {
+    html: value.html,
+    graph: value.graph,
+    normalizedGraph: value.normalizedGraph,
+    explicit: value.explicit,
+    canonicalUrl: typeof value.page?.canonicalUrl === 'string'
+      ? value.page.canonicalUrl
+      : internal.canonicalUrl,
+    diagnostics: [...internal.diagnostics, ...semantic.diagnostics],
+    isolated: false,
+  };
 }
 
 /**
  * @param {string} mdPathname
  * @param {Runtime} runtime
  * @param {HtmlFetcher} fetchHtml
- * @param {{ catalogLoaders?: RuntimeCatalogLoader[]; origin?: string; publicPathname?: string }} [opts]
+ * @param {{ catalogLoaders?: RuntimeCatalogLoader[]; rendererLoaders?: RuntimeMarkdownRendererLoader[]; pluginLoaders?: RuntimePluginLoader[]; origin?: string; publicPathname?: string }} [opts]
  * @returns {Promise<MarkdownResult>}
  */
 export async function serveMarkdown(mdPathname, runtime, fetchHtml, opts = {}) {
@@ -188,9 +359,11 @@ export async function serveMarkdown(mdPathname, runtime, fetchHtml, opts = {}) {
       allowAuthored: loaded.response.ok,
       origin: opts.origin,
       publicPathname,
+      rendererLoaders: opts.rendererLoaders,
+      pluginLoaders: opts.pluginLoaders,
     },
   );
-  if (!page || page.aeoTokens.includes('no-dotmd')) {
+  if (!page || page.aeoTokens.includes('no-dotmd') || page.directives.generateMarkdown === false) {
     return { body: null, source: loaded.response };
   }
   return { body: renderMarkdownDocument(page, runtime.config), source: loaded.response };
@@ -200,7 +373,7 @@ export async function serveMarkdown(mdPathname, runtime, fetchHtml, opts = {}) {
  * @param {'llms'|'llms-full'} kind
  * @param {Runtime} runtime
  * @param {HtmlFetcher} fetchHtml
- * @param {{ note?: string; concurrency?: number; catalogLoaders?: RuntimeCatalogLoader[]; origin?: string }} [opts]
+ * @param {{ note?: string; concurrency?: number; catalogLoaders?: RuntimeCatalogLoader[]; rendererLoaders?: RuntimeMarkdownRendererLoader[]; pluginLoaders?: RuntimePluginLoader[]; origin?: string }} [opts]
  * @returns {Promise<string>}
  */
 export async function serveLlmsIndex(kind, runtime, fetchHtml, opts = {}) {
@@ -256,6 +429,8 @@ export async function serveLlmsIndex(kind, runtime, fetchHtml, opts = {}) {
         descriptor: pathname.descriptor,
         origin: opts.origin,
         publicPathname: pathname.publicPathname,
+        rendererLoaders: opts.rendererLoaders,
+        pluginLoaders: opts.pluginLoaders,
       });
     },
   );
@@ -268,6 +443,179 @@ export async function serveLlmsIndex(kind, runtime, fetchHtml, opts = {}) {
   );
   const render = kind === 'llms-full' ? renderLlmsFullTxt : renderLlmsTxt;
   return render(pages, runtime.config, siteMeta, { note: opts.note });
+}
+
+/**
+ * Render one member of the opt-in semantic corpus pair using the same anonymous,
+ * serial page rewrites as llms-full.txt.
+ *
+ * @param {'schema-graph'|'schema-map'} kind
+ * @param {Runtime} runtime
+ * @param {HtmlFetcher} fetchHtml
+ * @param {{ catalogLoaders?: RuntimeCatalogLoader[]; rendererLoaders?: RuntimeMarkdownRendererLoader[]; pluginLoaders?: RuntimePluginLoader[]; origin?: string }} [opts]
+ * @returns {Promise<{ body: string; contentType: string }>}
+ */
+export async function serveSchemaCorpus(kind, runtime, fetchHtml, opts = {}) {
+  const siteUrl = stableCanonical(runtime.site.siteUrl);
+  if (!siteUrl) throw new RuntimeSchemaCorpusError('A stable configured Astro site is required.');
+  const descriptors = await runtimeCatalogPagesFor(opts.catalogLoaders ?? [], runtime, opts.origin);
+  /** @type {Map<string, { pathname: string; publicPathname: string; descriptor?: import('../page.js').PageDescriptor }>} */
+  const pagesByPath = new Map();
+  for (const value of runtime.staticPaths) {
+    const path = canonicalRuntimePath(value);
+    if (!isOwnedArtifactPath(path.canonical, runtime.config)) {
+      pagesByPath.set(path.canonical, { pathname: path.canonical, publicPathname: path.publicPathname });
+    }
+  }
+  for (const descriptor of descriptors) {
+    const path = catalogRuntimePath(descriptor.pathname);
+    if (isOwnedArtifactPath(path.canonical, runtime.config)) continue;
+    pagesByPath.set(path.canonical, {
+      pathname: path.canonical,
+      publicPathname: path.publicPathname,
+      descriptor,
+    });
+  }
+  const targets = [...pagesByPath.values()];
+  const maxPages = runtime.config.corpus.runtime.maxPages;
+  if (maxPages !== 'unlimited' && targets.length > maxPages) {
+    throw new RuntimeCorpusLimitError(targets.length, maxPages);
+  }
+
+  const records = await collectConcurrently(targets, 1, async (target) => {
+    const loaded = await fetchHtml(target.publicPathname);
+    if (
+      loaded === null || loaded.html === null || !loaded.response.ok ||
+      loaded.response.status === 206 || !isIdentityEncoded(loaded.response)
+    ) {
+      cancelResponseBody(loaded?.response);
+      return null;
+    }
+    const page = await pageFromHtml(target.pathname, loaded.html, runtime, {
+      descriptor: target.descriptor,
+      origin: opts.origin,
+      publicPathname: target.publicPathname,
+      rendererLoaders: opts.rendererLoaders,
+      pluginLoaders: opts.pluginLoaders,
+    });
+    if (!page) return null;
+    const enriched = await enrichRuntimePageGraph(loaded.html, page, runtime, {
+      pluginLoaders: opts.pluginLoaders,
+      allowGlobal: true,
+    });
+    if (enriched.isolated) {
+      throw new RuntimeSchemaCorpusError('A runtime graph plugin isolated a collected page.');
+    }
+    if (enriched.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
+      throw new RuntimeSchemaCorpusError('A collected page failed semantic validation.');
+    }
+    const graph = enriched.normalizedGraph ?? enriched.graph;
+    return graph ? { page: { ...page, ...(enriched.canonicalUrl ? { canonicalUrl: enriched.canonicalUrl } : {}) }, graph } : null;
+  });
+  const graphPath = `${basePrefix(runtime.site.base)}${runtime.config.schema.corpus.graphPath}`;
+  const pair = renderSchemaCorpus(records, {
+    graphUrl: new URL(graphPath, siteUrl).href,
+    strictReferences: runtime.config.schema.strictReferences,
+  });
+  return kind === 'schema-map' ? pair.map : pair.graph;
+}
+
+export class RuntimeSchemaCorpusError extends Error {
+  /** @param {string} message */
+  constructor(message) {
+    super(`astro-aeo: ${message}`);
+    this.name = 'RuntimeSchemaCorpusError';
+  }
+}
+
+/** @param {unknown} value @returns {value is import('../page.js').PageDescriptor} */
+function isPageDescriptor(value) {
+  const descriptor = /** @type {any} */ (value);
+  return Boolean(
+    descriptor &&
+    typeof descriptor === 'object' &&
+    typeof descriptor.pathname === 'string' &&
+    (descriptor.routePattern === undefined || typeof descriptor.routePattern === 'string') &&
+    (descriptor.rendering === undefined || descriptor.rendering === 'prerendered' || descriptor.rendering === 'on-demand') &&
+    (descriptor.title === undefined || typeof descriptor.title === 'string') &&
+    (descriptor.description === undefined || typeof descriptor.description === 'string') &&
+    (descriptor.image === undefined || typeof descriptor.image === 'string') &&
+    (descriptor.language === undefined || typeof descriptor.language === 'string') &&
+    (descriptor.markdown === undefined || typeof descriptor.markdown === 'string')
+  );
+}
+
+/** @param {import('../page.js').PageDescriptor} value @param {string} pathname */
+function isMinimalPageDescriptor(value, pathname) {
+  return value.pathname === pathname && Object.keys(value).every((key) => key === 'pathname');
+}
+
+/** @param {unknown} value */
+function isExtractionEnvelope(value) {
+  const candidate = /** @type {any} */ (value);
+  return Boolean(
+    candidate &&
+    typeof candidate === 'object' &&
+    candidate.representations &&
+    typeof candidate.representations === 'object' &&
+    (candidate.representations.html === undefined || typeof candidate.representations.html === 'string') &&
+    (candidate.representations.markdown === undefined || typeof candidate.representations.markdown === 'string') &&
+    (candidate.representations.plainText === undefined || typeof candidate.representations.plainText === 'string') &&
+    (candidate.extraction === null || candidate.extraction === undefined || typeof candidate.extraction === 'object') &&
+    (candidate.source === undefined || (candidate.source && typeof candidate.source === 'object'))
+  );
+}
+
+/** @param {unknown} value @returns {value is import('../core/page-model.js').AeoPage} */
+function isPageRecord(value) {
+  const page = /** @type {any} */ (value);
+  return Boolean(
+    page &&
+    typeof page === 'object' &&
+    typeof page.id === 'string' &&
+    typeof page.pathname === 'string' &&
+    typeof page.url === 'string' &&
+    typeof page.mdHref === 'string' &&
+    typeof page.title === 'string' &&
+    typeof page.description === 'string' &&
+    typeof page.markdown === 'string' &&
+    (page.rendering === 'prerendered' || page.rendering === 'on-demand') &&
+    Array.isArray(page.aeoTokens) && page.aeoTokens.every((/** @type {unknown} */ token) => typeof token === 'string') &&
+    isPageMetadata(page.metadata) &&
+    page.representations && typeof page.representations === 'object' &&
+    Array.isArray(page.authors) &&
+    Array.isArray(page.entities) &&
+    page.directives && typeof page.directives === 'object'
+  );
+}
+
+/** @param {unknown} value @returns {value is import('../core/page-model.js').AeoPage['metadata']} */
+function isPageMetadata(value) {
+  const metadata = /** @type {any} */ (value);
+  return Boolean(
+    metadata &&
+    typeof metadata === 'object' &&
+    typeof metadata.title === 'string' &&
+    (metadata.description === undefined || typeof metadata.description === 'string') &&
+    (metadata.image === undefined || typeof metadata.image === 'string') &&
+    (metadata.canonicalSource === undefined || metadata.canonicalSource === 'authored' || metadata.canonicalSource === 'inferred')
+  );
+}
+
+/** @param {unknown} value */
+function isGraphEnvelope(value) {
+  const candidate = /** @type {any} */ (value);
+  return Boolean(
+    candidate &&
+    typeof candidate === 'object' &&
+    typeof candidate.html === 'string' &&
+    isPageRecord(candidate.page) &&
+    candidate.site && typeof candidate.site === 'object' &&
+    (candidate.graph === null || (candidate.graph && Array.isArray(candidate.graph.entries))) &&
+    (candidate.normalizedGraph === undefined || candidate.normalizedGraph === null ||
+      (candidate.normalizedGraph && Array.isArray(candidate.normalizedGraph.entries))) &&
+    typeof candidate.explicit === 'boolean'
+  );
 }
 
 /**
@@ -325,11 +673,9 @@ async function loadRuntimeCatalogPages(loaders, runtime, siteUrl) {
         seen.add(canonicalPathname);
         descriptors.push({ ...value, pathname });
       }
-    } catch (error) {
+    } catch {
       console.warn(
-        `astro-aeo: the runtime page catalog "${loader.module}" failed and contributed nothing: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        `astro-aeo: the runtime page catalog "${loader.module}" failed and contributed nothing.`,
       );
     }
   }
@@ -350,7 +696,10 @@ function effectiveSiteUrl(runtime, origin) {
  */
 function siteForRequest(runtime, origin) {
   const siteUrl = effectiveSiteUrl(runtime, origin);
-  return siteUrl === runtime.site.siteUrl ? runtime.site : { ...runtime.site, siteUrl };
+  const stableSiteUrl = runtime.site.stableSiteUrl ?? runtime.site.siteUrl;
+  return siteUrl === runtime.site.siteUrl && stableSiteUrl === runtime.site.stableSiteUrl
+    ? runtime.site
+    : { ...runtime.site, siteUrl, stableSiteUrl };
 }
 
 /** @param {string} pathname @returns {string} */

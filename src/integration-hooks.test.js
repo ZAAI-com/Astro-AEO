@@ -21,7 +21,7 @@ async function runtimeConfigSource(options = {}) {
     let updated;
     const integration = aeo({ discovery: { robots: { enabled: true } } });
     const logger = { warn() {}, info() {}, error() {}, debug() {} };
-    integration.hooks['astro:config:setup']({
+    await integration.hooks['astro:config:setup']({
       config: { integrations: [], site: new URL('https://example.test') },
       command: 'dev',
       addMiddleware() {},
@@ -51,6 +51,102 @@ async function runtimeConfigSource(options = {}) {
 }
 
 describe('integration diagnostics and declarations', () => {
+  test('injects adapter-visible fallbacks for Markdown and exact enabled artifact paths', async () => {
+    const root = new URL('file:///tmp/astro-aeo-injected-routes/');
+    const injected = [];
+    let updated;
+    const integration = aeo({
+      site: { profile: { enabled: true } },
+      schema: {
+        corpus: {
+          enabled: true,
+          graphPath: '/semantic/all.jsonld',
+          mapPath: '/semantic/map.xml',
+        },
+      },
+      discovery: { robots: { enabled: true }, sitemap: { mode: 'disabled' } },
+    });
+    const logger = { warn() {}, info() {}, error() {}, debug() {} };
+    await integration.hooks['astro:config:setup']({
+      config: {
+        adapter: { name: 'test-adapter' },
+        integrations: [],
+        root,
+        site: new URL('https://example.test'),
+      },
+      command: 'build',
+      injectRoute: (route) => injected.push(route),
+      addMiddleware() {},
+      updateConfig: (value) => { updated = value; },
+      logger,
+    });
+
+    expect(injected.map(({ pattern }) => pattern)).toEqual([
+      '/[...astroAeoMarkdown].md',
+      '/robots.txt',
+      '/.well-known/domain-profile.json',
+      '/llms.txt',
+      '/llms-full.txt',
+      '/semantic/all.jsonld',
+      '/semantic/map.xml',
+    ]);
+    expect(injected).toEqual(injected.map((route) => ({ ...route, prerender: false })));
+    expect(new Set(injected.map(({ entrypoint }) => entrypoint)).size).toBe(1);
+
+    await integration.hooks['astro:config:done']({
+      config: {
+        adapter: { name: 'test-adapter' },
+        site: new URL('https://example.test'),
+        base: '/',
+        trailingSlash: 'ignore',
+        build: { format: 'directory' },
+        root,
+        publicDir: new URL('public/', root),
+      },
+      logger,
+      injectTypes() {},
+      buildOutput: 'server',
+    });
+    integration.hooks['astro:routes:resolved']({
+      routes: [
+        ...injected.map((route) => ({
+          type: 'endpoint',
+          origin: 'project',
+          pathname: route.pattern.includes('[') ? undefined : route.pattern,
+          pattern: route.pattern,
+          entrypoint: route.entrypoint,
+          prerender: false,
+        })),
+        {
+          type: 'endpoint',
+          origin: 'project',
+          pathname: '/feed.md',
+          entrypoint: '/tmp/astro-aeo-injected-routes/src/pages/feed.md.js',
+          prerender: false,
+        },
+      ],
+    });
+
+    const plugin = updated.vite.plugins[0];
+    const source = plugin.load(plugin.resolveId('astro-aeo:runtime-config'));
+    expect(source).toContain('"projectPaths": ["/feed.md"]');
+    expect(source).not.toContain('"projectPaths": ["/robots.txt"');
+  });
+
+  test('does not inject fallback endpoints for a fully static project', () => {
+    const injected = [];
+    const integration = aeo({ discovery: { sitemap: { mode: 'disabled' } } });
+    integration.hooks['astro:config:setup']({
+      config: { integrations: [] },
+      command: 'build',
+      injectRoute: (route) => injected.push(route),
+      addMiddleware() {},
+      updateConfig() {},
+      logger: { warn() {}, info() {}, error() {}, debug() {} },
+    });
+    expect(injected).toEqual([]);
+  });
+
   test.each([
     ['routes before config completion', false],
     ['routes after config completion', true],

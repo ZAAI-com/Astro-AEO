@@ -2,6 +2,62 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## 1.2.0
+
+Astro-AEO 1.2 completes the universal representation work and adds deterministic semantic
+publishing through one shared build/runtime pipeline.
+
+### Highlights
+
+- Added edge-safe `astro-aeo/schema`, including pure graph creation, merge, deduplication,
+  reference validation, deterministic XSS-safe serialization, `schema-dts` vocabulary types, and
+  dedicated builders for the 17 initial Schema.org types.
+- Added `AeoHead` for complete metadata and one managed JSON-LD graph. Global graph injection is
+  enabled by default, while explicit `AeoHead` output remains available when global injection is
+  disabled. Authored JSON-LD is inspected but never rewritten.
+- Expanded `AeoPageRecord` into the serializable page, source, representation, entity, directive,
+  and diagnostic model shared by builds, runtime, plugins, and manifests. The smaller `AeoPage`
+  predicate type and the existing flat record mirrors remain compatible through 1.x.
+- Added importable Markdown renderers and the explicit `astro-aeo/mdx` and
+  `astro-aeo/defuddle` optional adapters. MDX is parsed without evaluation, and Defuddle is forced
+  into synchronous, local-only extraction with no network fallback.
+- Published plugin API v1 with all eight lifecycle stages, immutable inputs, isolated failures,
+  strict JSON runtime options, exact artifact claims, and safe lazy page access. The semantic
+  graph implementation uses the same dispatcher.
+- Added opt-in, experimental `/schema/graph.jsonld` and `/schema/schema-map.xml` corpus outputs as
+  an atomically owned pair. These files are Astro-AEO-specific discovery aids, not standardized
+  Schema.org or Google discovery formats.
+
+### Upgrade notes
+
+- `schema.autoInject` now defaults to `true`, so upgrading adds managed JSON-LD to eligible pages
+  with stable canonical URLs. Set `schema: { autoInject: false }` to restore 1.1 HTML behavior;
+  this does not disable an explicitly rendered `AeoHead`.
+- The richer required `AeoPageRecord` is an accepted TypeScript compatibility exception. Existing
+  flat runtime and type mirrors remain available and deprecated through 1.x.
+- Artifact ownership now defaults to project routes and `public/` files. Core output may replace
+  one only when its exact normalized served pathname is listed in `artifacts.replace`; plugin
+  artifacts use per-claim `replace: true`. Duplicate generated claims emit neither claimant.
+- Configuring an Astro adapter authorizes injected on-demand fallback routes for `.md` and enabled
+  runtime artifacts. This can turn an otherwise static adapter build into server or hybrid output.
+- `schema-dts` is a direct dependency. `@mdx-js/mdx` and `defuddle` are optional peers and have no
+  effect unless their adapters are explicitly registered.
+
+### Reliability and security
+
+- Build output now passes through staged graph, artifact, ownership, and threshold validation
+  before atomic commit. Ownership manifests permit stale cleanup only for unmodified files proven
+  to have been written by Astro-AEO.
+- Managed HTML edits use targeted ranges, preserve unrelated authored bytes, and strip internal
+  page/head markers even when validation aborts. Diagnostics omit content, entity values, plugin
+  payloads, marker data, secrets, and thrown values.
+- Runtime artifacts reuse the core `GET`/`HEAD`, ETag, conditional request, cache, path-safety, and
+  ownership behavior. Vercel and Netlify fallback routing now reaches Astro-AEO before provider
+  404 handling.
+- Secure live corpora continue to require Astro 6.3 or newer. Astro 5 and Astro 6.0 through 6.2
+  return `503` with `Cache-Control: no-store`; direct Markdown, negotiation, static corpora, and
+  non-corpus behavior remain supported.
+
 ## 1.1.0
 
 Astro-AEO 1.1 makes configuration clearer, improves Markdown quality, and brings consistent,

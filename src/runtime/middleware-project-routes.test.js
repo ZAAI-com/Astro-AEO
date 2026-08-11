@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 vi.mock('./config.js', async () => {
   const { resolveConfig } = await import('../config.js');
@@ -13,10 +13,19 @@ vi.mock('./config.js', async () => {
       standaloneSources: {},
     },
     RUNTIME_CATALOG_LOADERS: [],
+    RUNTIME_MARKDOWN_RENDERER_LOADERS: [],
+    RUNTIME_PLUGIN_LOADERS: [],
   };
 });
 
 const { onRequest } = await import('./middleware.js');
+const { RUNTIME } = await import('./config.js');
+const { resolveConfig } = await import('../config.js');
+
+beforeEach(() => {
+  RUNTIME.config = resolveConfig();
+  RUNTIME.site.base = '';
+});
 
 describe('literal project route ownership', () => {
   test.each(['/feed.md', '/legacy.md', '/llms.txt', '/project/example.md', '/robots.txt'])(
@@ -66,6 +75,48 @@ describe('literal project route ownership', () => {
 
     expect(response).toBe(expected);
     expect(next).toHaveBeenCalledOnce();
+  });
+
+  test('an exact replacement authorization overrides a literal project Markdown route', async () => {
+    RUNTIME.config = resolveConfig({ artifacts: { replace: ['/docs/feed.md'] } });
+    RUNTIME.site.base = '/docs';
+    const url = new URL('/docs/feed.md', 'https://example.test');
+    const context = {
+      request: new Request(url),
+      url,
+      locals: {},
+      isPrerendered: false,
+      rewrite: vi.fn(async () => new Response(
+        '<html><head><title>Replacement</title></head><body><main><h1>Replacement</h1></main></body></html>',
+        { headers: { 'content-type': 'text/html' } },
+      )),
+    };
+    const next = vi.fn(async () => new Response('project literal'));
+    const response = await onRequest(context, next);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/markdown');
+    expect(await response.text()).toContain('# Replacement');
+    expect(next).not.toHaveBeenCalled();
+    expect(context.rewrite).toHaveBeenCalled();
+  });
+
+  test('an exact replacement authorization overrides a project artifact route', async () => {
+    RUNTIME.config = resolveConfig({
+      artifacts: { replace: ['/robots.txt'] },
+      discovery: { robots: { enabled: true } },
+    });
+    const url = new URL('/robots.txt', 'https://example.test');
+    const next = vi.fn(async () => new Response('project robots'));
+    const response = await onRequest(
+      { request: new Request(url), url, locals: {}, isPrerendered: false, rewrite: vi.fn() },
+      next,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/plain');
+    expect(await response.text()).toContain('User-agent:');
+    expect(next).not.toHaveBeenCalled();
   });
 
   test('rejects percent encodings beyond the bounded validation depth', async () => {

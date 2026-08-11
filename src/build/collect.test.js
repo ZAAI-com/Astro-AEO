@@ -5,6 +5,7 @@ import { join, isAbsolute } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { absoluteUrl, collectPages, mdHrefFor, resolveHtmlPath, stripLeadingFrontmatter } from './collect.js';
 import { resolveConfig } from '../config.js';
+import mdxRenderer from '../adapters/mdx.js';
 
 const roots = [];
 afterEach(() => {
@@ -175,8 +176,53 @@ describe('authored source resolution', () => {
     );
 
     expect(pages[0].markdown).toBe('# Exact Guide\n\n- authored\n');
-    expect(pages[0].source).toEqual({ strategy: 'markdown-route', path: 'src/pages/guide.md' });
+    expect(pages[0].source).toEqual({ kind: 'markdown', strategy: 'markdown-route', path: 'src/pages/guide.md' });
     expect(pages[0].extraction).toBeUndefined();
+  });
+
+  test('standalone MDX is transported as raw source for an explicitly registered renderer', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-mdx-source-'));
+    roots.push(root);
+    const distRoot = join(root, 'dist');
+    mkdirSync(join(distRoot, 'guide'), { recursive: true });
+    mkdirSync(join(root, 'src', 'pages'), { recursive: true });
+    writeFileSync(
+      join(distRoot, 'guide', 'index.html'),
+      '<html><head><title>Guide</title></head><body><main><h1>Rendered approximation</h1></main></body></html>',
+    );
+    writeFileSync(
+      join(root, 'src', 'pages', 'guide.mdx'),
+      '---\ntitle: Guide\n---\nimport Callout from "../Callout.astro"\n\n# Exact MDX\n\n<Callout>**Mapped**</Callout>\n',
+    );
+
+    const pages = await collectPages(
+      [{ pathname: '/guide' }],
+      resolveConfig(),
+      {
+        distDir: pathToFileURL(`${distRoot}/`),
+        siteUrl: 'https://x.com',
+        base: '',
+        trailingSlash: 'always',
+        buildFormat: 'directory',
+        projectRoot: root,
+        routeEntrypoints: new Map([['/guide', 'src/pages/guide.mdx']]),
+        renderers: [{
+          name: mdxRenderer.name,
+          module: 'astro-aeo/mdx',
+          options: { components: { Callout: { action: 'unwrap' } } },
+          render: mdxRenderer.render,
+        }],
+        logger: { warn() {} },
+      },
+    );
+
+    expect(pages[0].markdown).toBe('\n\n# Exact MDX\n\n**Mapped**\n');
+    expect(pages[0].source).toEqual({
+      kind: 'mdx',
+      strategy: 'markdown-route',
+      path: 'src/pages/guide.mdx',
+    });
+    expect(pages[0].extraction).toMatchObject({ strategy: 'renderer:astro-aeo/mdx' });
   });
 
   test('catalog metadata enriches a standalone route without replacing its source', async () => {
@@ -211,7 +257,7 @@ describe('authored source resolution', () => {
 
     expect(page.title).toBe('Catalog title');
     expect(page.markdown).toBe('# Exact source\n\nPreserved.\n');
-    expect(page.source).toEqual({ strategy: 'markdown-route', path: 'catalog:guide' });
+    expect(page.source).toEqual({ kind: 'markdown', strategy: 'markdown-route', path: 'catalog:guide' });
     expect(page.extraction).toBeUndefined();
   });
 

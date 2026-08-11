@@ -1,9 +1,17 @@
 import { test, expect, describe, beforeEach, afterEach } from 'vitest';
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { basename, dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
-import { createArtifactWriter } from './artifacts.js';
+import { createArtifactWriter, normalizeArtifactPathname } from './artifacts.js';
 
 let dir;
 let distDir;
@@ -30,6 +38,35 @@ const artifact = (over = {}) => ({
   contents: 'body',
   onConflict: 'overwrite',
   ...over,
+});
+
+describe('exact served pathname normalization', () => {
+  test.each([
+    ['/schema/graph.jsonld', { key: '/schema/graph.jsonld', pathname: '/schema/graph.jsonld' }],
+    ['/caf%C3%A9.json', { key: '/café.json', pathname: '/caf%C3%A9.json' }],
+    ['/docs/item/', { key: '/docs/item', pathname: '/docs/item' }],
+  ])('normalizes %s', (input, expected) => {
+    expect(normalizeArtifactPathname(input)).toEqual(expected);
+  });
+
+  test.each([
+    '',
+    'relative.txt',
+    '/',
+    '//example.test/file',
+    '/a//b',
+    '/a/../b',
+    '/a/%2e%2e/b',
+    '/a/%252e%252e/b',
+    '/a%2fb',
+    '/a?query',
+    '/a#hash',
+    '/a/*.txt',
+    '/a/[x].txt',
+    '/a\\b',
+  ])('rejects non-exact or unsafe pathname %s', (input) => {
+    expect(normalizeArtifactPathname(input)).toBeNull();
+  });
 });
 
 describe('writing', () => {
@@ -340,5 +377,419 @@ describe('reporting', () => {
     expect(infos).toEqual([
       'astro-aeo: artifact registry wrote 3 artifact(s): dotmd=2, llmsTxt=1',
     ]);
+  });
+});
+
+describe('deferred ownership and transaction', () => {
+  /** @param {Record<string, any>} [options] */
+  function deferredWriter(options = {}) {
+    return createArtifactWriter({
+      distDir,
+      logger,
+      deferred: true,
+      projectRoot: dir,
+      diagnostics: [],
+      failOn: 'error',
+      ...options,
+    });
+  }
+
+  test('does not touch destinations before commit and writes an ownership manifest', () => {
+    const writer = deferredWriter();
+    const path = join(dir, 'llms.txt');
+    expect(writer.write(artifact({ path }))).toBe(true);
+    expect(existsSync(path)).toBe(false);
+
+    expect(writer.commit()).toEqual({ total: 1, byOwner: { llmsTxt: 1 } });
+    expect(readFileSync(path, 'utf8')).toBe('body');
+    const manifest = JSON.parse(
+      readFileSync(join(dir, '.astro', 'aeo-cache', 'ownership-v1.json'), 'utf8'),
+    );
+    expect(manifest).toMatchObject({
+      version: 1,
+      base: '/',
+      artifacts: [
+        {
+          pathname: '/llms.txt',
+          status: 'emitted',
+          owner: { kind: 'core', name: 'llmsTxt' },
+          outputPath: 'llms.txt',
+          representation: { contentType: 'text/plain; charset=utf-8' },
+        },
+      ],
+    });
+    expect(manifest.artifacts[0].representation.etag).toMatch(/^"[0-9a-f]{64}"$/);
+  });
+
+  test('snapshots byte-copy candidates before validation and commit', () => {
+    const source = join(dir, 'source.xml');
+    const destination = join(dir, 'sitemap.xml');
+    writeFileSync(source, Buffer.from([0, 1, 2, 255]));
+    const writer = deferredWriter();
+    writer.write(artifact({
+      path: destination,
+      route: '/sitemap.xml',
+      owner: 'sitemapAlias',
+      contents: undefined,
+      copyFrom: source,
+    }));
+    writeFileSync(source, 'changed');
+
+    writer.commit();
+    expect([...readFileSync(destination)]).toEqual([0, 1, 2, 255]);
+  });
+
+  test('project and public owners win unless the exact served path is authorized', () => {
+    const publicRoot = join(dir, 'public');
+    mkdirSync(join(publicRoot, 'docs'), { recursive: true });
+    writeFileSync(join(publicRoot, 'docs', 'public.txt'), 'public source');
+    const projectPath = join(dir, 'docs', 'project.txt');
+    const publicPath = join(dir, 'docs', 'public.txt');
+    const writer = deferredWriter({
+      base: '/docs',
+      routePaths: new Set(['/project.txt']),
+      publicDir: pathToFileURL(`${publicRoot}/`),
+      replacePaths: ['/docs/project.txt'],
+    });
+    writer.write(artifact({ path: join(dir, 'project.txt'), route: '/project.txt', contents: 'generated project' }));
+    writer.write(artifact({ path: join(dir, 'public.txt'), route: '/public.txt', contents: 'generated public' }));
+
+    writer.commit();
+    expect(readFileSync(projectPath, 'utf8')).toBe('generated project');
+    expect(existsSync(publicPath)).toBe(false);
+    const manifest = JSON.parse(
+      readFileSync(join(dir, '.astro', 'aeo-cache', 'ownership-v1.json'), 'utf8'),
+    );
+    expect(manifest.artifacts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        pathname: '/docs/project.txt',
+        status: 'emitted',
+        replacedOwners: [expect.objectContaining({ kind: 'project-route' })],
+      }),
+      expect.objectContaining({
+        pathname: '/docs/public.txt',
+        status: 'preserved',
+        blockingOwners: [{ kind: 'public-file' }],
+      }),
+    ]));
+  });
+
+  test('derives plugin destinations only from validated served pathnames', () => {
+    const outside = join(dirname(dir), `${basename(dir)}-plugin-escape.txt`);
+    const writer = deferredWriter();
+    writer.write({
+      pathname: '/plugins/safe.txt',
+      path: outside,
+      owner: { kind: 'plugin', name: 'fixture' },
+      representation: { body: 'safe', contentType: 'text/plain; charset=utf-8' },
+    });
+
+    writer.commit();
+    expect(readFileSync(join(dir, 'plugins', 'safe.txt'), 'utf8')).toBe('safe');
+    expect(existsSync(outside)).toBe(false);
+  });
+
+  test('rejects a served destination beneath a symlinked output directory', () => {
+    const outside = join(dirname(dir), `${basename(dir)}-plugin-target`);
+    mkdirSync(outside);
+    symlinkSync(outside, join(dir, 'linked'), 'dir');
+    try {
+      const diagnostics = [];
+      const writer = deferredWriter({ diagnostics, failOn: 'off' });
+
+      expect(writer.write({
+        pathname: '/linked/escape.txt',
+        owner: { kind: 'plugin', name: 'fixture' },
+        representation: { body: 'unsafe', contentType: 'text/plain' },
+      })).toBe(false);
+      expect(() => writer.commit()).toThrow(/artifact validation failed/);
+
+      expect(existsSync(join(outside, 'escape.txt'))).toBe(false);
+      expect(diagnostics).toEqual([
+        expect.objectContaining({ code: 'artifact-invalid-destination', severity: 'error' }),
+      ]);
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  test('lets a plugin replace an external owner only with per-claim authorization', () => {
+    const path = join(dir, 'plugin.txt');
+    writeFileSync(path, 'project');
+    const writer = deferredWriter({ routePaths: new Set(['/plugin.txt']) });
+    writer.write({
+      pathname: '/plugin.txt',
+      owner: { kind: 'plugin', name: 'fixture' },
+      replace: true,
+      representation: { body: 'plugin', contentType: 'text/plain' },
+    });
+
+    writer.commit();
+    expect(readFileSync(path, 'utf8')).toBe('plugin');
+  });
+
+  test('never replaces a project-root artifact that has no served pathname', () => {
+    const path = join(dir, 'docs', 'Url-Map.md');
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, 'project owned');
+    const writer = deferredWriter({ replacePaths: ['/docs/Url-Map.md'] });
+    writer.write({ path, owner: 'urlMap', contents: 'generated' });
+
+    writer.commit();
+    expect(readFileSync(path, 'utf8')).toBe('project owned');
+    expect(warnings).toEqual([
+      expect.stringContaining('Choose a different output path'),
+    ]);
+  });
+
+  test('collects invalid replacement paths and representation headers before failing', () => {
+    const diagnostics = [];
+    const writer = deferredWriter({ diagnostics, replacePaths: ['/docs/*.txt'] });
+    expect(writer.write({
+      pathname: '/safe.txt',
+      owner: { kind: 'plugin', name: 'fixture' },
+      representation: { body: 'safe', contentType: 'text/plain\0unsafe' },
+    })).toBe(false);
+
+    expect(() => writer.commit()).toThrow(/2 blocking diagnostic/);
+    expect(diagnostics.map((finding) => finding.code)).toEqual([
+      'artifact-invalid-replacement-path',
+      'artifact-invalid-representation',
+    ]);
+    expect(existsSync(join(dir, 'safe.txt'))).toBe(false);
+  });
+
+  test('duplicate generated claims are order-independent errors and emit neither', () => {
+    const diagnostics = [];
+    const path = join(dir, 'same.txt');
+    const writer = deferredWriter({ diagnostics });
+    writer.write(artifact({ path, route: '/same.txt', owner: 'llmsTxt', contents: 'first' }));
+    writer.write(artifact({ path, route: '/same.txt', owner: 'urlMap', contents: 'second' }));
+
+    expect(() => writer.commit()).toThrow(/artifact validation failed/);
+    expect(existsSync(path)).toBe(false);
+    expect(diagnostics.filter((finding) => finding.code === 'artifact-generated-conflict')).toHaveLength(1);
+    expect(diagnostics[0].message).toContain('core "llmsTxt", core "urlMap"');
+    expect(existsSync(join(dir, '.astro', 'aeo-cache', 'ownership-v1.json'))).toBe(false);
+  });
+
+  test('freezes candidate registration once ownership resolution starts', () => {
+    const writer = deferredWriter({ failOn: 'off' });
+    writer.write(artifact({ path: join(dir, 'first.txt'), route: '/first.txt' }));
+    writer.resolve();
+
+    expect(() =>
+      writer.write(artifact({ path: join(dir, 'late.txt'), route: '/late.txt' })),
+    ).toThrow(/after ownership resolution/);
+    expect(() =>
+      writer.stageTransform(join(dir, 'index.html'), 'late', (value) => value),
+    ).toThrow(/after ownership resolution/);
+  });
+
+  test('applies only mandatory redaction when artifact validation fails', () => {
+    const html = join(dir, 'index.html');
+    const path = join(dir, 'same.txt');
+    writeFileSync(html, '<head><script data-astro-aeo-marker>secret</script></head>');
+    const writer = deferredWriter();
+    writer.stageTransform(html, 'head', (value) => value.replace('</head>', '<meta name="x"></head>'));
+    writer.stageRedaction(html, 'marker-redaction', (value) =>
+      value.replace(/<script data-astro-aeo-marker>.*?<\/script>/, ''),
+    );
+    writer.write(artifact({ path, route: '/same.txt', owner: 'llmsTxt' }));
+    writer.write(artifact({ path, route: '/same.txt', owner: 'urlMap' }));
+
+    expect(() => writer.commit()).toThrow(/artifact validation failed/);
+    expect(readFileSync(html, 'utf8')).toBe('<head></head>');
+  });
+
+  test('runs mandatory redactions after ordinary transforms on success', () => {
+    const html = join(dir, 'index.html');
+    writeFileSync(html, '<head><script data-private>old</script></head>');
+    const writer = deferredWriter();
+    writer.stageRedaction(html, 'marker-redaction', (value) =>
+      value.replace(/<script data-private>.*?<\/script>/g, ''),
+    );
+    writer.stageTransform(html, 'head', (value) =>
+      value.replace('</head>', '<script data-private>new</script><meta name="x"></head>'),
+    );
+
+    writer.commit();
+    expect(readFileSync(html, 'utf8')).toBe('<head><meta name="x"></head>');
+  });
+
+  test('applies the validation threshold only to the configured build scope', () => {
+    const preexisting = [{
+      version: 1,
+      code: 'page-finding',
+      severity: 'error',
+      message: 'page finding',
+    }];
+    const artifactsOnly = deferredWriter({ diagnostics: [...preexisting] });
+    artifactsOnly.write(artifact({ path: join(dir, 'artifacts-only.txt'), route: '/artifacts-only.txt' }));
+    expect(() => artifactsOnly.commit()).not.toThrow();
+
+    const recommended = deferredWriter({
+      projectRoot: join(dir, 'recommended-cache'),
+      diagnostics: [...preexisting],
+      validationOnBuild: 'recommended',
+    });
+    recommended.write(artifact({ path: join(dir, 'recommended.txt'), route: '/recommended.txt' }));
+    expect(() => recommended.commit()).toThrow(/artifact validation failed/);
+    expect(existsSync(join(dir, 'recommended.txt'))).toBe(false);
+  });
+
+  test('keeps structural ownership conflicts mandatory when build validation is off', () => {
+    const diagnostics = [];
+    const path = join(dir, 'disabled.txt');
+    const writer = deferredWriter({ diagnostics, validationOnBuild: 'off' });
+    writer.write(artifact({ path, route: '/disabled.txt', owner: 'llmsTxt' }));
+    writer.write(artifact({ path, route: '/disabled.txt', owner: 'urlMap' }));
+
+    expect(() => writer.commit()).toThrow(/artifact validation failed/);
+    expect(existsSync(path)).toBe(false);
+    expect(diagnostics).toEqual([
+      expect.objectContaining({ code: 'artifact-generated-conflict', severity: 'error' }),
+    ]);
+  });
+
+  test('keeps build-complete plugin isolation mandatory when build validation is off', () => {
+    const diagnostics = [];
+    const path = join(dir, 'pending.txt');
+    const writer = deferredWriter({ diagnostics, validationOnBuild: 'off' });
+    writer.write(artifact({ path, route: '/pending.txt' }));
+    diagnostics.push({
+      version: 1,
+      code: 'plugin-build-complete-isolated',
+      severity: 'error',
+      message: 'pending commit isolated',
+    });
+
+    expect(() => writer.commit()).toThrow(/artifact validation failed/);
+    expect(existsSync(path)).toBe(false);
+  });
+
+  test('an all-or-none group suppresses its free member when its peer is blocked', () => {
+    const blocked = join(dir, 'schema', 'graph.jsonld');
+    mkdirSync(dirname(blocked), { recursive: true });
+    writeFileSync(blocked, 'project graph');
+    const map = join(dir, 'schema', 'schema-map.xml');
+    const writer = deferredWriter({ failOn: 'off' });
+    writer.write(artifact({
+      path: blocked,
+      route: '/schema/graph.jsonld',
+      owner: 'schemaGraph',
+      group: 'astro-aeo/schema-corpus',
+      contents: '{}',
+    }));
+    writer.write(artifact({
+      path: map,
+      route: '/schema/schema-map.xml',
+      owner: 'schemaMap',
+      group: 'astro-aeo/schema-corpus',
+      contents: '<map/>',
+    }));
+
+    writer.commit();
+    expect(readFileSync(blocked, 'utf8')).toBe('project graph');
+    expect(existsSync(map)).toBe(false);
+    const manifest = JSON.parse(
+      readFileSync(join(dir, '.astro', 'aeo-cache', 'ownership-v1.json'), 'utf8'),
+    );
+    expect(manifest.groups).toEqual([
+      expect.objectContaining({ id: 'astro-aeo/schema-corpus', status: 'skipped' }),
+    ]);
+    expect(manifest.artifacts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ pathname: '/schema/graph.jsonld', status: 'preserved' }),
+      expect.objectContaining({ pathname: '/schema/schema-map.xml', status: 'group-skipped' }),
+    ]));
+  });
+
+  test('refreshes and cleans only hash-matching outputs from the prior manifest', () => {
+    const first = deferredWriter();
+    first.write(artifact({ path: join(dir, 'old.txt'), route: '/old.txt', contents: 'old' }));
+    first.write(artifact({ path: join(dir, 'keep.txt'), route: '/keep.txt', contents: 'first' }));
+    first.commit();
+
+    const second = deferredWriter();
+    second.write(artifact({ path: join(dir, 'keep.txt'), route: '/keep.txt', contents: 'second' }));
+    second.commit();
+    expect(existsSync(join(dir, 'old.txt'))).toBe(false);
+    expect(readFileSync(join(dir, 'keep.txt'), 'utf8')).toBe('second');
+
+    writeFileSync(join(dir, 'keep.txt'), 'user modified');
+    const third = deferredWriter({ failOn: 'off' });
+    third.write(artifact({ path: join(dir, 'keep.txt'), route: '/keep.txt', contents: 'third' }));
+    third.commit();
+    expect(readFileSync(join(dir, 'keep.txt'), 'utf8')).toBe('user modified');
+  });
+
+  test('cleans a prior atomic group only when every stale member is unchanged', () => {
+    const first = deferredWriter();
+    for (const name of ['graph.jsonld', 'schema-map.xml']) {
+      first.write(artifact({
+        path: join(dir, 'schema', name),
+        route: `/schema/${name}`,
+        owner: name === 'graph.jsonld' ? 'schemaGraph' : 'schemaMap',
+        group: 'schema-corpus',
+        contents: name,
+      }));
+    }
+    first.commit();
+    writeFileSync(join(dir, 'schema', 'graph.jsonld'), 'user modified');
+
+    deferredWriter().commit();
+    expect(readFileSync(join(dir, 'schema', 'graph.jsonld'), 'utf8')).toBe('user modified');
+    expect(readFileSync(join(dir, 'schema', 'schema-map.xml'), 'utf8')).toBe('schema-map.xml');
+  });
+
+  test('does not trust a prior manifest path that escapes the output root', () => {
+    const outside = join(dirname(dir), `${basename(dir)}-ownership-victim.txt`);
+    writeFileSync(outside, 'victim');
+    const first = deferredWriter();
+    first.write(artifact({ path: join(dir, 'old.txt'), route: '/old.txt', contents: 'old' }));
+    first.commit();
+    const manifestPath = join(dir, '.astro', 'aeo-cache', 'ownership-v1.json');
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    manifest.artifacts[0].outputPath = '../ownership-victim.txt';
+    writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`);
+
+    deferredWriter().commit();
+    expect(readFileSync(outside, 'utf8')).toBe('victim');
+    rmSync(outside);
+  });
+
+  test('rolls back destinations and retains the last successful manifest on commit failure', () => {
+    const initial = deferredWriter();
+    initial.write(artifact({ path: join(dir, 'a.txt'), route: '/a.txt', contents: 'old a' }));
+    initial.commit();
+    const oldManifest = readFileSync(join(dir, '.astro', 'aeo-cache', 'ownership-v1.json'), 'utf8');
+
+    const diagnostics = [];
+    const html = join(dir, 'index.html');
+    writeFileSync(html, '<head><script data-astro-aeo-marker>secret</script></head>');
+    const failing = deferredWriter({
+      diagnostics,
+      beforeApply(_operation, index) {
+        if (index === 1) throw new Error('injected commit failure');
+      },
+    });
+    failing.write(artifact({ path: join(dir, 'a.txt'), route: '/a.txt', contents: 'new a' }));
+    failing.write(artifact({ path: join(dir, 'b.txt'), route: '/b.txt', contents: 'new b' }));
+    failing.stageTransform(html, 'head', (value) =>
+      value.replace('</head>', '<meta name="enrichment"></head>'),
+    );
+    failing.stageRedaction(html, 'marker-redaction', (value) =>
+      value.replace(/<script data-astro-aeo-marker>.*?<\/script>/, ''),
+    );
+
+    expect(() => failing.commit()).toThrow(/injected commit failure/);
+    expect(readFileSync(join(dir, 'a.txt'), 'utf8')).toBe('old a');
+    expect(existsSync(join(dir, 'b.txt'))).toBe(false);
+    expect(readFileSync(join(dir, '.astro', 'aeo-cache', 'ownership-v1.json'), 'utf8')).toBe(oldManifest);
+    expect(readFileSync(html, 'utf8')).toBe('<head></head>');
+    expect(diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'artifact-commit-failed', severity: 'error' }),
+    ]));
+    expect(JSON.stringify(diagnostics)).not.toContain('injected commit failure');
   });
 });

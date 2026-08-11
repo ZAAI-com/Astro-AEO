@@ -1,5 +1,6 @@
 ---
 import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
+import { createArticle } from '../src/schema.js';
 
 /**
  * Article JSON-LD for blog posts and dated content.
@@ -12,15 +13,20 @@ const canonical =
 
 const jsonLd = {
   '@context': 'https://schema.org',
-  '@type': 'Article',
-  headline,
-  ...(description && { description }),
-  ...(datePublished && { datePublished }),
-  ...(dateModified && { dateModified }),
-  ...(image && { image }),
-  mainEntityOfPage: canonical,
-  ...(author && {
-    author: { '@type': 'Person', name: author.name, ...(author.url && { url: author.url }) },
+  ...createArticle({
+    ...(headline !== undefined && { headline }),
+    ...(description && { description }),
+    ...(datePublished && { datePublished }),
+    ...(dateModified && { dateModified }),
+    ...(image && { image }),
+    mainEntityOfPage: canonical,
+    ...(author && {
+      author: {
+        '@type': 'Person',
+        ...(author.name !== undefined && { name: author.name }),
+        ...(author.url && { url: author.url }),
+      },
+    }),
   }),
 };
 ---

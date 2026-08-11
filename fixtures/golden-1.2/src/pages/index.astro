@@ -1,0 +1,64 @@
+---
+import Layout from '../layouts/Layout.astro';
+import {
+  ArticleJsonLd,
+  BreadcrumbJsonLd,
+  FaqJsonLd,
+  HowToJsonLd,
+  OrganizationJsonLd,
+  SpeakableJsonLd,
+} from '../../../../components/index.js';
+---
+
+<Layout title="Semantic Publishing" description="The Astro-AEO 1.2 semantic fixture.">
+  <ArticleJsonLd
+    slot="head"
+    headline="Release Notes"
+    description="A semantic release."
+    datePublished="2026-08-11"
+    dateModified="2026-08-12"
+    image="https://semantic.example.com/release.png"
+    url="https://semantic.example.com/release"
+    author={{ name: 'Ada', url: 'https://example.com/ada' }}
+  />
+  <BreadcrumbJsonLd
+    slot="head"
+    items={[
+      { name: 'Home', url: 'https://semantic.example.com/' },
+      { name: 'Release', url: 'https://semantic.example.com/release' },
+    ]}
+  />
+  <FaqJsonLd
+    slot="head"
+    items={[{ question: 'Is output safe?', answer: 'Yes, including <script> text.' }]}
+  />
+  <HowToJsonLd
+    slot="head"
+    name="Publish semantics"
+    description="Build one stable graph."
+    totalTime="PT5M"
+    steps={[
+      {
+        name: 'Build',
+        text: 'Run Astro.',
+        url: 'https://semantic.example.com/build',
+        image: 'https://semantic.example.com/build.png',
+      },
+    ]}
+  />
+  <OrganizationJsonLd
+    slot="head"
+    name="Example Org"
+    url="https://semantic.example.com/"
+    logo="https://semantic.example.com/logo.png"
+    sameAs={['https://example.com/example-org']}
+    contactEmail="hello@example.com"
+  />
+  <SpeakableJsonLd
+    slot="head"
+    cssSelector={['main', '.summary']}
+    url="https://semantic.example.com/"
+  />
+  <h1>Semantic Publishing</h1>
+  <p class="summary">The managed graph is injected without replacing authored JSON-LD.</p>
+</Layout>

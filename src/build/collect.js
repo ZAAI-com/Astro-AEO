@@ -27,6 +27,7 @@ import { normalizePath } from '../core/match.js';
  * @property {string} projectRoot          Absolute project root (for git mtime).
  * @property {Map<string, string>} routeEntrypoints  Normalized pathname -> source entrypoint.
  * @property {{ warn: (m: string) => void }} logger
+ * @property {import('../core/markdown-renderers.js').MarkdownRendererEntry[]} [renderers]
  */
 
 /**
@@ -50,7 +51,7 @@ export async function collectPages(rawPages, config, ctx) {
 
     const read = source.read(pathname);
     const authored = authoredSource(raw, pathname, ctx);
-    if (!read && authored?.markdown === undefined) {
+    if (!read && authored?.markdown === undefined && authored?.body === undefined) {
       ctx.logger.warn(`astro-aeo: could not read built HTML for ${pathname}, skipping`);
       continue;
     }
@@ -63,7 +64,9 @@ export async function collectPages(rawPages, config, ctx) {
       getTurndown,
       strip,
       authored,
+      renderers: ctx.renderers,
       rendering: raw.rendering ?? 'prerendered',
+      routePattern: raw.routePattern,
     });
     if ('skip' in result) continue;
 
@@ -85,18 +88,24 @@ export async function collectPages(rawPages, config, ctx) {
  * @param {import('../page.js').PageDescriptor} descriptor
  * @param {string} pathname
  * @param {CollectContext} ctx
- * @returns {{ markdown?: string; title?: string; description?: string; lastModified?: string; path?: string; strategy?: 'markdown-route'|'catalog'; extraction?: import('../core/extract/index.js').ExtractionDiagnostics } | undefined}
+ * @returns {{ markdown?: string; body?: string; title?: string; description?: string; image?: string; language?: string; published?: string; lastModified?: string; authors?: unknown[]; entities?: unknown[]; directives?: Partial<Record<'index'|'includeInLlms'|'includeInLlmsFull'|'generateMarkdown', boolean>>; kind?: 'markdown'|'mdx'|'astro'|'cms'|'rendered'|'custom'; path?: string; strategy?: 'markdown-route'|'catalog'; extraction?: import('../core/extract/index.js').ExtractionDiagnostics } | undefined}
  */
 function authoredSource(descriptor, pathname, ctx) {
   const catalogMarkdown =
     typeof descriptor.markdown === 'string'
       ? descriptor.markdown
-      : typeof descriptor.source?.body === 'string'
+      : descriptor.source?.kind === 'markdown' && typeof descriptor.source.body === 'string'
         ? descriptor.source.body
         : undefined;
+  const catalogBody =
+    catalogMarkdown === undefined && typeof descriptor.source?.body === 'string'
+      ? descriptor.source.body
+      : undefined;
   const entrypoint = ctx.routeEntrypoints.get(pathname);
-  let routeMarkdown;
-  if (entrypoint && entrypoint.replace(/[?#].*$/, '').endsWith('.md')) {
+  let routeBody;
+  /** @type {'markdown' | 'mdx' | undefined} */
+  let routeKind;
+  if (entrypoint && /\.mdx?$/.test(entrypoint.replace(/[?#].*$/, ''))) {
     const cleaned = entrypoint.replace(/[?#].*$/, '');
     const path = cleaned.startsWith('file:')
       ? fileURLToPath(cleaned)
@@ -104,40 +113,68 @@ function authoredSource(descriptor, pathname, ctx) {
         ? cleaned
         : resolve(ctx.projectRoot, cleaned);
     try {
-      routeMarkdown = stripLeadingFrontmatter(readFileSync(path, 'utf8'));
-    } catch (error) {
+      routeBody = stripLeadingFrontmatter(readFileSync(path, 'utf8'));
+      routeKind = cleaned.endsWith('.mdx') ? 'mdx' : 'markdown';
+    } catch {
       ctx.logger.warn(
-        `astro-aeo: could not read Markdown source for ${pathname}; rendered extraction was used: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        `astro-aeo: could not read Markdown source for ${pathname}; rendered extraction was used.`,
       );
     }
   }
 
   const hasCatalogFacts =
     catalogMarkdown !== undefined ||
+    catalogBody !== undefined ||
     descriptor.title !== undefined ||
     descriptor.description !== undefined ||
+    descriptor.image !== undefined ||
+    descriptor.language !== undefined ||
+    descriptor.dates !== undefined ||
+    descriptor.authors !== undefined ||
+    descriptor.entities !== undefined ||
+    descriptor.directives !== undefined ||
     descriptor.lastModified !== undefined ||
     descriptor.sourcePath !== undefined ||
     descriptor.source?.path !== undefined ||
     descriptor.extraction !== undefined;
-  if (!hasCatalogFacts && routeMarkdown === undefined) return undefined;
+  if (!hasCatalogFacts && routeBody === undefined) return undefined;
 
   return {
     ...(catalogMarkdown !== undefined
       ? { markdown: catalogMarkdown }
-      : routeMarkdown !== undefined
-        ? { markdown: routeMarkdown }
+      : routeKind === 'markdown' && routeBody !== undefined
+        ? { markdown: routeBody }
+        : {}),
+    ...(catalogBody !== undefined
+      ? { body: catalogBody }
+      : routeKind === 'mdx' && routeBody !== undefined
+        ? { body: routeBody }
         : {}),
     ...(descriptor.title !== undefined ? { title: descriptor.title } : {}),
     ...(descriptor.description !== undefined ? { description: descriptor.description } : {}),
-    ...(descriptor.lastModified !== undefined ? { lastModified: descriptor.lastModified } : {}),
+    ...(descriptor.image !== undefined ? { image: descriptor.image } : {}),
+    ...(descriptor.language !== undefined ? { language: descriptor.language } : {}),
+    ...(descriptor.dates?.published !== undefined ? { published: descriptor.dates.published } : {}),
+    ...(descriptor.dates?.modified !== undefined || descriptor.lastModified !== undefined
+      ? { lastModified: descriptor.dates?.modified ?? descriptor.lastModified }
+      : {}),
+    ...(descriptor.authors ? { authors: descriptor.authors } : {}),
+    ...(descriptor.entities ? { entities: descriptor.entities } : {}),
+    ...(descriptor.directives ? { directives: descriptor.directives } : {}),
+    ...(descriptor.source?.kind
+      ? { kind: descriptor.source.kind }
+      : routeKind
+        ? { kind: routeKind }
+        : {}),
     ...(descriptor.sourcePath || descriptor.source?.path || entrypoint
       ? { path: descriptor.sourcePath ?? descriptor.source?.path ?? entrypoint }
       : {}),
     ...(descriptor.extraction ? { extraction: descriptor.extraction } : {}),
-    strategy: catalogMarkdown !== undefined ? 'catalog' : routeMarkdown !== undefined ? 'markdown-route' : 'catalog',
+    strategy: catalogMarkdown !== undefined || catalogBody !== undefined
+      ? 'catalog'
+      : routeBody !== undefined
+        ? 'markdown-route'
+        : 'catalog',
   };
 }
 

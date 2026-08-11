@@ -11,6 +11,10 @@ export function isOwnedArtifactPath(pathname, config) {
   if (pathname === '/robots.txt' && config.discovery.robots.enabled) return true;
   if (pathname === '/.well-known/domain-profile.json' && config.site.profile.enabled) return true;
   if (
+    config.schema.corpus.enabled &&
+    (pathname === config.schema.corpus.graphPath || pathname === config.schema.corpus.mapPath)
+  ) return true;
+  if (
     config.discovery.sitemap.mode !== 'disabled' &&
     config.discovery.sitemap.alias.enabled &&
     pathname === `/${config.discovery.sitemap.alias.outputFilename.replace(/^\/+/, '')}`

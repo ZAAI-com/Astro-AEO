@@ -1,17 +1,25 @@
 // @ts-check
-import { RUNTIME, RUNTIME_CATALOG_LOADERS } from './config.js';
+import {
+  RUNTIME,
+  RUNTIME_CATALOG_LOADERS,
+  RUNTIME_MARKDOWN_RENDERER_LOADERS,
+  RUNTIME_PLUGIN_LOADERS,
+} from './config.js';
 import { mdPathnameFor, pagePathForMdPath, basePrefix } from '../core/page-model.js';
 import { inspectRootPathname, isIncluded, normalizePath } from '../core/match.js';
 import { extractPageMeta } from '../core/page-meta.js';
 import { COLLECT_FLAG, stripMarkersFromHtml } from '../core/extract/marker.js';
+import { stripAeoHeadMarkers } from '../core/head.js';
 import { withMarkdownAlternateLink } from '../core/alternate-link.js';
 import { prefersMarkdown } from './negotiate.js';
 import {
   cancelResponseBody,
+  etagFor,
   MARKDOWN_CONTENT_TYPE,
   inheritedRepresentationHeaders,
   isHtmlResponse,
   isIdentityEncoded,
+  isNotModified,
   isNullBodyStatus,
   isUtf8HtmlResponse,
   responseBodyForbidden,
@@ -21,12 +29,20 @@ import {
 } from './respond.js';
 import {
   artifactFor,
+  enrichRuntimePageGraph,
+  pageFromHtml,
   renderStandaloneArtifact,
   RuntimeCorpusLimitError,
   serveLlmsIndex,
   serveMarkdown,
+  serveSchemaCorpus,
   stripBase,
 } from './serve.js';
+import {
+  createRuntimePluginPageHandles,
+  runtimePluginArtifactFor,
+  serveRuntimePluginArtifact,
+} from './plugins.js';
 
 const DEV_NOTE =
   '<!-- astro-aeo dev preview: dynamic routes are omitted; run `astro build` for the full file -->';
@@ -70,7 +86,9 @@ export const onRequest = async (context, next) => {
   }
 
   const method = context.request.method;
-  if (method !== 'GET' && method !== 'HEAD') return next();
+  if (method !== 'GET' && method !== 'HEAD') {
+    return redactAeoHeadMarkers(await next(), context.request);
+  }
   const originalRequest = context.request;
   const originalOrigin = context.url.origin;
   const originalSearch = context.url.search;
@@ -88,14 +106,64 @@ export const onRequest = async (context, next) => {
   const pathname = stripBase(decoded, RUNTIME.site.base);
   const encodedPathname = encodeURI(pathname);
 
-  const projectOwned = ownedByProject(pathname, encodedPathname);
+  const replacementAuthorized = RUNTIME.config.artifacts.replace.includes(
+    normalizePath(decoded),
+  );
+  const projectOwned = !replacementAuthorized && ownedByProject(pathname, encodedPathname);
   const artifact = projectOwned ? null : artifactFor(pathname, RUNTIME.config);
+  const pluginTarget = runtimePluginArtifactFor(pathname, RUNTIME_PLUGIN_LOADERS, {
+    projectOwned,
+    coreOwned: Boolean(artifact),
+  });
+  if (pluginTarget) {
+    const response = await serveRuntimePluginArtifact(
+      pluginTarget,
+      context.request,
+      RUNTIME_PLUGIN_LOADERS,
+      runtimePluginPageHandles(context, next),
+      RUNTIME.command,
+    );
+    if (response) return response;
+  }
   if (artifact === 'robots' || artifact === 'domain-profile') {
     const { body, contentType } = renderStandaloneArtifact(artifact, RUNTIME, {
       sitemapAvailable: RUNTIME.sitemapAvailable,
       origin: context.url.origin,
     });
     return textResponse({ body, contentType, request: context.request });
+  }
+  if (artifact === 'schema-graph' || artifact === 'schema-map') {
+    if (!disposableCorpusStateFor(context)) {
+      return textResponse({
+        body: LEGACY_CORPUS_UNAVAILABLE,
+        contentType: 'text/plain; charset=utf-8',
+        request: context.request,
+        status: 503,
+        headers: { 'cache-control': 'no-store' },
+      });
+    }
+    try {
+      const { body, contentType } = await serveSchemaCorpus(
+        artifact,
+        RUNTIME,
+        htmlFetcher(context, next, { sanitizeCredentials: true }),
+        {
+          catalogLoaders: RUNTIME_CATALOG_LOADERS,
+          rendererLoaders: RUNTIME_MARKDOWN_RENDERER_LOADERS,
+          pluginLoaders: RUNTIME_PLUGIN_LOADERS,
+          origin: context.url.origin,
+        },
+      );
+      return textResponse({ body, contentType, request: context.request });
+    } catch {
+      return textResponse({
+        body: 'astro-aeo: the semantic corpus is temporarily unavailable.\n',
+        contentType: 'text/plain; charset=utf-8',
+        request: context.request,
+        status: 500,
+        headers: { 'cache-control': 'no-store' },
+      });
+    }
   }
   if (artifact === 'llms' || artifact === 'llms-full') {
     if (!disposableCorpusStateFor(context)) {
@@ -112,6 +180,8 @@ export const onRequest = async (context, next) => {
         note: RUNTIME.command === 'dev' ? DEV_NOTE : undefined,
         concurrency: 1,
         catalogLoaders: RUNTIME_CATALOG_LOADERS,
+        rendererLoaders: RUNTIME_MARKDOWN_RENDERER_LOADERS,
+        pluginLoaders: RUNTIME_PLUGIN_LOADERS,
         origin: context.url.origin,
       });
       return textResponse({ body, contentType: 'text/plain; charset=utf-8', request: context.request });
@@ -148,6 +218,8 @@ export const onRequest = async (context, next) => {
     };
     const { body, source } = await serveMarkdown(pathname, RUNTIME, fetcher, {
       catalogLoaders: RUNTIME_CATALOG_LOADERS,
+      rendererLoaders: RUNTIME_MARKDOWN_RENDERER_LOADERS,
+      pluginLoaders: RUNTIME_PLUGIN_LOADERS,
       origin: context.url.origin,
       publicPathname: encodedMdPagePath ?? mdPagePath,
     });
@@ -177,23 +249,25 @@ export const onRequest = async (context, next) => {
     });
   }
 
-  const negotiation = RUNTIME.config.markdown.negotiation;
-  if (!RUNTIME.config.markdown.enabled) return next();
-  if (negotiation === 'off' && RUNTIME.config.markdown.alternateLink === 'never') return next();
+  const negotiation = RUNTIME.config.markdown.enabled
+    ? RUNTIME.config.markdown.negotiation
+    : 'off';
   const wantsMarkdown =
     negotiation !== 'off' && prefersMarkdown(context.request.headers.get('accept'));
   const pagePath = normalizePath(pathname);
   const encodedPagePath = normalizePath(encodedPathname);
   const response = await next();
-  const conditionalRetry = response.status === 304 && wantsMarkdown;
+  const conditionalRetry = response.status === 304;
   if (isNullBodyStatus(response.status) && !conditionalRetry) return response;
   if (!conditionalRetry) {
     if (!isHtmlResponse(response)) return response;
     if (!isUtf8HtmlResponse(response) || !isIdentityEncoded(response) || response.status === 206) {
       return response;
     }
-    if (response.status >= 300 && response.status < 400) return response;
-    if (!response.ok) return response;
+    if (response.status >= 300 && response.status < 400) {
+      return redactAeoHeadMarkers(response, context.request);
+    }
+    if (!response.ok) return redactAeoHeadMarkers(response, context.request);
   }
 
   let decisionResponse = response;
@@ -214,7 +288,7 @@ export const onRequest = async (context, next) => {
     html = await response.clone().text();
   }
   const cleanHtml = stripMarkersFromHtml(html);
-  const eligible = isMarkdownEligible(pagePath, cleanHtml);
+  const eligible = RUNTIME.config.markdown.enabled && isMarkdownEligible(pagePath, cleanHtml);
   const vary = negotiation !== 'off';
 
   if (wantsMarkdown && eligible && negotiation === 'redirect') {
@@ -240,6 +314,8 @@ export const onRequest = async (context, next) => {
       }),
       {
         catalogLoaders: RUNTIME_CATALOG_LOADERS,
+        rendererLoaders: RUNTIME_MARKDOWN_RENDERER_LOADERS,
+        pluginLoaders: RUNTIME_PLUGIN_LOADERS,
         origin: context.url.origin,
         publicPathname: encodedPagePath,
       },
@@ -257,19 +333,81 @@ export const onRequest = async (context, next) => {
     cancelResponseBody(source);
   }
 
-  if (conditionalRetry) return response;
-
-  const mode = RUNTIME.config.markdown.alternateLink;
+  const mode = RUNTIME.config.markdown.enabled
+    ? RUNTIME.config.markdown.alternateLink
+    : 'never';
   const href = `${basePrefix(RUNTIME.site.base)}${mdPathnameFor(encodedPagePath)}`;
-  const output = eligible && mode !== 'never'
+  let output = eligible && mode !== 'never'
     ? withMarkdownAlternateLink(cleanHtml, href, mode)
     : cleanHtml;
-  if (!vary && output === html) return response;
-  return htmlResponse(output, response, context.request, {
+
+  if (isSemanticEligible(pagePath, cleanHtml)) {
+    try {
+      const page = await pageFromHtml(pagePath, cleanHtml, RUNTIME, {
+        origin: context.url.origin,
+        publicPathname: encodedPagePath,
+        rendererLoaders: RUNTIME_MARKDOWN_RENDERER_LOADERS,
+        pluginLoaders: RUNTIME_PLUGIN_LOADERS,
+      });
+      if (page) {
+        output = (await enrichRuntimePageGraph(output, page, RUNTIME, {
+          pluginLoaders: RUNTIME_PLUGIN_LOADERS,
+          allowGlobal: true,
+        })).html;
+      } else {
+        output = stripAeoHeadMarkers(output);
+      }
+    } catch {
+      // Semantic enrichment must never make the application response
+      // unavailable. The inert component transport is still always redacted.
+      output = stripAeoHeadMarkers(output);
+    }
+  } else {
+    output = stripAeoHeadMarkers(output);
+  }
+
+  const changed = output !== html;
+  if (conditionalRetry && !changed) return response;
+  if (!vary && !changed) return response;
+  return htmlResponse(output, conditionalRetry ? decisionResponse : response, context.request, {
     vary,
-    changed: output !== html,
+    changed,
   });
 };
+
+/**
+ * Enumerated, zero-argument handles are the only page access runtime plugins
+ * receive. Reads use anonymous disposable request state and cannot choose a
+ * target, forward caller credentials, or expose source and HTML payloads.
+ * @param {import('astro').APIContext} context
+ * @param {import('astro').MiddlewareNext} next
+ */
+function runtimePluginPageHandles(context, next) {
+  const fetch = htmlFetcher(context, next, { sanitizeCredentials: true });
+  return createRuntimePluginPageHandles(
+    RUNTIME.staticPaths.map((pathname) => ({ id: pathname, pathname })),
+    async ({ pathname }) => {
+      const publicPathname = encodeURI(pathname);
+      const loaded = await fetch(publicPathname);
+      if (
+        loaded === null ||
+        loaded.html === null ||
+        !loaded.response.ok ||
+        loaded.response.status === 206 ||
+        !isIdentityEncoded(loaded.response)
+      ) {
+        cancelResponseBody(loaded?.response);
+        return null;
+      }
+      return pageFromHtml(pathname, loaded.html, RUNTIME, {
+        origin: context.url.origin,
+        publicPathname,
+        rendererLoaders: RUNTIME_MARKDOWN_RENDERER_LOADERS,
+        pluginLoaders: RUNTIME_PLUGIN_LOADERS,
+      });
+    },
+  );
+}
 
 /** @param {string} pathname @param {string} html */
 function isMarkdownEligible(pathname, html) {
@@ -282,17 +420,38 @@ function isMarkdownEligible(pathname, html) {
     !meta.aeoTokens.has('no-dotmd');
 }
 
+/** @param {string} pathname @param {string} html */
+function isSemanticEligible(pathname, html) {
+  const { config } = RUNTIME;
+  if (!isIncluded(pathname, config.pages)) return false;
+  const meta = extractPageMeta(html);
+  return !meta.isRedirect &&
+    !(config.pages.respectNoindex && meta.noindex) &&
+    !meta.aeoTokens.has('skip');
+}
+
 /**
  * @param {string} html
  * @param {Response} source
  * @param {Request} request
  * @param {{ vary: boolean; changed: boolean }} options
  */
-function htmlResponse(html, source, request, options) {
+async function htmlResponse(html, source, request, options) {
   const headers = new Headers(source.headers);
   if (options.changed) {
     stripRepresentationMetadata(headers);
     headers.set('content-type', transformedHtmlContentType(source));
+    const etag = await etagFor(html);
+    headers.set('etag', etag);
+    if (
+      source.ok &&
+      (request.method === 'GET' || request.method === 'HEAD') &&
+      isNotModified(request, etag)
+    ) {
+      cancelResponseBody(source);
+      headers.delete('content-type');
+      return new Response(null, { status: 304, headers });
+    }
   }
   if (options.vary) headers.set('vary', mergeCommaHeader(headers.get('vary'), 'Accept'));
   const forbidden = responseBodyForbidden(request, source.status);
@@ -307,6 +466,32 @@ function htmlResponse(html, source, request, options) {
     statusText: source.statusText,
     headers,
   });
+}
+
+/**
+ * Redact an explicit AeoHead transport marker from an HTML response that is
+ * not eligible for semantic enrichment. Opaque or encoded bytes stay intact.
+ * @param {Response} response
+ * @param {Request} request
+ */
+async function redactAeoHeadMarkers(response, request) {
+  if (
+    responseBodyForbidden(request, response.status) ||
+    !isUtf8HtmlResponse(response) ||
+    !isIdentityEncoded(response) ||
+    response.status === 206
+  ) {
+    return response;
+  }
+  let html;
+  try {
+    html = await response.clone().text();
+  } catch {
+    return response;
+  }
+  const output = stripAeoHeadMarkers(html);
+  if (output === html) return response;
+  return htmlResponse(output, response, request, { vary: false, changed: true });
 }
 
 /**

@@ -22,6 +22,84 @@ describe('resolveConfig', () => {
     expect(c.discovery.sitemap.alias.sourceFilename).toBe('sitemap-index.xml');
     expect(c.discovery.sitemap.alias.outputFilename).toBe('sitemap.xml');
     expect(c.discovery.robots.sitemapPolicy).toBe('auto');
+    expect(c.site.defaultLocale).toBeUndefined();
+    expect(c.markdown.strategy).toBe('auto');
+    expect(c.markdown.renderers).toEqual([]);
+    expect(c.artifacts.replace).toEqual([]);
+    expect(c.metadata).toEqual({ fillMissing: false, defaults: {} });
+    expect(c.schema).toEqual({
+      autoInject: true,
+      infer: ['website', 'webpage', 'breadcrumbs'],
+      strictReferences: true,
+      corpus: {
+        enabled: false,
+        graphPath: '/schema/graph.jsonld',
+        mapPath: '/schema/schema-map.xml',
+      },
+    });
+    expect(c.validation).toEqual({ onBuild: 'artifacts', failOn: 'error' });
+    expect(c.plugins).toEqual([]);
+  });
+
+  test('resolves only the active 1.2 configuration groups', () => {
+    const organization = { '@type': 'Organization', name: 'Acme' };
+    const plugin = { name: 'example', apiVersion: 1, setup() {} };
+    const c = resolveConfig({
+      site: { defaultLocale: 'en', organization },
+      markdown: { strategy: 'auto', renderers: [{ module: './renderer.js', options: { safe: true } }] },
+      artifacts: { replace: ['/answer.md'] },
+      metadata: { fillMissing: true, defaults: { title: 'Default' } },
+      schema: {
+        autoInject: false,
+        infer: ['webpage'],
+        strictReferences: false,
+        corpus: { enabled: true, graphPath: '/g.jsonld', mapPath: '/m.xml' },
+      },
+      validation: { onBuild: 'recommended', failOn: 'warning' },
+      plugins: [plugin],
+    });
+    expect(c).toMatchObject({
+      site: { defaultLocale: 'en', organization },
+      artifacts: { replace: ['/answer.md'] },
+      metadata: { fillMissing: true, defaults: { title: 'Default' } },
+      schema: { autoInject: false, infer: ['webpage'], strictReferences: false },
+      validation: { onBuild: 'recommended', failOn: 'warning' },
+    });
+    expect(c.plugins).toEqual([plugin]);
+  });
+
+  test('renderer descriptors use strict JSON and reserve one MDX slot', () => {
+    expect(resolveConfig({ markdown: { renderers: [() => ({ status: 'decline' })] } }).markdown.renderers)
+      .toHaveLength(1);
+    expect(() => resolveConfig({ markdown: { renderers: [{ module: '' }] } })).toThrow(/module/);
+    expect(() => resolveConfig({ markdown: { renderers: [
+      { module: 'astro-aeo/mdx' }, { module: 'astro-aeo/mdx' },
+    ] } })).toThrow(/only once/);
+    expect(() => resolveConfig({ markdown: { renderers: [{ module: './x.js', options: { run() {} } }] } }))
+      .toThrow(/strict JSON/);
+  });
+
+  test('artifact replacement and schema corpus paths must be exact and distinct', () => {
+    for (const path of ['relative.md', '/../secret', '/x/*', '/x/', '/x?query=1', '/x%2fsecret']) {
+      expect(() => resolveConfig({ artifacts: { replace: [path] } })).toThrow(/artifacts\.replace/);
+    }
+    expect(() => resolveConfig({ artifacts: { replace: ['/x', '/x'] } })).toThrow(/duplicate/);
+    expect(() => resolveConfig({ schema: { corpus: { graphPath: '/same', mapPath: '/same' } } }))
+      .toThrow(/must be different/);
+  });
+
+  test('plugin definitions fail configuration before setup', () => {
+    const setup = () => {};
+    expect(() => resolveConfig({ plugins: [
+      { name: 'same', apiVersion: 1, setup },
+      { name: 'same', apiVersion: 1, setup },
+    ] })).toThrow(/duplicate/);
+    expect(() => resolveConfig({ plugins: [{ name: 'astro-aeo:user', apiVersion: 1, setup }] }))
+      .toThrow(/reserved/);
+    expect(() => resolveConfig({ plugins: [{ name: 'wrong', apiVersion: 2, setup }] })).toThrow(/apiVersion/);
+    expect(() => resolveConfig({ plugins: [{ name: 'runtime', apiVersion: 1, setup, runtime: {
+      entrypoint: './runtime.js', options: { invalid: new Date() },
+    } }] })).toThrow(/plain JSON/);
   });
 
   test('runtime corpus limits are bounded by default and explicitly overridable', () => {

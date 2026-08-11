@@ -8,7 +8,7 @@ describe('catalog module preflight', () => {
     const warnings = [];
     const diagnostics = [];
     const load = vi.fn(async (specifier) => {
-      if (specifier.endsWith('/broken.js')) throw new SyntaxError('Unexpected token');
+      if (specifier.endsWith('/broken.js')) throw new SyntaxError('SECRET Unexpected token');
       return { default: { listPages: () => [] } };
     });
 
@@ -29,7 +29,8 @@ describe('catalog module preflight', () => {
     expect(load).toHaveBeenCalledTimes(2);
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain('./broken.js');
-    expect(warnings[0]).toContain('Unexpected token');
+    expect(warnings[0]).not.toContain('SECRET');
+    expect(JSON.stringify(diagnostics)).not.toContain('SECRET');
     expect(diagnostics).toEqual([
       expect.objectContaining({
         code: 'catalog-load-failed',

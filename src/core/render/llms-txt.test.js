@@ -65,6 +65,26 @@ describe('renderLlmsTxt', () => {
     expect(renderLlmsTxt(noMd, included, SITE)).toContain('- [X](https://x.com/x/)');
   });
 
+  test('honors equivalent normalized directive hints', () => {
+    const hidden = page({
+      pathname: '/hidden',
+      title: 'Hidden',
+      directives: { includeInLlms: false, includeInLlmsFull: true, generateMarkdown: true },
+    });
+    const htmlOnly = page({
+      pathname: '/html-only',
+      url: 'https://x.com/html-only/',
+      title: 'HTML only',
+      directives: { includeInLlms: true, includeInLlmsFull: true, generateMarkdown: false },
+    });
+    expect(renderLlmsTxt([hidden, htmlOnly], resolveConfig(), SITE)).not.toContain('Hidden');
+    expect(renderLlmsTxt([hidden, htmlOnly], resolveConfig(), SITE)).not.toContain('HTML only');
+    const included = resolveConfig({ corpus: { index: { includeHtmlOnly: true } } });
+    expect(renderLlmsTxt([htmlOnly], included, SITE)).toContain(
+      '- [HTML only](https://x.com/html-only/)',
+    );
+  });
+
   test('the dev banner is inserted only when passed', () => {
     expect(renderLlmsTxt(pages, SECTIONED, SITE)).not.toContain('dev preview');
     expect(renderLlmsTxt(pages, SECTIONED, SITE, { note: '<!-- dev preview -->' })).toContain('dev preview');
@@ -101,6 +121,14 @@ describe('selectFullTxtPages', () => {
       page({ pathname: '/a', aeoTokens: ['no-llms'] }),
       page({ pathname: '/b', aeoTokens: ['no-llms-full'] }),
     ];
+    expect(selectFullTxtPages(opted, resolveConfig())).toEqual([]);
+  });
+
+  test('normalized corpus directives exclude full-corpus pages', () => {
+    const opted = [page({
+      pathname: '/a',
+      directives: { includeInLlms: true, includeInLlmsFull: false, generateMarkdown: true },
+    })];
     expect(selectFullTxtPages(opted, resolveConfig())).toEqual([]);
   });
 

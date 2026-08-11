@@ -11,6 +11,8 @@ vi.mock('./config.js', async () => {
       standaloneSources: {},
     },
     RUNTIME_CATALOG_LOADERS: [],
+    RUNTIME_MARKDOWN_RENDERER_LOADERS: [],
+    RUNTIME_PLUGIN_LOADERS: [],
   };
 });
 

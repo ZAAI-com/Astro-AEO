@@ -86,4 +86,27 @@ describe('emitDotMd', () => {
     expect(warnings.some((message) => message.includes('produced by a route'))).toBe(true);
     expect(warnings.some((message) => message.includes('also exists in public/'))).toBe(true);
   });
+
+  test('does not claim Markdown when the normalized page directive disables it', () => {
+    const distDir = pathToFileURL(`${join(root, 'dist')}/`);
+    const writer = createArtifactWriter({
+      distDir,
+      logger: { info() {}, warn() {} },
+    });
+    const page = {
+      pathname: '/private-source',
+      url: 'https://example.test/private-source/',
+      mdHref: '/private-source.md',
+      title: 'Private source',
+      description: '',
+      markdown: '# Private source',
+      rendering: 'prerendered',
+      aeoTokens: [],
+      directives: { index: true, includeInLlms: true, includeInLlmsFull: true, generateMarkdown: false },
+      htmlPath: '',
+      mdPath: join(root, 'dist', 'private-source.md'),
+    };
+
+    expect(emitDotMd([page], resolveConfig({ markdown: { alternateLink: 'never' } }), writer)).toBe(0);
+  });
 });

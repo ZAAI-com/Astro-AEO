@@ -2,11 +2,16 @@ import { describe, expect, test, vi } from 'vitest';
 import { resolveConfig } from '../config.js';
 import {
   collectConcurrently,
+  enrichRuntimePageGraph,
+  pageFromHtml,
   renderStandaloneArtifact,
   RuntimeCorpusLimitError,
+  RuntimeSchemaCorpusError,
   serveLlmsIndex,
   serveMarkdown,
+  serveSchemaCorpus,
 } from './serve.js';
+import mdxRenderer from '../adapters/mdx.js';
 
 const html = (title = 'Page') =>
   `<!doctype html><html><head><title>${title}</title></head><body><main><h1>${title}</h1></main></body></html>`;
@@ -39,6 +44,157 @@ describe('standalone robots rendering', () => {
     robotsRuntime.config = resolveConfig({ discovery: { robots: { enabled: true } } });
     const { body } = renderStandaloneArtifact('robots', robotsRuntime, { sitemapAvailable });
     expect(body.includes('Sitemap: https://example.com/sitemap-index.xml')).toBe(advertised);
+  });
+});
+
+describe('request-time Markdown renderers', () => {
+  test('uses the same raw MDX renderer path at runtime and caches its literal import', async () => {
+    const mdxRuntime = runtime();
+    mdxRuntime.standaloneSources['/interactive'] = {
+      kind: 'mdx',
+      body: '# Runtime MDX\n\n<Callout>**Mapped**</Callout>',
+      path: 'src/pages/interactive.mdx',
+    };
+    const load = vi.fn(async () => mdxRenderer);
+    const rendererLoaders = [{
+      name: 'astro-aeo/mdx',
+      module: 'astro-aeo/mdx',
+      options: { components: { Callout: { action: 'unwrap' } } },
+      load,
+    }];
+
+    const first = await pageFromHtml('/interactive', html('Rendered'), mdxRuntime, {
+      rendererLoaders,
+    });
+    const second = await pageFromHtml('/interactive', html('Rendered'), mdxRuntime, {
+      rendererLoaders,
+    });
+    expect(first.markdown).toBe('# Runtime MDX\n\n**Mapped**');
+    expect(first.extraction).toMatchObject({ strategy: 'renderer:astro-aeo/mdx' });
+    expect(second.markdown).toBe(first.markdown);
+    expect(load).toHaveBeenCalledOnce();
+  });
+});
+
+describe('request-time plugin page lifecycle', () => {
+  test('runs page hooks in order with immutable validated replacements before the graph hook', async () => {
+    const stages = [];
+    const pluginLoaders = [{
+      name: 'runtime-pages',
+      module: './runtime-pages.js',
+      stages: ['page:discovered', 'page:extract', 'page:transform', 'page:metadata', 'graph:build'],
+      claims: [],
+      load: async () => ({
+        name: 'runtime-pages',
+        apiVersion: 1,
+        setup(api) {
+          expect(api.command).toBe('dev');
+          api.on('page:discovered', ({ value }) => {
+            stages.push('page:discovered');
+            expect(Object.isFrozen(value)).toBe(true);
+            return { action: 'replace', value: { ...value, title: 'Discovered' } };
+          });
+          api.on('page:extract', ({ value }) => {
+            stages.push('page:extract');
+            expect(Object.isFrozen(value.representations)).toBe(true);
+            return {
+              action: 'replace',
+              value: {
+                ...value,
+                representations: { ...value.representations, markdown: '# Extracted' },
+              },
+            };
+          });
+          api.on('page:transform', ({ value }) => {
+            stages.push('page:transform');
+            return {
+              action: 'replace',
+              value: { ...value, metadata: { ...value.metadata, title: 'Transformed' } },
+            };
+          });
+          api.on('page:metadata', ({ value }) => {
+            stages.push('page:metadata');
+            return {
+              action: 'replace',
+              value: { ...value, title: 'Metadata' },
+              diagnostics: [{ code: 'RUNTIME NOTE', message: 'kept\non one line' }],
+            };
+          });
+          api.on('graph:build', ({ value }) => {
+            stages.push('graph:build');
+            expect(value.graph.entries.length).toBeGreaterThan(0);
+            return {
+              action: 'replace',
+              value: { ...value, html: value.html.replace('</head>', '<meta name="plugin" content="yes"></head>') },
+            };
+          });
+        },
+      }),
+    }];
+    const pageRuntime = runtime();
+    const page = await pageFromHtml('/plugin-page', html('Rendered'), pageRuntime, { pluginLoaders });
+
+    expect(page.title).toBe('Metadata');
+    expect(page.markdown).toBe('# Extracted');
+    expect(page.diagnostics).toContainEqual(expect.objectContaining({
+      code: 'runtime-note',
+      message: 'kept on one line',
+      details: { plugin: 'runtime-pages', stage: 'page:metadata' },
+    }));
+
+    const enriched = await enrichRuntimePageGraph(html('Rendered'), page, pageRuntime, { pluginLoaders });
+    expect(enriched.isolated).toBe(false);
+    expect(enriched.html).toContain('<meta name="plugin" content="yes">');
+    expect(stages).toEqual([
+      'page:discovered',
+      'page:extract',
+      'page:transform',
+      'page:metadata',
+      'graph:build',
+    ]);
+  });
+
+  test('isolates invalid page replacements and graph failures without exposing thrown values', async () => {
+    const invalidPageLoaders = [{
+      name: 'invalid-page',
+      module: './invalid-page.js',
+      stages: ['page:transform'],
+      claims: [],
+      load: async () => ({
+        name: 'invalid-page', apiVersion: 1,
+        setup(api) {
+          api.on('page:transform', ({ value }) => ({
+            action: 'replace',
+            value: { ...value, id: '/different' },
+          }));
+        },
+      }),
+    }];
+    await expect(pageFromHtml('/page', html(), runtime(), { pluginLoaders: invalidPageLoaders }))
+      .resolves.toBeNull();
+
+    const graphLoaders = [{
+      name: 'broken-graph',
+      module: './broken-graph.js',
+      stages: ['graph:build'],
+      claims: [],
+      load: async () => ({
+        name: 'broken-graph', apiVersion: 1,
+        setup(api) {
+          api.on('graph:build', () => { throw new Error('SECRET GRAPH PAYLOAD'); });
+        },
+      }),
+    }];
+    const graphRuntime = runtime();
+    const page = await pageFromHtml('/page', html(), graphRuntime, { pluginLoaders: graphLoaders });
+    const enriched = await enrichRuntimePageGraph(html(), page, graphRuntime, { pluginLoaders: graphLoaders });
+    expect(enriched.isolated).toBe(true);
+    expect(enriched.html).toBe(html());
+    expect(enriched.html).not.toContain('SECRET GRAPH PAYLOAD');
+    expect(enriched.diagnostics.at(-1)).toMatchObject({
+      code: 'plugin-hook-failed',
+      details: { plugin: 'broken-graph', stage: 'graph:build' },
+    });
   });
 });
 
@@ -221,6 +377,62 @@ describe('request-time corpus limits', () => {
       expect(fetcher).not.toHaveBeenCalled();
     },
   );
+});
+
+describe('request-time schema corpus', () => {
+  test('renders a deterministic graph and XML map from anonymous serial rewrites', async () => {
+    const schemaRuntime = runtime(['/zeta', '/alpha']);
+    schemaRuntime.config = resolveConfig({ schema: { corpus: { enabled: true } } });
+    const fetcher = vi.fn(async (pathname) => loaded(html(pathname.slice(1))));
+
+    const graph = await serveSchemaCorpus('schema-graph', schemaRuntime, fetcher);
+    const map = await serveSchemaCorpus('schema-map', schemaRuntime, fetcher);
+
+    expect(fetcher).toHaveBeenCalledTimes(4);
+    expect(graph.contentType).toBe('application/ld+json; charset=utf-8');
+    expect(graph.body).toContain('"@id":"https://example.com/alpha/#webpage"');
+    expect(graph.body.indexOf('/alpha/#webpage')).toBeLessThan(graph.body.indexOf('/zeta/#webpage'));
+    expect(map.contentType).toBe('application/xml; charset=utf-8');
+    expect(map.body).toContain('xmlns="https://zaai.com/astro-aeo/schema-map/1"');
+    expect(map.body).toContain('graph="https://example.com/schema/graph.jsonld"');
+  });
+
+  test('requires a stable configured site rather than a request origin', async () => {
+    const schemaRuntime = runtime(['/page']);
+    schemaRuntime.site.siteUrl = '';
+    schemaRuntime.config = resolveConfig({ schema: { corpus: { enabled: true } } });
+
+    await expect(
+      serveSchemaCorpus('schema-graph', schemaRuntime, async () => loaded(), {
+        origin: 'https://request-host.example',
+      }),
+    ).rejects.toBeInstanceOf(RuntimeSchemaCorpusError);
+  });
+
+  test('does not recursively collect either owned schema corpus path', async () => {
+    const schemaRuntime = runtime(['/schema/graph.jsonld', '/schema/schema-map.xml'], 1);
+    schemaRuntime.config = resolveConfig({ schema: { corpus: { enabled: true } } });
+    const fetcher = vi.fn(async () => loaded());
+
+    const graph = await serveSchemaCorpus('schema-graph', schemaRuntime, fetcher);
+
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(graph.body).toContain('"@graph":[]');
+  });
+
+  test('fails closed when corpus-dependent authored JSON-LD is malformed', async () => {
+    const schemaRuntime = runtime(['/page']);
+    schemaRuntime.config = resolveConfig({ schema: { corpus: { enabled: true } } });
+
+    await expect(serveSchemaCorpus(
+      'schema-graph',
+      schemaRuntime,
+      async () => loaded(html('Page').replace(
+        '</head>',
+        '<script type="application/ld+json">{"@type":"Thing",}</script></head>',
+      )),
+    )).rejects.toBeInstanceOf(RuntimeSchemaCorpusError);
+  });
 });
 
 describe('serveMarkdown', () => {
@@ -431,7 +643,7 @@ describe('serveMarkdown', () => {
   test('caches a rejected runtime catalog loader and warns once', async () => {
     const requestRuntime = runtime();
     const load = vi.fn(async () => {
-      throw new Error('runtime-only failure');
+      throw new Error('SECRET runtime-only failure');
     });
     const loaders = [{ module: './runtime-broken.js', load }];
     const warnings = [];
@@ -452,6 +664,7 @@ describe('serveMarkdown', () => {
     expect(load).toHaveBeenCalledOnce();
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain('./runtime-broken.js');
+    expect(warnings[0]).not.toContain('SECRET');
   });
 });
 

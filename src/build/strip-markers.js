@@ -1,6 +1,7 @@
 // @ts-check
 import { writeFileSync } from 'node:fs';
 import { stripMarkersFromHtml } from '../core/extract/marker.js';
+import { stripAeoHeadMarkers } from '../core/head.js';
 
 /**
  * Remove every source marker from the build output.
@@ -14,9 +15,10 @@ import { stripMarkersFromHtml } from '../core/extract/marker.js';
  *
  * @param {{ pathname: string }[]} rawPages
  * @param {ReturnType<typeof import('../sources/dist-html.js').createDistHtmlSource>} source
+ * @param {ReturnType<typeof import('./artifacts.js').createArtifactWriter>} [writer]
  * @returns {number} files rewritten
  */
-export function stripSourceMarkers(rawPages, source) {
+export function stripSourceMarkers(rawPages, source, writer) {
   let stripped = 0;
   for (const raw of rawPages) {
     const read = source.read(raw.pathname || '/');
@@ -24,10 +26,17 @@ export function stripSourceMarkers(rawPages, source) {
     const { html, htmlPath } = read;
     // A substring test first: most pages have no marker, and this avoids running
     // the pattern over every byte of every page in the build.
-    if (!html.includes('data-astro-aeo-marker')) continue;
-    const cleaned = stripMarkersFromHtml(html);
+    if (!html.includes('data-astro-aeo-marker') && !html.includes('data-astro-aeo-head')) continue;
+    /** @param {string} value */
+    const clean = (value) => stripAeoHeadMarkers(stripMarkersFromHtml(value));
+    const cleaned = clean(html);
     if (cleaned === html) continue;
-    writeFileSync(htmlPath, cleaned, 'utf8');
+    const redactionWriter = /** @type {any} */ (writer);
+    if (writer?.isDeferred && typeof redactionWriter.stageRedaction === 'function') {
+      redactionWriter.stageRedaction(htmlPath, 'private-marker-redaction', clean);
+    } else {
+      writeFileSync(htmlPath, cleaned, 'utf8');
+    }
     stripped++;
   }
   return stripped;

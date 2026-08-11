@@ -15,6 +15,8 @@ describe('aeoRuntimeConfigPlugin', () => {
     const code = plugin.load(`\0${RUNTIME_CONFIG_ID}`);
     expect(code).toContain('export const RUNTIME =');
     expect(code).toContain('export const CATALOG_LOADERS = []');
+    expect(code).toContain('export const MARKDOWN_RENDERER_LOADERS = []');
+    expect(code).toContain('export const RUNTIME_PLUGIN_LOADERS = []');
     expect(code).toContain('export default RUNTIME;');
 
     const { RUNTIME, CATALOG_LOADERS } = new Function(
@@ -52,7 +54,69 @@ describe('aeoRuntimeConfigPlugin', () => {
     const code = plugin.load(`\0${RUNTIME_CONFIG_ID}`);
     expect(code).toContain('import __astroAeoMarkdown0 from "/project/src/pages/guide.md?raw";');
     expect(code).toContain('RUNTIME.standaloneSources = { "/guide"');
+    expect(code).toContain('kind: "markdown"');
+    expect(code).toContain('markdown: __astroAeoStripFrontmatter(__astroAeoMarkdown0)');
     expect(code).toContain('__astroAeoStripFrontmatter(__astroAeoMarkdown0)');
+  });
+
+  test('standalone MDX carries raw source without treating it as exact Markdown', () => {
+    const plugin = aeoRuntimeConfigPlugin(
+      () => ({ standaloneSources: {} }),
+      () => [],
+      () => [{
+        pathname: '/interactive',
+        path: 'src/pages/interactive.mdx',
+        specifier: '/project/src/pages/interactive.mdx',
+        kind: 'mdx',
+      }],
+    );
+    const code = plugin.load(`\0${RUNTIME_CONFIG_ID}`);
+    expect(code).toContain('import __astroAeoMarkdown0 from "/project/src/pages/interactive.mdx?raw";');
+    expect(code).toContain('"/interactive": { kind: "mdx", body:');
+    expect(code).not.toContain('markdown: __astroAeoStripFrontmatter');
+  });
+
+  test('renderer modules are emitted as lazy literal imports with JSON options', () => {
+    const plugin = aeoRuntimeConfigPlugin(
+      () => ({}),
+      () => [],
+      () => [],
+      () => [{
+        name: 'custom',
+        module: './renderer.js',
+        specifier: 'file:///project/renderer.js',
+        options: { mode: 'safe' },
+      }],
+    );
+    const code = plugin.load(`\0${RUNTIME_CONFIG_ID}`);
+    expect(code).toContain('export const MARKDOWN_RENDERER_LOADERS = [{ name: "custom"');
+    expect(code).toContain('options: { "mode": "safe" }');
+    expect(code).toContain('load: () => import("file:///project/renderer.js")');
+    expect(code).not.toContain('import * as');
+  });
+
+  test('runtime plugins are emitted as lazy literal imports with their exact manifest', () => {
+    const plugin = aeoRuntimeConfigPlugin(
+      () => ({}),
+      () => [],
+      () => [],
+      () => [],
+      () => [{
+        name: 'feed',
+        module: './runtime.js',
+        specifier: 'file:///project/runtime.js',
+        options: { label: 'Answers' },
+        stages: ['artifact:generate', 'artifact:validate'],
+        claims: [{ id: 'feed', pathname: '/feed.txt', replace: true }],
+      }],
+    );
+    const code = plugin.load(`\0${RUNTIME_CONFIG_ID}`);
+    expect(code).toContain('export const RUNTIME_PLUGIN_LOADERS = [{ name: "feed"');
+    expect(code).toContain('options: { "label": "Answers" }');
+    expect(code).toContain('stages: ["artifact:generate", "artifact:validate"]');
+    expect(code).toContain('claims: [{ "id": "feed", "pathname": "/feed.txt", "replace": true }]');
+    expect(code).toContain('load: () => import("file:///project/runtime.js")');
+    expect(code).not.toContain('import * as');
   });
 
   test('the snapshot is read at load time, not at registration time', () => {

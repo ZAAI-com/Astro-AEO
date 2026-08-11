@@ -10,7 +10,7 @@ export default defineConfig({
     aeo({
       markdown: { negotiation: 'response' },
       corpus: { index: { enabled: false }, full: { enabled: false } },
-      discovery: { sitemap: { mode: 'disabled' } },
+      discovery: { robots: { enabled: true }, sitemap: { mode: 'disabled' } },
     }),
   ],
 });

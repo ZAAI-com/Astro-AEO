@@ -26,7 +26,7 @@ export function emitDotMd(pages, config, writer) {
 
   for (const page of pages) {
     if (page.rendering === 'on-demand') continue;
-    if (page.aeoTokens.includes('no-dotmd')) continue;
+    if (page.aeoTokens.includes('no-dotmd') || page.directives?.generateMarkdown === false) continue;
 
     const wrote = writer.write({
       path: page.mdPath,
@@ -37,7 +37,7 @@ export function emitDotMd(pages, config, writer) {
     });
     if (wrote) written++;
 
-    if (alternateLink !== 'never') injectAlternateLink(page, alternateLink);
+    if (alternateLink !== 'never') injectAlternateLink(page, alternateLink, writer);
   }
 
   return written;
@@ -48,8 +48,17 @@ export function emitDotMd(pages, config, writer) {
  * page's <head>. Idempotent in 'auto' mode.
  * @param {import('../build/collect.js').PageInfo} page
  * @param {'auto'|'always'} mode
+ * @param {ReturnType<typeof import('../build/artifacts.js').createArtifactWriter>} writer
  */
-function injectAlternateLink(page, mode) {
+function injectAlternateLink(page, mode, writer) {
+  if (writer.isDeferred) {
+    writer.stageTransform(
+      page.htmlPath,
+      'markdown-alternate',
+      (html) => withMarkdownAlternateLink(html, page.mdHref, mode),
+    );
+    return;
+  }
   let html;
   try {
     html = readFileSync(page.htmlPath, 'utf8');
