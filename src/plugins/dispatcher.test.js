@@ -43,6 +43,89 @@ describe('plugin dispatcher', () => {
     expect(result.diagnostics[0]).toMatchObject({ code: 'plugin-hook-failed', pathname: '/one' });
   });
 
+  test('isolates malformed diagnostics and does not run later hooks', async () => {
+    let laterRan = false;
+    const dispatcher = await createPluginDispatcher({
+      command: 'build',
+      plugins: [
+        {
+          name: 'malformed', apiVersion: 1,
+          setup(api) {
+            api.on('page:metadata', () => ({ action: 'keep', diagnostics: 'private payload' }));
+          },
+        },
+        {
+          name: 'later', apiVersion: 1,
+          setup(api) { api.on('page:metadata', () => { laterRan = true; }); },
+        },
+      ],
+    });
+    const result = await dispatcher.run('page:metadata', { title: 'original' }, { pathname: '/one' });
+    expect(result.isolated).toBe(true);
+    expect(laterRan).toBe(false);
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({ code: 'plugin-invalid-diagnostics', pathname: '/one' }),
+    ]);
+    expect(JSON.stringify(result.diagnostics)).not.toContain('private payload');
+  });
+
+  test('retains diagnostic context without retaining plugin-authored message payloads', async () => {
+    const dispatcher = await createPluginDispatcher({
+      command: 'build',
+      plugins: [{
+        name: 'reporter', apiVersion: 1,
+        setup(api) {
+          api.on('page:metadata', () => ({
+            action: 'keep',
+            diagnostics: [{
+              code: 'source-warning',
+              severity: 'warning',
+              message: 'Authorization: Bearer SECRET <script data-astro-aeo-page>PRIVATE</script>',
+            }],
+          }));
+        },
+      }],
+    });
+    const result = await dispatcher.run('page:metadata', { title: 'original' }, {
+      pathname: '/one',
+    });
+
+    expect(result.isolated).toBe(false);
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'source-warning',
+        severity: 'warning',
+        pathname: '/one',
+        message: 'Plugin "reporter" reported source-warning during page:metadata.',
+      }),
+    ]);
+    expect(JSON.stringify(result.diagnostics)).not.toMatch(/SECRET|PRIVATE|Authorization|script/);
+  });
+
+  test('clones and freezes replacements before public contract validation', async () => {
+    const dispatcher = await createPluginDispatcher({
+      command: 'build',
+      plugins: [{
+        name: 'replace', apiVersion: 1,
+        setup(api) {
+          api.on('page:metadata', ({ value }) => ({
+            action: 'replace',
+            value: { ...value, title: 'replacement' },
+          }));
+        },
+      }],
+    });
+    let validatedFrozen = false;
+    const result = await dispatcher.run('page:metadata', { title: 'original' }, {
+      validate(value) {
+        validatedFrozen = Object.isFrozen(value) && Object.getPrototypeOf(value) === null;
+        return true;
+      },
+    });
+    expect(result.isolated).toBe(false);
+    expect(validatedFrozen).toBe(true);
+  });
+
   test('validates exact artifact claims and produces a payload-free runtime manifest', async () => {
     const dispatcher = await createPluginDispatcher({
       command: 'build',

@@ -77,11 +77,13 @@ plain ESM with no package build step.
 - Use plain ESM JavaScript with `// @ts-check` and JSDoc. The published folders are `src`,
   `components`, `bin`, `cli`, and `schema`, so every shipped source file must run as published and
   remain installable from a git dependency.
-- Public declarations are hand-written in exactly five files: `src/index.d.ts`,
-  `components/index.d.ts`, `src/page.d.ts`, `src/extract.d.ts`, and
-  `src/runtime/middleware.d.ts`. Update declarations and consumer type tests with their code.
-- There are three runtime dependencies: `@astrojs/sitemap`, `turndown`, and `linkedom` via
-  `linkedom/worker`. Do not add another without a comparably strong reason.
+- Public declarations are hand-written in exactly seven files: `src/index.d.ts`,
+  `components/index.d.ts`, `src/page.d.ts`, `src/extract.d.ts`,
+  `src/runtime/middleware.d.ts`, `src/schema.d.ts`, and `src/adapters.d.ts`. Update declarations
+  and consumer type tests with their code.
+- There are four runtime dependencies: `@astrojs/sitemap`, `turndown`, `linkedom` via
+  `linkedom/worker`, and the type-only Schema.org vocabulary package `schema-dts`. Do not add
+  another without a comparably strong reason.
 - House style forbids em dashes. Use a colon, comma, or parentheses.
 - Contributor tooling uses pnpm 11 and requires Node 22.13 or newer. The published package must
   continue to run on Node 20.19.5 or newer and Astro 5 or newer. CI installs dependencies with a

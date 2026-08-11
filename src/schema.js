@@ -1,4 +1,5 @@
 // @ts-check
+import { isLoopbackHostname } from './core/canonical.js';
 
 const SCHEMA_CONTEXT = 'https://schema.org';
 const GRAPH_VERSION = 1;
@@ -22,31 +23,170 @@ const PROVENANCE_SOURCES = new Set([
   'plugin',
   'api',
 ]);
+// Properties whose schema-dts range includes URL but not Text. A string in one
+// of these positions is therefore a URL value, even when the property also
+// accepts an inline entity. Keep this list explicit so arbitrary schema-dts
+// entities remain edge-safe without importing vocabulary data at runtime.
 const URL_PROPERTIES = new Set([
   'acquireLicensePage',
+  'actionableFeedbackPolicy',
+  'afterMedia',
   'archivedAt',
+  'associatedDisease',
   'audio',
+  'beforeMedia',
+  'benefitsSummaryUrl',
   'codeRepository',
+  'colleague',
+  'colorSwatch',
+  'constraintProperty',
   'contentUrl',
+  'correctionsPolicy',
   'discussionUrl',
+  'diseasePreventionInfo',
+  'diseaseSpreadStatistics',
+  'diversityPolicy',
+  'diversityStaffingReport',
+  'documentation',
   'downloadUrl',
+  'duringMedia',
   'embedUrl',
+  'ethicsPolicy',
+  'gameLocation',
+  'gettingTestedInfo',
+  'hasGS1DigitalLink',
   'hasMap',
+  'hasMolecularFunction',
+  'healthPlanMarketingUrl',
   'image',
+  'inCodeSet',
+  'inDefinedTermSet',
   'installUrl',
+  'isBasedOn',
+  'isBasedOnUrl',
+  'isInvolvedInBiologicalProcess',
+  'isLocatedInSubcellularLocation',
+  'isPartOf',
+  'item',
+  'labelDetails',
+  'layoutImage',
   'license',
   'logo',
   'mainEntityOfPage',
-  'menu',
+  'map',
+  'maps',
+  'masthead',
+  'merchantReturnLink',
+  'missionCoveragePrioritiesPolicy',
+  'newsUpdatesAndGuidelines',
+  'noBylinesPolicy',
+  'originalMediaLink',
   'paymentUrl',
+  'prescribingInfo',
+  'productReturnLink',
+  'publicTransportClosuresInfo',
+  'publishingPrinciples',
+  'quarantineGuidelines',
   'relatedLink',
+  'replyToUrl',
   'sameAs',
-  'schemaVersion',
+  'schoolClosuresInfo',
   'screenshot',
+  'sdLicense',
+  'season',
+  'serviceUrl',
+  'shippingSettingsLink',
   'significantLink',
+  'significantLinks',
+  'speakable',
+  'target',
+  'targetUrl',
   'thumbnailUrl',
+  'tourBookingPage',
+  'trackingUrl',
+  'travelBans',
+  'unnamedSourcesPolicy',
   'url',
+  'usageInfo',
+  'verificationFactCheckingPolicy',
   'video',
+  'webFeed',
+]);
+
+// These properties accept both URL and ordinary textual vocabulary values.
+// Only URL-shaped strings are checked so labels such as "JavaScript" or
+// "data journalism" remain valid text instead of being treated as links.
+const URL_OR_TEXT_PROPERTIES = new Set([
+  'acceptsReservations',
+  'actionPlatform',
+  'additionalType',
+  'applicationCategory',
+  'applicationSubCategory',
+  'artMedium',
+  'artform',
+  'artworkSurface',
+  'asin',
+  'bankAccountType',
+  'bodyType',
+  'category',
+  'childTaxon',
+  'competencyRequired',
+  'correction',
+  'courseMode',
+  'credentialCategory',
+  'editEIDR',
+  'educationalCredentialAwarded',
+  'educationalLevel',
+  'educationalProgramMode',
+  'encodingFormat',
+  'engineType',
+  'featureList',
+  'feesAndCommissionsSpecification',
+  'fileFormat',
+  'fuelType',
+  'gamePlatform',
+  'genre',
+  'gtin',
+  'hasMenu',
+  'hasRepresentation',
+  'identifier',
+  'keywords',
+  'knowsAbout',
+  'legislationIdentifier',
+  'loanType',
+  'material',
+  'measurementMethod',
+  'measurementTechnique',
+  'meetsEmissionStandard',
+  'memoryRequirements',
+  'menu',
+  'namedPosition',
+  'occupationalCredentialAwarded',
+  'ownershipFundingInfo',
+  'parentTaxon',
+  'physicalRequirement',
+  'propertyID',
+  'releaseNotes',
+  'requirements',
+  'roleName',
+  'schemaVersion',
+  'securityClearanceRequirement',
+  'sensoryRequirement',
+  'softwareRequirements',
+  'sport',
+  'statType',
+  'storageRequirements',
+  'surface',
+  'taxonRank',
+  'taxonomicRange',
+  'temporalCoverage',
+  'termsOfService',
+  'ticketToken',
+  'titleEIDR',
+  'unitCode',
+  'usesHealthPlanIdStandard',
+  'vehicleTransmission',
+  'warning',
 ]);
 
 const LINE_SEPARATOR_RE = new RegExp(String.fromCharCode(0x2028), 'g');
@@ -861,9 +1001,15 @@ function walkUrls(value, pointer, documentCanonical, findings) {
     return;
   }
   if (!isPlainObject(value)) return;
+  if (normalizeTypes(value['@type']).includes('URL') && Object.hasOwn(value, '@value')) {
+    validateUrlValue(value['@value'], childPointer(pointer, '@value'), documentCanonical, findings);
+  }
   for (const [key, item] of Object.entries(value)) {
     const nextPointer = childPointer(pointer, key);
     if (URL_PROPERTIES.has(key)) validateUrlValue(item, nextPointer, documentCanonical, findings);
+    if (URL_OR_TEXT_PROPERTIES.has(key)) {
+      validateUrlLikeValue(item, nextPointer, documentCanonical, findings);
+    }
     walkUrls(item, nextPointer, documentCanonical, findings);
   }
 }
@@ -886,6 +1032,32 @@ function validateUrlValue(value, pointer, base, findings) {
   } catch {
     findings.push(finding('schema.unsafe-url', 'error', 'Schema URL is invalid or unsafe', { pointer }));
   }
+}
+
+/**
+ * Validate URL-shaped values for Schema.org properties that also accept Text.
+ * Plain text is deliberately ignored, including text containing whitespace
+ * after a word that happens to end in a colon.
+ *
+ * @param {unknown} value
+ * @param {string} pointer
+ * @param {string | undefined} base
+ * @param {Finding[]} findings
+ */
+function validateUrlLikeValue(value, pointer, base, findings) {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => validateUrlLikeValue(item, `${pointer}/${index}`, base, findings));
+    return;
+  }
+  if (typeof value !== 'string' || !looksLikeUrl(value)) return;
+  validateUrlValue(value, pointer, base, findings);
+}
+
+/** @param {string} value */
+function looksLikeUrl(value) {
+  const text = value.trim();
+  if (text === '' || /\s/.test(text)) return false;
+  return /^(?:[a-z][a-z\d+.-]*:|\/\/|\/|\.\/|\.\.\/|#|\?)/i.test(text);
 }
 
 /**
@@ -1135,6 +1307,12 @@ function assertSafeUrl(url, label) {
   }
   if (url.username !== '' || url.password !== '') {
     throw new TypeError(`${label} must not contain credentials`);
+  }
+  if (
+    (url.protocol === 'http:' || url.protocol === 'https:') &&
+    isLoopbackHostname(url.hostname)
+  ) {
+    throw new TypeError(`${label} must not use a loopback host`);
   }
   if (hasControl(url.href)) throw new TypeError(`${label} contains control characters`);
 }

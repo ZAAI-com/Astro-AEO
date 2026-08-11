@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
 import {
   createRuntimePluginPageHandles,
+  loadRuntimePlugins,
   runtimePluginArtifactFor,
   serveRuntimePluginArtifact,
 } from './plugins.js';
@@ -218,6 +219,38 @@ describe('runtime plugin artifacts', () => {
     );
     expect(response.status).toBe(500);
     expect(await response.text()).toBe('Internal Server Error\n');
+  });
+
+  test('redacts valid runtime diagnostic messages while retaining lifecycle context', async () => {
+    const configured = loader({
+      stages: ['artifact:generate'],
+      load: async () => ({
+        name: 'feed', apiVersion: 1,
+        setup(api) {
+          api.claimArtifact({ id: 'feed', pathname: '/feed.txt' });
+          api.on('artifact:generate', () => ({
+            action: 'keep',
+            diagnostics: [{
+              code: 'runtime-source-warning',
+              message: 'Cookie: session=SECRET <script data-astro-aeo-head>PRIVATE</script>',
+            }],
+          }));
+        },
+      }),
+    });
+    const runtime = await loadRuntimePlugins([configured]);
+    const result = await runtime.run('artifact:generate', { value: true }, {
+      pathname: '/feed.txt',
+    });
+
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'runtime-source-warning',
+        pathname: '/feed.txt',
+        message: 'Plugin "feed" reported runtime-source-warning during artifact:generate.',
+      }),
+    ]);
+    expect(JSON.stringify(result.diagnostics)).not.toMatch(/SECRET|PRIVATE|Cookie|script/);
   });
 
   test('does not handle methods outside the shared GET and HEAD contract', async () => {

@@ -59,6 +59,87 @@ function environment(root, dispatcher, diagnostics = []) {
 const logger = { info() {}, warn() {} };
 
 describe('staged build plugin pipeline', () => {
+  test('reserves adapter runtime corpora and removes an exactly replaced public copy', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    const publicRoot = join(files.root, 'public');
+    mkdirSync(publicRoot);
+    writeFileSync(join(publicRoot, 'llms.txt'), 'public corpus');
+    writeFileSync(join(files.dist, 'llms.txt'), 'copied public corpus');
+    const resolved = config({
+      artifacts: { replace: ['/llms.txt'] },
+      corpus: { index: { enabled: true }, full: { enabled: false } },
+    });
+    const dispatcher = await createPluginDispatcher({
+      command: 'build',
+      internalPlugins: [createSemanticPlugin(resolved)],
+    });
+    const env = environment(files.root, dispatcher);
+    env.runtimeCorpora = true;
+    env.publicDir = pathToFileURL(`${publicRoot}/`);
+
+    const writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      env,
+    );
+    writer.commit();
+
+    expect(existsSync(join(files.dist, 'llms.txt'))).toBe(false);
+    expect(readFileSync(join(publicRoot, 'llms.txt'), 'utf8')).toBe('public corpus');
+    const manifest = JSON.parse(
+      readFileSync(join(files.root, '.astro', 'aeo-cache', 'ownership-v1.json'), 'utf8'),
+    );
+    expect(manifest.artifacts).toContainEqual(expect.objectContaining({
+      pathname: '/llms.txt',
+      status: 'runtime',
+      replacedOwners: [{ kind: 'public-file' }],
+    }));
+  });
+
+  test('infers build breadcrumbs from complete authored catalog ancestry', async () => {
+    const pageHtml = (title) =>
+      `<!doctype html><html><head><title>${title}</title></head><body><main>${title}</main></body></html>`;
+    const files = fixture(pageHtml('Home'));
+    mkdirSync(join(files.dist, 'guides', 'install'), { recursive: true });
+    writeFileSync(join(files.dist, 'guides', 'index.html'), pageHtml('Guides'));
+    writeFileSync(join(files.dist, 'guides', 'install', 'index.html'), pageHtml('Install'));
+    const resolved = config();
+    const dispatcher = await createPluginDispatcher({
+      command: 'build',
+      internalPlugins: [createSemanticPlugin(resolved)],
+    });
+    const env = environment(files.root, dispatcher);
+    env.resolvedRoutePaths = new Set(['/', '/guides', '/guides/install']);
+    env.catalogModules = [{
+      module: './catalog.js',
+      specifier: 'file:///catalog.js',
+      namespace: {
+        listPages: () => [
+          { pathname: '/', title: 'Catalog home' },
+          { pathname: '/guides', title: 'Catalog guides' },
+          { pathname: '/guides/install', title: 'Catalog install' },
+        ],
+      },
+    }];
+
+    const writer = await onBuildDone(
+      resolved,
+      {
+        dir: files.dir,
+        pages: [{ pathname: '/' }, { pathname: '/guides' }, { pathname: '/guides/install' }],
+        logger,
+      },
+      env,
+    );
+    writer.commit();
+
+    const output = readFileSync(join(files.dist, 'guides', 'install', 'index.html'), 'utf8');
+    expect(output).toContain('BreadcrumbList');
+    expect(output).toContain('"name":"Catalog home"');
+    expect(output).toContain('"name":"Catalog guides"');
+    expect(output).toContain('"name":"Catalog install"');
+  });
+
   test('runs all stages in order and commits validated replacements atomically', async () => {
     const marker = '<script type="application/vnd.astro-aeo-head+json" data-astro-aeo-head>{"description":"Explicit description"}</script>';
     const files = fixture(`<!doctype html><html><head><title>Original</title>${marker}</head><body><main>Body</main></body></html>`);
@@ -195,5 +276,68 @@ describe('staged build plugin pipeline', () => {
     expect(diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'plugin-build-complete-isolated', severity: 'error' }),
     ]));
+  });
+
+  test('redacts both private markers when page discovery isolates the descriptor', async () => {
+    const sourceMarker = '<script type="application/vnd.astro-aeo+json" data-astro-aeo-marker>{"markdown":"private"}</script>';
+    const headMarker = '<script type="application/vnd.astro-aeo-head+json" data-astro-aeo-head>{"title":"private"}</script>';
+    const files = fixture(`<!doctype html><html><head><title>Original</title>${headMarker}</head><body>${sourceMarker}<main>Body</main></body></html>`);
+    const diagnostics = [];
+    const resolved = config({ validation: { onBuild: 'off' } });
+    const dispatcher = await createPluginDispatcher({
+      command: 'build',
+      internalPlugins: [createSemanticPlugin(resolved)],
+      plugins: [{
+        name: 'isolate-discovery', apiVersion: 1,
+        setup(api) { api.on('page:discovered', () => ({ action: 'isolate' })); },
+      }],
+    });
+
+    const writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, dispatcher, diagnostics),
+    );
+    writer.commit();
+
+    const html = readFileSync(join(files.dist, 'index.html'), 'utf8');
+    expect(html).not.toContain('data-astro-aeo-marker');
+    expect(html).not.toContain('data-astro-aeo-head');
+    expect(html).not.toContain('data-astro-aeo-graph');
+    expect(html).toContain('<title>Original</title>');
+  });
+
+  test('malformed plugin diagnostics isolate a page when build validation is off', async () => {
+    const marker = '<script type="application/vnd.astro-aeo-head+json" data-astro-aeo-head>{}</script>';
+    const files = fixture(`<!doctype html><html><head><title>Original</title>${marker}</head><body><main>Body</main></body></html>`);
+    const diagnostics = [];
+    const resolved = config({ validation: { onBuild: 'off' } });
+    const dispatcher = await createPluginDispatcher({
+      command: 'build',
+      internalPlugins: [createSemanticPlugin(resolved)],
+      plugins: [{
+        name: 'bad-diagnostics', apiVersion: 1,
+        setup(api) {
+          api.on('page:metadata', () => ({ action: 'keep', diagnostics: [{ code: '', message: 'private' }] }));
+        },
+      }],
+    });
+
+    const writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, dispatcher, diagnostics),
+    );
+    writer.commit();
+
+    const html = readFileSync(join(files.dist, 'index.html'), 'utf8');
+    expect(html).not.toContain('data-astro-aeo-head');
+    expect(html).not.toContain('data-astro-aeo-graph');
+    expect(html).toContain('<title>Original</title>');
+    expect(diagnostics).toContainEqual(expect.objectContaining({
+      code: 'plugin-invalid-diagnostics',
+      pathname: '/',
+    }));
+    expect(JSON.stringify(diagnostics)).not.toContain('private');
   });
 });

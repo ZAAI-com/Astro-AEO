@@ -827,12 +827,14 @@ pnpm run demo:dev      # run the demo site in fixtures/demo
 pnpm run demo:build    # build the demo site
 pnpm run demo:validate # run the validator CLI on the demo build
 pnpm run test:ssr      # adapter e2e (builds and boots @astrojs/node)
+pnpm run test:trailing # always/never/ignore under a base path on the Node adapter
 pnpm run test:adapters # build five adapters; request-test Node, workerd, and Deno
 pnpm run release:check # schema, compatibility, tarball, adapters, and benchmarks
 ```
 
 Tag publication adds `--require-clean`, checks that the numeric tag equals the package and changelog
-version, and refuses a dirty checkout before the packed-tarball and provider gates run.
+version, and refuses a dirty checkout before the packed-tarball and provider gates run. Both pull
+requests and tagged publication also run real pinned Node servers on Astro 5.18, 6.2, 6.3, and 7.
 
 Tests are colocated next to the source they cover as `*.test.js`. The frozen
 `fixtures/golden-1.0` output proves static byte compatibility with the actual 1.0

@@ -9,6 +9,8 @@ describe('stable canonicals', () => {
   test.each([
     'http://localhost/post',
     'http://127.0.0.1/post',
+    'http://[::ffff:127.0.0.1]/post',
+    'http://0.0.0.0/post',
     'https://user:secret@example.com/post',
     'javascript:alert(1)',
     '/relative',
@@ -17,11 +19,11 @@ describe('stable canonicals', () => {
   });
 
   test('accepts one authored canonical and reports conflicts', () => {
-    expect(authoredCanonical('<link rel="canonical" href="/one">', 'https://example.com')).toMatchObject({
+    expect(authoredCanonical('<html><head><link rel="canonical" href="/one"></head></html>', 'https://example.com')).toMatchObject({
       canonical: 'https://example.com/one', conflict: false,
     });
     expect(authoredCanonical(
-      '<link rel="canonical" href="https://example.com/one"><link href="https://example.com/two" rel="canonical">',
+      '<html><head><link rel="canonical" href="https://example.com/one"><link href="https://example.com/two" rel="canonical"></head></html>',
     ).conflict).toBe(true);
   });
 

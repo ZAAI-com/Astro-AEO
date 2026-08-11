@@ -2,7 +2,11 @@ import { describe, expect, test } from 'vitest';
 import { resolveConfig } from '../config.js';
 import { createGraph } from '../schema.js';
 import { enrichHtmlHead } from './head.js';
-import { renderSchemaCorpus, SCHEMA_MAP_NAMESPACE } from './schema-corpus.js';
+import {
+  renderSchemaCorpus,
+  SCHEMA_MAP_NAMESPACE,
+  validateCollectedSchemaGraphs,
+} from './schema-corpus.js';
 
 function page(pathname, canonicalUrl) {
   return {
@@ -23,6 +27,30 @@ describe('schema corpus', () => {
     expect(output.map.body).toContain(`xmlns="${SCHEMA_MAP_NAMESPACE}"`);
     expect(output.map.body.indexOf('/a#article')).toBeLessThan(output.map.body.indexOf('/b#webpage'));
     expect(output.graph.body.indexOf('/a#article')).toBeLessThan(output.graph.body.indexOf('/b#webpage'));
+  });
+
+  test('keeps distinct page-role entities from every collected document', () => {
+    const output = renderSchemaCorpus([
+      {
+        page: page('/a', 'https://example.com/a'),
+        graph: createGraph({
+          entity: { '@id': 'https://example.com/a#webpage', '@type': 'WebPage', name: 'A' },
+          roles: 'page',
+          provenance: { source: 'inference', pathname: '/a' },
+        }),
+      },
+      {
+        page: page('/b', 'https://example.com/b'),
+        graph: createGraph({
+          entity: { '@id': 'https://example.com/b#webpage', '@type': 'WebPage', name: 'B' },
+          roles: 'page',
+          provenance: { source: 'inference', pathname: '/b' },
+        }),
+      },
+    ], { graphUrl: 'https://example.com/schema/graph.jsonld' });
+
+    expect(output.graph.body).toContain('https://example.com/a#webpage');
+    expect(output.graph.body).toContain('https://example.com/b#webpage');
   });
 
   test('keeps anonymous entities in JSON-LD and diagnoses their omission from XML', () => {
@@ -65,6 +93,29 @@ describe('schema corpus', () => {
     ], { graphUrl: 'https://example.com/schema/graph.jsonld' })).toThrow(/validation failed/);
   });
 
+  test('cross-validates collected graphs without requiring corpus emission', () => {
+    const referenced = {
+      page: page('/a', 'https://example.com/a'),
+      graph: createGraph({
+        '@id': 'https://example.com/a#webpage',
+        '@type': 'WebPage',
+        isPartOf: { '@id': 'https://example.com/#website' },
+      }),
+    };
+    const website = {
+      page: page('/', 'https://example.com/'),
+      graph: createGraph({ '@id': 'https://example.com/#website', '@type': 'WebSite' }),
+    };
+    expect(validateCollectedSchemaGraphs([referenced, website], {
+      siteUrl: 'https://example.com/',
+    })).not.toContainEqual(expect.objectContaining({ code: 'schema.unresolved-reference' }));
+    expect(validateCollectedSchemaGraphs([referenced], {
+      siteUrl: 'https://example.com/',
+    })).toContainEqual(expect.objectContaining({
+      code: 'schema.unresolved-reference', severity: 'error',
+    }));
+  });
+
   test('includes anonymous authored entities in the normalized corpus graph', () => {
     const authored = '<script type="application/ld+json">{"@context":"https://schema.org","@type":"Thing","name":"Authored anonymous"}</script>';
     const a = page('/a', 'https://example.com/a');
@@ -82,6 +133,22 @@ describe('schema corpus', () => {
     expect(output.graph.body).toContain('Authored anonymous');
     expect(output.map.body).not.toContain('Authored anonymous');
     expect(output.diagnostics).toContainEqual(expect.objectContaining({ code: 'schema-map-anonymous-entity' }));
+  });
+
+  test('normalizes explicit fragment IDs before the page graph joins the corpus', () => {
+    const a = page('/a', 'https://example.com/a');
+    const headMarker = '<script type="application/vnd.astro-aeo-head+json" data-astro-aeo-head>{"infer":false,"graph":{"@id":"#article","@type":"Article","headline":"A"}}</script>';
+    const enriched = enrichHtmlHead({
+      html: `<!doctype html><html><head><title>A</title>${headMarker}</head><body>A</body></html>`,
+      page: a,
+      config: resolveConfig({ schema: { corpus: { enabled: true } } }),
+      site: { siteUrl: 'https://example.com', base: '', trailingSlash: 'never' },
+    });
+    expect(enriched.graph?.entries[0].entity['@id']).toBe('https://example.com/a#article');
+    const output = renderSchemaCorpus([
+      { page: a, graph: /** @type {import('../schema.js').AeoGraph} */ (enriched.normalizedGraph) },
+    ], { graphUrl: 'https://example.com/schema/graph.jsonld' });
+    expect(output.graph.body).toContain('https://example.com/a#article');
   });
 
   test('makes malformed authored JSON-LD an error when the schema corpus depends on the page graph', () => {

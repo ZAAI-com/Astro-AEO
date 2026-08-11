@@ -15,24 +15,20 @@ export function createSemanticPlugin(config) {
     apiVersion: 1,
     setup(api) {
       api.on('graph:build', ({ value }) => {
-        const input = /** @type {{ html: string; page: import('../index.js').AeoPageRecord; site: {siteUrl: string; base: string; trailingSlash: 'always'|'never'|'ignore'}; allowGlobal?: boolean }} */ (value);
+        const input = /** @type {{ html: string; page: import('../index.js').AeoPageRecord; site: {siteUrl: string; base: string; trailingSlash: 'always'|'never'|'ignore'}; allowGlobal?: boolean; breadcrumbTrail?: ReadonlyArray<{name: string; item: string}> | null }} */ (value);
         const result = enrichHtmlHead({
           html: input.html,
           page: input.page,
           config,
           site: input.site,
           allowGlobal: input.allowGlobal,
+          breadcrumbTrail: input.breadcrumbTrail,
         });
         return {
           action: 'replace',
           value: {
             html: result.html,
-            page: {
-              ...input.page,
-              ...(result.canonicalUrl
-                ? { canonicalUrl: result.canonicalUrl }
-                : {}),
-            },
+            page: result.page,
             site: input.site,
             graph: result.graph,
             normalizedGraph: result.normalizedGraph,

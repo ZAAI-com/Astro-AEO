@@ -1,4 +1,5 @@
 // @ts-check
+import { htmlElementRanges, htmlTagAttribute } from './html-head-ranges.js';
 
 /**
  * @typedef {object} PageMeta
@@ -29,8 +30,8 @@ export function makeTitleStripper(suffix) {
  * @returns {string}
  */
 export function extractTitle(html, strip = (t) => t) {
-  const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-  return match ? strip(decodeEntities(match[1].trim())) : '';
+  const title = htmlElementRanges(html, 'title')[0];
+  return title ? strip(decodeEntities(title.content.trim())) : '';
 }
 
 /**
@@ -61,10 +62,13 @@ export function extractMetaContent(html, query) {
  * @returns {Generator<Map<string, string>>}
  */
 function* eachMetaTag(html) {
-  const tagRe = /<meta\b(?:"[^"]*"|'[^']*'|[^>"'])*>/gi;
-  let tagMatch;
-  while ((tagMatch = tagRe.exec(html))) {
-    yield extractAttributes(tagMatch[0]);
+  for (const { source } of htmlElementRanges(html, 'meta')) {
+    const attrs = new Map();
+    for (const name of ['name', 'property', 'content', 'http-equiv']) {
+      const value = htmlTagAttribute(source, name);
+      if (value !== undefined) attrs.set(name, value);
+    }
+    yield attrs;
   }
 }
 
@@ -155,18 +159,4 @@ export function decodeEntities(s) {
     .replace(/&#x27;/gi, "'")
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&');
-}
-
-/**
- * @param {string} tag
- * @returns {Map<string, string>}
- */
-function extractAttributes(tag) {
-  const attrs = new Map();
-  const attrRe = /([^\s=/<>"']+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/g;
-  let match;
-  while ((match = attrRe.exec(tag))) {
-    attrs.set(match[1].toLowerCase(), match[2] ?? match[3] ?? match[4] ?? '');
-  }
-  return attrs;
 }

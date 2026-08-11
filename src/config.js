@@ -328,9 +328,11 @@ export function assertExactPathname(path, label = 'pathname') {
     throw new TypeError(`${label} must not contain encoded path separators.`);
   }
   let decoded = path;
+  let decodedOnce;
   for (let depth = 0; depth < 3; depth++) {
     try {
       const next = decodeURIComponent(decoded);
+      if (depth === 0) decodedOnce = next;
       if (next === decoded) break;
       decoded = next;
     } catch {
@@ -339,6 +341,18 @@ export function assertExactPathname(path, label = 'pathname') {
   }
   if (decoded.split('/').some((segment) => segment === '.' || segment === '..')) {
     throw new TypeError(`${label} must not contain dot segments.`);
+  }
+  try {
+    if (
+      decodedOnce === undefined ||
+      /%[0-9a-f]{2}/i.test(decodedOnce) ||
+      encodeURI(decodedOnce) !== path
+    ) {
+      throw new TypeError(`${label} must use one unambiguous normalized URL spelling.`);
+    }
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('unambiguous normalized')) throw error;
+    throw new TypeError(`${label} must use one unambiguous normalized URL spelling.`);
   }
   return path;
 }

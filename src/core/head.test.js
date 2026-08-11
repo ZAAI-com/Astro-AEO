@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { resolveConfig } from '../config.js';
 import { serializeJsonLd } from '../lib/serialize-jsonld.js';
-import { enrichHtmlHead } from './head.js';
+import { enrichHtmlHead, stripAeoHeadMarkers } from './head.js';
 
 const site = { siteUrl: 'https://example.com', base: '', trailingSlash: 'never' };
 
@@ -34,6 +34,34 @@ describe('managed page head', () => {
     expect(result.html.match(/data-astro-aeo-graph/g)).toHaveLength(1);
     expect(result.html).toContain('"@type":"WebPage"');
     expect(result.html).toContain('"@type":"WebSite"');
+    expect(result.graph?.entries.find(({ entity }) => entity['@type'] === 'WebPage')).toMatchObject({
+      roles: ['page'],
+      provenance: [{ source: 'inference', pathname: '/about' }],
+    });
+  });
+
+  test('preserves explicit graph roles and provenance outside serialized JSON-LD', () => {
+    const result = enrichHtmlHead({
+      html: document(marker({
+        infer: false,
+        graph: {
+          version: 1,
+          entries: [{
+            entity: { '@type': 'Article', headline: 'Evidence' },
+            roles: ['page'],
+            provenance: [{ source: 'plugin', plugin: 'evidence' }],
+          }],
+          conflicts: [],
+        },
+      })),
+      page: page(), config: resolveConfig(), site,
+    });
+    expect(result.graph?.entries[0]).toMatchObject({
+      roles: ['page'],
+      provenance: [{ source: 'plugin', plugin: 'evidence' }],
+    });
+    expect(result.html).not.toContain('provenance');
+    expect(result.html).not.toContain('roles');
   });
 
   test('global injection can be disabled without disabling an explicit AeoHead', () => {
@@ -82,6 +110,47 @@ describe('managed page head', () => {
     expect(result.canonicalUrl).toBe('https://example.com/explicit');
     expect(result.html).not.toContain('https://example.com/authored');
     expect(result.html).toContain('content="https://example.com/image.jpg"');
+  });
+
+  test('explicit head facts become the effective page and inferred WebPage facts', () => {
+    const result = enrichHtmlHead({
+      html: document(marker({
+        title: 'Explicit title',
+        description: 'Explicit description',
+        canonical: '/explicit',
+        locale: 'de-DE',
+      })),
+      page: page(), config: resolveConfig(), site,
+    });
+    expect(result.page).toMatchObject({
+      url: 'https://example.com/explicit',
+      canonicalUrl: 'https://example.com/explicit',
+      title: 'Explicit title',
+      description: 'Explicit description',
+      language: 'de-DE',
+      metadata: {
+        title: 'Explicit title',
+        description: 'Explicit description',
+        canonicalSource: 'authored',
+      },
+    });
+    expect(result.graph?.entries.find(({ entity }) => entity['@type'] === 'WebPage')?.entity)
+      .toMatchObject({ name: 'Explicit title', description: 'Explicit description', inLanguage: 'de-DE' });
+  });
+
+  test('targeted metadata edits preserve tag-like authored script bytes', () => {
+    const json = '<script type="application/ld+json">{"@type":"Thing","name":"<title>Literal</title><meta name=description>"}</script>';
+    const ordinary = '<script>const literal = "<meta property=og:title>"; const close = "</head>";</script>';
+    const result = enrichHtmlHead({
+      html: document(`${json}${ordinary}${marker({
+        title: 'Owned', description: 'Owned description', openGraph: { title: 'Owned OG' },
+      })}`),
+      page: page(), config: resolveConfig(), site,
+    });
+    expect(result.html).toContain(json);
+    expect(result.html).toContain(ordinary);
+    expect(result.html).toContain('<title>Owned</title>');
+    expect(result.html).toContain('property="og:title" content="Owned OG"');
   });
 
   test('missing stable canonical preserves the page, strips the marker, and skips graph output', () => {
@@ -178,6 +247,25 @@ describe('managed page head', () => {
     expect(result.html).toContain('name="author" content="Configured author"');
   });
 
+  test('diagnoses duplicate and conflicting singleton metadata without exposing values', () => {
+    const result = enrichHtmlHead({
+      html: document(
+        '<title>Second title</title>' +
+        '<meta name="description" content="first-secret">' +
+        '<meta name="description" content="second-secret">' +
+        '<meta name="robots" content="index">' +
+        '<meta name="robots" content="index">',
+      ),
+      page: page(), config: resolveConfig(), site,
+    });
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'metadata-duplicate', message: expect.stringContaining('title') }),
+      expect.objectContaining({ code: 'metadata-conflict', message: expect.stringContaining('name:description') }),
+      expect.objectContaining({ code: 'metadata-duplicate', message: expect.stringContaining('name:robots') }),
+    ]));
+    expect(JSON.stringify(result.diagnostics)).not.toMatch(/first-secret|second-secret/);
+  });
+
   test('authored JSON-LD bytes remain stable and suppress duplicate managed facts', () => {
     const authored = '<script type="application/ld+json"> { "@id":"https://example.com/about#webpage", "@type":"WebPage", "name":"Authored" } </script>';
     const result = enrichHtmlHead({ html: document(authored), page: page(), config: resolveConfig(), site });
@@ -198,6 +286,67 @@ describe('managed page head', () => {
       expect.objectContaining({ '@type': 'Thing', name: 'Anonymous' }),
     ]));
     expect(result.graph?.entries.some(({ entity }) => entity.name === 'Anonymous')).toBe(false);
+  });
+
+  test('authored same-page facts outrank inferred facts without requiring a matching ID', () => {
+    const authored = '<script type="application/ld+json">{"@type":"WebPage","url":"https://example.com/about","name":"Authored","description":"Description"}</script>';
+    const result = enrichHtmlHead({ html: document(authored), page: page(), config: resolveConfig(), site });
+    expect(result.html).toContain(authored);
+    expect(result.graph?.entries.some(({ entity }) => entity['@type'] === 'WebPage')).toBe(false);
+    expect(result.normalizedGraph?.entries.some(({ entity }) => entity.name === 'Authored')).toBe(true);
+  });
+
+  test('extends a matching user-authored WebPage ID instead of creating a default ID', () => {
+    const authored = '<script type="application/ld+json">{"@id":"https://example.com/about#owned-page","@type":"WebPage","url":"https://example.com/about","name":"Authored"}</script>';
+    const result = enrichHtmlHead({ html: document(authored), page: page(), config: resolveConfig(), site });
+    const managedPage = result.graph?.entries.find(({ entity }) => entity['@type'] === 'WebPage')?.entity;
+    expect(managedPage).toMatchObject({
+      '@id': 'https://example.com/about#owned-page',
+      '@type': 'WebPage',
+      description: 'Description',
+    });
+    expect(result.html).not.toContain('https://example.com/about#webpage');
+  });
+
+  test('managed entities can reference unchanged authored entities on the same page', () => {
+    const authored = '<script type="application/ld+json">{"@id":"https://example.com/about#author","@type":"Person","name":"Ada"}</script>';
+    const result = enrichHtmlHead({
+      html: document(`${authored}${marker({
+        infer: false,
+        graph: {
+          '@id': '#article',
+          '@type': 'Article',
+          headline: 'Evidence',
+          author: { '@id': '#author' },
+        },
+      })}`),
+      page: page(), config: resolveConfig(), site,
+    });
+    expect(result.html).toContain(authored);
+    expect(result.html).toContain('https://example.com/about#article');
+    expect(result.graph?.entries[0].entity.author).toEqual({ '@id': 'https://example.com/about#author' });
+    expect(result.diagnostics).not.toContainEqual(expect.objectContaining({ code: 'schema.unresolved-reference' }));
+  });
+
+  test('surfaces sanitized graph finding codes and pointers', () => {
+    const result = enrichHtmlHead({
+      html: document(marker({
+        infer: false,
+        graph: {
+          '@id': '#article',
+          '@type': 'Article',
+          author: { '@id': '#missing' },
+        },
+      })),
+      page: page(), config: resolveConfig(), site,
+    });
+    expect(result.html).not.toContain('data-astro-aeo-graph');
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({
+      code: 'schema.unresolved-reference',
+      severity: 'error',
+      details: { pointer: '/entries/0/entity/author/@id' },
+    }));
+    expect(JSON.stringify(result.diagnostics)).not.toContain('#missing');
   });
 
   test('emits an empty managed delta when authored JSON-LD already owns every fact', () => {
@@ -233,6 +382,20 @@ describe('managed page head', () => {
     expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: 'aeo-head-multiple', severity: 'error' }));
   });
 
+  test('does not treat marker-like text inside a script as an internal marker', () => {
+    const html = document('<script>const example = "<script data-astro-aeo-head>";</script>');
+    expect(stripAeoHeadMarkers(html)).toBe(html);
+    const result = enrichHtmlHead({ html, page: page(), config: resolveConfig(), site });
+    expect(result.explicit).toBe(false);
+    expect(result.html).toContain('const example');
+  });
+
+  test('does not treat a marker name inside another attribute value as a marker', () => {
+    const html = document('<script data-example=" data-astro-aeo-head ">console.log(1)</script>');
+    expect(stripAeoHeadMarkers(html)).toBe(html);
+    expect(enrichHtmlHead({ html, page: page(), config: resolveConfig(), site }).explicit).toBe(false);
+  });
+
   test('breadcrumb inference requires linked authored evidence', () => {
     const none = enrichHtmlHead({ html: document(), page: page(), config: resolveConfig(), site });
     expect(none.html).not.toContain('BreadcrumbList');
@@ -240,5 +403,47 @@ describe('managed page head', () => {
     const withBreadcrumbs = enrichHtmlHead({ html: evidence, page: page(), config: resolveConfig(), site });
     expect(withBreadcrumbs.html).toContain('BreadcrumbList');
     expect(withBreadcrumbs.html).toContain('"name":"Home"');
+
+    const incomplete = document('', '<nav aria-label="Breadcrumb"><a href="/">Home</a><a href="/products">Products</a><span>About</span></nav>');
+    expect(enrichHtmlHead({ html: incomplete, page: page(), config: resolveConfig(), site }).html)
+      .not.toContain('BreadcrumbList');
+  });
+
+  test('uses complete catalog ancestry without deriving labels from the URL', () => {
+    const result = enrichHtmlHead({
+      html: document(),
+      page: page(),
+      config: resolveConfig(),
+      site,
+      breadcrumbTrail: [
+        { name: 'Start page', item: 'https://example.com/' },
+        { name: 'Authored about title', item: 'https://example.com/about' },
+      ],
+    });
+
+    expect(result.html).toContain('BreadcrumbList');
+    expect(result.html).toContain('"name":"Start page"');
+    expect(result.html).toContain('"name":"Authored about title"');
+  });
+
+  test('prefers a complete linked breadcrumb trail over catalog ancestry', () => {
+    const linked = document(
+      '',
+      '<nav aria-label="Breadcrumb"><a href="/">Linked home</a><a href="/about">Linked about</a></nav>',
+    );
+    const result = enrichHtmlHead({
+      html: linked,
+      page: page(),
+      config: resolveConfig(),
+      site,
+      breadcrumbTrail: [
+        { name: 'Catalog home', item: 'https://example.com/' },
+        { name: 'Catalog about', item: 'https://example.com/about' },
+      ],
+    });
+
+    expect(result.html).toContain('"name":"Linked home"');
+    expect(result.html).toContain('"name":"Linked about"');
+    expect(result.html).not.toContain('Catalog home');
   });
 });

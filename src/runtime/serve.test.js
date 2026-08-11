@@ -76,6 +76,45 @@ describe('request-time Markdown renderers', () => {
   });
 });
 
+describe('request-time catalog breadcrumb ancestry', () => {
+  const catalog = {
+    listPages: () => [
+      { pathname: '/', title: 'Catalog home' },
+      { pathname: '/guides', title: 'Catalog guides' },
+      { pathname: '/guides/install', title: 'Catalog install' },
+    ],
+  };
+
+  test('enriches a direct runtime page from the complete configured catalog chain', async () => {
+    const pageRuntime = runtime();
+    const page = await pageFromHtml('/guides/install', html('Rendered install'), pageRuntime);
+    const enriched = await enrichRuntimePageGraph(html('Rendered install'), page, pageRuntime, {
+      catalogLoaders: [catalogLoader(catalog)],
+    });
+
+    expect(enriched.html).toContain('BreadcrumbList');
+    expect(enriched.html).toContain('"name":"Catalog home"');
+    expect(enriched.html).toContain('"name":"Catalog guides"');
+    expect(enriched.html).toContain('"name":"Catalog install"');
+  });
+
+  test('uses the same catalog ancestry while collecting the runtime schema corpus', async () => {
+    const corpusRuntime = runtime();
+    corpusRuntime.config = resolveConfig({ schema: { corpus: { enabled: true } } });
+    const result = await serveSchemaCorpus(
+      'schema-graph',
+      corpusRuntime,
+      async (pathname) => loaded(html(pathname)),
+      { catalogLoaders: [catalogLoader(catalog)] },
+    );
+
+    expect(result.body).toContain('BreadcrumbList');
+    expect(result.body).toContain('"name":"Catalog home"');
+    expect(result.body).toContain('"name":"Catalog guides"');
+    expect(result.body).toContain('"name":"Catalog install"');
+  });
+});
+
 describe('request-time plugin page lifecycle', () => {
   test('runs page hooks in order with immutable validated replacements before the graph hook', async () => {
     const stages = [];
@@ -138,7 +177,7 @@ describe('request-time plugin page lifecycle', () => {
     expect(page.markdown).toBe('# Extracted');
     expect(page.diagnostics).toContainEqual(expect.objectContaining({
       code: 'runtime-note',
-      message: 'kept on one line',
+      message: 'Plugin "runtime-pages" reported runtime-note during page:metadata.',
       details: { plugin: 'runtime-pages', stage: 'page:metadata' },
     }));
 

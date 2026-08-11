@@ -1,4 +1,5 @@
 // @ts-check
+import { headTagSources, htmlTagAttribute } from './html-head-ranges.js';
 /**
  * Return a stable canonical URL or undefined. Managed graph identities may use
  * only public HTTP(S) URLs with no credentials or loopback host.
@@ -12,7 +13,7 @@ export function stableCanonical(value, base) {
   try {
     const url = base === undefined ? new URL(value) : new URL(value, base);
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined;
-    if (url.username || url.password || isLoopback(url.hostname)) return undefined;
+    if (url.username || url.password || isLoopbackHostname(url.hostname)) return undefined;
     url.hash = '';
     return url.href;
   } catch {
@@ -27,10 +28,7 @@ export function stableCanonical(value, base) {
  */
 export function authoredCanonical(html, base) {
   const values = [];
-  const linkPattern = /<link\b(?:"[^"]*"|'[^']*'|[^>"'])*>/gi;
-  let match;
-  while ((match = linkPattern.exec(html))) {
-    const tag = match[0];
+  for (const tag of headTagSources(html, 'link')) {
     const rel = attribute(tag, 'rel');
     if (!rel?.split(/\s+/).some((token) => token.toLowerCase() === 'canonical')) continue;
     const href = attribute(tag, 'href');
@@ -59,15 +57,27 @@ export function configuredCanonical(site, pathname) {
 }
 
 /** @param {string} hostname */
-function isLoopback(hostname) {
-  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
-  return host === 'localhost' || host.endsWith('.localhost') || host === '::1' ||
-    /^127(?:\.\d{1,3}){3}$/.test(host) || host === '0.0.0.0';
+export function isLoopbackHostname(hostname) {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+  if (
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host === '::1' ||
+    host === '::' ||
+    host === '0.0.0.0'
+  ) return true;
+  if (/^127(?:\.\d{1,3}){3}$/.test(host)) return true;
+  if (host.startsWith('::ffff:')) {
+    const mapped = host.slice('::ffff:'.length);
+    if (/^127(?:\.\d{1,3}){3}$/.test(mapped) || mapped === '0.0.0.0') return true;
+    const groups = mapped.split(':');
+    const high = Number.parseInt(groups.at(-2) ?? '', 16);
+    return Number.isInteger(high) && (high >>> 8) === 127;
+  }
+  return false;
 }
 
 /** @param {string} tag @param {string} name */
 function attribute(tag, name) {
-  const pattern = new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>]+))`, 'i');
-  const match = tag.match(pattern);
-  return match ? match[1] ?? match[2] ?? match[3] ?? '' : undefined;
+  return htmlTagAttribute(tag, name);
 }

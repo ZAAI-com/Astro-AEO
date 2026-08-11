@@ -1,0 +1,9 @@
+---
+const malformed = '<h1>Malformed HTML</h1><p>First paragraph<p>Second paragraph<!-- </main> --><p>After comment';
+---
+
+<!doctype html>
+<html lang="en">
+  <head><title>Malformed HTML</title></head>
+  <body><main set:html={malformed} /></body>
+</html>

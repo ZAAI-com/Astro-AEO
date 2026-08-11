@@ -12,6 +12,7 @@ import { cancelResponseBody, isIdentityEncoded, isNullBodyStatus } from './respo
 import { enrichHtmlHead, stripAeoHeadMarkers } from '../core/head.js';
 import { renderSchemaCorpus } from '../core/schema-corpus.js';
 import { stableCanonical } from '../core/canonical.js';
+import { catalogBreadcrumbTrail } from '../core/catalog-breadcrumbs.js';
 import { loadRuntimeMarkdownRenderers } from './markdown-renderers.js';
 import { loadRuntimePlugins } from './plugins.js';
 
@@ -258,15 +259,21 @@ export async function pageFromHtml(pathname, html, runtime, opts = {}) {
  * @param {string} html
  * @param {import('../core/page-model.js').AeoPage} page
  * @param {Runtime} runtime
- * @param {{ pluginLoaders?: RuntimePluginLoader[]; allowGlobal?: boolean }} [opts]
+ * @param {{ pluginLoaders?: RuntimePluginLoader[]; catalogLoaders?: RuntimeCatalogLoader[]; catalogDescriptors?: readonly import('../page.js').PageDescriptor[]; origin?: string; allowGlobal?: boolean }} [opts]
  */
 export async function enrichRuntimePageGraph(html, page, runtime, opts = {}) {
+  const catalogDescriptors = opts.catalogDescriptors ?? await runtimeCatalogPagesFor(
+    opts.catalogLoaders ?? [],
+    runtime,
+    opts.origin,
+  );
   const internal = enrichHtmlHead({
     html,
     page,
     config: runtime.config,
     site: runtime.site,
     allowGlobal: opts.allowGlobal ?? true,
+    breadcrumbTrail: catalogBreadcrumbTrail(page.pathname, catalogDescriptors, runtime.site),
   });
   const loaders = opts.pluginLoaders ?? [];
   if (loaders.length === 0) return { ...internal, isolated: false };
@@ -274,10 +281,7 @@ export async function enrichRuntimePageGraph(html, page, runtime, opts = {}) {
   const plugins = await loadRuntimePlugins(loaders, runtime.command);
   const initial = {
     html: internal.html,
-    page: {
-      ...page,
-      ...(internal.canonicalUrl ? { canonicalUrl: internal.canonicalUrl } : {}),
-    },
+    page: internal.page,
     site: runtime.site,
     graph: internal.graph,
     normalizedGraph: internal.normalizedGraph,
@@ -290,6 +294,7 @@ export async function enrichRuntimePageGraph(html, page, runtime, opts = {}) {
   if (semantic.isolated) {
     return {
       html: stripAeoHeadMarkers(html),
+      page: internal.page,
       graph: null,
       normalizedGraph: undefined,
       explicit: internal.explicit,
@@ -301,6 +306,7 @@ export async function enrichRuntimePageGraph(html, page, runtime, opts = {}) {
   const value = /** @type {any} */ (semantic.value);
   return {
     html: value.html,
+    page: value.page,
     graph: value.graph,
     normalizedGraph: value.normalizedGraph,
     explicit: value.explicit,
@@ -501,6 +507,7 @@ export async function serveSchemaCorpus(kind, runtime, fetchHtml, opts = {}) {
     if (!page) return null;
     const enriched = await enrichRuntimePageGraph(loaded.html, page, runtime, {
       pluginLoaders: opts.pluginLoaders,
+      catalogDescriptors: descriptors,
       allowGlobal: true,
     });
     if (enriched.isolated) {
@@ -510,7 +517,7 @@ export async function serveSchemaCorpus(kind, runtime, fetchHtml, opts = {}) {
       throw new RuntimeSchemaCorpusError('A collected page failed semantic validation.');
     }
     const graph = enriched.normalizedGraph ?? enriched.graph;
-    return graph ? { page: { ...page, ...(enriched.canonicalUrl ? { canonicalUrl: enriched.canonicalUrl } : {}) }, graph } : null;
+    return graph ? { page: enriched.page ?? page, graph } : null;
   });
   const graphPath = `${basePrefix(runtime.site.base)}${runtime.config.schema.corpus.graphPath}`;
   const pair = renderSchemaCorpus(records, {
@@ -623,7 +630,7 @@ function isGraphEnvelope(value) {
  * @param {Runtime} runtime
  * @param {string} [origin]
  */
-function runtimeCatalogPagesFor(loaders, runtime, origin) {
+export function runtimeCatalogPagesFor(loaders, runtime, origin) {
   const siteUrl = effectiveSiteUrl(runtime, origin);
   const cached = runtimeCatalogPages.get(runtime);
   if (cached && cached.loaders === loaders && cached.siteUrl === siteUrl) {
@@ -725,7 +732,7 @@ function canonicalRuntimePath(pathname) {
  * @param {string} pathname
  * @returns {{ canonical: string; publicPathname: string }}
  */
-function catalogRuntimePath(pathname) {
+export function catalogRuntimePath(pathname) {
   const normalized = normalizeRuntimePath(pathname);
   const inspected = inspectRootPathname(normalized);
   const canonical = inspected

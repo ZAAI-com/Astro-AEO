@@ -1,0 +1,20 @@
+---
+import { getCollection, render } from 'astro:content';
+import { AeoPage } from '../../../../../components/index.js';
+import { defineAeoPage } from '../../../../../src/page.js';
+import Layout from '../../layouts/Layout.astro';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('posts');
+  return posts.map((entry) => ({ params: { id: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+const marker = defineAeoPage({ source: entry });
+const { Content } = await render(entry);
+---
+
+<Layout title={entry.data.title} description={entry.data.description}>
+  <AeoPage {...marker} />
+  <Content />
+</Layout>

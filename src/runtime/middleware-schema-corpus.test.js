@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 vi.mock('./config.js', async () => {
   const { resolveConfig } = await import('../config.js');
@@ -28,6 +28,8 @@ vi.mock('./config.js', async () => {
 });
 
 const { onRequest } = await import('./middleware.js');
+const { RUNTIME, RUNTIME_PLUGIN_LOADERS } = await import('./config.js');
+const { resolveConfig } = await import('../config.js');
 const FETCH_STATE = Symbol.for('astro.fetchState');
 
 const pageHtml = (title, extraHead = '') =>
@@ -102,9 +104,142 @@ async function renderPage(target, state) {
   });
 }
 
+beforeEach(() => {
+  RUNTIME.config = resolveConfig({
+    corpus: { index: { enabled: false }, full: { enabled: false } },
+    schema: { corpus: { enabled: true } },
+  });
+  RUNTIME.site.base = '';
+  RUNTIME.projectPaths = ['/zeta', '/alpha'];
+  RUNTIME.projectPatterns = [];
+  RUNTIME_PLUGIN_LOADERS.splice(0);
+});
+
 afterEach(() => vi.unstubAllGlobals());
 
 describe('runtime schema corpus middleware', () => {
+  test('suppresses both schema members when one exact external route owns a member', async () => {
+    RUNTIME.projectPaths.push('/schema/graph.jsonld');
+    const graphUrl = new URL('https://example.test/schema/graph.jsonld');
+    const graphSource = new Response('project graph', {
+      headers: { 'content-type': 'application/ld+json', 'x-owner': 'project' },
+    });
+    const graphNext = vi.fn(async () => graphSource);
+    const graph = await onRequest({
+      request: new Request(graphUrl),
+      url: graphUrl,
+      locals: {},
+      isPrerendered: false,
+      rewrite: vi.fn(),
+    }, graphNext);
+
+    const mapUrl = new URL('https://example.test/schema/schema-map.xml');
+    const fallback = new Response(null, {
+      status: 404,
+      headers: { 'cache-control': 'no-store' },
+    });
+    const mapNext = vi.fn(async () => fallback);
+    const map = await onRequest({
+      request: new Request(mapUrl),
+      url: mapUrl,
+      locals: {},
+      isPrerendered: false,
+      rewrite: vi.fn(),
+    }, mapNext);
+
+    expect(graph).toBe(graphSource);
+    expect(await graph.text()).toBe('project graph');
+    expect(graph.headers.get('x-owner')).toBe('project');
+    expect(graphNext).toHaveBeenCalledOnce();
+    expect(map).toBe(fallback);
+    expect(map.status).toBe(404);
+    expect(mapNext).toHaveBeenCalledOnce();
+  });
+
+  test('suppresses both schema members when a dynamic external route owns a member', async () => {
+    RUNTIME.projectPatterns = [/^\/schema\/schema-map\.xml$/];
+    for (const pathname of ['/schema/graph.jsonld', '/schema/schema-map.xml']) {
+      const url = new URL(`https://example.test${pathname}`);
+      const source = new Response(pathname.endsWith('.xml') ? 'dynamic project map' : null, {
+        status: pathname.endsWith('.xml') ? 200 : 404,
+        headers: { 'x-owner': pathname.endsWith('.xml') ? 'integration' : 'fallback' },
+      });
+      const next = vi.fn(async () => source);
+      const response = await onRequest({
+        request: new Request(url),
+        url,
+        locals: {},
+        isPrerendered: false,
+        rewrite: vi.fn(),
+      }, next);
+
+      expect(response).toBe(source);
+      expect(response.headers.get('x-owner')).toBe(
+        pathname.endsWith('.xml') ? 'integration' : 'fallback',
+      );
+      expect(next).toHaveBeenCalledOnce();
+    }
+  });
+
+  test('an exact core replacement keeps an externally owned schema pair enabled', async () => {
+    RUNTIME.projectPaths.push('/schema/graph.jsonld');
+    RUNTIME.config = resolveConfig({
+      artifacts: { replace: ['/schema/graph.jsonld'] },
+      corpus: { index: { enabled: false }, full: { enabled: false } },
+      schema: { corpus: { enabled: true } },
+    });
+
+    const result = await requestCorpus('/schema/schema-map.xml');
+
+    expect(result.response.status).toBe(200);
+    expect(result.response.headers.get('content-type')).toBe(
+      'application/xml; charset=utf-8',
+    );
+    expect(result.next).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['/schema/graph.jsonld', '/schema/schema-map.xml'],
+    ['/schema/schema-map.xml', '/schema/graph.jsonld'],
+  ])('a plugin claim on %s collides there and suppresses its peer', async (claimed, peer) => {
+    RUNTIME.projectPaths.push(claimed);
+    RUNTIME_PLUGIN_LOADERS.push({
+      name: 'schema-plugin',
+      module: './schema-plugin.js',
+      stages: [],
+      claims: [{ id: 'schema-collision', pathname: claimed, replace: true }],
+      load: async () => ({ name: 'schema-plugin', apiVersion: 1, setup() {} }),
+    });
+
+    const claimedUrl = new URL(`https://example.test${claimed}`);
+    const claimedNext = vi.fn(async () => new Response('project member'));
+    const collision = await onRequest({
+      request: new Request(claimedUrl),
+      url: claimedUrl,
+      locals: {},
+      isPrerendered: false,
+      rewrite: vi.fn(),
+    }, claimedNext);
+    expect(collision.status).toBe(500);
+    expect(collision.headers.get('cache-control')).toBe('no-store');
+    expect(await collision.text()).toBe('Internal Server Error\n');
+    expect(claimedNext).not.toHaveBeenCalled();
+
+    const peerUrl = new URL(`https://example.test${peer}`);
+    const fallback = new Response(null, { status: 404, headers: { 'x-owner': 'fallback' } });
+    const peerNext = vi.fn(async () => fallback);
+    const declined = await onRequest({
+      request: new Request(peerUrl),
+      url: peerUrl,
+      locals: {},
+      isPrerendered: false,
+      rewrite: vi.fn(),
+    }, peerNext);
+    expect(declined).toBe(fallback);
+    expect(declined.status).toBe(404);
+    expect(peerNext).toHaveBeenCalledOnce();
+  });
+
   test('serves deterministic graph and map representations through anonymous serial rewrites', async () => {
     let active = 0;
     let peak = 0;

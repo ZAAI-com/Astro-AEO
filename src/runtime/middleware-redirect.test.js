@@ -40,6 +40,45 @@ function context(pathname, accept = 'text/markdown') {
 }
 
 describe('redirect negotiation', () => {
+  test('redacts AeoHead transport from HTML outside the configured base', async () => {
+    const marker =
+      '<script type="application/vnd.astro-aeo-head+json" data-astro-aeo-head>{"title":"Private"}</script>';
+    const source = new Response(
+      `<!doctype html><html><head><title>Outside</title>${marker}</head><body>Outside</body></html>`,
+      {
+        status: 202,
+        headers: { 'content-type': 'text/html', 'x-owner': 'application' },
+      },
+    );
+    const ctx = context('/outside-base', 'text/html');
+    const next = vi.fn(async () => source);
+
+    const response = await onRequest(ctx, next);
+
+    expect(response.status).toBe(202);
+    expect(response.headers.get('x-owner')).toBe('application');
+    expect(response.headers.get('etag')).toMatch(/^"[a-f0-9]{64}"$/);
+    expect(await response.text()).toBe(
+      '<!doctype html><html><head><title>Outside</title></head><body>Outside</body></html>',
+    );
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  test.each([
+    ['non-HTML', { 'content-type': 'application/octet-stream' }],
+    ['encoded HTML', { 'content-type': 'text/html', 'content-encoding': 'gzip' }],
+  ])('preserves opaque %s bytes outside the configured base', async (_label, headers) => {
+    const bytes = new Uint8Array([0, 255, 60, 115, 99, 114, 105, 112, 116, 62]);
+    const source = new Response(bytes, { status: 202, headers });
+    const ctx = context('/outside-base', 'text/html');
+
+    const response = await onRequest(ctx, vi.fn(async () => source));
+
+    expect(response).toBe(source);
+    expect(response.status).toBe(202);
+    expect([...new Uint8Array(await response.arrayBuffer())]).toEqual([...bytes]);
+  });
+
   test('renders first, then redirects with base, query, cache, and Vary intact', async () => {
     const ctx = context('/docs/about?view=full');
     const next = vi.fn(async () => new Response('<html><main>About</main></html>', {

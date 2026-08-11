@@ -160,6 +160,13 @@ export interface ArtifactClaimantManifestV1 {
 export type ArtifactOwnershipManifestEntryV1 =
   | {
       pathname: string;
+      status: 'runtime';
+      owner: GeneratedArtifactOwner;
+      replacedOwners?: ExternalArtifactOwner[];
+      group?: string;
+    }
+  | {
+      pathname: string;
       status: 'emitted';
       owner: GeneratedArtifactOwner;
       outputPath: string;

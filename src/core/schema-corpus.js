@@ -1,5 +1,5 @@
 // @ts-check
-import { createGraph, mergeGraph, serializeGraph, validateGraph } from '../schema.js';
+import { createGraph, serializeGraph, validateGraph } from '../schema.js';
 
 export const SCHEMA_MAP_NAMESPACE = 'https://zaai.com/astro-aeo/schema-map/1';
 
@@ -12,17 +12,7 @@ export const SCHEMA_MAP_NAMESPACE = 'https://zaai.com/astro-aeo/schema-map/1';
  * @param {{ graphUrl: string; strictReferences?: boolean }} options
  */
 export function renderSchemaCorpus(records, options) {
-  const orderedPages = records.flatMap((record) =>
-    typeof record.page.canonicalUrl === 'string'
-      ? [{ ...record, canonicalUrl: record.page.canonicalUrl }]
-      : [],
-  ).sort((left, right) => left.canonicalUrl.localeCompare(right.canonicalUrl));
-  const merged = mergeGraph(orderedPages.map(({ graph }) => graph));
-  const entities = merged.entries.map((entry) => entry.entity).sort(compareEntity);
-  const graph = createGraph(
-    /** @type {import('../schema.js').GraphInput} */ (/** @type {unknown} */ (entities)),
-  );
-  const knownEntityIds = entities.flatMap((entity) => typeof entity['@id'] === 'string' ? [entity['@id']] : []);
+  const { orderedPages, graph, entities, knownEntityIds } = collectSiteGraph(records);
   const siteUrl = new URL('/', options.graphUrl).href;
   const result = validateGraph(graph, {
     knownEntityIds,
@@ -74,6 +64,55 @@ export function renderSchemaCorpus(records, options) {
     },
     diagnostics,
   };
+}
+
+/**
+ * Validate references across every collected page even when the experimental
+ * schema corpus outputs are disabled. This keeps cross-page integrity in the
+ * shared semantic pipeline without turning corpus files on implicitly.
+ *
+ * @param {{ page: import('../index.js').AeoPageRecord; graph: import('../schema.js').AeoGraph }[]} records
+ * @param {{ siteUrl: string; strictReferences?: boolean }} options
+ * @returns {import('../index.js').Diagnostic[]}
+ */
+export function validateCollectedSchemaGraphs(records, options) {
+  const { graph, knownEntityIds } = collectSiteGraph(records);
+  return validateGraph(graph, {
+    knownEntityIds,
+    siteUrl: options.siteUrl,
+    strictReferences: options.strictReferences ?? true,
+  }).findings.map((finding) => ({
+    version: /** @type {const} */ (1),
+    code: finding.code,
+    severity: finding.severity,
+    message: finding.message,
+    ...(finding.pathname ? { pathname: finding.pathname } : {}),
+  }));
+}
+
+/**
+ * Page-local singleton roles must not collapse unrelated entities when graphs
+ * join at site scope. Preserve provenance, discard those local roles, and let
+ * createGraph merge only genuinely identical IDs.
+ *
+ * @param {{ page: import('../index.js').AeoPageRecord; graph: import('../schema.js').AeoGraph }[]} records
+ */
+function collectSiteGraph(records) {
+  const orderedPages = records.flatMap((record) =>
+    typeof record.page.canonicalUrl === 'string'
+      ? [{ ...record, canonicalUrl: record.page.canonicalUrl }]
+      : [],
+  ).sort((left, right) => left.canonicalUrl.localeCompare(right.canonicalUrl));
+  const corpusInputs = orderedPages.flatMap(({ graph }) => graph.entries.map((entry) => ({
+    entity: entry.entity,
+    provenance: entry.provenance,
+  }))).sort((left, right) => compareEntity(left.entity, right.entity));
+  const graph = createGraph(
+    /** @type {import('../schema.js').GraphInput} */ (/** @type {unknown} */ (corpusInputs)),
+  );
+  const entities = graph.entries.map((entry) => entry.entity);
+  const knownEntityIds = entities.flatMap((entity) => typeof entity['@id'] === 'string' ? [entity['@id']] : []);
+  return { orderedPages, graph, entities, knownEntityIds };
 }
 
 /** @param {import('../index.js').AeoPageRecord} page */

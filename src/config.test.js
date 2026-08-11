@@ -80,7 +80,10 @@ describe('resolveConfig', () => {
   });
 
   test('artifact replacement and schema corpus paths must be exact and distinct', () => {
-    for (const path of ['relative.md', '/../secret', '/x/*', '/x/', '/x?query=1', '/x%2fsecret']) {
+    for (const path of [
+      'relative.md', '/../secret', '/x/*', '/x/', '/x?query=1', '/x%2fsecret',
+      '/%61.txt', '/café.json', '/caf%c3%a9.json', '/literal%2520escape.txt',
+    ]) {
       expect(() => resolveConfig({ artifacts: { replace: [path] } })).toThrow(/artifacts\.replace/);
     }
     expect(() => resolveConfig({ artifacts: { replace: ['/x', '/x'] } })).toThrow(/duplicate/);

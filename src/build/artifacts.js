@@ -3,6 +3,7 @@ import { writeFileSync, mkdirSync, existsSync, copyFileSync, constants, readFile
 import { dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inspectRootPathname, normalizePath } from '../core/match.js';
+import { assertExactPathname } from '../config.js';
 import {
   fileEtag,
   outputRootId,
@@ -52,6 +53,7 @@ const MANDATORY_ARTIFACT_CODES = new Set([
  * @property {string} [copyFrom]          Byte-copy source; keeps the copy at the filesystem level.
  * @property {{ body: string; contentType: string }} [representation]
  * @property {boolean} [replace]           Plugin-owned exact replacement authorization.
+ * @property {boolean} [runtime]           Reserve ownership for middleware without emitting a file.
  * @property {string} [group]              Internal all-or-none group.
  * @property {'overwrite'|'warn-overwrite'|'skip'} [onConflict]
  * @property {string} [conflictMessage]   Emitted verbatim for 'warn-overwrite' and 'skip'.
@@ -292,12 +294,16 @@ export class ArtifactValidationError extends Error {
  * @returns {{ key: string; pathname: string } | null}
  */
 export function normalizeArtifactPathname(value) {
-  if (typeof value !== 'string' || /[*{}\[\]]/.test(value)) return null;
+  try {
+    assertExactPathname(value, 'artifact pathname');
+  } catch {
+    return null;
+  }
   const inspected = inspectRootPathname(value);
   if (!inspected) return null;
   const key = normalizePath(inspected.decoded);
   if (key === '/' || key.split('/').slice(1).some((part) => !part)) return null;
-  return { key, pathname: encodeURI(key) };
+  return { key, pathname: /** @type {string} */ (value) };
 }
 
 /** @param {string} base @returns {string} */
@@ -437,7 +443,9 @@ function createDeferredArtifactWriter(deps) {
     if (committed || resolution) {
       throw new Error('astro-aeo: cannot register an artifact after ownership resolution');
     }
-    const content = artifactContent(artifact);
+    const content = artifact.runtime
+      ? { contents: '', contentType: 'application/octet-stream' }
+      : artifactContent(artifact);
     if (!content) {
       reportDiagnostic('artifact-invalid-representation', 'error', 'astro-aeo: an artifact returned an invalid representation.');
       return false;
@@ -731,6 +739,16 @@ function createDeferredArtifactWriter(deps) {
         });
         continue;
       }
+      if (claim.artifact.runtime) {
+        entries.push({
+          pathname: claim.served.pathname,
+          status: 'runtime',
+          owner: claim.owner,
+          ...(decision.blockers.length ? { replacedOwners: decision.blockers } : {}),
+          ...(claim.group ? { group: claim.group } : {}),
+        });
+        continue;
+      }
       const outputPath = relativeOutputPath(root, claim.artifact.path);
       if (!outputPath) continue;
       entries.push({
@@ -784,6 +802,12 @@ function createDeferredArtifactWriter(deps) {
       counts.clear();
       for (const claim of claims) {
         if (resolved.decisions.get(claim.id)?.status !== 'emit') continue;
+        if (claim.artifact.runtime) {
+          if (existsSync(claim.artifact.path)) {
+            operations.push({ kind: 'delete', path: claim.artifact.path });
+          }
+          continue;
+        }
         operations.push({
           kind: 'write',
           path: claim.artifact.path,

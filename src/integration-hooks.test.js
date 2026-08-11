@@ -65,6 +65,23 @@ describe('integration diagnostics and declarations', () => {
         },
       },
       discovery: { robots: { enabled: true }, sitemap: { mode: 'disabled' } },
+      plugins: [
+        {
+          name: 'build-only',
+          apiVersion: 1,
+          setup(api) {
+            api.claimArtifact({ id: 'build-only', pathname: '/build-only.txt' });
+          },
+        },
+        {
+          name: 'runtime-feed',
+          apiVersion: 1,
+          runtime: { entrypoint: './runtime-feed.js' },
+          setup(api) {
+            api.claimArtifact({ id: 'runtime-feed', pathname: '/runtime-feed.txt' });
+          },
+        },
+      ],
     });
     const logger = { warn() {}, info() {}, error() {}, debug() {} };
     await integration.hooks['astro:config:setup']({
@@ -89,7 +106,9 @@ describe('integration diagnostics and declarations', () => {
       '/llms-full.txt',
       '/semantic/all.jsonld',
       '/semantic/map.xml',
+      '/runtime-feed.txt',
     ]);
+    expect(injected.map(({ pattern }) => pattern)).not.toContain('/build-only.txt');
     expect(injected).toEqual(injected.map((route) => ({ ...route, prerender: false })));
     expect(new Set(injected.map(({ entrypoint }) => entrypoint)).size).toBe(1);
 
@@ -145,6 +164,154 @@ describe('integration diagnostics and declarations', () => {
       logger: { warn() {}, info() {}, error() {}, debug() {} },
     });
     expect(injected).toEqual([]);
+  });
+
+  test('treats integration routes as runtime owners without claiming Astro internal routes', async () => {
+    let updated;
+    const root = new URL('file:///tmp/astro-aeo-integration-ownership/');
+    const integration = aeo({ discovery: { sitemap: { mode: 'disabled' } } });
+    const logger = { warn() {}, info() {}, error() {}, debug() {} };
+    await integration.hooks['astro:config:setup']({
+      config: {
+        adapter: { name: 'test-adapter' },
+        integrations: [],
+        root,
+      },
+      command: 'build',
+      injectRoute() {},
+      addMiddleware() {},
+      updateConfig: (value) => { updated = value; },
+      logger,
+    });
+    await integration.hooks['astro:config:done']({
+      config: {
+        adapter: { name: 'test-adapter' },
+        site: new URL('https://example.test'),
+        base: '/',
+        trailingSlash: 'ignore',
+        build: { format: 'directory' },
+        root,
+        publicDir: new URL('public/', root),
+      },
+      logger,
+      injectTypes() {},
+      buildOutput: 'server',
+    });
+    integration.hooks['astro:routes:resolved']({
+      routes: [
+        {
+          type: 'endpoint',
+          origin: 'external',
+          pathname: '/integration.md',
+          entrypoint: '/tmp/other-integration/integration-md.js',
+          prerender: false,
+        },
+        {
+          type: 'endpoint',
+          origin: 'external',
+          pathname: '/answers.txt',
+          entrypoint: '/tmp/other-integration/answers.js',
+          prerender: false,
+        },
+        {
+          type: 'endpoint',
+          origin: 'external',
+          pattern: '/integration/[slug].md',
+          patternRegex: /^\/integration\/([^/]+?)\.md$/,
+          entrypoint: '/tmp/other-integration/dynamic-md.js',
+          prerender: false,
+        },
+        {
+          type: 'page',
+          origin: 'external',
+          pattern: '/feeds/[slug].txt',
+          patternRegex: /^\/feeds\/([^/]+?)\.txt$/,
+          entrypoint: '/tmp/other-integration/dynamic-artifact.js',
+          prerender: false,
+        },
+        {
+          type: 'page',
+          origin: 'external',
+          pattern: '/[...integrationPage]',
+          patternRegex: /^\/(.*?)\/?$/,
+          entrypoint: '/tmp/other-integration/generic-page.js',
+          prerender: false,
+        },
+        {
+          type: 'endpoint',
+          origin: 'internal',
+          pathname: '/_image',
+          entrypoint: '/tmp/astro/internal-image.js',
+          prerender: false,
+        },
+        {
+          type: 'endpoint',
+          origin: 'internal',
+          pattern: '/_internal/[slug].md',
+          patternRegex: /^\/_internal\/([^/]+?)\.md$/,
+          entrypoint: '/tmp/astro/internal-dynamic.js',
+          prerender: false,
+        },
+      ],
+    });
+
+    const plugin = updated.vite.plugins[0];
+    const source = plugin.load(plugin.resolveId('astro-aeo:runtime-config'));
+    expect(source).toContain('"projectPaths": ["/integration.md", "/answers.txt"]');
+    expect(source).toContain('new RegExp("^\\\\/integration\\\\/([^/]+?)\\\\.md$", "")');
+    expect(source).toContain('new RegExp("^\\\\/feeds\\\\/([^/]+?)\\\\.txt$", "")');
+    expect(source).not.toContain('/_image');
+    expect(source).not.toContain('_internal');
+    expect(source).not.toContain('integrationPage');
+  });
+
+  test('treats public files inside the configured base as runtime owners', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'aeo-public-runtime-ownership-'));
+    const publicRoot = join(root, 'public');
+    mkdirSync(join(publicRoot, 'docs'), { recursive: true });
+    writeFileSync(join(publicRoot, 'docs', 'llms.txt'), 'project corpus');
+    writeFileSync(join(publicRoot, 'docs', 'manual.md'), 'project Markdown');
+    writeFileSync(join(publicRoot, 'outside.txt'), 'not served below the base');
+
+    try {
+      let updated;
+      const integration = aeo({ discovery: { sitemap: { mode: 'disabled' } } });
+      const logger = { warn() {}, info() {}, error() {}, debug() {} };
+      await integration.hooks['astro:config:setup']({
+        config: {
+          adapter: { name: 'test-adapter' },
+          integrations: [],
+          root: pathToFileURL(`${root}/`),
+        },
+        command: 'build',
+        injectRoute() {},
+        addMiddleware() {},
+        updateConfig: (value) => { updated = value; },
+        logger,
+      });
+      await integration.hooks['astro:config:done']({
+        config: {
+          adapter: { name: 'test-adapter' },
+          site: new URL('https://example.test'),
+          base: '/docs',
+          trailingSlash: 'ignore',
+          build: { format: 'directory' },
+          root: pathToFileURL(`${root}/`),
+          publicDir: pathToFileURL(`${publicRoot}/`),
+        },
+        logger,
+        injectTypes() {},
+        buildOutput: 'server',
+      });
+      integration.hooks['astro:routes:resolved']({ routes: [] });
+
+      const plugin = updated.vite.plugins[0];
+      const source = plugin.load(plugin.resolveId('astro-aeo:runtime-config'));
+      expect(source).toContain('"projectPaths": ["/llms.txt", "/manual.md"]');
+      expect(source).not.toContain('/outside.txt');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   test.each([

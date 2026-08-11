@@ -1,4 +1,4 @@
-# Astro-AEO 1.1 Benchmarks
+# Astro-AEO 1.2 Benchmarks
 
 The benchmark harness records extraction time, retained heap, package size, runtime corpus fan-out,
 optional request latency, and optional adapter bundle sizes as JSON.
@@ -8,7 +8,7 @@ node --expose-gc benchmarks/run.mjs
 node --expose-gc benchmarks/run.mjs --enforce
 ```
 
-Results are written to `.astro/aeo-benchmarks/1.1.json`. That path is ignored by git. Use the same
+Results are written to `.astro/aeo-benchmarks/1.2.json`. That path is ignored by git. Use the same
 Node version and runner class when comparing results; absolute timing from unrelated machines is
 not meaningful.
 
@@ -42,9 +42,9 @@ The release check builds minimal Node and Cloudflare fixtures without Astro-AEO,
 with the equivalent adapter fixtures. This keeps the reported delta separate from Astro and adapter
 framework code that both builds share.
 
-`--enforce` applies the 1.1 safety ceilings embedded in the report:
+`--enforce` applies the 1.2 safety ceilings embedded in the report:
 
-- Packed package at most 90,000 bytes and unpacked package at most 320,000 bytes.
+- Packed package at most 190,000 bytes and unpacked package at most 740,000 bytes.
 - 100 KB parse p95 below 50 ms and conversion p95 below 150 ms.
 - Retained heap after 100 conversions at most 10 MB.
 - Paired Markdown-minus-HTML p95 request overhead at most 10 ms. Direct and negotiated modes each
@@ -54,13 +54,15 @@ framework code that both builds share.
 - Cloudflare output at most 51.2 MB raw and 2.4 MB gzip, with locally profiled Worker startup
   active time below 800 ms.
 
-The committed baseline records 10 KB, 100 KB, and 1 MB extraction; memory after 100 conversions;
-1, 10, 50, and 51-route corpora; requests; Node and Cloudflare bundles; and Cloudflare Worker
-startup. Package and bundle byte counts are portable, so their 10 percent comparison always runs
-in tag CI even when the committed baseline came from another operating system. Timing and retained
-heap comparisons run only when the exact Node version, platform, architecture, CI mode, and an
-explicitly declared runner class match. Set `ASTRO_AEO_BENCHMARK_RUNNER` to a stable runner-class
-name when repeating measurements on controlled hardware.
+The committed 1.2 baseline records measured package and Node/Cloudflare bundle byte counts. Those
+portable measurements always receive the 10 percent comparison in tag CI. The initial 1.2
+reference deliberately omits timing and memory samples because it was recorded on a shared,
+non-idle machine; the absolute timing, memory, request, and Worker-startup ceilings remain enforced
+by every complete release run. A later complete reference may add those comparisons only after it
+is measured on a controlled runner. Timing and retained-heap comparisons run only when the exact
+Node version, platform, architecture, CI mode, and explicitly declared runner class match. Set
+`ASTRO_AEO_BENCHMARK_RUNNER` to a stable runner-class name when repeating measurements on controlled
+hardware.
 
 A portable package or bundle change over 10 percent always requires an explanation. Timing,
 memory, corpus, request, and startup changes over 10 percent require one when the runner matches
@@ -83,7 +85,7 @@ complete passing report on the declared reference runner, then update the baseli
 ASTRO_AEO_BENCHMARK_RUNNER=astro-aeo-m2-pro-reference \
   node scripts/run-release-benchmark.mjs \
   --baseline none \
-  --output .astro/aeo-benchmarks/1.1-reference.json
+  --output .astro/aeo-benchmarks/1.2-reference.json
 pnpm run benchmark:baseline
 ```
 

@@ -16,9 +16,17 @@ import { emitDomainProfile } from '../generators/domain-profile.js';
 import { emitUrlMap } from '../generators/url-map.js';
 import { writeDiagnosticsManifest } from '../build/diagnostics.js';
 import { isOwnedArtifactPath } from '../core/owned-artifacts.js';
-import { renderSchemaCorpus } from '../core/schema-corpus.js';
+import { renderSchemaCorpus, validateCollectedSchemaGraphs } from '../core/schema-corpus.js';
 import { stableCanonical } from '../core/canonical.js';
 import { enrichHtmlHead, stripAeoHeadMarkers } from '../core/head.js';
+import { catalogBreadcrumbTrail } from '../core/catalog-breadcrumbs.js';
+import {
+  isExtractionEnvelope,
+  isGraphEnvelope,
+  isPageDescriptor,
+  isPageMetadata,
+  isPageRecord,
+} from './plugin-validation.js';
 
 /**
  * @typedef {object} BuildEnv
@@ -91,6 +99,10 @@ export async function onBuildDone(config, options, env) {
   }
 
   let pageDescriptors = mergeCatalogPages(rawPages, catalogPages);
+  // Marker removal covers every concrete page Astro reported, including a page
+  // a discovered hook later isolates before collection. The marker payload is
+  // private transport and must never depend on lifecycle eligibility.
+  const markerDescriptors = [...pageDescriptors];
   if (env.pluginDispatcher) {
     const discovered = [];
     for (const descriptor of pageDescriptors) {
@@ -194,18 +206,37 @@ export async function onBuildDone(config, options, env) {
     for (let index = 0; index < pages.length; index++) {
       const page = pages[index];
       const { htmlPath: _htmlPath, mdPath: _mdPath, ...publicPage } = page;
+      // Astro exposes prerendered status pages as ordinary build pages. They
+      // remain eligible for an explicit AeoHead decision, but must never gain
+      // the default graph merely because they contain successful HTML bytes.
+      const allowGlobal = page.pathname !== '/404' && page.pathname !== '/500';
+      const semanticSite = {
+        siteUrl: env.siteUrl,
+        base: env.base,
+        trailingSlash: env.trailingSlash,
+      };
+      const breadcrumbTrail = catalogBreadcrumbTrail(
+        page.pathname,
+        catalogPages,
+        semanticSite,
+      );
       const initial = {
         html: page.representations.html ?? '',
         page: publicPage,
-        site: { siteUrl: env.siteUrl, base: env.base, trailingSlash: env.trailingSlash },
-        allowGlobal: true,
+        site: semanticSite,
+        allowGlobal,
+        breadcrumbTrail,
         graph: null,
         explicit: false,
       };
       const semantic = await env.pluginDispatcher.run('graph:build', initial, {
         pathname: page.pathname,
         mode: 'build',
-        validate: isGraphEnvelope,
+        validate: (value) => isGraphEnvelope(value, {
+          id: page.id,
+          pathname: page.pathname,
+          site: semanticSite,
+        }),
       });
       env.diagnostics?.push(...semantic.diagnostics);
       if (semantic.isolated) {
@@ -233,8 +264,9 @@ export async function onBuildDone(config, options, env) {
             html,
             page: publicPage,
             config,
-            site: { siteUrl: env.siteUrl, base: env.base, trailingSlash: env.trailingSlash },
-            allowGlobal: true,
+            site: semanticSite,
+            allowGlobal,
+            breadcrumbTrail,
           }).html;
           if (!env.pluginDispatcher?.hasUserHooks('graph:build')) return refreshed;
 
@@ -245,12 +277,23 @@ export async function onBuildDone(config, options, env) {
             html: initial.html,
             page: publicPage,
             config,
-            site: { siteUrl: env.siteUrl, base: env.base, trailingSlash: env.trailingSlash },
-            allowGlobal: true,
+            site: semanticSite,
+            allowGlobal,
+            breadcrumbTrail,
           }).html;
           return applyHtmlDelta(refreshed, internalHtml, enrichedHtml);
         });
       }
+    }
+  }
+
+  if (!config.schema.corpus.enabled && semanticPages.length > 0) {
+    const stableSite = stableCanonical(env.siteUrl);
+    if (stableSite) {
+      env.diagnostics?.push(...validateCollectedSchemaGraphs(semanticPages, {
+        siteUrl: new URL('/', stableSite).href,
+        strictReferences: config.schema.strictReferences,
+      }));
     }
   }
 
@@ -306,10 +349,29 @@ export async function onBuildDone(config, options, env) {
         }
       }
     }
+  } else if (config.schema.corpus.enabled) {
+    writer.write({
+      route: config.schema.corpus.graphPath,
+      owner: { kind: 'core', name: 'schemaGraph' },
+      runtime: true,
+      group: 'astro-aeo/schema-corpus',
+    });
+    writer.write({
+      route: config.schema.corpus.mapPath,
+      owner: { kind: 'core', name: 'schemaMap' },
+      runtime: true,
+      group: 'astro-aeo/schema-corpus',
+    });
   }
 
   if (env.pluginDispatcher) {
-    await emitPluginArtifacts(env.pluginDispatcher, pages, writer, env.diagnostics ?? []);
+    await emitPluginArtifacts(
+      env.pluginDispatcher,
+      pages,
+      writer,
+      env.diagnostics ?? [],
+      Boolean(env.runtimeCorpora),
+    );
   }
 
   const written = emitDotMd(pages, config, writer);
@@ -321,6 +383,12 @@ export async function onBuildDone(config, options, env) {
     if (config.corpus.index.enabled) logger.info('astro-aeo: emitted /llms.txt');
     if (config.corpus.full.enabled) logger.info('astro-aeo: emitted /llms-full.txt');
   } else if (config.corpus.index.enabled || config.corpus.full.enabled) {
+    if (config.corpus.index.enabled) {
+      writer.write({ route: '/llms.txt', owner: { kind: 'core', name: 'llmsTxt' }, runtime: true });
+    }
+    if (config.corpus.full.enabled) {
+      writer.write({ route: '/llms-full.txt', owner: { kind: 'core', name: 'llmsFullTxt' }, runtime: true });
+    }
     logger.info('astro-aeo: request-time middleware owns the corpus paths for on-demand routes');
   }
 
@@ -329,7 +397,7 @@ export async function onBuildDone(config, options, env) {
 
   // Unconditional, and last, so it also covers pages every generator skipped.
   const stripped = stripSourceMarkers(
-    pageDescriptors,
+    markerDescriptors,
     createDistHtmlSource({ distDir: dir, buildFormat: env.buildFormat }),
     writer,
   );
@@ -354,68 +422,6 @@ export async function onBuildDone(config, options, env) {
   }
 
   return writer;
-}
-
-/** @param {unknown} value @returns {value is import('../page.js').PageDescriptor} */
-function isPageDescriptor(value) {
-  const descriptor = /** @type {any} */ (value);
-  return Boolean(
-    descriptor &&
-    typeof descriptor === 'object' &&
-    typeof descriptor.pathname === 'string' &&
-    (descriptor.routePattern === undefined || typeof descriptor.routePattern === 'string') &&
-    (descriptor.rendering === undefined || descriptor.rendering === 'prerendered' || descriptor.rendering === 'on-demand') &&
-    (descriptor.title === undefined || typeof descriptor.title === 'string') &&
-    (descriptor.description === undefined || typeof descriptor.description === 'string') &&
-    (descriptor.image === undefined || typeof descriptor.image === 'string') &&
-    (descriptor.language === undefined || typeof descriptor.language === 'string') &&
-    (descriptor.markdown === undefined || typeof descriptor.markdown === 'string')
-  );
-}
-
-/** @param {unknown} value @returns {value is import('../index.js').AeoPageRecord} */
-function isPageRecord(value) {
-  const page = /** @type {any} */ (value);
-  return Boolean(page && typeof page === 'object' && typeof page.id === 'string' &&
-    typeof page.pathname === 'string' && page.metadata && page.representations &&
-    Array.isArray(page.authors) && Array.isArray(page.entities) && page.directives);
-}
-
-/** @param {unknown} value @returns {value is import('../index.js').AeoPageRecord['metadata']} */
-function isPageMetadata(value) {
-  return Boolean(value && typeof value === 'object' && typeof /** @type {any} */ (value).title === 'string');
-}
-
-/** @param {unknown} value */
-function isExtractionEnvelope(value) {
-  const candidate = /** @type {any} */ (value);
-  return Boolean(
-    candidate &&
-    typeof candidate === 'object' &&
-    candidate.representations &&
-    typeof candidate.representations === 'object' &&
-    (candidate.representations.html === undefined || typeof candidate.representations.html === 'string') &&
-    (candidate.representations.markdown === undefined || typeof candidate.representations.markdown === 'string') &&
-    (candidate.representations.plainText === undefined || typeof candidate.representations.plainText === 'string') &&
-    (candidate.extraction === null || candidate.extraction === undefined || typeof candidate.extraction === 'object') &&
-    (candidate.source === undefined || (candidate.source && typeof candidate.source === 'object'))
-  );
-}
-
-/** @param {unknown} value */
-function isGraphEnvelope(value) {
-  const candidate = /** @type {any} */ (value);
-  return Boolean(
-    candidate &&
-    typeof candidate === 'object' &&
-    typeof candidate.html === 'string' &&
-    isPageRecord(candidate.page) &&
-    candidate.site &&
-    typeof candidate.site === 'object' &&
-    (candidate.graph === null || (candidate.graph && Array.isArray(candidate.graph.entries))) &&
-    (candidate.normalizedGraph === undefined || candidate.normalizedGraph === null ||
-      (candidate.normalizedGraph && Array.isArray(candidate.normalizedGraph.entries)))
-  );
 }
 
 /**
@@ -470,8 +476,9 @@ function isArtifactEnvelope(value, expected) {
  * @param {import('../index.js').AeoPageRecord[]} pages
  * @param {ReturnType<typeof createArtifactWriter>} writer
  * @param {import('../index.js').Diagnostic[]} diagnostics
+ * @param {boolean} runtimeOutput
  */
-async function emitPluginArtifacts(dispatcher, pages, writer, diagnostics) {
+async function emitPluginArtifacts(dispatcher, pages, writer, diagnostics, runtimeOutput) {
   const safePages = pages.map((page) => ({ id: page.id, pathname: page.pathname }));
   for (const claim of dispatcher.claims) {
     const generated = await dispatcher.run('artifact:generate', {
@@ -506,11 +513,17 @@ async function emitPluginArtifacts(dispatcher, pages, writer, diagnostics) {
     diagnostics.push(...validated.diagnostics);
     if (validated.isolated) continue;
     const validatedRepresentation = /** @type {any} */ (validated.value).representation;
+    const runtimeClaim = runtimeOutput && dispatcher.runtimeManifest.plugins.some((plugin) =>
+      plugin.name === claim.plugin && plugin.claims.some((candidate) =>
+        candidate.id === claim.id && candidate.pathname === claim.pathname,
+      ),
+    );
     writer.write({
       route: claim.pathname,
       owner: { kind: 'plugin', name: claim.plugin, claimId: claim.id },
       replace: claim.replace,
       representation: validatedRepresentation,
+      ...(runtimeClaim ? { runtime: true } : {}),
     });
   }
 }

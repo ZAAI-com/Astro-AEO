@@ -125,7 +125,13 @@ export async function createPluginDispatcher({ plugins = [], internalPlugins = [
           return { value, diagnostics, isolated: true };
         }
 
-        const normalized = normalizeResult(result, registration.plugin, stage, context.pathname);
+        let normalized;
+        try {
+          normalized = normalizeResult(result, registration.plugin, stage, context.pathname);
+        } catch {
+          diagnostics.push(failure(registration.plugin, stage, context.pathname, 'plugin-invalid-result'));
+          return { value, diagnostics, isolated: true };
+        }
         diagnostics.push(...normalized.diagnostics);
         if (normalized.invalid || normalized.action === 'isolate') {
           if (normalized.action === 'isolate' && normalized.diagnostics.length === 0) {
@@ -134,12 +140,15 @@ export async function createPluginDispatcher({ plugins = [], internalPlugins = [
           return { value, diagnostics, isolated: true };
         }
         if (normalized.action === 'replace') {
-          if (context.validate && !context.validate(normalized.value)) {
-            diagnostics.push(failure(registration.plugin, stage, context.pathname, 'plugin-invalid-replacement'));
-            return { value, diagnostics, isolated: true };
-          }
           try {
-            value = /** @type {T} */ (immutableJsonValue(normalized.value, `${registration.plugin} ${stage} replacement`));
+            const replacement = immutableJsonValue(
+              normalized.value,
+              `${registration.plugin} ${stage} replacement`,
+            );
+            if (context.validate && !context.validate(replacement)) {
+              throw new TypeError('invalid plugin replacement');
+            }
+            value = /** @type {T} */ (replacement);
           } catch {
             diagnostics.push(failure(registration.plugin, stage, context.pathname, 'plugin-invalid-replacement'));
             return { value, diagnostics, isolated: true };
@@ -224,6 +233,13 @@ function normalizeResult(result, plugin, stage, pathname) {
   }
   const action = /** @type {any} */ (result).action;
   const diagnostics = sanitizeDiagnostics(/** @type {any} */ (result).diagnostics, plugin, stage, pathname);
+  if (diagnostics === null) {
+    return {
+      action: 'isolate',
+      diagnostics: [failure(plugin, stage, pathname, 'plugin-invalid-diagnostics')],
+      invalid: true,
+    };
+  }
   if (action === 'replace' && !Object.prototype.hasOwnProperty.call(result, 'value')) {
     return { action, diagnostics: [...diagnostics, failure(plugin, stage, pathname, 'plugin-invalid-result')], invalid: true };
   }
@@ -233,23 +249,30 @@ function normalizeResult(result, plugin, stage, pathname) {
 /** @param {unknown} input @param {string} plugin @param {string} stage @param {string | undefined} pathname */
 function sanitizeDiagnostics(input, plugin, stage, pathname) {
   if (input === undefined) return [];
-  if (!Array.isArray(input)) return [failure(plugin, stage, pathname, 'plugin-invalid-diagnostics')];
-  return input.map((diagnostic) => {
-    if (!diagnostic || typeof diagnostic !== 'object') {
-      return failure(plugin, stage, pathname, 'plugin-invalid-diagnostics');
+  if (!Array.isArray(input)) return null;
+  const diagnostics = [];
+  for (const diagnostic of input) {
+    if (!diagnostic || typeof diagnostic !== 'object') return null;
+    const item = /** @type {any} */ (diagnostic);
+    if (typeof item.code !== 'string' || !item.code.trim() ||
+      typeof item.message !== 'string' || !item.message.trim() ||
+      (item.severity !== undefined && !['info', 'warning', 'error'].includes(item.severity))) {
+      return null;
     }
-    const severity = ['info', 'warning', 'error'].includes(/** @type {any} */ (diagnostic).severity)
-      ? /** @type {'info'|'warning'|'error'} */ (/** @type {any} */ (diagnostic).severity)
-      : 'warning';
-    return {
+    diagnostics.push({
       version: /** @type {const} */ (1),
-      code: safeToken(/** @type {any} */ (diagnostic).code) || 'plugin-diagnostic',
-      severity,
-      message: safeMessage(/** @type {any} */ (diagnostic).message),
+      code: safeToken(item.code) || 'plugin-diagnostic',
+      severity: item.severity ?? 'warning',
+      // A plugin-authored message is an arbitrary payload and can echo source
+      // bodies, entity values, markers, or credentials. Preserve the useful
+      // machine code and trusted lifecycle context, but never persist that
+      // free-form value in Astro-AEO diagnostics.
+      message: safeDiagnosticMessage(plugin, stage, item.code),
       ...(pathname ? { pathname } : {}),
       details: { plugin, stage },
-    };
-  });
+    });
+  }
+  return diagnostics;
 }
 
 /** @param {string} plugin @param {string} stage @param {string | undefined} pathname @param {string} code */
@@ -269,8 +292,17 @@ function safeToken(value) {
   return typeof value === 'string' ? value.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 80) : '';
 }
 
-/** @param {unknown} value */
-function safeMessage(value) {
-  if (typeof value !== 'string' || !value.trim()) return 'The plugin reported a diagnostic.';
-  return value.replace(/[\r\n\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 500);
+/** @param {string} plugin @param {string} stage @param {unknown} code */
+function safeDiagnosticMessage(plugin, stage, code) {
+  const safePlugin = safeContext(plugin, 'plugin');
+  const safeStage = safeContext(stage, 'lifecycle stage');
+  const safeCode = safeToken(code) || 'plugin-diagnostic';
+  return `Plugin "${safePlugin}" reported ${safeCode} during ${safeStage}.`;
+}
+
+/** @param {unknown} value @param {string} fallback */
+function safeContext(value, fallback) {
+  if (typeof value !== 'string') return fallback;
+  const normalized = value.replace(/[^A-Za-z0-9._:@/-]/g, '-').slice(0, 100);
+  return normalized || fallback;
 }

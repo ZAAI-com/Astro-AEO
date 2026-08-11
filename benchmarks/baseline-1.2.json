@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "recordedAt": "2026-08-11",
+  "environment": {
+    "node": "v24.15.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "ci": false,
+    "runnerClass": "portable-size-only"
+  },
+  "package": {
+    "packedBytes": 168406,
+    "unpackedBytes": 660983,
+    "files": 87
+  },
+  "bundles": {
+    "node": {
+      "files": 33,
+      "rawBytes": 1509958,
+      "gzipBytes": 354164,
+      "deltaRawBytes": 263502,
+      "deltaGzipBytes": 63797,
+      "baseline": {
+        "files": 31,
+        "rawBytes": 1246456,
+        "gzipBytes": 290367
+      }
+    },
+    "cloudflare": {
+      "files": 36,
+      "rawBytes": 1690988,
+      "gzipBytes": 408608,
+      "deltaRawBytes": 1037882,
+      "deltaGzipBytes": 239631,
+      "baseline": {
+        "files": 33,
+        "rawBytes": 653106,
+        "gzipBytes": 168977
+      }
+    }
+  },
+  "notes": [
+    "This 1.2 reference records only portable package and adapter bundle byte counts.",
+    "Timing and memory values were intentionally omitted because the available shared machine was not an idle controlled runner.",
+    "Portable regressions over 10 percent require an explicit benchmark regression explanation; every absolute release ceiling remains enforced."
+  ]
+}

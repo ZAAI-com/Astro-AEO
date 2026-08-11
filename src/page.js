@@ -52,8 +52,13 @@ export function defineAeoPage(input = {}) {
   const sourcePath = input.sourcePath ?? entry?.filePath ?? entry?.id;
   if (typeof sourcePath === 'string' && sourcePath) {
     marker.sourcePath = sourcePath;
-    marker.sourceKind = input.sourceKind ?? (/\.mdx(?:$|[?#])/i.test(sourcePath) ? 'mdx' : 'markdown');
   }
+  const sourceKind = validSourceKind(input.sourceKind)
+    ? input.sourceKind
+    : typeof sourcePath === 'string' && sourcePath
+      ? (/\.mdx(?:$|[?#])/i.test(sourcePath) ? 'mdx' : 'markdown')
+      : undefined;
+  if (sourceKind) marker.sourceKind = sourceKind;
 
   if (Array.isArray(input.authors)) marker.authors = input.authors;
   if (Array.isArray(input.entities)) marker.entities = input.entities;
@@ -64,6 +69,19 @@ export function defineAeoPage(input = {}) {
   }
 
   return marker;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is NonNullable<AeoPageInput['sourceKind']>}
+ */
+function validSourceKind(value) {
+  return value === 'markdown' ||
+    value === 'mdx' ||
+    value === 'astro' ||
+    value === 'cms' ||
+    value === 'rendered' ||
+    value === 'custom';
 }
 
 /** @param {unknown} value @returns {string | undefined} */

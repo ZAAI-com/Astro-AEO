@@ -58,6 +58,47 @@ describe('schema entity builders', () => {
     }
   });
 
+  test('all P0 builder results merge, validate, and serialize through the public graph API', () => {
+    const builders = [
+      [createWebSite, 'WebSite'],
+      [createWebPage, 'WebPage'],
+      [createPerson, 'Person'],
+      [createOrganization, 'Organization'],
+      [createArticle, 'Article'],
+      [createBlogPosting, 'BlogPosting'],
+      [createBreadcrumbList, 'BreadcrumbList'],
+      [createImageObject, 'ImageObject'],
+      [createVideoObject, 'VideoObject'],
+      [createProduct, 'Product'],
+      [createSoftwareApplication, 'SoftwareApplication'],
+      [createService, 'Service'],
+      [createOffer, 'Offer'],
+      [createFAQPage, 'FAQPage'],
+      [createHowTo, 'HowTo'],
+      [createEvent, 'Event'],
+      [createLocalBusiness, 'LocalBusiness'],
+    ];
+
+    for (const [builder, type] of builders) {
+      const id = createId(`https://example.com/entities#${type}`);
+      const graph = createGraph([
+        builder({ '@id': id, name: type }),
+        builder({ '@id': id, description: `${type} evidence` }),
+      ]);
+      expect(graph.entries).toHaveLength(1);
+      expect(graph.entries[0].entity).toMatchObject({
+        '@id': id,
+        '@type': type,
+        name: type,
+        description: `${type} evidence`,
+      });
+      expect(validateGraph(graph, { documentCanonical: 'https://example.com/entities' }).valid)
+        .toBe(true);
+      expect(serializeGraph(graph, { documentCanonical: 'https://example.com/entities' }))
+        .toContain(`\"@type\":\"${type}\"`);
+    }
+  });
+
   test('builders clone input, preserve facts, and reject owned keywords', () => {
     const input = { name: 'Ada', sameAs: ['https://example.com/ada'] };
     const person = createPerson(input);
@@ -91,6 +132,10 @@ describe('schema IDs and references', () => {
     expect(() => createId('#person')).toThrow(/explicit absolute base/);
     expect(() => createId('https://user:secret@example.com/id')).toThrow(/credentials/);
     expect(() => createId('javascript:alert(1)')).toThrow(/unsafe scheme/);
+    expect(() => createId('http://localhost/id')).toThrow(/loopback/);
+    expect(() => createId('https://127.12.34.56/id')).toThrow(/loopback/);
+    expect(() => createId('http://[::ffff:127.0.0.1]/id')).toThrow(/loopback/);
+    expect(() => createId('http://0.0.0.0/id')).toThrow(/loopback/);
   });
 
   test('ref and connect create ID-only relations without mutating either entity', () => {
@@ -277,6 +322,94 @@ describe('graph validation and serialization', () => {
     const polluted = JSON.parse('{"@type":"Thing","__proto__":{"polluted":true}}');
     expect(() => createEntity(polluted)).toThrow(/invalid/);
     expect({}.polluted).toBeUndefined();
+  });
+
+  test.each([
+    ['javascript scheme', 'javascript:alert(1)'],
+    ['data scheme', 'data:text/html,<script>alert(1)</script>'],
+    ['credentials', 'https://user:secret@example.com/docs/page'],
+    ['loopback host', 'http://127.0.0.1/docs/page'],
+  ])('rejects unsafe BreadcrumbList item URLs using a %s', (_label, item) => {
+    const result = validateGraph(
+      createBreadcrumbList({
+        itemListElement: [
+          {
+            '@type': 'ListItem',
+            position: 1,
+            name: 'Documentation',
+            item,
+          },
+        ],
+      }),
+      { documentCanonical: 'https://example.com/docs/' },
+    );
+
+    expect(result.valid).toBe(false);
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        code: 'schema.unsafe-url',
+        pointer: '/itemListElement/0/item',
+      }),
+    );
+  });
+
+  test('validates URL-valued arbitrary entities while preserving text and entity references', () => {
+    const targetId = createId('#target', 'https://example.com/docs/');
+    const graph = createGraph([
+      createBreadcrumbList({
+        itemListElement: [
+          {
+            '@type': 'ListItem',
+            position: 1,
+            name: 'Documentation',
+            item: '/docs/',
+          },
+          {
+            '@type': 'ListItem',
+            position: 2,
+            name: 'Target',
+            item: ref(targetId),
+          },
+        ],
+      }),
+      createWebPage({ '@id': targetId, name: 'Target' }),
+      createEntity({
+        '@type': 'Dataset',
+        category: 'JavaScript: programming language',
+        genre: 'data journalism',
+        termsOfService: 'Standard terms apply',
+        distribution: {
+          '@type': 'DataDownload',
+          contentUrl: 'https://cdn.example.com/data.csv',
+        },
+      }),
+    ]);
+
+    expect(
+      validateGraph(graph, { documentCanonical: 'https://example.com/docs/' }),
+    ).toMatchObject({ valid: true, findings: [] });
+
+    const unsafeTypedUrl = validateGraph(
+      createEntity({
+        '@type': 'Dataset',
+        identifier: { '@type': 'URL', '@value': 'data:text/html,unsafe' },
+      }),
+      { documentCanonical: 'https://example.com/docs/' },
+    );
+    expect(unsafeTypedUrl.findings).toContainEqual(
+      expect.objectContaining({
+        code: 'schema.unsafe-url',
+        pointer: '/identifier/@value',
+      }),
+    );
+
+    const unsafeUrlLikeText = validateGraph(
+      createEntity({ '@type': 'Dataset', category: 'javascript:alert(1)' }),
+      { documentCanonical: 'https://example.com/docs/' },
+    );
+    expect(unsafeUrlLikeText.findings).toContainEqual(
+      expect.objectContaining({ code: 'schema.unsafe-url', pointer: '/category' }),
+    );
   });
 
   test('serialization is deterministic, XSS-safe, and excludes graph metadata', () => {

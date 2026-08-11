@@ -187,8 +187,20 @@ if (schema.title !== 'Astro-AEO configuration' || pkg.name !== 'astro-aeo') proc
       [
         '--input-type=module',
         '-e',
-        `const adapters = await Promise.all([import('astro-aeo/mdx'), import('astro-aeo/defuddle')]);
-if (adapters.some((namespace) => namespace.default?.apiVersion !== 1)) process.exit(1);`,
+        `const [mdx, defuddle] = await Promise.all([import('astro-aeo/mdx'), import('astro-aeo/defuddle')]);
+if (mdx.default?.apiVersion !== 1 || defuddle.default?.apiVersion !== 1) process.exit(1);
+const mdxResult = await mdx.default.render({
+  pathname: '/packed-mdx',
+  html: '',
+  source: { kind: 'mdx', body: '# Packed MDX' },
+});
+const defuddleResult = await defuddle.default.render({
+  pathname: '/packed-defuddle',
+  html: '<html><head><title>Packed</title></head><body><main><h1>Packed Defuddle</h1><p>Local body text.</p></main></body></html>',
+  extraction: { selectors: ['main'], removeSelectors: [], keepSelectors: [] },
+});
+if (mdxResult.status !== 'rendered' || mdxResult.markdown !== '# Packed MDX') process.exit(1);
+if (defuddleResult.status !== 'rendered' || !defuddleResult.markdown.includes('Packed Defuddle')) process.exit(1);`,
       ],
       { cwd: consumer },
     );

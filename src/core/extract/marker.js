@@ -1,4 +1,5 @@
 // @ts-check
+import { htmlTagAttribute, removeHtmlElements } from '../html-head-ranges.js';
 
 export const MARKER_SELECTOR = 'script[data-astro-aeo-marker]';
 export const MARKER_MIME = 'application/vnd.astro-aeo+json';
@@ -52,8 +53,9 @@ export function removeMarkers(document) {
  */
 export function stripMarkersFromHtml(html) {
   if (!html.includes('data-astro-aeo-marker')) return html;
-  return html.replace(
-    /<script\b[^>]*\bdata-astro-aeo-marker\b[^>]*>[\s\S]*?<\/script>/gi,
-    '',
+  return removeHtmlElements(
+    html,
+    'script',
+    ({ source }) => htmlTagAttribute(source, 'data-astro-aeo-marker') !== undefined,
   );
 }

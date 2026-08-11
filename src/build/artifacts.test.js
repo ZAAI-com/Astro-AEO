@@ -44,7 +44,6 @@ describe('exact served pathname normalization', () => {
   test.each([
     ['/schema/graph.jsonld', { key: '/schema/graph.jsonld', pathname: '/schema/graph.jsonld' }],
     ['/caf%C3%A9.json', { key: '/café.json', pathname: '/caf%C3%A9.json' }],
-    ['/docs/item/', { key: '/docs/item', pathname: '/docs/item' }],
   ])('normalizes %s', (input, expected) => {
     expect(normalizeArtifactPathname(input)).toEqual(expected);
   });
@@ -64,6 +63,11 @@ describe('exact served pathname normalization', () => {
     '/a/*.txt',
     '/a/[x].txt',
     '/a\\b',
+    '/docs/item/',
+    '/%61.txt',
+    '/café.json',
+    '/caf%c3%a9.json',
+    '/literal%2520escape.txt',
   ])('rejects non-exact or unsafe pathname %s', (input) => {
     expect(normalizeArtifactPathname(input)).toBeNull();
   });
@@ -419,6 +423,70 @@ describe('deferred ownership and transaction', () => {
       ],
     });
     expect(manifest.artifacts[0].representation.etag).toMatch(/^"[0-9a-f]{64}"$/);
+  });
+
+  test('reserves exact runtime ownership and transactionally removes an authorized public copy', () => {
+    const publicRoot = join(dir, 'public');
+    mkdirSync(publicRoot);
+    writeFileSync(join(publicRoot, 'llms.txt'), 'public source');
+    writeFileSync(join(dir, 'llms.txt'), 'copied public source');
+    const writer = deferredWriter({
+      publicDir: pathToFileURL(`${publicRoot}/`),
+      replacePaths: ['/llms.txt'],
+    });
+    writer.write({
+      route: '/llms.txt',
+      owner: { kind: 'core', name: 'llmsTxt' },
+      runtime: true,
+    });
+
+    expect(readFileSync(join(dir, 'llms.txt'), 'utf8')).toBe('copied public source');
+    expect(writer.commit()).toEqual({ total: 0, byOwner: {} });
+    expect(existsSync(join(dir, 'llms.txt'))).toBe(false);
+    expect(readFileSync(join(publicRoot, 'llms.txt'), 'utf8')).toBe('public source');
+    const manifest = JSON.parse(
+      readFileSync(join(dir, '.astro', 'aeo-cache', 'ownership-v1.json'), 'utf8'),
+    );
+    expect(manifest.artifacts).toEqual([
+      expect.objectContaining({
+        pathname: '/llms.txt',
+        status: 'runtime',
+        replacedOwners: [{ kind: 'public-file' }],
+      }),
+    ]);
+  });
+
+  test('keeps a runtime schema pair all-or-none when one public member blocks it', () => {
+    const publicRoot = join(dir, 'public');
+    mkdirSync(join(publicRoot, 'schema'), { recursive: true });
+    mkdirSync(join(dir, 'schema'), { recursive: true });
+    writeFileSync(join(publicRoot, 'schema', 'graph.jsonld'), 'public graph');
+    writeFileSync(join(dir, 'schema', 'graph.jsonld'), 'copied public graph');
+    const writer = deferredWriter({
+      publicDir: pathToFileURL(`${publicRoot}/`),
+      failOn: 'off',
+    });
+    for (const [name, owner] of [['graph.jsonld', 'schemaGraph'], ['schema-map.xml', 'schemaMap']]) {
+      writer.write({
+        route: `/schema/${name}`,
+        owner: { kind: 'core', name: owner },
+        runtime: true,
+        group: 'astro-aeo/schema-corpus',
+      });
+    }
+
+    writer.commit();
+    expect(readFileSync(join(dir, 'schema', 'graph.jsonld'), 'utf8')).toBe('copied public graph');
+    const manifest = JSON.parse(
+      readFileSync(join(dir, '.astro', 'aeo-cache', 'ownership-v1.json'), 'utf8'),
+    );
+    expect(manifest.groups).toEqual([
+      expect.objectContaining({ id: 'astro-aeo/schema-corpus', status: 'skipped' }),
+    ]);
+    expect(manifest.artifacts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ pathname: '/schema/graph.jsonld', status: 'preserved' }),
+      expect.objectContaining({ pathname: '/schema/schema-map.xml', status: 'group-skipped' }),
+    ]));
   });
 
   test('snapshots byte-copy candidates before validation and commit', () => {

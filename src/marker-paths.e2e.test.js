@@ -27,9 +27,20 @@ describe('marker path and dynamic collision build', () => {
     for (const file of ['about.html', '404.html', '500.html']) {
       const html = readFileSync(join(DIST, file), 'utf8');
       expect(html).not.toContain('data-astro-aeo-marker');
+      expect(html).not.toContain('data-astro-aeo-head');
       expect(html).not.toContain('Private source');
       expect(html).not.toContain('fixture:');
     }
+  });
+
+  test('status pages skip global graphs while an explicit AeoHead still owns its graph', () => {
+    const notFound = readFileSync(join(DIST, '404.html'), 'utf8');
+    expect(notFound.match(/data-astro-aeo-graph/g)).toHaveLength(1);
+    expect(notFound).toContain('Explicit status graph');
+    expect(notFound).not.toMatch(/"@type":"Web(?:Page|Site)"/);
+
+    const serverError = readFileSync(join(DIST, '500.html'), 'utf8');
+    expect(serverError).not.toContain('data-astro-aeo-graph');
   });
 
   test('preserves a generated dynamic endpoint on an artifact collision', () => {

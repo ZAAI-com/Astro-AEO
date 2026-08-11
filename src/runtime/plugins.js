@@ -354,7 +354,7 @@ function sanitizeDiagnostics(input, plugin, stage, pathname) {
       version: /** @type {const} */ (1),
       code: safeToken(item.code) || 'plugin-diagnostic',
       severity: item.severity ?? 'warning',
-      message: safeMessage(item.message),
+      message: safeDiagnosticMessage(plugin, stage, item.code),
       pathname,
       details: { plugin, stage },
     });
@@ -381,10 +381,19 @@ function safeToken(value) {
     : '';
 }
 
-/** @param {unknown} value */
-function safeMessage(value) {
-  if (typeof value !== 'string' || !value.trim()) return 'The plugin reported a diagnostic.';
-  return value.replace(/[\r\n\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 500);
+/** @param {string} plugin @param {string} stage @param {unknown} code */
+function safeDiagnosticMessage(plugin, stage, code) {
+  const safePlugin = safeContext(plugin, 'plugin');
+  const safeStage = safeContext(stage, 'lifecycle stage');
+  const safeCode = safeToken(code) || 'plugin-diagnostic';
+  return `Plugin "${safePlugin}" reported ${safeCode} during ${safeStage}.`;
+}
+
+/** @param {unknown} value @param {string} fallback */
+function safeContext(value, fallback) {
+  if (typeof value !== 'string') return fallback;
+  const normalized = value.replace(/[^A-Za-z0-9._:@/-]/g, '-').slice(0, 100);
+  return normalized || fallback;
 }
 
 /** @param {unknown} implementation @param {RuntimePluginLoader} loader */

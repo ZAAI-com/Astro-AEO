@@ -102,6 +102,13 @@ describe('extractMetaContent', () => {
     const h = '<meta property="og:title" content="A > B comparison">';
     expect(extractMetaContent(h, { property: 'og:title' })).toBe('A > B comparison');
   });
+
+  test('ignores tag-like text and attribute names inside quoted script data', () => {
+    const h = '<script>const example = `<meta name="robots" content="noindex">`;</script>' +
+      '<meta data-example=" name=robots content=noindex" name="description" content="Safe">';
+    expect(extractNoindex(h)).toBe(false);
+    expect(extractDescription(h)).toBe('Safe');
+  });
 });
 
 describe('meta readers share the quote-aware tag scanner', () => {

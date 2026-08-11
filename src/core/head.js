@@ -2,13 +2,19 @@
 import { parseDocument } from './html-document.js';
 import { authoredCanonical, configuredCanonical, stableCanonical } from './canonical.js';
 import { createGraph, serializeGraph, validateGraph } from '../schema.js';
+import {
+  hasHtmlHead,
+  headTagSources,
+  htmlElementRanges,
+  htmlTagAttribute,
+  insertIntoHead,
+  removeHtmlElements,
+  removeHeadTags,
+} from './html-head-ranges.js';
 
 export const HEAD_MARKER_MIME = 'application/vnd.astro-aeo-head+json';
 export const HEAD_MARKER_ATTRIBUTE = 'data-astro-aeo-head';
 export const MANAGED_GRAPH_ATTRIBUTE = 'data-astro-aeo-graph';
-
-const HEAD_MARKER_RE = /<script\b[^>]*\bdata-astro-aeo-head\b[^>]*>([\s\S]*?)<\/script>/gi;
-const MANAGED_GRAPH_RE = /<script\b[^>]*\bdata-astro-aeo-graph\b[^>]*>[\s\S]*?<\/script>/gi;
 
 /**
  * Apply explicit AeoHead output or default graph enrichment through targeted
@@ -20,13 +26,23 @@ const MANAGED_GRAPH_RE = /<script\b[^>]*\bdata-astro-aeo-graph\b[^>]*>[\s\S]*?<\
  * @param {import('../index.js').ResolvedAstroAeoConfig} input.config
  * @param {{ siteUrl: string; base: string; trailingSlash: 'always'|'never'|'ignore' }} input.site
  * @param {boolean} [input.allowGlobal]
- * @returns {{ html: string; graph: import('../schema.js').AeoGraph | null; normalizedGraph: import('../schema.js').AeoGraph | null; canonicalUrl?: string; diagnostics: import('../index.js').Diagnostic[]; explicit: boolean }}
+ * @param {ReadonlyArray<{ name: string; item: string }> | null} [input.breadcrumbTrail]
+ * @returns {{ html: string; page: import('../index.js').AeoPageRecord; graph: import('../schema.js').AeoGraph | null; normalizedGraph: import('../schema.js').AeoGraph | null; canonicalUrl?: string; diagnostics: import('../index.js').Diagnostic[]; explicit: boolean }}
  */
-export function enrichHtmlHead({ html, page, config, site, allowGlobal = true }) {
+export function enrichHtmlHead({
+  html,
+  page,
+  config,
+  site,
+  allowGlobal = true,
+  breadcrumbTrail = null,
+}) {
   const diagnostics = [];
   const markers = readHeadMarkers(html);
   const explicit = markers.values.length > 0;
-  let output = html.replace(HEAD_MARKER_RE, '').replace(MANAGED_GRAPH_RE, '');
+  let output = removeHtmlElements(html, 'script', ({ source }) =>
+    hasBooleanAttribute(source, HEAD_MARKER_ATTRIBUTE) || hasBooleanAttribute(source, MANAGED_GRAPH_ATTRIBUTE),
+  );
   if (markers.invalid) {
     diagnostics.push(diagnostic('aeo-head-invalid', 'error', 'AeoHead contained an invalid marker and was omitted.', page.pathname));
   }
@@ -34,16 +50,17 @@ export function enrichHtmlHead({ html, page, config, site, allowGlobal = true })
     diagnostics.push(diagnostic('aeo-head-multiple', 'error', 'Only one AeoHead may own a page; the first valid instance was used.', page.pathname));
   }
   const head = markers.values[0];
-  const hasHead = /<head(?:\s[^>]*)?>[\s\S]*?<\/head>/i.test(output);
+  const hasHead = hasHtmlHead(output);
   if (!hasHead) {
     if (explicit || (allowGlobal && config.schema.autoInject)) {
       diagnostics.push(diagnostic('managed-head-missing', 'warning', 'Managed metadata and graph output require a real <head> element.', page.pathname));
     }
-    return { html: output, graph: null, normalizedGraph: null, diagnostics, explicit };
+    return { html: output, page, graph: null, normalizedGraph: null, diagnostics, explicit };
   }
 
   const configured = configuredCanonical(site, page.pathname);
   const authored = authoredCanonical(output, configured ?? stableCanonical(site.siteUrl));
+  diagnostics.push(...metadataDiagnostics(output, page.pathname));
   const explicitCanonical = head?.canonical === undefined
     ? undefined
     : stableCanonical(head.canonical, authored.canonical ?? configured ?? stableCanonical(site.siteUrl));
@@ -54,17 +71,21 @@ export function enrichHtmlHead({ html, page, config, site, allowGlobal = true })
     diagnostics.push(diagnostic('canonical-conflict', 'warning', 'Multiple authored canonical URLs conflict; the configured site canonical was used when available.', page.pathname));
   }
   const canonicalUrl = explicitCanonical ?? authored.canonical ?? configured;
+  const effectivePage = effectiveHeadPage(page, head, canonicalUrl, {
+    authored: Boolean(explicitCanonical || authored.canonical),
+    inferred: Boolean(!explicitCanonical && !authored.canonical && configured),
+  });
 
   if (head) output = applyExplicitMetadata(output, head, canonicalUrl, site, diagnostics, page.pathname);
   if (config.metadata.fillMissing) {
-    output = fillMissingMetadata(output, head, page, canonicalUrl, config.metadata.defaults, site);
+    output = fillMissingMetadata(output, head, effectivePage, canonicalUrl, config.metadata.defaults, site);
   }
 
   const globallyEligible = allowGlobal && config.schema.autoInject && page.directives.index;
   const graphRequested = explicit || globallyEligible;
   const corpusRequested = config.schema.corpus.enabled;
   if (!graphRequested && !corpusRequested) {
-    return { html: output, graph: null, normalizedGraph: null, diagnostics, explicit, ...(canonicalUrl ? { canonicalUrl } : {}) };
+    return { html: output, page: effectivePage, graph: null, normalizedGraph: null, diagnostics, explicit, ...(canonicalUrl ? { canonicalUrl } : {}) };
   }
   if (!canonicalUrl) {
     diagnostics.push(diagnostic(
@@ -73,7 +94,7 @@ export function enrichHtmlHead({ html, page, config, site, allowGlobal = true })
       'Astro-AEO skipped the managed graph because no stable canonical exists. Configure Astro site or pass AeoHead canonical.',
       page.pathname,
     ));
-    return { html: output, graph: null, normalizedGraph: null, diagnostics, explicit };
+    return { html: output, page: effectivePage, graph: null, normalizedGraph: null, diagnostics, explicit };
   }
 
   const authoredGraph = inspectAuthoredJsonLd(output, page.pathname, {
@@ -89,30 +110,82 @@ export function enrichHtmlHead({ html, page, config, site, allowGlobal = true })
           typeof value === 'string' && ['website', 'webpage', 'breadcrumbs'].includes(value))
       : config.schema.infer;
   const candidates = [
-    ...graphEntities(head?.graph),
-    ...page.entities,
-    ...inferredEntities({ page, html: output, config, site, canonicalUrl, infer }),
+    ...graphInputs(head?.graph, { source: 'authored-head', pathname: page.pathname }),
+    ...effectivePage.entities.map((entity) => ({
+      entity,
+      provenance: { source: 'authored-head', pathname: effectivePage.pathname },
+    })),
+    ...inferredEntities({
+      page: effectivePage,
+      html: output,
+      config,
+      site,
+      canonicalUrl,
+      infer,
+      breadcrumbTrail,
+    }),
   ];
   if (config.site.organization && typeof config.site.organization === 'object') {
-    candidates.push(withDefaultOrganizationId(config.site.organization, site));
+    candidates.push({
+      entity: withDefaultOrganizationId(config.site.organization, site),
+      provenance: { source: 'configuration', pathname: effectivePage.pathname },
+    });
   }
   const managed = candidates
-    .map((entity) => subtractAuthoredFacts(entity, authoredGraph.byId))
-    .filter((entity) => entity !== null);
+    .map((entry) => {
+      const entity = entry.entity;
+      const byId = typeof entity?.['@id'] === 'string'
+        ? /** @type {Map<string, Record<string, any>>} */ (authoredGraph.byId).get(String(entity['@id']))
+        : undefined;
+      const semanticPrior = isInferenceEntry(entry)
+        ? matchingAuthoredEntity(entity, authoredGraph.graph.entries.map((item) => item.entity), canonicalUrl, site.siteUrl)
+        : undefined;
+      const prior = byId ?? semanticPrior;
+      const candidate = semanticPrior && typeof semanticPrior['@id'] === 'string'
+        ? { ...entity, '@id': semanticPrior['@id'] }
+        : entity;
+      const delta = subtractAuthoredFacts(candidate, prior);
+      return delta ? { ...entry, entity: delta } : null;
+    })
+    .filter(Boolean);
 
   let graph = null;
   let normalizedGraph = authoredGraph.graph;
   try {
-    const managedGraph = createGraph(managed);
-    normalizedGraph = createGraph([
+    const managedResult = validateGraph(
+      /** @type {import('../schema.js').GraphInput} */ (/** @type {unknown} */ (managed)),
+      {
+        documentCanonical: canonicalUrl,
+        siteUrl: stableCanonical(site.siteUrl),
+        strictReferences: false,
+      },
+    );
+    if (!managedResult.valid) {
+      diagnostics.push(...graphFindings(managedResult.findings, page.pathname));
+      return { html: output, page: effectivePage, graph: null, normalizedGraph, canonicalUrl, diagnostics, explicit };
+    }
+    const combinedResult = validateGraph([
       ...authoredGraph.graph.entries,
-      ...managedGraph.entries,
-    ], { conflictPolicy: 'first' });
+      ...managedResult.graph.entries,
+    ], {
+      conflictPolicy: 'first',
+      documentCanonical: canonicalUrl,
+      siteUrl: stableCanonical(site.siteUrl),
+      strictReferences: config.schema.strictReferences,
+    });
+    diagnostics.push(...graphFindings(combinedResult.findings, page.pathname));
+    if (!combinedResult.valid) {
+      return { html: output, page: effectivePage, graph: null, normalizedGraph, canonicalUrl, diagnostics, explicit };
+    }
+    const managedGraph = managedResult.graph;
+    normalizedGraph = combinedResult.graph;
     if (graphRequested) {
       const serialized = serializeGraph(managedGraph, {
         documentCanonical: canonicalUrl,
         siteUrl: stableCanonical(site.siteUrl),
-        strictReferences: config.schema.strictReferences,
+        // The validated combined graph above owns reference integrity. The
+        // managed delta can reference unchanged authored nodes on this page.
+        strictReferences: false,
       });
       const script = `<script type="application/ld+json" ${MANAGED_GRAPH_ATTRIBUTE}>${serialized}</script>`;
       output = insertBeforeHeadEnd(output, script);
@@ -126,6 +199,7 @@ export function enrichHtmlHead({ html, page, config, site, allowGlobal = true })
 
   return {
     html: output,
+    page: effectivePage,
     graph,
     normalizedGraph,
     canonicalUrl,
@@ -136,25 +210,49 @@ export function enrichHtmlHead({ html, page, config, site, allowGlobal = true })
 
 /** @param {string} html */
 export function stripAeoHeadMarkers(html) {
-  return html.replace(HEAD_MARKER_RE, '');
+  return removeHtmlElements(html, 'script', ({ source }) => hasBooleanAttribute(source, HEAD_MARKER_ATTRIBUTE));
+}
+
+/**
+ * Keep the shared page record aligned with the explicit metadata that owns the
+ * rendered head. Flat 1.x mirrors remain synchronized with their nested facts.
+ * @param {import('../index.js').AeoPageRecord} page
+ * @param {Record<string, any> | undefined} head
+ * @param {string | undefined} canonicalUrl
+ * @param {{ authored: boolean; inferred: boolean }} source
+ */
+function effectiveHeadPage(page, head, canonicalUrl, source) {
+  const metadata = { ...page.metadata };
+  if (typeof head?.title === 'string') metadata.title = head.title;
+  if (typeof head?.description === 'string') metadata.description = head.description;
+  if (canonicalUrl && source.authored) metadata.canonicalSource = 'authored';
+  else if (canonicalUrl && source.inferred) metadata.canonicalSource = 'inferred';
+  return {
+    ...page,
+    ...(canonicalUrl ? { canonicalUrl, url: canonicalUrl } : {}),
+    ...(typeof head?.locale === 'string' ? { language: head.locale } : {}),
+    metadata,
+    title: metadata.title,
+    description: metadata.description ?? '',
+  };
 }
 
 /** @param {string} html */
 function readHeadMarkers(html) {
   const values = [];
   let invalid = false;
-  HEAD_MARKER_RE.lastIndex = 0;
-  let match;
-  while ((match = HEAD_MARKER_RE.exec(html))) {
+  const markers = htmlElementRanges(html, 'script').filter(({ source }) =>
+    hasBooleanAttribute(source, HEAD_MARKER_ATTRIBUTE),
+  );
+  for (const marker of markers) {
     try {
-      const value = JSON.parse(match[1]);
+      const value = JSON.parse(marker.content);
       if (!value || typeof value !== 'object' || Array.isArray(value)) invalid = true;
       else values.push(value);
     } catch {
       invalid = true;
     }
   }
-  HEAD_MARKER_RE.lastIndex = 0;
   return { values, invalid };
 }
 
@@ -266,13 +364,13 @@ function applyExplicitMetadata(html, head, canonical, site, diagnostics, pathnam
 function fillMissingMetadata(html, head, page, canonical, defaults, site) {
   let output = html;
   const tags = [];
-  if (typeof defaults.title === 'string' && !/<title\b[^>]*>[\s\S]*?<\/title>/i.test(output)) {
+  if (typeof defaults.title === 'string' && headTagSources(output, 'title').length === 0) {
     tags.push(`<title>${escapeText(defaults.title)}</title>`);
   }
   if (typeof defaults.description === 'string' && !hasMeta(output, 'name', 'description')) {
     tags.push(meta('name', 'description', defaults.description));
   }
-  if (canonical && !/<link\b[^>]*\brel\s*=\s*["'][^"']*canonical/i.test(output)) {
+  if (canonical && !headTagSources(output, 'link').some((tag) => hasRel(tag, 'canonical'))) {
     tags.push(link({ rel: 'canonical', href: canonical }));
   }
   /** @type {Record<string, any>} */
@@ -334,7 +432,7 @@ function fillMissingMetadata(html, head, page, canonical, defaults, site) {
       if (!isRecord(value) || typeof value.name !== 'string') continue;
       tags.push(meta('name', 'author', value.name));
       const url = resolveUrl(value.url, canonical, site.siteUrl);
-      if (url && !/<link\b[^>]*\brel\s*=\s*["'][^"']*author/i.test(output)) {
+      if (url && !headTagSources(output, 'link').some((tag) => hasRel(tag, 'author'))) {
         tags.push(link({ rel: 'author', href: url }));
       }
     }
@@ -420,6 +518,48 @@ function graphEntities(input) {
 }
 
 /**
+ * Preserve public graph roles and provenance while assigning authored-head
+ * provenance to raw entities supplied directly through AeoHead.
+ * @param {unknown} input
+ * @param {Record<string, any>} provenance
+ * @returns {{ entity: Record<string, any>; roles?: unknown; provenance?: unknown }[]}
+ */
+function graphInputs(input, provenance) {
+  if (!input) return [];
+  if (Array.isArray(input)) return input.flatMap((value) => graphInputs(value, provenance));
+  if (typeof input !== 'object') return [];
+  if (Array.isArray(/** @type {any} */ (input).entries)) {
+    const entries = /** @type {any[]} */ (/** @type {any} */ (input).entries);
+    return entries.flatMap((entry) =>
+      entry?.entity && typeof entry.entity === 'object'
+        ? [{
+            entity: entry.entity,
+            ...(entry.roles === undefined ? {} : { roles: entry.roles }),
+            provenance: entry.provenance ?? provenance,
+          }]
+        : [],
+    );
+  }
+  if (Array.isArray(/** @type {any} */ (input)['@graph'])) {
+    const entities = /** @type {any[]} */ (/** @type {any} */ (input)['@graph']);
+    return entities.flatMap((entity) =>
+      entity && typeof entity === 'object' && !Array.isArray(entity)
+        ? [{ entity, provenance }]
+        : [],
+    );
+  }
+  if (/** @type {any} */ (input).entity) {
+    const entry = /** @type {any} */ (input);
+    return [{
+      entity: entry.entity,
+      ...(entry.roles === undefined ? {} : { roles: entry.roles }),
+      provenance: entry.provenance ?? provenance,
+    }];
+  }
+  return [{ entity: /** @type {Record<string, any>} */ (input), provenance }];
+}
+
+/**
  * @param {object} input
  * @param {import('../index.js').AeoPageRecord} input.page
  * @param {string} input.html
@@ -427,54 +567,97 @@ function graphEntities(input) {
  * @param {{ siteUrl: string }} input.site
  * @param {string} input.canonicalUrl
  * @param {readonly string[]} input.infer
+ * @param {ReadonlyArray<{ name: string; item: string }> | null} input.breadcrumbTrail
  */
-function inferredEntities({ page, html, config, site, canonicalUrl, infer }) {
+function inferredEntities({ page, html, config, site, canonicalUrl, infer, breadcrumbTrail }) {
   const entities = [];
   const siteUrl = stableCanonical(site.siteUrl);
   if (siteUrl && infer.includes('website')) {
     entities.push({
-      '@id': `${siteUrl.replace(/\/$/, '')}/#website`,
-      '@type': 'WebSite',
-      url: siteUrl,
-      ...(config.site.name ? { name: config.site.name } : {}),
-      ...(page.language ? { inLanguage: page.language } : {}),
+      entity: {
+        '@id': `${siteUrl.replace(/\/$/, '')}/#website`,
+        '@type': 'WebSite',
+        url: siteUrl,
+        ...(config.site.name ? { name: config.site.name } : {}),
+        ...(page.language ? { inLanguage: page.language } : {}),
+      },
+      roles: 'site',
+      provenance: { source: 'inference', pathname: page.pathname },
     });
   }
   if (infer.includes('webpage')) {
     entities.push({
-      '@id': `${canonicalUrl}#webpage`,
-      '@type': 'WebPage',
-      url: canonicalUrl,
-      name: page.metadata.title,
-      ...(page.metadata.description ? { description: page.metadata.description } : {}),
-      ...(page.language ? { inLanguage: page.language } : {}),
+      entity: {
+        '@id': `${canonicalUrl}#webpage`,
+        '@type': 'WebPage',
+        url: canonicalUrl,
+        name: page.metadata.title,
+        ...(page.metadata.description ? { description: page.metadata.description } : {}),
+        ...(page.language ? { inLanguage: page.language } : {}),
+      },
+      roles: 'page',
+      provenance: { source: 'inference', pathname: page.pathname },
     });
   }
   if (infer.includes('breadcrumbs')) {
-    const breadcrumbs = breadcrumbEntity(html, canonicalUrl);
-    if (breadcrumbs) entities.push(breadcrumbs);
+    const breadcrumbs = breadcrumbEntity(html, canonicalUrl, breadcrumbTrail);
+    if (breadcrumbs) {
+      entities.push({
+        entity: breadcrumbs,
+        roles: 'breadcrumbs',
+        provenance: { source: 'inference', pathname: page.pathname },
+      });
+    }
   }
   return entities;
 }
 
-/** @param {string} html @param {string} canonical */
-function breadcrumbEntity(html, canonical) {
+/**
+ * Linked markup is the stronger page-local evidence and always wins. A catalog
+ * trail is considered only when that markup does not describe a complete
+ * linked path to the current document.
+ * @param {string} html
+ * @param {string} canonical
+ * @param {ReadonlyArray<{ name: string; item: string }> | null} catalogTrail
+ */
+function breadcrumbEntity(html, canonical, catalogTrail) {
   const document = parseDocument(html);
   const container = [...document.querySelectorAll('nav,[role="navigation"]')].find((element) =>
     /breadcrumb/i.test(element.getAttribute('aria-label') ?? element.getAttribute('class') ?? ''),
   );
-  if (!container) return null;
-  const links = [...container.querySelectorAll('a[href]')]
+  const links = container ? [...container.querySelectorAll('a[href]')]
     .map((linkElement) => ({
       name: (linkElement.textContent ?? '').replace(/\s+/g, ' ').trim(),
       item: stableCanonical(linkElement.getAttribute('href'), canonical),
     }))
-    .filter((item) => item.name && item.item);
-  if (links.length < 2) return null;
+    .filter((item) => item.name && item.item) : [];
+  // A linked trail is complete only when it reaches the current document.
+  // Unlinked current-page text and arbitrary ancestor links are not enough
+  // evidence to manufacture the missing breadcrumb relationship.
+  const finalItem = links.at(-1)?.item;
+  if (links.length >= 2 && finalItem && sameDocument(finalItem, canonical)) {
+    return breadcrumbList(canonical, /** @type {{ name: string; item: string }[]} */ (links));
+  }
+
+  /** @type {{ name: string; item: string }[]} */
+  const catalog = [];
+  for (const item of catalogTrail ?? []) {
+    const name = typeof item.name === 'string' ? item.name.trim() : '';
+    const canonicalItem = stableCanonical(item.item);
+    if (name && canonicalItem) catalog.push({ name, item: canonicalItem });
+  }
+  const catalogCurrent = catalog.at(-1)?.item;
+  if (catalog.length < 2 || !catalogCurrent || !sameDocument(catalogCurrent, canonical)) return null;
+  catalog[catalog.length - 1] = { name: catalog[catalog.length - 1].name, item: canonical };
+  return breadcrumbList(canonical, catalog);
+}
+
+/** @param {string} canonical @param {{ name: string; item: string }[]} items */
+function breadcrumbList(canonical, items) {
   return {
     '@id': `${canonical}#breadcrumbs`,
     '@type': 'BreadcrumbList',
-    itemListElement: links.map((item, index) => ({
+    itemListElement: items.map((item, index) => ({
       '@type': 'ListItem', position: index + 1, name: item.name, item: item.item,
     })),
   };
@@ -492,11 +675,12 @@ function breadcrumbEntity(html, canonical) {
 function inspectAuthoredJsonLd(html, pathname, options) {
   const entries = [];
   const diagnostics = [];
-  const pattern = /<script\b([^>]*)\btype\s*=\s*(?:"application\/ld\+json"|'application\/ld\+json'|application\/ld\+json)([^>]*)>([\s\S]*?)<\/script>/gi;
-  let match;
-  while ((match = pattern.exec(html))) {
+  const scripts = htmlElementRanges(html, 'script').filter(({ source }) =>
+    attr(source, 'type')?.toLowerCase() === 'application/ld+json',
+  );
+  for (const script of scripts) {
     try {
-      const entities = graphEntities(JSON.parse(match[3]));
+      const entities = graphEntities(JSON.parse(script.content));
       for (const entity of entities) {
         try {
           if (!entity || typeof entity !== 'object' || Array.isArray(entity)) throw new TypeError('Invalid JSON-LD entity');
@@ -538,11 +722,9 @@ function inspectAuthoredJsonLd(html, pathname, options) {
   return { graph, byId, diagnostics };
 }
 
-/** @param {any} entity @param {Map<string, any>} authored */
-function subtractAuthoredFacts(entity, authored) {
+/** @param {any} entity @param {Record<string, any> | undefined} prior */
+function subtractAuthoredFacts(entity, prior) {
   if (!entity || typeof entity !== 'object') return null;
-  const id = typeof entity['@id'] === 'string' ? entity['@id'] : undefined;
-  const prior = id ? authored.get(id) : undefined;
   if (!prior) return entity;
   /** @type {Record<string, any>} */
   const output = {};
@@ -555,6 +737,116 @@ function subtractAuthoredFacts(entity, authored) {
   return Object.keys(output).some((key) => key !== '@id' && key !== '@type') ? output : null;
 }
 
+/** @param {{ provenance?: unknown }} entry */
+function isInferenceEntry(entry) {
+  const values = Array.isArray(entry.provenance) ? entry.provenance : [entry.provenance];
+  return values.some((value) => value && typeof value === 'object' && value.source === 'inference');
+}
+
+/**
+ * Match only strong same-page/site evidence. Type alone is never enough for a
+ * WebPage or WebSite, and URL segments are never promoted into breadcrumb facts.
+ * @param {Record<string, any>} inferred
+ * @param {Record<string, any>[]} authored
+ * @param {string} canonical
+ * @param {string} siteUrl
+ */
+function matchingAuthoredEntity(inferred, authored, canonical, siteUrl) {
+  const type = Array.isArray(inferred['@type']) ? inferred['@type'][0] : inferred['@type'];
+  if (type === 'BreadcrumbList') {
+    return authored.find((entity) => entityTypes(entity).includes('BreadcrumbList'));
+  }
+  if (type !== 'WebPage' && type !== 'WebSite') return undefined;
+  const expected = type === 'WebPage' ? canonical : stableCanonical(siteUrl);
+  if (!expected) return undefined;
+  return authored.find((entity) => {
+    if (!entityTypes(entity).includes(type)) return false;
+    const authoredUrls = Array.isArray(entity.url) ? entity.url : [entity.url];
+    if (authoredUrls.some((value) => {
+      const authoredUrl = stableCanonical(value, expected);
+      return Boolean(authoredUrl && sameDocument(authoredUrl, expected));
+    })) return true;
+    const authoredId = stableCanonical(entity['@id'], expected);
+    return Boolean(authoredId && sameDocument(authoredId, expected));
+  });
+}
+
+/** @param {Record<string, any>} entity */
+function entityTypes(entity) {
+  const values = Array.isArray(entity['@type']) ? entity['@type'] : [entity['@type']];
+  return values.filter((value) => typeof value === 'string');
+}
+
+/** @param {string} left @param {string} right */
+function sameDocument(left, right) {
+  const a = new URL(left);
+  const b = new URL(right);
+  a.hash = '';
+  b.hash = '';
+  return a.href.replace(/\/$/, '') === b.href.replace(/\/$/, '');
+}
+
+/**
+ * Preserve actionable graph codes and structural pointers without exposing
+ * entity IDs, values, plugin payloads, or thrown objects.
+ * @param {readonly import('../schema.js').GraphFinding[]} findings
+ * @param {string} pathname
+ * @returns {import('../index.js').Diagnostic[]}
+ */
+function graphFindings(findings, pathname) {
+  return findings.map((finding) => ({
+    version: /** @type {const} */ (1),
+    code: finding.code,
+    severity: finding.severity,
+    message: finding.message,
+    pathname,
+    ...(finding.pointer ? { details: { pointer: finding.pointer } } : {}),
+  }));
+}
+
+/**
+ * Diagnose ambiguous singleton metadata without copying authored values into
+ * findings. Multi-valued families such as images, authors, and alternates are
+ * deliberately excluded.
+ * @param {string} html
+ * @param {string} pathname
+ * @returns {import('../index.js').Diagnostic[]}
+ */
+function metadataDiagnostics(html, pathname) {
+  /** @type {Map<string, string[]>} */
+  const groups = new Map();
+  const add = (/** @type {string} */ key, /** @type {string | undefined} */ value) => {
+    const values = groups.get(key) ?? [];
+    values.push(value ?? '');
+    groups.set(key, values);
+  };
+  for (const _title of headTagSources(html, 'title')) add('title', undefined);
+  for (const tag of headTagSources(html, 'link')) {
+    if (hasRel(tag, 'canonical')) add('canonical', attr(tag, 'href'));
+  }
+  for (const tag of headTagSources(html, 'meta')) {
+    const name = attr(tag, 'name')?.toLowerCase();
+    const property = attr(tag, 'property')?.toLowerCase();
+    const key = property ? `property:${property}` : name ? `name:${name}` : undefined;
+    if (!key || key === 'name:author' || key.startsWith('property:og:image') || key === 'property:og:locale:alternate') {
+      continue;
+    }
+    add(key, attr(tag, 'content'));
+  }
+  return [...groups.entries()].flatMap(([key, values]) => {
+    if (values.length < 2) return [];
+    const conflict = new Set(values).size > 1;
+    return [diagnostic(
+      conflict ? 'metadata-conflict' : 'metadata-duplicate',
+      'warning',
+      conflict
+        ? `Conflicting ${key} metadata was found; keep one authored value or let AeoHead own it.`
+        : `Duplicate ${key} metadata was found; keep only one authored value.`,
+      pathname,
+    )];
+  });
+}
+
 /** @param {any} organization @param {{ siteUrl: string }} site */
 function withDefaultOrganizationId(organization, site) {
   if (organization['@id']) return organization;
@@ -564,20 +856,17 @@ function withDefaultOrganizationId(organization, site) {
 
 /** @param {string} html @param {string} tag @param {(tag: string) => boolean} predicate */
 function removeVoidTags(html, tag, predicate) {
-  const pattern = new RegExp(`<${tag}\\b(?:"[^"]*"|'[^']*'|[^>"'])*>`, 'gi');
-  return html.replace(pattern, (source) => predicate(source) ? '' : source);
+  return removeHeadTags(html, tag, predicate);
 }
 
 /** @param {string} html @param {string} tag @param {(tag: string) => boolean} predicate */
 function removeElements(html, tag, predicate) {
-  const pattern = new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<\\/${tag}>`, 'gi');
-  return html.replace(pattern, (source) => predicate(source) ? '' : source);
+  return removeHeadTags(html, tag, predicate, true);
 }
 
 /** @param {string} html @param {string} addition */
 function insertBeforeHeadEnd(html, addition) {
-  if (!addition) return html;
-  return html.replace(/<\/head\s*>/i, `${addition}</head>`);
+  return insertIntoHead(html, addition);
 }
 
 /** @param {unknown} value @param {string | undefined} canonical @param {string} site */
@@ -592,10 +881,9 @@ function hasRel(tag, relation) {
 
 /** @param {string} html @param {'name'|'property'} attribute @param {string} value */
 function hasMeta(html, attribute, value) {
-  const pattern = /<meta\b(?:"[^"]*"|'[^']*'|[^>"'])*>/gi;
-  let match;
-  while ((match = pattern.exec(html))) if (attr(match[0], attribute)?.toLowerCase() === value.toLowerCase()) return true;
-  return false;
+  return headTagSources(html, 'meta').some((tag) =>
+    attr(tag, attribute)?.toLowerCase() === value.toLowerCase(),
+  );
 }
 
 /** @param {string} html @param {string[]} pending @param {'name'|'property'} attribute @param {string} value */
@@ -612,9 +900,12 @@ function isRecord(value) {
 
 /** @param {string} tag @param {string} name */
 function attr(tag, name) {
-  const pattern = new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>]+))`, 'i');
-  const match = tag.match(pattern);
-  return match ? match[1] ?? match[2] ?? match[3] ?? '' : undefined;
+  return htmlTagAttribute(tag, name);
+}
+
+/** @param {string} tag @param {string} name */
+function hasBooleanAttribute(tag, name) {
+  return htmlTagAttribute(tag, name) !== undefined;
 }
 
 /** @param {'name'|'property'} attribute @param {string} name @param {string} content */

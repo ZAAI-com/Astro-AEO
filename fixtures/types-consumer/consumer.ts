@@ -517,6 +517,12 @@ export const ownershipManifest: ArtifactOwnershipManifestV1 = {
       blockingOwners: [{ kind: 'project-route', rendering: 'on-demand', routePattern: '/llms.txt' }],
     },
     {
+      pathname: '/llms-full.txt',
+      status: 'runtime',
+      owner: { kind: 'core', name: 'llmsFullTxt' },
+      replacedOwners: [{ kind: 'public-file' }],
+    },
+    {
       pathname: '/collision.txt',
       status: 'conflict',
       claimants: [{ owner: { kind: 'plugin', name: 'one' }, count: 2 }],

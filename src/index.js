@@ -1,6 +1,7 @@
 // @ts-check
 import { fileURLToPath } from 'node:url';
 import { isAbsolute, resolve } from 'node:path';
+import { readdirSync } from 'node:fs';
 import sitemap from '@astrojs/sitemap';
 import { resolveConfig } from './config.js';
 import {
@@ -60,6 +61,8 @@ export default function aeo(userConfig = {}) {
   const resolvedRouteMatchers = [];
   /** @type {Set<string>} */
   const runtimeProjectPaths = new Set();
+  /** @type {Set<string>} */
+  const runtimePublicPaths = new Set();
   /** @type {RegExp[]} */
   const runtimeProjectPatterns = [];
   /** @type {Set<string>} */
@@ -98,7 +101,7 @@ export default function aeo(userConfig = {}) {
       site: { siteUrl, base, trailingSlash, buildFormat },
       sitemapAvailable,
       staticPaths: [...runtimePagePaths],
-      projectPaths: [...runtimeProjectPaths],
+      projectPaths: [...new Set([...runtimeProjectPaths, ...runtimePublicPaths])],
       projectPatterns: runtimeProjectPatterns,
       standaloneSources: {},
       pluginManifest: pluginDispatcher?.runtimeManifest ?? { version: 1, plugins: [] },
@@ -133,7 +136,10 @@ export default function aeo(userConfig = {}) {
 
         adapterFallbacks = Boolean(astroConfig.adapter);
         if (adapterFallbacks && injectRoute) {
-          injectRuntimeFallbackRoutes(config, injectRoute, pluginDispatcher.claims);
+          const runtimeClaims = pluginDispatcher.runtimeManifest.plugins.flatMap(
+            (plugin) => plugin.claims,
+          );
+          injectRuntimeFallbackRoutes(config, injectRoute, runtimeClaims);
         }
 
         const added = [];
@@ -178,6 +184,12 @@ export default function aeo(userConfig = {}) {
         serverOutput = buildOutput === 'server' || astroConfig.output === 'server' || adapterFallbacks;
         projectRoot = fileURLToPath(astroConfig.root);
         publicDir = astroConfig.publicDir;
+        runtimePublicPaths.clear();
+        if (publicDir) {
+          for (const pathname of publicRuntimePathnames(publicDir, base)) {
+            runtimePublicPaths.add(pathname);
+          }
+        }
         catalogDiagnostics.length = 0;
         catalogModules = await preloadCatalogModules(
           config.pages.catalogs,
@@ -239,14 +251,19 @@ export default function aeo(userConfig = {}) {
             : undefined;
           const entrypoint = /** @type {string | undefined} */ (route.entrypoint);
           if (entrypoint && isRuntimeFallbackEntrypoint(entrypoint, projectRoot)) continue;
-          if (normalizedPathname) resolvedRoutePaths.add(normalizedPathname);
-          if (pathname && entrypoint) {
-            routeEntrypoints.set(normalizedPathname, entrypoint);
-          }
           const type = /** @type {string | undefined} */ (route.type);
           const origin = /** @type {string | undefined} */ (route.origin);
           const projectRoute = origin === undefined || origin === 'project';
-          if (projectRoute && runtimePathname) runtimeProjectPaths.add(runtimePathname);
+          // Astro internal routes are implementation details, not user artifact
+          // ownership. Every other route, including routes contributed by an
+          // integration, must win over Astro-AEO at runtime. Our tagged fallback
+          // routes returned above and are the only external routes omitted here.
+          const ownedRoute = origin !== 'internal';
+          if (ownedRoute && normalizedPathname) resolvedRoutePaths.add(normalizedPathname);
+          if (ownedRoute && pathname && entrypoint) {
+            routeEntrypoints.set(normalizedPathname, entrypoint);
+          }
+          if (ownedRoute && runtimePathname) runtimeProjectPaths.add(runtimePathname);
           const pattern = /** @type {RegExp | undefined} */ (
             route.patternRegex ?? (route.pattern instanceof RegExp ? route.pattern : undefined)
           );
@@ -256,15 +273,18 @@ export default function aeo(userConfig = {}) {
           const prerendered = /** @type {boolean | undefined} */ (
             route.isPrerendered ?? route.prerender
           );
-          if (projectRoute && !normalizedPathname && pattern instanceof RegExp) {
-            resolvedRouteMatchers.push({ pattern, prerendered: prerendered !== false });
-          }
-          if (
-            projectRoute &&
+          const ownsExtensionPath =
+            ownedRoute &&
             !normalizedPathname &&
             pattern instanceof RegExp &&
-            (type !== 'page' || Boolean(routePattern && /\.[^/]+$/.test(routePattern)))
-          ) {
+            (type !== 'page' || Boolean(routePattern && /\.[^/]+$/.test(routePattern)));
+          // A generic dynamic page such as /[slug] is not a literal artifact
+          // claim. Treating it as one would suppress every one-segment .md or
+          // text artifact even though Astro's static asset layer owns those
+          // emitted files. Dynamic endpoints and extension-bearing page
+          // patterns remain project ownership and continue to win.
+          if (ownsExtensionPath) {
+            resolvedRouteMatchers.push({ pattern, prerendered: prerendered !== false });
             runtimeProjectPatterns.push(pattern);
           }
           if (
@@ -383,7 +403,7 @@ function runtimeMarkdownSourceEntries(routeEntrypoints, projectRoot) {
  * returns 404 only after Astro-AEO declines the request.
  * @param {ReturnType<typeof resolveConfig>} config
  * @param {(route: { pattern: string; entrypoint: string; prerender: false }) => void} injectRoute
- * @param {readonly (import('./index.js').PluginArtifactClaim & { plugin: string })[]} [pluginClaims]
+ * @param {readonly import('./index.js').PluginArtifactClaim[]} [pluginClaims]
  */
 function injectRuntimeFallbackRoutes(config, injectRoute, pluginClaims = []) {
   if (config.markdown.enabled) {
@@ -407,6 +427,45 @@ function injectRuntimeFallbackRoutes(config, injectRoute, pluginClaims = []) {
   for (const pattern of artifacts) {
     injectRoute({ pattern, entrypoint: FALLBACK_ENTRYPOINT, prerender: false });
   }
+}
+
+/**
+ * Public files are external runtime owners just like project and integration
+ * routes. Record only files served inside Astro's configured base. Symlinks are
+ * ignored so configuration discovery never follows a project-controlled path
+ * outside publicDir.
+ *
+ * @param {URL} publicDir
+ * @param {string} base
+ * @returns {string[]}
+ */
+function publicRuntimePathnames(publicDir, base) {
+  const root = fileURLToPath(publicDir);
+  const files = [];
+  /** @param {string} directory @param {string[]} parts */
+  const visit = (directory, parts) => {
+    let entries;
+    try {
+      entries = readdirSync(directory, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.isSymbolicLink()) continue;
+      const nextParts = [...parts, entry.name];
+      if (entry.isDirectory()) visit(resolve(directory, entry.name), nextParts);
+      else if (entry.isFile()) files.push(`/${nextParts.join('/')}`);
+    }
+  };
+  visit(root, []);
+  const prefix = base && base !== '/' ? normalize(base) : '';
+  return files.flatMap((pathname) => {
+    const normalized = normalize(pathname);
+    if (!prefix) return [normalized];
+    return normalized.startsWith(`${prefix}/`)
+      ? [normalized.slice(prefix.length)]
+      : [];
+  });
 }
 
 /** @param {string} entrypoint @param {string} projectRoot */

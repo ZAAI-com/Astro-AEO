@@ -8,6 +8,7 @@ import {
 import { mdPathnameFor, pagePathForMdPath, basePrefix } from '../core/page-model.js';
 import { inspectRootPathname, isIncluded, normalizePath } from '../core/match.js';
 import { extractPageMeta } from '../core/page-meta.js';
+import { isOwnedArtifactPath } from '../core/owned-artifacts.js';
 import { COLLECT_FLAG, stripMarkersFromHtml } from '../core/extract/marker.js';
 import { stripAeoHeadMarkers } from '../core/head.js';
 import { withMarkdownAlternateLink } from '../core/alternate-link.js';
@@ -29,9 +30,11 @@ import {
 } from './respond.js';
 import {
   artifactFor,
+  catalogRuntimePath,
   enrichRuntimePageGraph,
   pageFromHtml,
   renderStandaloneArtifact,
+  runtimeCatalogPagesFor,
   RuntimeCorpusLimitError,
   serveLlmsIndex,
   serveMarkdown,
@@ -101,26 +104,33 @@ export const onRequest = async (context, next) => {
     decoded !== configuredBase &&
     !decoded.startsWith(`${configuredBase}/`)
   ) {
-    return next();
+    return redactAeoHeadMarkers(await next(), context.request);
   }
   const pathname = stripBase(decoded, RUNTIME.site.base);
   const encodedPathname = encodeURI(pathname);
 
-  const replacementAuthorized = RUNTIME.config.artifacts.replace.includes(
+  const coreReplacementAuthorized = RUNTIME.config.artifacts.replace.includes(
     normalizePath(decoded),
   );
-  const projectOwned = !replacementAuthorized && ownedByProject(pathname, encodedPathname);
-  const artifact = projectOwned ? null : artifactFor(pathname, RUNTIME.config);
+  const projectOwned = ownedByProject(pathname, encodedPathname);
+  // A configured core generator remains a generated claimant even when an
+  // external route blocks it. A plugin claiming that same pathname must still
+  // collide instead of becoming an implicit replacement.
+  const configuredArtifact = artifactFor(pathname, RUNTIME.config);
+  const schemaPairBlocked = isSchemaArtifact(configuredArtifact) && runtimeSchemaPairBlocked();
+  const artifact = (projectOwned && !coreReplacementAuthorized) || schemaPairBlocked
+    ? null
+    : configuredArtifact;
   const pluginTarget = runtimePluginArtifactFor(pathname, RUNTIME_PLUGIN_LOADERS, {
     projectOwned,
-    coreOwned: Boolean(artifact),
+    coreOwned: Boolean(configuredArtifact),
   });
   if (pluginTarget) {
     const response = await serveRuntimePluginArtifact(
       pluginTarget,
       context.request,
       RUNTIME_PLUGIN_LOADERS,
-      runtimePluginPageHandles(context, next),
+      pluginTarget.conflict ? [] : await runtimePluginPageHandles(context, next),
       RUNTIME.command,
     );
     if (response) return response;
@@ -200,7 +210,11 @@ export const onRequest = async (context, next) => {
   const mdPagePath = pagePathForMdPath(pathname);
   const encodedMdPagePath = pagePathForMdPath(encodedPathname) ??
     (mdPagePath === null ? null : encodeURI(mdPagePath));
-  if (RUNTIME.config.markdown.enabled && mdPagePath !== null && !projectOwned) {
+  if (
+    RUNTIME.config.markdown.enabled &&
+    mdPagePath !== null &&
+    (!projectOwned || coreReplacementAuthorized)
+  ) {
     const rewritePathname = encodedMdPagePath ?? mdPagePath;
     const probe = htmlFetcher(context, next, {
       preserveQuery: true,
@@ -352,6 +366,8 @@ export const onRequest = async (context, next) => {
       if (page) {
         output = (await enrichRuntimePageGraph(output, page, RUNTIME, {
           pluginLoaders: RUNTIME_PLUGIN_LOADERS,
+          catalogLoaders: RUNTIME_CATALOG_LOADERS,
+          origin: context.url.origin,
           allowGlobal: true,
         })).html;
       } else {
@@ -382,12 +398,44 @@ export const onRequest = async (context, next) => {
  * @param {import('astro').APIContext} context
  * @param {import('astro').MiddlewareNext} next
  */
-function runtimePluginPageHandles(context, next) {
+async function runtimePluginPageHandles(context, next) {
   const fetch = htmlFetcher(context, next, { sanitizeCredentials: true });
+  const descriptors = await runtimeCatalogPagesFor(
+    RUNTIME_CATALOG_LOADERS,
+    RUNTIME,
+    context.url.origin,
+  );
+  const artifactPaths = new Set(
+    RUNTIME_PLUGIN_LOADERS.flatMap((loader) =>
+      loader.claims.map((claim) => normalizePath(claim.pathname)),
+    ),
+  );
+  /** @type {Map<string, { id: string; pathname: string; publicPathname: string; descriptor?: import('../page.js').PageDescriptor }>} */
+  const targets = new Map();
+  for (const pathname of RUNTIME.staticPaths) {
+    const canonical = normalizePath(pathname);
+    if (isOwnedArtifactPath(canonical, RUNTIME.config) || artifactPaths.has(canonical)) continue;
+    targets.set(canonical, {
+      id: canonical,
+      pathname: canonical,
+      publicPathname: encodeURI(canonical),
+    });
+  }
+  for (const descriptor of descriptors) {
+    const path = catalogRuntimePath(descriptor.pathname);
+    if (isOwnedArtifactPath(path.canonical, RUNTIME.config) || artifactPaths.has(path.canonical)) {
+      continue;
+    }
+    targets.set(path.canonical, {
+      id: path.canonical,
+      pathname: path.canonical,
+      publicPathname: path.publicPathname,
+      descriptor,
+    });
+  }
   return createRuntimePluginPageHandles(
-    RUNTIME.staticPaths.map((pathname) => ({ id: pathname, pathname })),
-    async ({ pathname }) => {
-      const publicPathname = encodeURI(pathname);
+    [...targets.values()],
+    async ({ pathname, publicPathname, descriptor }) => {
       const loaded = await fetch(publicPathname);
       if (
         loaded === null ||
@@ -400,6 +448,7 @@ function runtimePluginPageHandles(context, next) {
         return null;
       }
       return pageFromHtml(pathname, loaded.html, RUNTIME, {
+        descriptor,
         origin: context.url.origin,
         publicPathname,
         rendererLoaders: RUNTIME_MARKDOWN_RENDERER_LOADERS,
@@ -534,6 +583,38 @@ function ownedByProject(pathname, encodedPathname) {
     pattern.lastIndex = 0;
     return false;
   }) ?? false;
+}
+
+/** @param {ReturnType<typeof artifactFor>} artifact */
+function isSchemaArtifact(artifact) {
+  return artifact === 'schema-graph' || artifact === 'schema-map';
+}
+
+/**
+ * The semantic graph and XML map are one ownership group. If either configured
+ * pathname is blocked by an external route, neither free member may be served.
+ * A plugin claim also blocks the group because generated claims collide even
+ * when a plugin requests replacement. The actually claimed pathname is still
+ * arbitrated separately so it returns the shared generic 500 response.
+ */
+function runtimeSchemaPairBlocked() {
+  const corpus = RUNTIME.config.schema.corpus;
+  if (!corpus.enabled) return false;
+  const paths = [corpus.graphPath, corpus.mapPath];
+
+  if (RUNTIME_PLUGIN_LOADERS.some((loader) =>
+    loader.claims.some((claim) => paths.includes(claim.pathname)))) {
+    return true;
+  }
+
+  const prefix = basePrefix(RUNTIME.site.base);
+  return paths.some((configuredPath) => {
+    const servedPath = normalizePath(`${prefix}${configuredPath}`);
+    if (RUNTIME.config.artifacts.replace.includes(servedPath)) return false;
+    const decodedPath = decodePathname(configuredPath);
+    if (decodedPath === null) return true;
+    return ownedByProject(decodedPath, encodeURI(decodedPath));
+  });
 }
 
 /**
