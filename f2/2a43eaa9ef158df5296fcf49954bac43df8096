@@ -1,0 +1,289 @@
+.github/workflows/W2-Release.yml
+  s_a36a2c4a229d08::t_0f880b7e073cd8 14
+  s_a36a2c4a229d08::t_4e9a3b27caff91 13,15,17
+src/core/page-meta.js
+  s_a36a2c4a229d08::t_71418994e9ce09 2,33-34,65-71
+src/integration-hooks.test.js
+  s_a36a2c4a229d08::t_52190326285e5b 68-84,109,111
+  s_a36a2c4a229d08::t_6722761381e047 268-316
+  s_a36a2c4a229d08::t_c7c2ab08caa027 169-267
+fixtures/adapters/vercel/astro.config.mjs
+  s_a36a2c4a229d08::t_fd30b657e6498b 4,19
+  s_a36a2c4a229d08::t_7cc67c92b6d7db 16-17
+src/core/alternate-link.test.js
+  s_a36a2c4a229d08::t_c591c798f9a9a0 26-34
+src/hooks/plugin-validation.test.js
+  s_a36a2c4a229d08::t_e7d180b9413b51 1-99
+test/adapters/build.test.js
+  s_a36a2c4a229d08::t_293453b7c0dd9f 124,136-201
+  s_a36a2c4a229d08::t_fd30b657e6498b 37-41,96
+  s_a36a2c4a229d08::t_ae34c89f1e8431 125-135
+  s_a36a2c4a229d08::t_72d12aadf800a1 16-36,42-43,88-95,97-108,121-123
+src/runtime/middleware-plugin.test.js
+  s_a36a2c4a229d08::t_304bb4c586e176 6,16,25-35,61-81,83-84,95,108-146,158,188-218,220-223
+  s_a36a2c4a229d08::t_36b3ce4c3fd314 219
+  s_a36a2c4a229d08::t_5e8f46908445a8 7,93-94,168-187
+  s_5028c30060b60c::t_d0f2c800495ba2 224
+fixtures/representations-1.2/astro.config.mjs
+  s_a36a2c4a229d08::t_16996d9d4285db 1-13,15-42
+  s_a36a2c4a229d08::t_c56c0c89094fd3 14
+src/page.js
+  s_a36a2c4a229d08::t_aacdc9a96d4f84 56-61,74-84
+  s_a36a2c4a229d08::t_052c1faaa50b34 85-86
+src/build/artifacts.js
+  s_a36a2c4a229d08::t_6a575fa4a11da8 56,446-448,742-751,805-810
+  s_a36a2c4a229d08::t_dd22c440ee11c3 6,297-301,306
+.github/workflows/W1-Test.yml
+  s_a36a2c4a229d08::t_8fbe2aa5d4ed90 82,84,119
+  s_a36a2c4a229d08::t_0f880b7e073cd8 83
+fixtures/representations-1.2/src/pages/cms.astro
+  s_a36a2c4a229d08::t_16996d9d4285db 1-8
+src/semantic/plugin.js
+  s_a36a2c4a229d08::t_6bbfc3c551f9e0 31
+  s_a36a2c4a229d08::t_db5d40fe398d75 18,25
+package.json
+  s_a36a2c4a229d08::t_8fbe2aa5d4ed90 130,133
+src/core/extract/marker.test.js
+  s_a36a2c4a229d08::t_6bf98a5099e0c6 54-58
+  s_a36a2c4a229d08::t_b2860b4dd0bd71 49-53
+  s_a36a2c4a229d08::t_aacdc9a96d4f84 90-108,121-124
+fixtures/golden-1.2/expected.json
+  s_a36a2c4a229d08::t_711f241a25153e 10
+fixtures/representations-1.2/src/pages/malformed.astro
+  s_a36a2c4a229d08::t_16996d9d4285db 1-9
+src/core/schema-corpus.js
+  s_a36a2c4a229d08::t_282507b9478dd3 2
+  s_a36a2c4a229d08::t_fc17866e33385a 15,69-116
+  s_a36a2c4a229d08::t_143907b7bb0dfa 117
+src/runtime/plugins.test.js
+  s_a36a2c4a229d08::t_74dd6b45882c93 4,224-253
+  s_a36a2c4a229d08::t_7263d11910b704 254-255
+src/config.js
+  s_a36a2c4a229d08::t_da4835fb7e9d6f 331,335,345-355
+  s_a36a2c4a229d08::t_d490041896b75d 356
+fixtures/representations-1.2/catalog.mjs
+  s_a36a2c4a229d08::t_16996d9d4285db 1-36
+fixtures/representations-1.2/src/pages/markdown.md
+  s_a36a2c4a229d08::t_16996d9d4285db 1-9
+fixtures/representations-1.2/src/content/posts/collection-post.md
+  s_a36a2c4a229d08::t_16996d9d4285db 1-9
+fixtures/adapters/node/astro.config.mjs
+  s_a36a2c4a229d08::t_8fbe2aa5d4ed90 5-9,13,21-23
+src/hooks/plugin-validation.js
+  s_a36a2c4a229d08::t_d7e7d1f305d805 1-15,17-37,41-44,46-47,49-100,102-153,156,158,160-169,171-180,182-218,220-229,241-253
+  s_a36a2c4a229d08::t_4a6b492f1e9d3b 101
+  s_a36a2c4a229d08::t_89a867996553b9 154
+  s_a36a2c4a229d08::t_be9590c303ad4f 16,38-40,45,48,155,157,159,219,230-240
+  s_a36a2c4a229d08::t_d6da43e1defe01 181
+  s_a36a2c4a229d08::t_adc6dcfe752f92 170
+fixtures/adapters/shared/provider-plugin.mjs
+  s_a36a2c4a229d08::t_fd30b657e6498b 1-21
+benchmarks/run.mjs
+  s_a36a2c4a229d08::t_00c47026047e1c 30,33
+src/core/catalog-breadcrumbs.test.js
+  s_a36a2c4a229d08::t_88fa5c1ef10e0e 52,55,59
+  s_a36a2c4a229d08::t_4ca50cf325278f 1-51,53-54,56-58,60-62
+src/runtime/middleware-redirect.test.js
+  s_a36a2c4a229d08::t_c17f1e866d7962 43-81
+src/hooks/build-done.test.js
+  s_a36a2c4a229d08::t_e9fb4f11bb8989 62-98
+  s_a36a2c4a229d08::t_abcc818221847f 280-342
+  s_a36a2c4a229d08::t_f67d6d755740f2 99-142
+fixtures/representations-1.2/src/pages/mdx.astro
+  s_a36a2c4a229d08::t_16996d9d4285db 1-8
+.github/workflows/W-Node-Compat.yml
+  s_a36a2c4a229d08::t_91920cd6f394af 20-23
+  s_a36a2c4a229d08::t_0f880b7e073cd8 1-19,24-45
+  s_a36a2c4a229d08::t_39911bf1dd92d4 46-49
+scripts/update-benchmark-baseline.mjs
+  s_a36a2c4a229d08::t_00c47026047e1c 7-8
+src/runtime/serve.js
+  s_a36a2c4a229d08::t_7409e5baf3a133 633,735
+  s_a36a2c4a229d08::t_005067d6d8b09a 284,297,309,520
+  s_a36a2c4a229d08::t_22373f68db434a 15,262,265-269,276,510
+src/core/extract/marker.js
+  s_a36a2c4a229d08::t_032feb9da189ee 56-58
+  s_a36a2c4a229d08::t_76a128b974aebd 2,59
+src/runtime/plugins.js
+  s_a36a2c4a229d08::t_3f4f4c72ea86f4 357,385-396
+  s_a36a2c4a229d08::t_b3c788349b3c3e 384
+src/config.test.js
+  s_a36a2c4a229d08::t_8c6df2a8f7d052 83-86
+benchmarks/README.md
+  s_a36a2c4a229d08::t_00c47026047e1c 1,11,45,47,88
+  s_a36a2c4a229d08::t_1019f7819d2ba2 57-65
+fixtures/representations-1.2/src/pages/posts/[id].astro
+  s_a36a2c4a229d08::t_16996d9d4285db 1-20
+fixtures/representations-1.2/src/pages/short.astro
+  s_a36a2c4a229d08::t_16996d9d4285db 1-5
+README.md
+  s_a36a2c4a229d08::t_f103f39dc2e51a 830,836-837
+src/core/head.test.js
+  s_a36a2c4a229d08::t_58e98326f21d29 4,385-390
+  s_a36a2c4a229d08::t_541b997bbbe826 37-64,291-296,406-409
+  s_a36a2c4a229d08::t_c591c798f9a9a0 115-155,297-349
+  s_a36a2c4a229d08::t_d371f4c2c9a354 250-268
+  s_a36a2c4a229d08::t_992285c33a766e 393-398
+  s_a36a2c4a229d08::t_fb6e83435251a5 350,391,410-447
+  s_a36a2c4a229d08::t_0d2f9919693814 351
+  s_a36a2c4a229d08::t_6fdcfdb168941e 392
+src/core/page-meta.test.js
+  s_a36a2c4a229d08::t_834961f290a8ce 105-111
+src/representations-1.2.e2e.test.js
+  s_a36a2c4a229d08::t_9ac8e22f91ddc8 90-91
+  s_a36a2c4a229d08::t_16996d9d4285db 1-89,92-93
+src/plugins/dispatcher.js
+  s_a36a2c4a229d08::t_9867454b1b5084 128-134,144-151,236-242,252-260,262,264-265,273-275
+  s_a36a2c4a229d08::t_3f4f4c72ea86f4 266-270,296-307
+  s_a36a2c4a229d08::t_b3c788349b3c3e 295
+benchmarks/baseline-1.2.json
+  s_a36a2c4a229d08::t_9ed2ab5a0c2df6 1-11,15-18,23-25,27-30,35-37,39-47
+  s_a36a2c4a229d08::t_12194559c3df17 12-14,19-22,26,31-34,38
+fixtures/adapters/netlify/astro.config.mjs
+  s_a36a2c4a229d08::t_7cc67c92b6d7db 13-14
+  s_a36a2c4a229d08::t_fd30b657e6498b 4,16
+src/core/head.js
+  s_a36a2c4a229d08::t_51c1cfeb56d7e5 642-648,651-652
+  s_a36a2c4a229d08::t_d815186c9b6c87 214,560,678-681,683,764-768,848,904-907
+  s_a36a2c4a229d08::t_1b85a3bb8aabe0 8,11,43-45,213,244-247,249
+  s_a36a2c4a229d08::t_d371f4c2c9a354 63,805-847
+  s_a36a2c4a229d08::t_7705435c4af11f 29,32-39,118-126,570,572,603,615-623,628,633,638-641,649-650,653-656,660
+  s_a36a2c4a229d08::t_cb4b707557bf8a 9,903,908
+  s_a36a2c4a229d08::t_6bbfc3c551f9e0 216-237,367,373,435,787-804
+  s_a36a2c4a229d08::t_4d76a1169fd679 138,156,162,532-533,544-545,637
+  s_a36a2c4a229d08::t_541b997bbbe826 634-636
+  s_a36a2c4a229d08::t_444ea45ab0e072 113,115,117,129-130,132,135-137,139,141,148-150,520-531,534-543,546-559,577-585,590-599,604-610,725-726,740-763,769-786
+  s_a36a2c4a229d08::t_1a5e7a792d22b3 5-7,10,12-13,30,53,58,74-77,81,88,97,114,116,131,140,142-147,155,157-161,163-167,169-181,186-188,202,859,864,869,884-886
+  s_a36a2c4a229d08::t_11abf21725c044 215
+  s_a36a2c4a229d08::t_31f2027541c190 561
+  s_a36a2c4a229d08::t_e1c1265f99c2c4 849
+src/core/canonical.test.js
+  s_a36a2c4a229d08::t_c591c798f9a9a0 22,26
+  s_a36a2c4a229d08::t_5bdbd12fff12e1 12-13
+src/index.d.ts
+  s_a36a2c4a229d08::t_2ed5436f984203 161-167
+src/schema.test.js
+  s_a36a2c4a229d08::t_5bdbd12fff12e1 137-138
+  s_a36a2c4a229d08::t_541b997bbbe826 135-136
+  s_a36a2c4a229d08::t_717863d7c0df95 61-101
+  s_a36a2c4a229d08::t_f0f767429a473a 327-414
+src/core/canonical.js
+  s_a36a2c4a229d08::t_87c3a5828f06ca 2,82
+  s_a36a2c4a229d08::t_5bdbd12fff12e1 16,60-77
+  s_a36a2c4a229d08::t_43ec40f5687a02 31
+src/build/artifacts.test.js
+  s_a36a2c4a229d08::t_c3cc86a6d9ca84 428-491
+  s_a36a2c4a229d08::t_75865c497a6533 66-70
+src/runtime/middleware.js
+  s_a36a2c4a229d08::t_87c7fe08650783 588-619
+  s_a36a2c4a229d08::t_3ab864a6f6c01a 369-370
+  s_a36a2c4a229d08::t_b3e9a0db2db79e 133
+  s_a36a2c4a229d08::t_8e69d32ecf1368 107,116-121,123,126
+  s_a36a2c4a229d08::t_7409e5baf3a133 33,37,112,115,122,401,403-435,437-438,451
+  s_a36a2c4a229d08::t_4e6c5272522ec3 11
+  s_a36a2c4a229d08::t_798aa3d837f590 213-217
+fixtures/types-consumer/consumer.ts
+  s_a36a2c4a229d08::t_af2985a1437ed3 520-524
+  s_a36a2c4a229d08::t_ecf762349e986d 519
+fixtures/representations-1.2/src/pages/empty.astro
+  s_a36a2c4a229d08::t_16996d9d4285db 1-5
+fixtures/marker-paths/src/pages/404.astro
+  s_a36a2c4a229d08::t_9c921ca33e9db8 3,6-10
+src/plugins/dispatcher.test.js
+  s_a36a2c4a229d08::t_74dd6b45882c93 72-104
+  s_a36a2c4a229d08::t_22cf804ff9fd73 46-71,105-128
+src/core/schema-corpus.test.js
+  s_a36a2c4a229d08::t_fc17866e33385a 5-9,96-116
+  s_a36a2c4a229d08::t_427ec78bd3e0b8 32-55
+  s_a36a2c4a229d08::t_c591c798f9a9a0 117,138-153
+  s_5028c30060b60c::t_54a0166de310e8 118
+AGENTS.md
+  s_a36a2c4a229d08::t_21d28943ed7329 80-86
+fixtures/representations-1.2/src/pages/renderer-failure.astro
+  s_a36a2c4a229d08::t_16996d9d4285db 1-8
+src/core/catalog-breadcrumbs.js
+  s_a36a2c4a229d08::t_4ca50cf325278f 1-58
+src/hooks/build-done.js
+  s_a36a2c4a229d08::t_c37e64c858abf0 23-29,102-105,235-239,400
+  s_a36a2c4a229d08::t_fc17866e33385a 19,290-296
+  s_a36a2c4a229d08::t_9eff0a03cd2b08 22,213-222,226,228,267,269,280,282
+  s_a36a2c4a229d08::t_9c921ca33e9db8 209-212,227,268,281
+  s_a36a2c4a229d08::t_edbcf8647bd7b6 297,352-364,368-374,386-391,479,481,516-520,526
+  s_a36a2c4a229d08::t_97838685701d89 298-299
+fixtures/representations-1.2/src/layouts/Layout.astro
+  s_a36a2c4a229d08::t_16996d9d4285db 1-17
+fixtures/representations-1.2/src/content.config.mjs
+  s_a36a2c4a229d08::t_16996d9d4285db 1-12
+src/core/html-head-ranges.js
+  s_a36a2c4a229d08::t_f26eda78074475 1-104,207-285,295-300,303-329
+  s_a36a2c4a229d08::t_dec4348bed3452 163-206
+  s_a36a2c4a229d08::t_1a09f3ff9f56b7 105-162,286-294,301-302
+fixtures/marker-paths/src/layouts/Layout.astro
+  s_a36a2c4a229d08::t_9c921ca33e9db8 8
+fixtures/representations-1.2/src/pages/rich.astro
+  s_a36a2c4a229d08::t_16996d9d4285db 1-28
+scripts/test-node-server-compat.mjs
+  s_a36a2c4a229d08::t_4b3a7c8f049bf7 70-76,81-86,105-108
+  s_a36a2c4a229d08::t_e88c2e7576d666 61
+  s_a36a2c4a229d08::t_39911bf1dd92d4 18-34
+  s_a36a2c4a229d08::t_8fbe2aa5d4ed90 1-17,35-60,62-69,77-80,87-104,109-121
+src/schema.js
+  s_a36a2c4a229d08::t_df62ea858f543f 162,172
+  s_a36a2c4a229d08::t_5bdbd12fff12e1 2
+  s_a36a2c4a229d08::t_9e6f12e433f1de 1004-1006,1010-1012,1037-1061
+  s_a36a2c4a229d08::t_8b3f4ddf932eb4 26-29,32-33,35,37-38,40-42,44,46-50,52,54-57,59-60,62-63,65-72,76-83,85-89,91,93,95-98,100-103,105-108,110-111,113-161,163-171,173-189
+  s_a36a2c4a229d08::t_541b997bbbe826 1311-1316
+  s_a36a2c4a229d08::t_b3faa475e8bd90 1062
+src/marker-paths.e2e.test.js
+  s_a36a2c4a229d08::t_9c921ca33e9db8 30,36-43
+  s_a36a2c4a229d08::t_db70ef608547ea 44-45
+src/index.js
+  s_a36a2c4a229d08::t_e04e6d3455ab43 257-266,277
+  s_a36a2c4a229d08::t_7468bd5c6b1b85 276,280-287
+  s_a36a2c4a229d08::t_52190326285e5b 139-142,406
+  s_a36a2c4a229d08::t_38292246db9b51 432-470
+  s_a36a2c4a229d08::t_de91587ac1edcd 4,64-65,104,187-192
+scripts/release-check.mjs
+  s_a36a2c4a229d08::t_8fbe2aa5d4ed90 45-51,59
+src/core/alternate-link.js
+  s_a36a2c4a229d08::t_a094d3c895ad6a 45-60
+  s_a36a2c4a229d08::t_87c3a5828f06ca 61
+  s_a36a2c4a229d08::t_798aa3d837f590 2-9,13,18-30
+scripts/package-smoke.mjs
+  s_a36a2c4a229d08::t_00c47026047e1c 190-203
+fixtures/representations-1.2/custom-renderer.mjs
+  s_a36a2c4a229d08::t_16996d9d4285db 1-13
+src/runtime/serve.test.js
+  s_a36a2c4a229d08::t_3d3b9323af764a 180
+  s_a36a2c4a229d08::t_7ba63959e7ad67 79-117
+src/runtime/middleware-schema-corpus.test.js
+  s_a36a2c4a229d08::t_77955cb5d44da7 1,31-32,107-117,121-242
+fixtures/representations-1.2/package.json
+  s_a36a2c4a229d08::t_16996d9d4285db 1-5
+benchmarks/thresholds.mjs
+  s_a36a2c4a229d08::t_00c47026047e1c 2-3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "f22a43eaa9ef158df5296fcf49954bac43df8096",
+  "prompts": {},
+  "sessions": {
+    "s_5028c30060b60c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fee51-cbff-7d01-96c8-a0a56bc1eef2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_a36a2c4a229d08": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fed55-d08f-73e2-b5ac-43e577e1cb19",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
