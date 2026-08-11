@@ -1,4 +1,4 @@
-const claim = { id: 'answers', pathname: '/answers.txt' };
+const claim = { id: 'answers', pathname: '/answers%5Bfeed%5D.txt' };
 
 export default {
   name: 'adapter-runtime-artifact',

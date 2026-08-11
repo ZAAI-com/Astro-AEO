@@ -70,14 +70,21 @@ export async function collectPages(rawPages, config, ctx) {
     });
     if ('skip' in result) continue;
 
+    const lastModified =
+      result.page.lastModified ??
+      toIsoTimestamp(raw.lastModified) ??
+      gitLastModified(pathname, config, ctx);
+
     pages.push({
       ...result.page,
+      ...(lastModified
+        ? {
+            dates: { ...result.page.dates, modified: lastModified },
+            lastModified,
+          }
+        : {}),
       htmlPath: read?.htmlPath ?? '',
       mdPath: join(source.root, mdPathnameFor(pathname)),
-      lastModified:
-        result.page.lastModified ??
-        toIsoTimestamp(raw.lastModified) ??
-        gitLastModified(pathname, config, ctx),
     });
   }
 
@@ -88,7 +95,7 @@ export async function collectPages(rawPages, config, ctx) {
  * @param {import('../page.js').PageDescriptor} descriptor
  * @param {string} pathname
  * @param {CollectContext} ctx
- * @returns {{ markdown?: string; body?: string; title?: string; description?: string; image?: string; language?: string; published?: string; lastModified?: string; authors?: unknown[]; entities?: unknown[]; directives?: Partial<Record<'index'|'includeInLlms'|'includeInLlmsFull'|'generateMarkdown', boolean>>; kind?: 'markdown'|'mdx'|'astro'|'cms'|'rendered'|'custom'; path?: string; strategy?: 'markdown-route'|'catalog'; extraction?: import('../core/extract/index.js').ExtractionDiagnostics } | undefined}
+ * @returns {{ markdown?: string; body?: string; title?: string; description?: string; image?: string; language?: string; published?: string; lastModified?: string; authors?: unknown[]; entities?: unknown[]; directives?: Partial<Record<'index'|'includeInLlms'|'includeInLlmsFull'|'generateMarkdown', boolean>>; kind?: 'markdown'|'mdx'|'astro'|'cms'|'rendered'|'custom'; path?: string; hash?: string; strategy?: 'markdown-route'|'catalog'; extraction?: import('../core/extract/index.js').ExtractionDiagnostics } | undefined}
  */
 function authoredSource(descriptor, pathname, ctx) {
   const catalogMarkdown =
@@ -101,6 +108,7 @@ function authoredSource(descriptor, pathname, ctx) {
     catalogMarkdown === undefined && typeof descriptor.source?.body === 'string'
       ? descriptor.source.body
       : undefined;
+  const catalogSelected = catalogMarkdown !== undefined || catalogBody !== undefined;
   const entrypoint = ctx.routeEntrypoints.get(pathname);
   let routeBody;
   /** @type {'markdown' | 'mdx' | undefined} */
@@ -135,19 +143,27 @@ function authoredSource(descriptor, pathname, ctx) {
     descriptor.directives !== undefined ||
     descriptor.lastModified !== undefined ||
     descriptor.sourcePath !== undefined ||
+    descriptor.source?.kind !== undefined ||
     descriptor.source?.path !== undefined ||
+    descriptor.source?.hash !== undefined ||
     descriptor.extraction !== undefined;
   if (!hasCatalogFacts && routeBody === undefined) return undefined;
+
+  const selectedKind = catalogSelected
+    ? descriptor.source?.kind ?? (catalogMarkdown !== undefined ? 'markdown' : undefined)
+    : routeBody !== undefined
+      ? routeKind
+      : descriptor.source?.kind;
 
   return {
     ...(catalogMarkdown !== undefined
       ? { markdown: catalogMarkdown }
-      : routeKind === 'markdown' && routeBody !== undefined
+      : catalogBody === undefined && routeKind === 'markdown' && routeBody !== undefined
         ? { markdown: routeBody }
         : {}),
     ...(catalogBody !== undefined
       ? { body: catalogBody }
-      : routeKind === 'mdx' && routeBody !== undefined
+      : catalogMarkdown === undefined && routeKind === 'mdx' && routeBody !== undefined
         ? { body: routeBody }
         : {}),
     ...(descriptor.title !== undefined ? { title: descriptor.title } : {}),
@@ -161,16 +177,13 @@ function authoredSource(descriptor, pathname, ctx) {
     ...(descriptor.authors ? { authors: descriptor.authors } : {}),
     ...(descriptor.entities ? { entities: descriptor.entities } : {}),
     ...(descriptor.directives ? { directives: descriptor.directives } : {}),
-    ...(descriptor.source?.kind
-      ? { kind: descriptor.source.kind }
-      : routeKind
-        ? { kind: routeKind }
-        : {}),
+    ...(selectedKind ? { kind: selectedKind } : {}),
     ...(descriptor.sourcePath || descriptor.source?.path || entrypoint
       ? { path: descriptor.sourcePath ?? descriptor.source?.path ?? entrypoint }
       : {}),
+    ...(typeof descriptor.source?.hash === 'string' ? { hash: descriptor.source.hash } : {}),
     ...(descriptor.extraction ? { extraction: descriptor.extraction } : {}),
-    strategy: catalogMarkdown !== undefined || catalogBody !== undefined
+    strategy: catalogSelected
       ? 'catalog'
       : routeBody !== undefined
         ? 'markdown-route'

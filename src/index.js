@@ -27,6 +27,7 @@ import {
 import { createPluginDispatcher } from './plugins/dispatcher.js';
 import { runtimePluginModules } from './plugins/runtime-modules.js';
 import { createSemanticPlugin } from './semantic/plugin.js';
+import { exactPathnameIdentity } from './core/artifact-path.js';
 
 const FALLBACK_ENTRYPOINT = fileURLToPath(new URL('./runtime/fallback.js', import.meta.url));
 
@@ -186,7 +187,7 @@ export default function aeo(userConfig = {}) {
         publicDir = astroConfig.publicDir;
         runtimePublicPaths.clear();
         if (publicDir) {
-          for (const pathname of publicRuntimePathnames(publicDir, base)) {
+          for (const pathname of publicRuntimePathnames(publicDir)) {
             runtimePublicPaths.add(pathname);
           }
         }
@@ -424,22 +425,31 @@ function injectRuntimeFallbackRoutes(config, injectRoute, pluginClaims = []) {
     artifacts.add(config.schema.corpus.mapPath);
   }
   for (const claim of pluginClaims) artifacts.add(claim.pathname);
-  for (const pattern of artifacts) {
+  for (const pathname of artifacts) {
+    // Astro decodes concrete request pathnames before applying its generated
+    // route regex. Inject the decoded identity while retaining the canonical
+    // encoded spelling everywhere that is public or persisted.
+    const pattern = exactPathnameIdentity(pathname, 'runtime artifact pathname').key
+      // Brackets are Astro's dynamic-route syntax. Its parser recognizes their
+      // encoded spelling as literal brackets while still decoding ordinary URL
+      // bytes before matching the generated regex.
+      .replace(/\[/g, '%5B')
+      .replace(/\]/g, '%5D');
     injectRoute({ pattern, entrypoint: FALLBACK_ENTRYPOINT, prerender: false });
   }
 }
 
 /**
  * Public files are external runtime owners just like project and integration
- * routes. Record only files served inside Astro's configured base. Symlinks are
- * ignored so configuration discovery never follows a project-controlled path
- * outside publicDir.
+ * routes. Their physical path is app-relative: Astro mounts the public
+ * directory at the configured base rather than requiring a second base folder
+ * inside public/. Symlinks are ignored so configuration discovery never follows
+ * a project-controlled path outside publicDir.
  *
  * @param {URL} publicDir
- * @param {string} base
  * @returns {string[]}
  */
-function publicRuntimePathnames(publicDir, base) {
+function publicRuntimePathnames(publicDir) {
   const root = fileURLToPath(publicDir);
   const files = [];
   /** @param {string} directory @param {string[]} parts */
@@ -458,14 +468,7 @@ function publicRuntimePathnames(publicDir, base) {
     }
   };
   visit(root, []);
-  const prefix = base && base !== '/' ? normalize(base) : '';
-  return files.flatMap((pathname) => {
-    const normalized = normalize(pathname);
-    if (!prefix) return [normalized];
-    return normalized.startsWith(`${prefix}/`)
-      ? [normalized.slice(prefix.length)]
-      : [];
-  });
+  return files.map(normalize);
 }
 
 /** @param {string} entrypoint @param {string} projectRoot */

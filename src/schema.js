@@ -1030,7 +1030,31 @@ function validateUrlValue(value, pointer, base, findings) {
     const parsed = base === undefined ? new URL(value) : new URL(value, base);
     assertSafeUrl(parsed, 'Schema URL');
   } catch {
-    findings.push(finding('schema.unsafe-url', 'error', 'Schema URL is invalid or unsafe', { pointer }));
+    const missingBase = base === undefined && isSafeRelativeUrl(value);
+    findings.push(finding(
+      missingBase ? 'schema.relative-url-base-missing' : 'schema.unsafe-url',
+      'error',
+      missingBase
+        ? 'Relative Schema URL requires documentCanonical'
+        : 'Schema URL is invalid or unsafe',
+      { pointer },
+    ));
+  }
+}
+
+/** @param {string} value */
+function isSafeRelativeUrl(value) {
+  try {
+    new URL(value);
+    return false;
+  } catch {
+    try {
+      const parsed = new URL(value, 'https://astro-aeo.invalid/');
+      assertSafeUrl(parsed, 'Schema URL');
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 

@@ -80,9 +80,18 @@ export function immutableJsonValue(value, label) {
 
 /** @template T @param {T} value @returns {T} */
 export function deepFreeze(value) {
-  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
-    for (const child of Object.values(value)) deepFreeze(child);
-    Object.freeze(value);
-  }
+  const seen = new WeakSet();
+  /** @param {unknown} current */
+  const visit = (current) => {
+    if (
+      current === null ||
+      (typeof current !== 'object' && typeof current !== 'function') ||
+      seen.has(/** @type {object} */ (current))
+    ) return;
+    seen.add(/** @type {object} */ (current));
+    for (const child of Object.values(current)) visit(child);
+    if (!Object.isFrozen(current)) Object.freeze(current);
+  };
+  visit(value);
   return value;
 }

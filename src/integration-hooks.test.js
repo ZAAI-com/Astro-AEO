@@ -60,8 +60,8 @@ describe('integration diagnostics and declarations', () => {
       schema: {
         corpus: {
           enabled: true,
-          graphPath: '/semantic/all.jsonld',
-          mapPath: '/semantic/map.xml',
+          graphPath: '/semantic/all%20entities.jsonld',
+          mapPath: '/semantic/caf%C3%A9-map.xml',
         },
       },
       discovery: { robots: { enabled: true }, sitemap: { mode: 'disabled' } },
@@ -78,7 +78,8 @@ describe('integration diagnostics and declarations', () => {
           apiVersion: 1,
           runtime: { entrypoint: './runtime-feed.js' },
           setup(api) {
-            api.claimArtifact({ id: 'runtime-feed', pathname: '/runtime-feed.txt' });
+            api.claimArtifact({ id: 'runtime-feed', pathname: '/sale-100%25.txt' });
+            api.claimArtifact({ id: 'literal-brackets', pathname: '/literal%5Bfeed%5D.txt' });
           },
         },
       ],
@@ -104,9 +105,10 @@ describe('integration diagnostics and declarations', () => {
       '/.well-known/domain-profile.json',
       '/llms.txt',
       '/llms-full.txt',
-      '/semantic/all.jsonld',
-      '/semantic/map.xml',
-      '/runtime-feed.txt',
+      '/semantic/all entities.jsonld',
+      '/semantic/café-map.xml',
+      '/sale-100%.txt',
+      '/literal%5Bfeed%5D.txt',
     ]);
     expect(injected.map(({ pattern }) => pattern)).not.toContain('/build-only.txt');
     expect(injected).toEqual(injected.map((route) => ({ ...route, prerender: false })));
@@ -152,10 +154,10 @@ describe('integration diagnostics and declarations', () => {
     expect(source).not.toContain('"projectPaths": ["/robots.txt"');
   });
 
-  test('does not inject fallback endpoints for a fully static project', () => {
+  test('does not inject fallback endpoints for a fully static project', async () => {
     const injected = [];
     const integration = aeo({ discovery: { sitemap: { mode: 'disabled' } } });
-    integration.hooks['astro:config:setup']({
+    await integration.hooks['astro:config:setup']({
       config: { integrations: [] },
       command: 'build',
       injectRoute: (route) => injected.push(route),
@@ -265,13 +267,13 @@ describe('integration diagnostics and declarations', () => {
     expect(source).not.toContain('integrationPage');
   });
 
-  test('treats public files inside the configured base as runtime owners', async () => {
+  test('treats app-relative public files as runtime owners under the configured base', async () => {
     const root = mkdtempSync(join(tmpdir(), 'aeo-public-runtime-ownership-'));
     const publicRoot = join(root, 'public');
     mkdirSync(join(publicRoot, 'docs'), { recursive: true });
-    writeFileSync(join(publicRoot, 'docs', 'llms.txt'), 'project corpus');
-    writeFileSync(join(publicRoot, 'docs', 'manual.md'), 'project Markdown');
-    writeFileSync(join(publicRoot, 'outside.txt'), 'not served below the base');
+    writeFileSync(join(publicRoot, 'llms.txt'), 'project corpus');
+    writeFileSync(join(publicRoot, 'manual.md'), 'project Markdown');
+    writeFileSync(join(publicRoot, 'docs', 'nested.txt'), 'nested public file');
 
     try {
       let updated;
@@ -307,8 +309,9 @@ describe('integration diagnostics and declarations', () => {
 
       const plugin = updated.vite.plugins[0];
       const source = plugin.load(plugin.resolveId('astro-aeo:runtime-config'));
-      expect(source).toContain('"projectPaths": ["/llms.txt", "/manual.md"]');
-      expect(source).not.toContain('/outside.txt');
+      expect(source).toContain('"/docs/nested.txt"');
+      expect(source).toContain('"/llms.txt"');
+      expect(source).toContain('"/manual.md"');
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -338,7 +341,7 @@ describe('integration diagnostics and declarations', () => {
         error() {},
         debug() {},
       };
-      integration.hooks['astro:config:setup']({
+      await integration.hooks['astro:config:setup']({
         config: { integrations: [] },
         command: 'build',
         addMiddleware() {},
@@ -402,7 +405,7 @@ describe('integration diagnostics and declarations', () => {
       discovery: { sitemap: { mode: 'disabled' } },
     });
     const logger = { warn: (message) => warnings.push(message), info() {}, error() {}, debug() {} };
-    integration.hooks['astro:config:setup']({
+    await integration.hooks['astro:config:setup']({
       config: { integrations: [], site: new URL('https://example.test') },
       command: 'build',
       addMiddleware() {},
@@ -437,11 +440,11 @@ describe('integration diagnostics and declarations', () => {
     expect(injected[0].content).toContain('astroAeoCollect?: boolean');
   });
 
-  test('does not diagnose Astro internal dynamic routes', () => {
+  test('does not diagnose Astro internal dynamic routes', async () => {
     const warnings = [];
     const integration = aeo({ discovery: { sitemap: { mode: 'disabled' } } });
     const logger = { warn: (message) => warnings.push(message), info() {}, error() {}, debug() {} };
-    integration.hooks['astro:config:setup']({
+    await integration.hooks['astro:config:setup']({
       config: { integrations: [] },
       command: 'build',
       addMiddleware() {},
@@ -458,7 +461,7 @@ describe('integration diagnostics and declarations', () => {
     let updated;
     const integration = aeo({ discovery: { sitemap: { mode: 'disabled' } } });
     const logger = { warn() {}, info() {}, error() {}, debug() {} };
-    integration.hooks['astro:config:setup']({
+    await integration.hooks['astro:config:setup']({
       config: { integrations: [] },
       command: 'build',
       addMiddleware() {},

@@ -80,6 +80,50 @@ describe('build plugin replacement validation', () => {
     expect(isPageDescriptor({ pathname: '/guide/', dates: { published: 'not-a-date' } })).toBe(false);
   });
 
+  test.each([
+    '2026-08-11',
+    '2026-08-11T10:00:00Z',
+    '2026-08-11t10:00:00.123+02:30',
+  ])('accepts an ISO catalog date: %s', (published) => {
+    expect(isPageDescriptor({ pathname: '/guide', dates: { published } })).toBe(true);
+  });
+
+  test.each([
+    '2026-02-30',
+    '08/11/2026',
+    '2026-08-11 10:00:00Z',
+    '2026-08-11T10:00:00',
+    '2026-08-11T24:00:00Z',
+    '2026-08-11T10:00:00+24:00',
+  ])('rejects a non-ISO or impossible catalog date: %s', (published) => {
+    expect(isPageDescriptor({ pathname: '/guide', dates: { published } })).toBe(false);
+  });
+
+  test('requires timestamps once descriptors become page records', () => {
+    const page = pageRecord();
+    expect(isPageRecord({ ...page, dates: { published: '2026-08-11' } })).toBe(false);
+    expect(isPageRecord({ ...page, lastModified: '2026-08-11' })).toBe(false);
+    expect(isPageRecord({
+      ...page,
+      dates: { published: '2026-08-11T10:00:00Z' },
+      lastModified: '2026-08-11T10:00:00Z',
+    })).toBe(true);
+  });
+
+  test('accepts a root-relative page URL only when no canonical is available', () => {
+    const page = pageRecord();
+    const withoutSite = {
+      ...page,
+      url: '/',
+      canonicalUrl: undefined,
+      markdownUrl: undefined,
+      metadata: { title: page.metadata.title, description: page.metadata.description },
+    };
+    expect(isPageRecord(withoutSite)).toBe(true);
+    expect(isPageRecord({ ...withoutSite, url: 'relative' })).toBe(false);
+    expect(isPageRecord({ ...page, url: '/' })).toBe(false);
+  });
+
   test('validates complete graphs while preserving page identity and site facts', () => {
     const page = pageRecord();
     const site = { siteUrl: 'https://example.test', base: '', trailingSlash: 'never' };

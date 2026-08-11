@@ -1,6 +1,7 @@
 import { test, expect, describe, beforeEach, afterEach } from 'vitest';
 import {
   existsSync,
+  lstatSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -382,6 +383,15 @@ describe('reporting', () => {
       'astro-aeo: artifact registry wrote 3 artifact(s): dotmd=2, llmsTxt=1',
     ]);
   });
+
+  test('immediate commit returns the same ownership shape without logging', () => {
+    const writer = createArtifactWriter({ distDir, logger });
+    writer.write(artifact({ path: join(dir, 'a.md'), owner: 'dotmd' }));
+    writer.write(artifact({ path: join(dir, 'llms.txt'), owner: 'llmsTxt' }));
+
+    expect(writer.commit()).toEqual({ total: 2, byOwner: { dotmd: 1, llmsTxt: 1 } });
+    expect(infos).toEqual([]);
+  });
 });
 
 describe('deferred ownership and transaction', () => {
@@ -456,6 +466,28 @@ describe('deferred ownership and transaction', () => {
     ]);
   });
 
+  test('removes a base-mounted runtime artifact from the app-relative output root', () => {
+    const publicRoot = join(dir, 'public');
+    mkdirSync(publicRoot);
+    writeFileSync(join(publicRoot, 'llms.txt'), 'public source');
+    writeFileSync(join(dir, 'llms.txt'), 'copied public source');
+    const writer = deferredWriter({
+      base: '/docs',
+      publicDir: pathToFileURL(`${publicRoot}/`),
+      replacePaths: ['/docs/llms.txt'],
+    });
+    writer.write({
+      route: '/llms.txt',
+      owner: { kind: 'core', name: 'llmsTxt' },
+      runtime: true,
+    });
+
+    writer.commit();
+    expect(existsSync(join(dir, 'llms.txt'))).toBe(false);
+    expect(existsSync(join(dir, 'docs', 'llms.txt'))).toBe(false);
+    expect(readFileSync(join(publicRoot, 'llms.txt'), 'utf8')).toBe('public source');
+  });
+
   test('keeps a runtime schema pair all-or-none when one public member blocks it', () => {
     const publicRoot = join(dir, 'public');
     mkdirSync(join(publicRoot, 'schema'), { recursive: true });
@@ -507,12 +539,13 @@ describe('deferred ownership and transaction', () => {
     expect([...readFileSync(destination)]).toEqual([0, 1, 2, 255]);
   });
 
-  test('project and public owners win unless the exact served path is authorized', () => {
+  test('keeps base in served ownership while using app-relative physical paths', () => {
     const publicRoot = join(dir, 'public');
-    mkdirSync(join(publicRoot, 'docs'), { recursive: true });
-    writeFileSync(join(publicRoot, 'docs', 'public.txt'), 'public source');
-    const projectPath = join(dir, 'docs', 'project.txt');
-    const publicPath = join(dir, 'docs', 'public.txt');
+    mkdirSync(publicRoot, { recursive: true });
+    writeFileSync(join(publicRoot, 'public.txt'), 'public source');
+    writeFileSync(join(dir, 'public.txt'), 'copied public source');
+    const projectPath = join(dir, 'project.txt');
+    const publicPath = join(dir, 'public.txt');
     const writer = deferredWriter({
       base: '/docs',
       routePaths: new Set(['/project.txt']),
@@ -524,7 +557,9 @@ describe('deferred ownership and transaction', () => {
 
     writer.commit();
     expect(readFileSync(projectPath, 'utf8')).toBe('generated project');
-    expect(existsSync(publicPath)).toBe(false);
+    expect(readFileSync(publicPath, 'utf8')).toBe('copied public source');
+    expect(existsSync(join(dir, 'docs', 'project.txt'))).toBe(false);
+    expect(existsSync(join(dir, 'docs', 'public.txt'))).toBe(false);
     const manifest = JSON.parse(
       readFileSync(join(dir, '.astro', 'aeo-cache', 'ownership-v1.json'), 'utf8'),
     );
@@ -532,6 +567,7 @@ describe('deferred ownership and transaction', () => {
       expect.objectContaining({
         pathname: '/docs/project.txt',
         status: 'emitted',
+        outputPath: 'project.txt',
         replacedOwners: [expect.objectContaining({ kind: 'project-route' })],
       }),
       expect.objectContaining({
@@ -540,6 +576,47 @@ describe('deferred ownership and transaction', () => {
         blockingOwners: [{ kind: 'public-file' }],
       }),
     ]));
+  });
+
+  test('matches an encoded replacement to a decoded project-route key', () => {
+    const writer = deferredWriter({
+      routePaths: new Set(['/sale-100%.txt']),
+      replacePaths: ['/sale-100%25.txt'],
+    });
+    writer.write({
+      pathname: '/sale-100%25.txt',
+      owner: { kind: 'core', name: 'llmsTxt' },
+      representation: { body: 'sale', contentType: 'text/plain; charset=utf-8' },
+    });
+
+    writer.commit();
+
+    expect(readFileSync(join(dir, 'sale-100%.txt'), 'utf8')).toBe('sale');
+  });
+
+  test('canonical-encodes internal routes and base while keeping app-relative output paths', () => {
+    const writer = deferredWriter({ base: '/docs café%' });
+    writer.write(artifact({
+      route: '/sale-100%.txt',
+      contents: 'sale',
+    }));
+    writer.write(artifact({
+      route: '/café.txt',
+      contents: 'café',
+    }));
+
+    writer.commit();
+
+    expect(readFileSync(join(dir, 'sale-100%.txt'), 'utf8')).toBe('sale');
+    expect(readFileSync(join(dir, 'café.txt'), 'utf8')).toBe('café');
+    const manifest = JSON.parse(
+      readFileSync(join(dir, '.astro', 'aeo-cache', 'ownership-v1.json'), 'utf8'),
+    );
+    expect(manifest.base).toBe('/docs%20caf%C3%A9%25');
+    expect(manifest.artifacts.map((entry) => entry.pathname)).toEqual([
+      '/docs%20caf%C3%A9%25/caf%C3%A9.txt',
+      '/docs%20caf%C3%A9%25/sale-100%25.txt',
+    ]);
   });
 
   test('derives plugin destinations only from validated served pathnames', () => {
@@ -579,6 +656,36 @@ describe('deferred ownership and transaction', () => {
     } finally {
       rmSync(outside, { recursive: true, force: true });
     }
+  });
+
+  test('rejects an output ancestor changed to a symlink after registration', () => {
+    const outside = join(dirname(dir), `${basename(dir)}-late-target`);
+    mkdirSync(outside);
+    try {
+      const writer = deferredWriter();
+      expect(writer.write(artifact({
+        route: '/late/file.txt',
+        contents: 'unsafe',
+      }))).toBe(true);
+      symlinkSync(outside, join(dir, 'late'), 'dir');
+
+      expect(() => writer.commit()).toThrow(/destination ancestry is unsafe/);
+      expect(existsSync(join(outside, 'file.txt'))).toBe(false);
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  test('preserves an unauthorized dangling destination symlink', () => {
+    const path = join(dir, 'dangling.txt');
+    symlinkSync('missing-destination', path);
+    const writer = deferredWriter();
+    writer.write(artifact({ path, route: '/dangling.txt', contents: 'generated' }));
+
+    writer.commit();
+
+    expect(lstatSync(path).isSymbolicLink()).toBe(true);
+    expect(existsSync(path)).toBe(false);
   });
 
   test('lets a plugin replace an external owner only with per-claim authorization', () => {
@@ -639,6 +746,19 @@ describe('deferred ownership and transaction', () => {
     expect(diagnostics.filter((finding) => finding.code === 'artifact-generated-conflict')).toHaveLength(1);
     expect(diagnostics[0].message).toContain('core "llmsTxt", core "urlMap"');
     expect(existsSync(join(dir, '.astro', 'aeo-cache', 'ownership-v1.json'))).toBe(false);
+  });
+
+  test('rejects generated ancestor and descendant destinations before staging', () => {
+    const diagnostics = [];
+    const writer = deferredWriter({ diagnostics });
+    writer.write(artifact({ route: '/nested', contents: 'parent' }));
+    writer.write(artifact({ route: '/nested/child.txt', contents: 'child' }));
+
+    expect(() => writer.commit()).toThrow(/artifact validation failed/);
+    expect(existsSync(join(dir, 'nested'))).toBe(false);
+    expect(diagnostics).toEqual([
+      expect.objectContaining({ code: 'artifact-generated-conflict', severity: 'error' }),
+    ]);
   });
 
   test('freezes candidate registration once ownership resolution starts', () => {
@@ -789,6 +909,49 @@ describe('deferred ownership and transaction', () => {
     third.write(artifact({ path: join(dir, 'keep.txt'), route: '/keep.txt', contents: 'third' }));
     third.commit();
     expect(readFileSync(join(dir, 'keep.txt'), 'utf8')).toBe('user modified');
+  });
+
+  test('retains ownership of the same output path when the configured base changes', () => {
+    const first = deferredWriter({ base: '/old' });
+    first.write(artifact({ route: '/keep.txt', contents: 'first' }));
+    first.commit();
+
+    const second = deferredWriter({ base: '/new' });
+    second.write(artifact({ route: '/keep.txt', contents: 'second' }));
+    second.commit();
+
+    expect(readFileSync(join(dir, 'keep.txt'), 'utf8')).toBe('second');
+    const manifest = JSON.parse(
+      readFileSync(join(dir, '.astro', 'aeo-cache', 'ownership-v1.json'), 'utf8'),
+    );
+    expect(manifest.base).toBe('/new');
+    expect(manifest.artifacts).toEqual([
+      expect.objectContaining({
+        pathname: '/new/keep.txt',
+        status: 'emitted',
+        outputPath: 'keep.txt',
+      }),
+    ]);
+  });
+
+  test('uses the prior base when checking stale public files and project routes', () => {
+    const first = deferredWriter({ base: '/old' });
+    first.write(artifact({ route: '/public-owned.txt', contents: 'public copy' }));
+    first.write(artifact({ route: '/project-owned.txt', contents: 'project copy' }));
+    first.commit();
+
+    const publicRoot = join(dir, 'public');
+    mkdirSync(publicRoot);
+    writeFileSync(join(publicRoot, 'public-owned.txt'), 'public source');
+    const second = deferredWriter({
+      base: '/new',
+      publicDir: pathToFileURL(`${publicRoot}/`),
+      routePaths: new Set(['/project-owned.txt']),
+    });
+    second.commit();
+
+    expect(readFileSync(join(dir, 'public-owned.txt'), 'utf8')).toBe('public copy');
+    expect(readFileSync(join(dir, 'project-owned.txt'), 'utf8')).toBe('project copy');
   });
 
   test('cleans a prior atomic group only when every stale member is unchanged', () => {

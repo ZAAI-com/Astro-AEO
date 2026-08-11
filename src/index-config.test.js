@@ -2,7 +2,7 @@ import { describe, expect, test, vi } from 'vitest';
 import aeo from './index.js';
 
 describe('runtime configuration projection', () => {
-  test('does not warn for build-only sitemap callbacks', () => {
+  test('does not warn for build-only sitemap callbacks', async () => {
     const warnings = [];
     const integration = aeo({
       discovery: {
@@ -13,7 +13,7 @@ describe('runtime configuration projection', () => {
       },
     });
 
-    integration.hooks['astro:config:setup']({
+    await integration.hooks['astro:config:setup']({
       config: { integrations: [] },
       command: 'build',
       addMiddleware: vi.fn(),
@@ -24,7 +24,7 @@ describe('runtime configuration projection', () => {
     expect(warnings.join('\n')).not.toContain('discovery.sitemap.options');
   });
 
-  test('still warns for callbacks used by the request-time pipeline', () => {
+  test('still warns for callbacks used by the request-time pipeline', async () => {
     const warnings = [];
     const integration = aeo({
       corpus: {
@@ -35,7 +35,7 @@ describe('runtime configuration projection', () => {
       discovery: { sitemap: { mode: 'disabled' } },
     });
 
-    integration.hooks['astro:config:setup']({
+    await integration.hooks['astro:config:setup']({
       config: { integrations: [] },
       command: 'build',
       addMiddleware: vi.fn(),

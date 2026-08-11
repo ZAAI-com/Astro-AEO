@@ -1,9 +1,9 @@
 // @ts-check
-import { writeFileSync, mkdirSync, existsSync, copyFileSync, constants, readFileSync } from 'node:fs';
+import { writeFileSync, mkdirSync, lstatSync, copyFileSync, constants, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inspectRootPathname, normalizePath } from '../core/match.js';
-import { assertExactPathname } from '../config.js';
+import { exactPathnameIdentity } from '../core/artifact-path.js';
 import {
   fileEtag,
   outputRootId,
@@ -104,7 +104,7 @@ function createImmediateArtifactWriter({ distDir, logger, routePaths, routeMatch
     const ownerKey = typeof owner === 'string' ? owner : /** @type {ArtifactOwner} */ (owner.name);
 
     const priorOwner = claimed.get(path);
-    const destinationExists = existsSync(path);
+    const destinationExists = pathEntryExists(path);
     const normalizedRoute = route ? normalizePath(route) : undefined;
     const onDemandRouteCollision = Boolean(
       normalizedRoute &&
@@ -135,7 +135,7 @@ function createImmediateArtifactWriter({ distDir, logger, routePaths, routeMatch
           ? path
           : undefined
       : undefined;
-    const publicCollision = Boolean(publicFile && existsSync(publicFile));
+    const publicCollision = Boolean(publicFile && pathEntryExists(publicFile));
 
     const skipCollision =
       onConflict === 'skip' &&
@@ -222,6 +222,20 @@ function createImmediateArtifactWriter({ distDir, logger, routePaths, routeMatch
     return updated !== contents;
   }
 
+  /** @returns {{ total: number; byOwner: Partial<Record<ArtifactOwner, number>> }} */
+  function ownershipReport() {
+    /** @type {Partial<Record<ArtifactOwner, number>>} */
+    const byOwner = {};
+    let total = 0;
+    for (const owner of OWNER_ORDER) {
+      const count = counts.get(owner) ?? 0;
+      if (!count) continue;
+      byOwner[owner] = count;
+      total += count;
+    }
+    return { total, byOwner };
+  }
+
   return {
     isDeferred: false,
     write,
@@ -245,27 +259,19 @@ function createImmediateArtifactWriter({ distDir, logger, routePaths, routeMatch
     },
     /** @returns {{ total: number; byOwner: Partial<Record<ArtifactOwner, number>> }} */
     report() {
-      /** @type {Partial<Record<ArtifactOwner, number>>} */
-      const byOwner = {};
-      let total = 0;
-      for (const owner of OWNER_ORDER) {
-        const count = counts.get(owner) ?? 0;
-        if (!count) continue;
-        byOwner[owner] = count;
-        total += count;
-      }
+      const value = ownershipReport();
 
       const details = OWNER_ORDER.flatMap((owner) =>
-        byOwner[owner] ? [`${owner}=${byOwner[owner]}`] : [],
+        value.byOwner[owner] ? [`${owner}=${value.byOwner[owner]}`] : [],
       ).join(', ');
       logger.info(
-        `astro-aeo: artifact registry wrote ${total} artifact(s)` +
+        `astro-aeo: artifact registry wrote ${value.total} artifact(s)` +
           (details ? `: ${details}` : ''),
       );
-      return { total, byOwner };
+      return value;
     },
     commit() {
-      return { total: [...counts.values()].reduce((sum, value) => sum + value, 0) };
+      return ownershipReport();
     },
     /** @param {string} path @param {string} _owner @param {(contents: string) => string} transform */
     stageTransform(path, _owner, transform) {
@@ -295,30 +301,80 @@ export class ArtifactValidationError extends Error {
  */
 export function normalizeArtifactPathname(value) {
   try {
-    assertExactPathname(value, 'artifact pathname');
+    const identity = exactPathnameIdentity(value, 'artifact pathname');
+    if (identity.key === '/' || identity.key.split('/').slice(1).some((part) => !part)) return null;
+    return identity;
   } catch {
     return null;
   }
-  const inspected = inspectRootPathname(value);
-  if (!inspected) return null;
-  const key = normalizePath(inspected.decoded);
-  if (key === '/' || key.split('/').slice(1).some((part) => !part)) return null;
-  return { key, pathname: /** @type {string} */ (value) };
+}
+
+/**
+ * Astro route keys are already-decoded application paths, while configurable
+ * exact artifact pathnames are validated in their canonical URL spelling. Core
+ * callers use `route`, so encode that trusted route form before exact validation.
+ * Already-encoded safe routes round-trip without being double encoded.
+ * @param {string} pathname
+ */
+function canonicalInternalPathname(pathname) {
+  const normalized = normalizePath(pathname);
+  const inspected = inspectRootPathname(normalized);
+  try {
+    return encodeURI(inspected ? normalizePath(inspected.decoded) : normalized);
+  } catch {
+    return normalized;
+  }
+}
+
+/** @param {string} base @returns {string} */
+function canonicalBase(base) {
+  if (!base || base === '/') return '';
+  const pathname = canonicalInternalPathname(base);
+  return inspectRootPathname(pathname) ? normalizePath(pathname) : '';
 }
 
 /** @param {string} base @returns {string} */
 function normalizedBase(base) {
-  if (!base || base === '/') return '';
-  const inspected = inspectRootPathname(base);
+  const pathname = canonicalBase(base);
+  const inspected = pathname ? inspectRootPathname(pathname) : null;
   return inspected ? normalizePath(inspected.decoded) : '';
 }
 
 /** @param {string} pathname @param {string} base */
 function withBase(pathname, base) {
+  const normalized = canonicalInternalPathname(pathname);
+  const prefix = canonicalBase(base);
+  if (!prefix) return normalized;
+  return normalized === '/' ? prefix : `${prefix}${normalized}`;
+}
+
+/** @param {string} pathname */
+function internalPathKey(pathname) {
+  const inspected = inspectRootPathname(canonicalInternalPathname(pathname));
+  return inspected ? normalizePath(inspected.decoded) : normalizePath(pathname);
+}
+
+/**
+ * Convert one browser-visible pathname into its app-relative pathname. Astro's
+ * configured base belongs in URLs, route ownership, and manifests, but its
+ * client output and public directory are already mounted at that base and must
+ * not contain a second physical base directory.
+ * @param {string} pathname
+ * @param {string} base
+ * @returns {string | null}
+ */
+function withoutBase(pathname, base) {
   const normalized = normalizePath(pathname);
   const prefix = normalizedBase(base);
   if (!prefix) return normalized;
-  return normalized === '/' ? prefix : `${prefix}${normalized}`;
+  if (normalized === prefix) return '/';
+  return normalized.startsWith(`${prefix}/`) ? normalized.slice(prefix.length) : null;
+}
+
+/** @param {string} root @param {string} servedKey @param {string} base */
+function physicalArtifactPath(root, servedKey, base) {
+  const appPath = withoutBase(servedKey, base);
+  return appPath ? resolveRecordedOutputPath(root, appPath.replace(/^\/+/, '')) : null;
 }
 
 /** @param {unknown} owner */
@@ -410,8 +466,11 @@ function createDeferredArtifactWriter(deps) {
   const outputId = outputRootId(root);
   const previousManifest = readOwnershipManifest(projectRoot);
   const previousUsable = previousManifest?.outputRootId === outputId ? previousManifest : null;
+  const previousBase = previousUsable && typeof previousUsable.base === 'string'
+    ? previousUsable.base
+    : base;
   const projectRoutes = new Set(
-    [...(routePaths ?? [])].map((pathname) => normalizePath(withBase(pathname, base))),
+    [...(routePaths ?? [])].map(internalPathKey),
   );
   /** @type {Set<string>} */
   const replacements = new Set();
@@ -459,9 +518,10 @@ function createDeferredArtifactWriter(deps) {
     // A served pathname is the sole authority for its output location. Do not
     // let a plugin smuggle a second filesystem destination alongside a safe URL.
     // Legacy core callers still pass `path`, but route claims are intentionally
-    // remapped here so base-prefixed builds land below the configured base.
+    // remapped here. The configured base remains part of the served pathname;
+    // Astro mounts the physical client output at that base already.
     let destination = served
-      ? resolveRecordedOutputPath(root, served.key.replace(/^\/+/, ''))
+      ? physicalArtifactPath(root, served.key, base)
       : artifact.path;
     if (!destination) {
       reportDiagnostic(
@@ -565,11 +625,23 @@ function createDeferredArtifactWriter(deps) {
     };
     for (const [key, related] of byServed) markConflict(related, related[0].served.pathname ?? key);
     for (const [path, related] of byDestination) markConflict(related, artifactPathLabel(path));
+    const destinations = [...byDestination.entries()];
+    for (let left = 0; left < destinations.length; left++) {
+      for (let right = left + 1; right < destinations.length; right++) {
+        const [leftPath, leftClaims] = destinations[left];
+        const [rightPath, rightClaims] = destinations[right];
+        if (!pathWithin(leftPath, rightPath) && !pathWithin(rightPath, leftPath)) continue;
+        markConflict(
+          [...leftClaims, ...rightClaims],
+          `${artifactPathLabel(leftPath)} and ${artifactPathLabel(rightPath)}`,
+        );
+      }
+    }
 
     for (const claim of claims) {
       if (decisions.has(claim.id)) continue;
       if (!claim.served) {
-        if (existsSync(claim.artifact.path)) {
+        if (pathEntryExists(claim.artifact.path)) {
           decisions.set(claim.id, { status: 'preserved', blockers: [{ kind: 'existing-output' }] });
           reportDiagnostic(
             'url-map-existing-output',
@@ -653,32 +725,28 @@ function createDeferredArtifactWriter(deps) {
       owners.push({ kind: 'project-route', rendering: projectRendering(claim.served.key) });
     }
     const publicPath = publicRoot
-      ? join(publicRoot, claim.served.key.replace(/^\/+/, ''))
+      ? physicalArtifactPath(publicRoot, claim.served.key, base)
       : undefined;
-    if (publicPath && existsSync(publicPath)) owners.push({ kind: 'public-file' });
-    if (existsSync(claim.artifact.path) && owners.length === 0) owners.push({ kind: 'existing-output' });
+    if (publicPath && pathEntryExists(publicPath)) owners.push({ kind: 'public-file' });
+    if (pathEntryExists(claim.artifact.path) && owners.length === 0) owners.push({ kind: 'existing-output' });
     return owners;
   }
 
-  /** @param {string} servedKey */
-  function projectRouteOwns(servedKey) {
-    if (projectRoutes.has(servedKey)) return true;
-    const prefix = normalizedBase(base);
-    const appPath = prefix && (servedKey === prefix || servedKey.startsWith(`${prefix}/`))
-      ? servedKey.slice(prefix.length) || '/'
-      : servedKey;
+  /** @param {string} servedKey @param {string} [servedBase] */
+  function projectRouteOwns(servedKey, servedBase = base) {
+    const appPath = withoutBase(servedKey, servedBase);
+    if (!appPath) return false;
+    if (projectRoutes.has(appPath)) return true;
     return routeMatchers.some(({ pattern, prerendered }) => {
-      if (prerendered && !existsSync(join(root, servedKey.replace(/^\/+/, '')))) return false;
+      const physicalPath = physicalArtifactPath(root, servedKey, servedBase);
+      if (prerendered && (!physicalPath || !pathEntryExists(physicalPath))) return false;
       return patternMatches(pattern, appPath) || patternMatches(pattern, servedKey);
     });
   }
 
   /** @param {string} servedKey @returns {'prerendered'|'on-demand'} */
   function projectRendering(servedKey) {
-    const prefix = normalizedBase(base);
-    const appPath = prefix && servedKey.startsWith(`${prefix}/`)
-      ? servedKey.slice(prefix.length)
-      : servedKey;
+    const appPath = withoutBase(servedKey, base) ?? servedKey;
     return routeMatchers.some(({ pattern, prerendered }) => !prerendered && (patternMatches(pattern, appPath) || patternMatches(pattern, servedKey)))
       ? 'on-demand'
       : 'prerendered';
@@ -690,7 +758,8 @@ function createDeferredArtifactWriter(deps) {
     const outputPath = relativeOutputPath(root, claim.artifact.path);
     if (!outputPath) return false;
     const previous = previousUsable.artifacts.find(
-      (/** @type {any} */ entry) => entry?.status === 'emitted' && entry.pathname === claim.served.pathname && entry.outputPath === outputPath,
+      (/** @type {any} */ entry) =>
+        entry?.status === 'emitted' && entry.outputPath === outputPath,
     );
     return Boolean(previous?.representation?.etag && fileEtag(claim.artifact.path) === previous.representation.etag);
   }
@@ -803,7 +872,7 @@ function createDeferredArtifactWriter(deps) {
       for (const claim of claims) {
         if (resolved.decisions.get(claim.id)?.status !== 'emit') continue;
         if (claim.artifact.runtime) {
-          if (existsSync(claim.artifact.path)) {
+          if (pathEntryExists(claim.artifact.path)) {
             operations.push({ kind: 'delete', path: claim.artifact.path });
           }
           continue;
@@ -824,7 +893,7 @@ function createDeferredArtifactWriter(deps) {
         const manifest = {
           version: 1,
           generatedAt: new Date().toISOString(),
-          base: normalizedBase(base) || '/',
+          base: canonicalBase(base) || '/',
           outputRootId: outputId,
           artifacts: resolved.manifestEntries,
           groups: resolved.manifestGroups,
@@ -837,7 +906,7 @@ function createDeferredArtifactWriter(deps) {
         });
       }
 
-      commitFileTransaction(operations, { beforeApply });
+      commitFileTransaction(operations.map(confineOperation), { beforeApply });
       committed = true;
     } catch (error) {
       counts.clear();
@@ -897,7 +966,7 @@ function createDeferredArtifactWriter(deps) {
         continue;
       }
       try {
-        commitFileTransaction([operation]);
+        commitFileTransaction([confineOperation(operation)]);
       } catch (error) {
         failures.push(error);
       }
@@ -965,10 +1034,17 @@ function createDeferredArtifactWriter(deps) {
   /** @param {Map<string, any[]>} currentClaims */
   function staleCleanupOperations(currentClaims) {
     if (!previousUsable) return [];
+    const currentOutputPaths = new Set(
+      [...currentClaims.values()].flatMap((related) =>
+        related.flatMap((claim) => {
+          const outputPath = relativeOutputPath(root, claim.artifact.path);
+          return outputPath ? [outputPath] : [];
+        }),
+      ),
+    );
     const candidates = previousUsable.artifacts.filter(
       (/** @type {any} */ entry) => {
-        const normalized = normalizeArtifactPathname(entry?.pathname);
-        return entry?.status === 'emitted' && (!normalized || !currentClaims.has(normalized.key));
+        return entry?.status === 'emitted' && !currentOutputPaths.has(entry.outputPath);
       },
     );
     /** @type {Map<string, any[]>} */
@@ -986,9 +1062,11 @@ function createDeferredArtifactWriter(deps) {
     const safe = (/** @type {any} */ entry) => {
       const served = normalizeArtifactPathname(entry.pathname);
       const path = resolveRecordedOutputPath(root, entry.outputPath);
-      if (!served || !path || projectRouteOwns(served.key)) return null;
-      const publicPath = publicRoot ? join(publicRoot, served.key.replace(/^\/+/, '')) : undefined;
-      if (publicPath && existsSync(publicPath)) return null;
+      if (!served || !path || projectRouteOwns(served.key, previousBase)) return null;
+      const publicPath = publicRoot
+        ? physicalArtifactPath(publicRoot, served.key, previousBase)
+        : undefined;
+      if (publicPath && pathEntryExists(publicPath)) return null;
       if (fileEtag(path) !== entry.representation?.etag) return null;
       return path;
     };
@@ -1003,6 +1081,16 @@ function createDeferredArtifactWriter(deps) {
       }
     }
     return deletes;
+  }
+
+  /** @param {import('./transaction.js').FileOperation} operation */
+  function confineOperation(operation) {
+    const confineTo = pathWithin(root, operation.path)
+      ? root
+      : projectRoot && pathWithin(projectRoot, operation.path)
+        ? projectRoot
+        : undefined;
+    return confineTo ? { ...operation, confineTo } : operation;
   }
 
   function ownershipReport() {
@@ -1092,6 +1180,17 @@ function displayPath(root, path) {
 function pathWithin(root, path) {
   const rel = relative(root, path);
   return rel === '' || (!isAbsolute(rel) && rel !== '..' && !rel.startsWith(`..${sep}`));
+}
+
+/** @param {string} path */
+function pathEntryExists(path) {
+  try {
+    lstatSync(path);
+    return true;
+  } catch (error) {
+    if (/** @type {any} */ (error)?.code === 'ENOENT') return false;
+    throw error;
+  }
 }
 
 /**

@@ -23,6 +23,18 @@ describe('published configuration schema', () => {
     expect(conforms({ pages: { catalogs: [{ module: '' }] } })).toBe(false);
   });
 
+  test('artifact replacement paths match the runtime pathname shape', () => {
+    for (const pathname of ['/x', '/docs/llms.txt']) {
+      expect(conforms({ artifacts: { replace: [pathname] } }), pathname).toBe(true);
+    }
+    for (const pathname of [
+      '/', '//x', '/a//b', '/.', '/..', '/a/.', '/a/..', '/a/./b', '/a/../b',
+      '/a/', '/a?query', '/a#fragment', '/a*', '/a{x}', '/a[x]', '/a\\b',
+    ]) {
+      expect(conforms({ artifacts: { replace: [pathname] } }), pathname).toBe(false);
+    }
+  });
+
   test('deprecated object aliases retain their value constraints', () => {
     expect(
       conforms({
@@ -72,6 +84,7 @@ function matches(value, schema) {
   if (schema.type === 'string') {
     if (typeof value !== 'string') return false;
     if (schema.minLength !== undefined && value.length < schema.minLength) return false;
+    if (schema.pattern !== undefined && !new RegExp(schema.pattern, 'u').test(value)) return false;
   }
   if (schema.type === 'integer') {
     if (!Number.isInteger(value)) return false;

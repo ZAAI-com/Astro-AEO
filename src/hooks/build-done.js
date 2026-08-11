@@ -449,8 +449,10 @@ function applyHtmlDelta(current, before, after) {
   const inserted = after.slice(prefix, after.length - suffix);
   if (!removed) {
     const right = before.slice(prefix, prefix + 80);
-    const at = right ? current.indexOf(right) : current.length;
-    return at === -1 ? after : `${current.slice(0, at)}${inserted}${current.slice(at)}`;
+    if (!right) return `${current}${inserted}`;
+    const at = current.indexOf(right);
+    if (at === -1 || current.indexOf(right, at + right.length) !== -1) return after;
+    return `${current.slice(0, at)}${inserted}${current.slice(at)}`;
   }
   const first = current.indexOf(removed);
   if (first === -1 || current.indexOf(removed, first + removed.length) !== -1) return after;

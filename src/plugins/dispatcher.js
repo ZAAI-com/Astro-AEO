@@ -1,6 +1,7 @@
 // @ts-check
 import { AeoConfigError } from '../lib/errors.js';
 import { cloneJsonValue, deepFreeze, immutableJsonValue } from '../core/json-value.js';
+import { assertExactPathname } from '../core/artifact-path.js';
 
 export const PLUGIN_STAGES = /** @type {const} */ ([
   'page:discovered',
@@ -198,26 +199,15 @@ function validateClaim(plugin, claim) {
   if (!claim || typeof claim !== 'object' || typeof claim.id !== 'string' || !claim.id.trim()) {
     throw new AeoConfigError(`astro-aeo: plugin "${plugin}" artifact claims require a non-empty id.`);
   }
-  if (typeof claim.pathname !== 'string' || !isExactPluginPath(claim.pathname)) {
+  try {
+    assertExactPathname(claim.pathname, 'artifact pathname');
+  } catch {
     throw new AeoConfigError(`astro-aeo: plugin "${plugin}" artifact "${claim.id}" must claim one exact app-relative pathname.`);
   }
   if (claim.replace !== undefined && typeof claim.replace !== 'boolean') {
     throw new AeoConfigError(`astro-aeo: plugin "${plugin}" artifact "${claim.id}" replace must be boolean.`);
   }
   return { id: claim.id, pathname: claim.pathname, ...(claim.replace ? { replace: true } : {}) };
-}
-
-/** @param {string} path */
-function isExactPluginPath(path) {
-  if (!path.startsWith('/') || path === '/' || path.startsWith('//') || path.endsWith('/')) return false;
-  if (/[\\?#*{}\[\]]/.test(path) || path.includes('//') || /%(?:2f|5c)/i.test(path)) return false;
-  try {
-    let decoded = path;
-    for (let index = 0; index < 3; index++) decoded = decodeURIComponent(decoded);
-    return !decoded.split('/').some((part) => part === '.' || part === '..');
-  } catch {
-    return false;
-  }
 }
 
 /**

@@ -160,9 +160,18 @@ if (schema.title !== 'Astro-AEO configuration' || pkg.name !== 'astro-aeo') proc
       [
         '--input-type=module',
         '-e',
-        `for (const [specifier, peer] of [['astro-aeo/mdx', '@mdx-js/mdx'], ['astro-aeo/defuddle', 'defuddle']]) {
+        `const isExpectedMissingPeer = (error, peer) =>
+  error?.code === 'ERR_MODULE_NOT_FOUND' &&
+  String(error.message).startsWith("Cannot find package '" + peer + "' imported from ");
+for (const [specifier, peer] of [['astro-aeo/mdx', '@mdx-js/mdx'], ['astro-aeo/defuddle', 'defuddle']]) {
+  if (
+    isExpectedMissingPeer({ code: 'ERR_PACKAGE_PATH_NOT_EXPORTED', message: "Cannot find package '" + peer + "' imported from smoke" }, peer) ||
+    isExpectedMissingPeer({ code: 'ERR_MODULE_NOT_FOUND', message: "Cannot find module '/broken/adapter.js'" }, peer)
+  ) process.exit(1);
   try { await import(specifier); process.exit(1); }
-  catch (error) { if (!String(error).includes(peer)) process.exit(1); }
+  catch (error) {
+    if (!isExpectedMissingPeer(error, peer)) process.exit(1);
+  }
 }`,
       ],
       { cwd: consumer },

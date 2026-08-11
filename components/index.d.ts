@@ -1,6 +1,8 @@
 import type { AstroComponentFactory } from 'astro/runtime/server/index.js';
 import type { GraphInput } from '../src/schema.js';
 
+type AstroComponentWithProps<Props> = AstroComponentFactory & ((props: Props) => any);
+
 export type AeoHeadUrl = string | URL;
 
 export interface AeoOpenGraphImage {
@@ -58,7 +60,7 @@ export interface AeoHeadProps {
   infer?: false | readonly ('website' | 'webpage' | 'breadcrumbs')[];
 }
 
-export declare const AeoHead: AstroComponentFactory;
+export declare const AeoHead: AstroComponentWithProps<AeoHeadProps>;
 
 export interface FaqItem {
   question: string;

@@ -1,5 +1,6 @@
 // @ts-check
 import { immutableJsonValue } from '../core/json-value.js';
+import { assertExactPathname, matchesExactPathname } from '../core/artifact-path.js';
 import { textResponse } from './respond.js';
 
 const PLUGIN_STAGES = new Set([
@@ -54,18 +55,19 @@ export function runtimePluginArtifactFor(pathname, loaders, options = {}) {
   const matches = [];
   for (const loader of loaders) {
     for (const claim of loader.claims) {
-      if (claim.pathname === pathname) {
+      if (matchesExactPathname(pathname, claim.pathname)) {
         matches.push({ plugin: loader.name, claim: { ...claim } });
       }
     }
   }
   if (matches.length === 0) return null;
+  const canonicalPathname = matches[0].claim.pathname;
   if (matches.length > 1 || options.coreOwned) {
-    return Object.freeze({ pathname, conflict: true, matches: Object.freeze(matches) });
+    return Object.freeze({ pathname: canonicalPathname, conflict: true, matches: Object.freeze(matches) });
   }
   const [match] = matches;
   if (options.projectOwned && !match.claim.replace) return null;
-  return Object.freeze({ pathname, conflict: false, ...match });
+  return Object.freeze({ pathname: canonicalPathname, conflict: false, ...match });
 }
 
 /**
@@ -82,7 +84,7 @@ export function createRuntimePluginPageHandles(pages, readPage) {
   const seen = new Set();
   const handles = [];
   for (const page of pages) {
-    if (!isExactPathname(page.pathname) || seen.has(page.pathname)) continue;
+    if (!isSafePagePathname(page.pathname) || seen.has(page.pathname)) continue;
     seen.add(page.pathname);
     let pending;
     const handle = {
@@ -474,36 +476,31 @@ function sanitizeRuntimePage(value) {
 /** @param {unknown} claim */
 function isExactClaim(claim) {
   const candidate = /** @type {any} */ (claim);
-  return Boolean(
+  if (!(
     claim &&
     typeof claim === 'object' &&
     typeof candidate.id === 'string' &&
     candidate.id.length > 0 &&
-    isExactPathname(candidate.pathname) &&
-    (candidate.replace === undefined || typeof candidate.replace === 'boolean'),
-  );
+    (candidate.replace === undefined || typeof candidate.replace === 'boolean')
+  )) return false;
+  try {
+    assertExactPathname(candidate.pathname, 'runtime artifact pathname');
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** @param {string} pathname */
-function isExactPathname(pathname) {
+function isSafePagePathname(pathname) {
   if (typeof pathname !== 'string' || !pathname.startsWith('/') || pathname === '/') return false;
   if ([...pathname].some((character) => {
     const code = character.charCodeAt(0);
     return code < 32 || code === 127;
   })) return false;
   if (pathname.startsWith('//') || pathname.endsWith('/') || /[\\?#*{}\[\]]/.test(pathname)) return false;
-  if (pathname.includes('//') || /%(?:2f|5c)/i.test(pathname)) return false;
-  try {
-    let decoded = pathname;
-    for (let index = 0; index < 3; index++) decoded = decodeURIComponent(decoded);
-    if ([...decoded].some((character) => {
-      const code = character.charCodeAt(0);
-      return code < 32 || code === 127;
-    })) return false;
-    return !decoded.split('/').some((part) => part === '.' || part === '..');
-  } catch {
-    return false;
-  }
+  if (pathname.includes('//')) return false;
+  return !pathname.split('/').some((part) => part === '.' || part === '..');
 }
 
 /** @param {{ id: string; pathname: string; replace?: boolean }} left @param {{ id: string; pathname: string; replace?: boolean }} right */

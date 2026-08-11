@@ -60,9 +60,13 @@ export function finalizeSitemapOutputs(
   }
 
   const advertisedPathExists = sitemapPathExists(distDir, config.discovery.robots.sitemapPath);
+  const advertisedAliasClaimed =
+    aliasEmitted &&
+    config.discovery.robots.sitemapPath ===
+      `/${config.discovery.sitemap.alias.outputFilename}`;
   const sitemapAvailable =
     sitemapPolicy === 'always' ||
-    (sitemapPolicy === 'auto' && advertisedPathExists);
+    (sitemapPolicy === 'auto' && (advertisedPathExists || advertisedAliasClaimed));
 
   emitRobotsTxt(distDir, config, siteUrl, logger, base, sitemapAvailable, activeWriter);
   if (config.discovery.robots.enabled) logger.info('astro-aeo: emitted /robots.txt');

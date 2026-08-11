@@ -1,7 +1,7 @@
 // @ts-check
+import { randomUUID } from 'node:crypto';
 import {
   chmodSync,
-  existsSync,
   lstatSync,
   mkdirSync,
   readFileSync,
@@ -9,12 +9,11 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
-
-let transactionCounter = 0;
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { isSafeOutputPath } from './ownership.js';
 
 /**
- * @typedef {{ kind: 'write'; path: string; contents?: string | Buffer; copyFrom?: string; mode?: number } | { kind: 'delete'; path: string }} FileOperation
+ * @typedef {{ kind: 'write'; path: string; contents?: string | Buffer; copyFrom?: string; mode?: number; confineTo?: string } | { kind: 'delete'; path: string; confineTo?: string }} FileOperation
  */
 
 /**
@@ -23,67 +22,132 @@ let transactionCounter = 0;
  * are atomic; a process kill between moves is outside this guarantee.
  *
  * @param {FileOperation[]} operations
- * @param {{ beforeApply?: (operation: FileOperation, index: number) => void }} [options]
+ * @param {{ beforeApply?: (operation: FileOperation, index: number) => void; transactionId?: string }} [options]
  */
 export function commitFileTransaction(operations, options = {}) {
+  const normalizedOperations = operations.map((operation) => {
+    if (typeof operation.path !== 'string' || operation.path.length === 0) {
+      throw new Error('astro-aeo: transaction destinations must be non-empty paths');
+    }
+    return {
+      ...operation,
+      path: resolve(operation.path),
+      ...(operation.confineTo ? { confineTo: resolve(operation.confineTo) } : {}),
+    };
+  });
   const seen = new Set();
-  for (const operation of operations) {
+  for (let index = 0; index < normalizedOperations.length; index++) {
+    const operation = normalizedOperations[index];
     if (seen.has(operation.path)) {
       throw new Error(`astro-aeo: transaction contains duplicate destination ${operation.path}`);
     }
     seen.add(operation.path);
+    assertSafeAncestry(operation);
+    for (let prior = 0; prior < index; prior++) {
+      const previous = normalizedOperations[prior];
+      if (isDescendantPath(previous.path, operation.path) || isDescendantPath(operation.path, previous.path)) {
+        throw new Error(
+          `astro-aeo: transaction contains overlapping destinations ${previous.path} and ${operation.path}`,
+        );
+      }
+    }
   }
 
-  const id = `${process.pid}-${++transactionCounter}`;
-  /** @type {{ operation: FileOperation; temp?: string; backup: string; existed: boolean; mode?: number; applied: boolean }[]} */
-  const entries = [];
+  const id = options.transactionId ?? randomUUID();
+  if (!/^[A-Za-z0-9][A-Za-z0-9-]{0,127}$/.test(id)) {
+    throw new Error('astro-aeo: transaction id must be a safe filename token');
+  }
+  /** @type {{ operation: FileOperation; temp?: string; backup: string; existed: boolean; mode?: number; backedUp: boolean; installed: boolean }[]} */
+  const entries = normalizedOperations.map((operation) => {
+    const stat = entryStat(operation.path);
+    const existed = stat !== null;
+    let mode;
+    if (stat) {
+      if (stat.isDirectory()) {
+        throw new Error(`astro-aeo: artifact destination is a directory: ${operation.path}`);
+      }
+      if (!stat.isSymbolicLink()) mode = stat.mode & 0o777;
+    }
+    const stem = `.${basename(operation.path)}.astro-aeo-${id}`;
+    return {
+      operation,
+      ...(operation.kind === 'write' ? { temp: join(dirname(operation.path), `${stem}.tmp`) } : {}),
+      backup: join(dirname(operation.path), `${stem}.bak`),
+      existed,
+      mode,
+      backedUp: false,
+      installed: false,
+    };
+  });
+
+  // Detect every retained recovery or staging file before creating directories
+  // or staging bytes for any operation in the transaction.
+  for (const entry of entries) {
+    if (entryExists(entry.backup)) {
+      throw new Error(`astro-aeo: transaction backup already exists: ${entry.backup}`);
+    }
+    if (entry.temp && entryExists(entry.temp)) {
+      throw new Error(`astro-aeo: transaction temporary file already exists: ${entry.temp}`);
+    }
+  }
 
   try {
     // Stage every byte before touching any destination.
-    for (const operation of operations) {
+    for (const entry of entries) {
+      const { operation } = entry;
+      assertSafeAncestry(operation);
       mkdirSync(dirname(operation.path), { recursive: true });
-      const existed = existsSync(operation.path);
-      let mode;
-      if (existed) {
-        const stat = lstatSync(operation.path);
-        if (stat.isDirectory()) {
-          throw new Error(`astro-aeo: artifact destination is a directory: ${operation.path}`);
-        }
-        mode = stat.mode & 0o777;
-      }
-      const stem = `.${basename(operation.path)}.astro-aeo-${id}`;
-      const backup = join(dirname(operation.path), `${stem}.bak`);
-      if (operation.kind === 'delete') {
-        entries.push({ operation, backup, existed, mode, applied: false });
-        continue;
-      }
-      const temp = join(dirname(operation.path), `${stem}.tmp`);
+      assertSafeAncestry(operation);
+      if (operation.kind === 'delete') continue;
       const contents = operation.copyFrom
         ? readFileSync(operation.copyFrom)
         : operation.contents ?? '';
-      writeFileSync(temp, contents, { flag: 'wx', mode: operation.mode ?? mode ?? 0o644 });
-      entries.push({ operation, temp, backup, existed, mode, applied: false });
+      writeFileSync(/** @type {string} */ (entry.temp), contents, {
+        flag: 'wx',
+        mode: operation.mode ?? entry.mode ?? 0o644,
+      });
     }
 
     for (let index = 0; index < entries.length; index++) {
       const entry = entries[index];
       options.beforeApply?.(entry.operation, index);
-      if (entry.existed) renameSync(entry.operation.path, entry.backup);
+      assertSafeAncestry(entry.operation);
+      if (entry.existed) {
+        if (entryExists(entry.backup)) {
+          throw new Error(`astro-aeo: transaction backup already exists: ${entry.backup}`);
+        }
+        renameSync(entry.operation.path, entry.backup);
+        entry.backedUp = true;
+      } else if (entryExists(entry.operation.path)) {
+        throw new Error(
+          `astro-aeo: transaction destination appeared during commit: ${entry.operation.path}`,
+        );
+      }
       if (entry.operation.kind === 'write') {
+        assertSafeAncestry(entry.operation);
+        if (entryExists(entry.operation.path)) {
+          throw new Error(
+            `astro-aeo: transaction destination appeared during commit: ${entry.operation.path}`,
+          );
+        }
         renameSync(/** @type {string} */ (entry.temp), entry.operation.path);
+        entry.installed = true;
         const finalMode = entry.operation.mode ?? entry.mode;
         if (finalMode !== undefined) chmodSync(entry.operation.path, finalMode);
       }
-      entry.applied = true;
     }
   } catch (error) {
     for (const entry of [...entries].reverse()) {
       try {
-        if (entry.applied && entry.operation.kind === 'write' && existsSync(entry.operation.path)) {
+        assertSafeAncestry(entry.operation);
+        if (entry.installed && entryExists(entry.operation.path)) {
           rmSync(entry.operation.path, { force: true });
         }
-        if (existsSync(entry.backup)) renameSync(entry.backup, entry.operation.path);
-        if (entry.temp && existsSync(entry.temp)) rmSync(entry.temp, { force: true });
+        if (entry.backedUp && entryExists(entry.backup) && !entryExists(entry.operation.path)) {
+          renameSync(entry.backup, entry.operation.path);
+          entry.backedUp = false;
+        }
+        if (entry.temp && entryExists(entry.temp)) rmSync(entry.temp, { force: true });
       } catch {
         // Preserve the original commit error. A subsequent build will still see
         // the backup rather than silently treating it as owned output.
@@ -94,12 +158,41 @@ export function commitFileTransaction(operations, options = {}) {
 
   for (const entry of entries) {
     try {
-      if (entry.temp && existsSync(entry.temp)) rmSync(entry.temp, { force: true });
-      if (existsSync(entry.backup)) rmSync(entry.backup, { force: true });
+      assertSafeAncestry(entry.operation);
+      if (entry.temp && entryExists(entry.temp)) rmSync(entry.temp, { force: true });
+      if (entry.backedUp && entryExists(entry.backup)) rmSync(entry.backup, { force: true });
     } catch {
       // Cleanup cannot change a successful commit into a reported rollback.
       // A uniquely named backup is safer to retain than deleting a committed
       // destination in a second recovery attempt.
     }
   }
+}
+
+/** @param {FileOperation} operation */
+function assertSafeAncestry(operation) {
+  if (operation.confineTo && !isSafeOutputPath(operation.confineTo, operation.path)) {
+    throw new Error(`astro-aeo: transaction destination ancestry is unsafe: ${operation.path}`);
+  }
+}
+
+/** @param {string} parent @param {string} candidate */
+function isDescendantPath(parent, candidate) {
+  const value = relative(parent, candidate);
+  return Boolean(value) && !isAbsolute(value) && value !== '..' && !value.startsWith(`..${sep}`);
+}
+
+/** @param {string} path @returns {import('node:fs').Stats | null} */
+function entryStat(path) {
+  try {
+    return lstatSync(path);
+  } catch (error) {
+    if (/** @type {any} */ (error)?.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+/** @param {string} path */
+function entryExists(path) {
+  return entryStat(path) !== null;
 }

@@ -25,6 +25,8 @@ const { resolveConfig } = await import('../config.js');
 beforeEach(() => {
   RUNTIME.config = resolveConfig();
   RUNTIME.site.base = '';
+  RUNTIME.projectPaths = ['/feed.md', '/legacy.md', '/llms.txt'];
+  RUNTIME.projectPatterns = [/^\/project\/[^/]+\.md$/, /^\/(?:llms|robots)\.txt$/];
 });
 
 describe('literal project route ownership', () => {
@@ -77,6 +79,25 @@ describe('literal project route ownership', () => {
     expect(next).toHaveBeenCalledOnce();
   });
 
+  test('matches requests beneath an encoded configured base', async () => {
+    RUNTIME.site.base = '/docs%20space';
+    RUNTIME.config = resolveConfig({ discovery: { robots: { enabled: true } } });
+    RUNTIME.projectPaths = [];
+    RUNTIME.projectPatterns = [];
+    const url = new URL('/docs%20space/robots.txt', 'https://example.test');
+    const next = vi.fn(async () => new Response('application fallback'));
+
+    const response = await onRequest(
+      { request: new Request(url), url, locals: {}, isPrerendered: false, rewrite: vi.fn() },
+      next,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/plain');
+    expect(await response.text()).toContain('User-agent: *');
+    expect(next).not.toHaveBeenCalled();
+  });
+
   test('an exact replacement authorization overrides a literal project Markdown route', async () => {
     RUNTIME.config = resolveConfig({ artifacts: { replace: ['/docs/feed.md'] } });
     RUNTIME.site.base = '/docs';
@@ -97,6 +118,30 @@ describe('literal project route ownership', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toContain('text/markdown');
     expect(await response.text()).toContain('# Replacement');
+    expect(next).not.toHaveBeenCalled();
+    expect(context.rewrite).toHaveBeenCalled();
+  });
+
+  test('an encoded replacement authorization matches the decoded request pathname', async () => {
+    RUNTIME.config = resolveConfig({ artifacts: { replace: ['/sale-100%25.md'] } });
+    RUNTIME.projectPaths.push('/sale-100%.md');
+    const url = new URL('/sale-100%25.md', 'https://example.test');
+    const context = {
+      request: new Request(url),
+      url,
+      locals: {},
+      isPrerendered: false,
+      rewrite: vi.fn(async () => new Response(
+        '<html><head><title>Percent sale</title></head><body><main><h1>Percent sale</h1></main></body></html>',
+        { headers: { 'content-type': 'text/html' } },
+      )),
+    };
+    const next = vi.fn(async () => new Response('project literal'));
+
+    const response = await onRequest(context, next);
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain('# Percent sale');
     expect(next).not.toHaveBeenCalled();
     expect(context.rewrite).toHaveBeenCalled();
   });

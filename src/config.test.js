@@ -66,6 +66,7 @@ describe('resolveConfig', () => {
       validation: { onBuild: 'recommended', failOn: 'warning' },
     });
     expect(c.plugins).toEqual([plugin]);
+    expect(c.plugins[0]).not.toBe(plugin);
   });
 
   test('renderer descriptors use strict JSON and reserve one MDX slot', () => {
@@ -87,6 +88,8 @@ describe('resolveConfig', () => {
       expect(() => resolveConfig({ artifacts: { replace: [path] } })).toThrow(/artifacts\.replace/);
     }
     expect(() => resolveConfig({ artifacts: { replace: ['/x', '/x'] } })).toThrow(/duplicate/);
+    expect(resolveConfig({ artifacts: { replace: ['/sale-100%25.txt'] } }).artifacts.replace)
+      .toEqual(['/sale-100%25.txt']);
     expect(() => resolveConfig({ schema: { corpus: { graphPath: '/same', mapPath: '/same' } } }))
       .toThrow(/must be different/);
   });
@@ -99,10 +102,37 @@ describe('resolveConfig', () => {
     ] })).toThrow(/duplicate/);
     expect(() => resolveConfig({ plugins: [{ name: 'astro-aeo:user', apiVersion: 1, setup }] }))
       .toThrow(/reserved/);
+    expect(() => resolveConfig({ plugins: [{ name: ' astro-aeo:user ', apiVersion: 1, setup }] }))
+      .toThrow(/reserved/);
+    expect(() => resolveConfig({ plugins: [
+      { name: 'same', apiVersion: 1, setup },
+      { name: ' same ', apiVersion: 1, setup },
+    ] })).toThrow(/duplicate/);
     expect(() => resolveConfig({ plugins: [{ name: 'wrong', apiVersion: 2, setup }] })).toThrow(/apiVersion/);
     expect(() => resolveConfig({ plugins: [{ name: 'runtime', apiVersion: 1, setup, runtime: {
       entrypoint: './runtime.js', options: { invalid: new Date() },
     } }] })).toThrow(/plain JSON/);
+  });
+
+  test('plugin descriptors normalize names and detach strict runtime options', () => {
+    const options = { nested: { label: 'original' } };
+    const runtime = { entrypoint: './runtime.js', options };
+    const plugin = { name: ' example ', apiVersion: 1, setup() {}, runtime };
+    const resolved = resolveConfig({ plugins: [plugin] }).plugins[0];
+
+    expect(resolved).not.toBe(plugin);
+    expect(resolved.name).toBe('example');
+    expect(resolved.runtime).not.toBe(runtime);
+    expect(resolved.runtime.options).not.toBe(options);
+    expect(resolved.runtime.options).toEqual(options);
+
+    options.nested.label = 'mutated';
+    runtime.entrypoint = './changed.js';
+    plugin.name = 'changed';
+    expect(resolved).toMatchObject({
+      name: 'example',
+      runtime: { entrypoint: './runtime.js', options: { nested: { label: 'original' } } },
+    });
   });
 
   test('runtime corpus limits are bounded by default and explicitly overridable', () => {

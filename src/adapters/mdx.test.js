@@ -45,6 +45,16 @@ describe('astro-aeo/mdx', () => {
     expect(result).toEqual({ status: 'rendered', markdown: 'Before\n\n\n\nAfter' });
   });
 
+  test.each(['script', 'style', 'iframe', 'object', 'embed'])(
+    'omits authored <%s> nodes before a mapping can rename or inspect their content',
+    (element) => {
+      const result = render(`Before\n\n<${element} value={run()}>Secret</${element}>\n\nAfter`, {
+        components: { [element]: { action: 'element', name: 'aside' } },
+      });
+      expect(result).toEqual({ status: 'rendered', markdown: 'Before\n\n\n\nAfter' });
+    },
+  );
+
   test.each([
     ['an unmapped semantic component', '<Callout>Important</Callout>'],
     ['a JavaScript expression', '# {globalThis.sideEffect = true}'],

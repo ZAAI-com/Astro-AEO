@@ -54,6 +54,9 @@ publishing through one shared build/runtime pipeline.
 - Runtime artifacts reuse the core `GET`/`HEAD`, ETag, conditional request, cache, path-safety, and
   ownership behavior. Vercel and Netlify fallback routing now reaches Astro-AEO before provider
   404 handling.
+- MDX adapters discard active authored elements before component mappings, plugin runtime options
+  are cloned into the resolved configuration, and schema diagnostics distinguish unsafe URLs from
+  relative URLs that require `documentCanonical`.
 - Secure live corpora continue to require Astro 6.3 or newer. Astro 5 and Astro 6.0 through 6.2
   return `503` with `Cache-Control: no-store`; direct Markdown, negotiation, static corpora, and
   non-corpus behavior remain supported.

@@ -88,7 +88,7 @@ describe('collectPages serializable dates', () => {
     const pages = await collectPages(
       [
         { pathname: '/catalog', lastModified: '2026-02-15T12:30:00Z' },
-        { pathname: '/git' },
+        { pathname: '/git', dates: { published: '2025-12-01T00:00:00Z' } },
       ],
       resolveConfig(),
       {
@@ -109,6 +109,10 @@ describe('collectPages serializable dates', () => {
     expect(pages.find((page) => page.pathname === '/git')?.lastModified).toBe(
       '2026-01-02T03:04:05.000Z',
     );
+    expect(pages.find((page) => page.pathname === '/git')?.dates).toEqual({
+      published: '2025-12-01T00:00:00.000Z',
+      modified: '2026-01-02T03:04:05.000Z',
+    });
     expect(() => JSON.stringify(pages)).not.toThrow();
   });
 });
@@ -241,7 +245,11 @@ describe('authored source resolution', () => {
     );
 
     const [page] = await collectPages(
-      [{ pathname: '/guide', title: 'Catalog title', sourcePath: 'catalog:guide' }],
+      [{
+        pathname: '/guide',
+        title: 'Catalog title',
+        source: { kind: 'cms', path: 'catalog:guide' },
+      }],
       resolveConfig(),
       {
         distDir: pathToFileURL(`${distRoot}/`),
@@ -259,6 +267,58 @@ describe('authored source resolution', () => {
     expect(page.markdown).toBe('# Exact source\n\nPreserved.\n');
     expect(page.source).toEqual({ kind: 'markdown', strategy: 'markdown-route', path: 'catalog:guide' });
     expect(page.extraction).toBeUndefined();
+  });
+
+  test('passes catalog source hashes to renderers and the collected source record', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-source-hash-'));
+    roots.push(root);
+    const distRoot = join(root, 'dist');
+    let rendererSource;
+
+    const [page] = await collectPages(
+      [{
+        pathname: '/hashed',
+        title: 'Hashed source',
+        source: {
+          kind: 'custom',
+          path: 'cms:hashed',
+          body: 'source body',
+          hash: 'sha256:hashed',
+        },
+      }],
+      resolveConfig(),
+      {
+        distDir: pathToFileURL(`${distRoot}/`),
+        siteUrl: 'https://x.com',
+        base: '',
+        trailingSlash: 'always',
+        buildFormat: 'directory',
+        projectRoot: root,
+        routeEntrypoints: new Map(),
+        renderers: [{
+          name: 'capture-source',
+          render(input) {
+            rendererSource = input.source;
+            return { status: 'rendered', markdown: '# Hashed output' };
+          },
+        }],
+        logger: { warn() {} },
+      },
+    );
+
+    expect(rendererSource).toEqual({
+      kind: 'custom',
+      path: 'cms:hashed',
+      body: 'source body',
+      hash: 'sha256:hashed',
+    });
+    expect(Object.isFrozen(rendererSource)).toBe(true);
+    expect(page.source).toEqual({
+      kind: 'custom',
+      strategy: 'catalog',
+      path: 'cms:hashed',
+      hash: 'sha256:hashed',
+    });
   });
 
   test('catalog source and metadata enrich a rendered route', async () => {

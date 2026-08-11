@@ -5,6 +5,7 @@
 // the repo's own. The repo typecheck only ever sees them through the current
 // TypeScript, so without this a newer-only type feature would ship unnoticed.
 import aeo from 'astro-aeo';
+import type { ComponentProps } from 'astro/types';
 import type {
   AeoGraph,
   AeoPage,
@@ -107,6 +108,7 @@ import mdxRenderer from 'astro-aeo/mdx';
 import defuddleRenderer from 'astro-aeo/defuddle';
 import type { MdxRendererOptions } from 'astro-aeo/mdx';
 import type { DefuddleRendererOptions } from 'astro-aeo/defuddle';
+import { AeoHead } from 'astro-aeo/components';
 import type {
   AeoHeadProps,
   AeoPageProps,
@@ -383,6 +385,7 @@ export const head: AeoHeadProps = {
 };
 export const explicitHeadWithoutInference: AeoHeadProps = { graph: createGraph([]), infer: false };
 export const legacyHeadAuthor: AeoHeadProps = { author: 'Ada' };
+export const inferredHeadProps: ComponentProps<typeof AeoHead> = head;
 
 export const mdxOptions: MdxRendererOptions = {
   components: {
@@ -691,3 +694,5 @@ export const badRendererOptions: MarkdownRendererDescriptor = { module: './rende
 export const badPluginVersion: AstroAeoPlugin = { name: 'future', apiVersion: 2, setup() {} };
 // @ts-expect-error AeoHead canonicals must be URLs, not numeric request state
 export const badHeadCanonical: AeoHeadProps = { canonical: 42 };
+// @ts-expect-error AeoHead's component value must retain the same canonical prop contract
+export const badInferredHeadCanonical: ComponentProps<typeof AeoHead> = { canonical: 42 };

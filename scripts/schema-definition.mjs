@@ -289,7 +289,10 @@ const canonicalProperties = {
       replace: {
         type: 'array',
         description: 'Exact normalized served pathnames that core artifacts may replace.',
-        items: { type: 'string', pattern: '^/(?!/)(?!.*(?:/\\.\\.?/|[?#*{}\\[\\]\\\\])).+[^/]$' },
+        items: {
+          type: 'string',
+          pattern: '^(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*//)/(?!/)(?!.*[?#*{}\\[\\]\\\\]).*[^/]$',
+        },
         uniqueItems: true,
         default: [],
       },

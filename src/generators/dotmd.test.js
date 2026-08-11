@@ -109,4 +109,29 @@ describe('emitDotMd', () => {
 
     expect(emitDotMd([page], resolveConfig({ markdown: { alternateLink: 'never' } }), writer)).toBe(0);
   });
+
+  test('does not stage an HTML transform for a catalog-only page', () => {
+    let transforms = 0;
+    const writer = /** @type {any} */ ({
+      isDeferred: true,
+      write() { return true; },
+      stageTransform() { transforms++; },
+    });
+    const page = {
+      pathname: '/catalog-only',
+      url: 'https://example.test/catalog-only/',
+      mdHref: '/catalog-only.md',
+      title: 'Catalog only',
+      description: '',
+      markdown: '# Catalog only',
+      rendering: 'prerendered',
+      aeoTokens: [],
+      directives: { generateMarkdown: true },
+      htmlPath: '',
+      mdPath: join(root, 'dist', 'catalog-only.md'),
+    };
+
+    expect(emitDotMd([page], resolveConfig(), writer)).toBe(1);
+    expect(transforms).toBe(0);
+  });
 });

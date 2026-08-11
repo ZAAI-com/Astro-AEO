@@ -37,7 +37,9 @@ export function emitDotMd(pages, config, writer) {
     });
     if (wrote) written++;
 
-    if (alternateLink !== 'never') injectAlternateLink(page, alternateLink, writer);
+    if (alternateLink !== 'never' && page.htmlPath) {
+      injectAlternateLink(page, alternateLink, writer);
+    }
   }
 
   return written;

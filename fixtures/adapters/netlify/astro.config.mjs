@@ -11,7 +11,13 @@ export default defineConfig({
     aeo({
       markdown: { negotiation: 'response' },
       corpus: { index: { enabled: true }, full: { enabled: true } },
-      schema: { corpus: { enabled: true } },
+      schema: {
+        corpus: {
+          enabled: true,
+          graphPath: '/schema/graph%20data.jsonld',
+          mapPath: '/schema/caf%C3%A9-map.xml',
+        },
+      },
       discovery: { robots: { enabled: true }, sitemap: { mode: 'disabled' } },
       plugins: [providerPlugin],
     }),

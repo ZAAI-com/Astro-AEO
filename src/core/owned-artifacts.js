@@ -1,4 +1,5 @@
 // @ts-check
+import { matchesExactPathname } from './artifact-path.js';
 
 /**
  * @param {string} pathname
@@ -12,7 +13,8 @@ export function isOwnedArtifactPath(pathname, config) {
   if (pathname === '/.well-known/domain-profile.json' && config.site.profile.enabled) return true;
   if (
     config.schema.corpus.enabled &&
-    (pathname === config.schema.corpus.graphPath || pathname === config.schema.corpus.mapPath)
+    (matchesExactPathname(pathname, config.schema.corpus.graphPath) ||
+      matchesExactPathname(pathname, config.schema.corpus.mapPath))
   ) return true;
   if (
     config.discovery.sitemap.mode !== 'disabled' &&

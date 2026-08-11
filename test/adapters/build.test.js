@@ -25,17 +25,17 @@ const providerRuntimeArtifacts = [
     content: '# Adapter About',
   },
   {
-    pathname: '/schema/graph.jsonld',
+    pathname: '/schema/graph%20data.jsonld',
     contentType: 'application/ld+json',
     content: '"@graph"',
   },
   {
-    pathname: '/schema/schema-map.xml',
+    pathname: '/schema/caf%C3%A9-map.xml',
     contentType: 'application/xml',
     content: 'xmlns="https://zaai.com/astro-aeo/schema-map/1"',
   },
   {
-    pathname: '/answers.txt',
+    pathname: '/answers%5Bfeed%5D.txt',
     contentType: 'text/plain',
     content: 'PROVIDER-RUNTIME-PLUGIN',
   },
@@ -91,9 +91,9 @@ describe('adapter build gates', () => {
       'llms\\.txt',
       'llms-full\\.txt',
       'robots\\.txt',
-      'schema/graph\\.jsonld',
-      'schema/schema-map\\.xml',
-      'answers\\.txt',
+      'schema/graph data\\.jsonld',
+      'schema/café-map\\.xml',
+      'answers\\[feed\\]\\.txt',
     ]) {
       const routeIndex = config.routes.findIndex(
         (route) => route.dest === '_render' && route.src?.includes(routeMarker),

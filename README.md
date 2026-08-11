@@ -271,7 +271,7 @@ placeholders, so copy those callbacks by hand.
 Two rules are worth knowing:
 
 - You can mix eras as long as they address different settings. Setting a 1.0 key and
-  its 1.1 replacement to **different** values is a build-stopping error naming both
+  its canonical replacement to **different** values is a build-stopping error naming both
   paths, because silently picking one could publish the wrong `robots.txt` policy.
 - Values compare structurally, but callbacks compare by reference. Pasting the same
   `match` function into both `llmsTxt.sections` and `corpus.index.sections` is

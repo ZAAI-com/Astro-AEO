@@ -59,6 +59,47 @@ function environment(root, dispatcher, diagnostics = []) {
 const logger = { info() {}, warn() {} };
 
 describe('staged build plugin pipeline', () => {
+  test('accepts page replacements when Astro has no configured site', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    const resolved = config();
+    let transformed = false;
+    const dispatcher = await createPluginDispatcher({
+      command: 'build',
+      internalPlugins: [createSemanticPlugin(resolved)],
+      plugins: [{
+        name: 'site-less-transform',
+        apiVersion: 1,
+        setup(api) {
+          api.on('page:transform', ({ value }) => {
+            transformed = true;
+            return {
+              action: 'replace',
+              value: {
+                ...value,
+                title: 'Site-less replacement',
+                metadata: { ...value.metadata, title: 'Site-less replacement' },
+              },
+            };
+          });
+        },
+      }],
+    });
+    const env = environment(files.root, dispatcher);
+    env.siteUrl = '';
+
+    const writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      env,
+    );
+    writer.commit();
+
+    expect(transformed).toBe(true);
+    expect(env.diagnostics).not.toContainEqual(expect.objectContaining({
+      code: 'plugin-invalid-replacement',
+    }));
+  });
+
   test('reserves adapter runtime corpora and removes an exactly replaced public copy', async () => {
     const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
     const publicRoot = join(files.root, 'public');
@@ -243,6 +284,50 @@ describe('staged build plugin pipeline', () => {
     expect(html).toContain('data-astro-aeo-graph');
     expect(html).toContain('Hooked title');
     expect(html).toContain('name="later-integration" content="preserved"');
+  });
+
+  test('does not reapply a pure insertion at an ambiguous first anchor', async () => {
+    const anchor = `<section data-repeat>${'a'.repeat(100)}</section>`;
+    const inserted = '<span data-user-insertion></span>';
+    const files = fixture(
+      `<!doctype html><html><head><title>Repeated</title></head><body>${anchor}${anchor}</body></html>`,
+    );
+    const resolved = config();
+    const dispatcher = await createPluginDispatcher({
+      command: 'build',
+      internalPlugins: [createSemanticPlugin(resolved)],
+      plugins: [{
+        name: 'insert-at-second-anchor',
+        apiVersion: 1,
+        setup(api) {
+          api.on('graph:build', ({ value }) => {
+            const at = value.html.lastIndexOf(anchor);
+            return {
+              action: 'replace',
+              value: {
+                ...value,
+                html: `${value.html.slice(0, at)}${inserted}${value.html.slice(at)}`,
+              },
+            };
+          });
+        },
+      }],
+    });
+
+    const writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, dispatcher),
+    );
+    writer.commit();
+
+    const html = readFileSync(join(files.dist, 'index.html'), 'utf8');
+    const firstAnchor = html.indexOf(anchor);
+    const insertion = html.indexOf(inserted);
+    const secondAnchor = html.lastIndexOf(anchor);
+    expect(firstAnchor).toBeGreaterThan(-1);
+    expect(insertion).toBe(firstAnchor + anchor.length);
+    expect(insertion).toBeLessThan(secondAnchor);
   });
 
   test('a build-complete isolation aborts enrichment even when validation is off', async () => {

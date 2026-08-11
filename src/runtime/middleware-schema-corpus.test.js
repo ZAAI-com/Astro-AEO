@@ -118,6 +118,30 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('runtime schema corpus middleware', () => {
+  test.each(['GET', 'HEAD'])('serves an encoded schema pathname for %s', async (method) => {
+    RUNTIME.config = resolveConfig({
+      corpus: { index: { enabled: false }, full: { enabled: false } },
+      schema: {
+        corpus: {
+          enabled: true,
+          graphPath: '/schema/graph%20data.jsonld',
+          mapPath: '/schema/schema-map%20data.xml',
+        },
+      },
+    });
+
+    const result = await requestCorpus('/schema/graph%20data.jsonld', { method });
+
+    expect(result.response.status).toBe(200);
+    expect(result.response.headers.get('content-type')).toBe(
+      'application/ld+json; charset=utf-8',
+    );
+    const body = await result.response.text();
+    if (method === 'HEAD') expect(body).toBe('');
+    else expect(body).toContain('https://example.test/alpha');
+    expect(result.next).not.toHaveBeenCalled();
+  });
+
   test('suppresses both schema members when one exact external route owns a member', async () => {
     RUNTIME.projectPaths.push('/schema/graph.jsonld');
     const graphUrl = new URL('https://example.test/schema/graph.jsonld');

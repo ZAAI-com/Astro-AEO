@@ -112,6 +112,60 @@ describe('managed page head', () => {
     expect(result.html).toContain('content="https://example.com/image.jpg"');
   });
 
+  test('resolves a relative explicit canonical against the configured site, not an authored origin', () => {
+    const result = enrichHtmlHead({
+      html: document(`<link rel="canonical" href="https://other.example/authored">${marker({
+        canonical: '/explicit', openGraph: { images: ['/image.jpg'] },
+      })}`),
+      page: page(), config: resolveConfig(), site,
+    });
+    expect(result.canonicalUrl).toBe('https://example.com/explicit');
+    expect(result.html).not.toContain('other.example');
+    expect(result.html).toContain('content="https://example.com/image.jpg"');
+  });
+
+  test('does not resolve a relative explicit canonical from an authored origin without a site', () => {
+    const result = enrichHtmlHead({
+      html: document(`<link rel="canonical" href="https://other.example/authored">${marker({
+        canonical: '/explicit',
+      })}`),
+      page: page({
+        url: '/',
+        canonicalUrl: undefined,
+        markdownUrl: undefined,
+        metadata: { title: 'Page' },
+      }),
+      config: resolveConfig(),
+      site: { ...site, siteUrl: '' },
+    });
+
+    expect(result.canonicalUrl).toBe('https://other.example/authored');
+    expect(result.canonicalUrl).not.toBe('https://other.example/explicit');
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: 'canonical-invalid' }));
+  });
+
+  test('preserves the encoded spelling of an inferred page canonical', () => {
+    const result = enrichHtmlHead({
+      html: document(),
+      page: page({
+        id: '/sale-100%',
+        pathname: '/sale-100%',
+        url: 'https://example.com/sale-100%25',
+        canonicalUrl: 'https://example.com/sale-100%25',
+        mdHref: '/sale-100%25.md',
+        markdownUrl: 'https://example.com/sale-100%25.md',
+      }),
+      config: resolveConfig(),
+      site,
+    });
+    expect(result.canonicalUrl).toBe('https://example.com/sale-100%25');
+    expect(result.graph?.entries.find(({ entity }) => entity['@type'] === 'WebPage')?.entity)
+      .toMatchObject({
+        '@id': 'https://example.com/sale-100%25#webpage',
+        url: 'https://example.com/sale-100%25',
+      });
+  });
+
   test('explicit head facts become the effective page and inferred WebPage facts', () => {
     const result = enrichHtmlHead({
       html: document(marker({
@@ -215,6 +269,25 @@ describe('managed page head', () => {
       'name="author" content="Ada"',
       'rel="author" href="https://example.com/people/ada"',
     ]) expect(result.html).toContain(expected);
+  });
+
+  test('treats a null Markdown alternate as absent metadata', () => {
+    const result = enrichHtmlHead({
+      html: document(`<link rel="alternate" type="text/markdown" href="/authored.md">${marker({
+        markdownAlternate: null,
+      })}`),
+      page: page(), config: resolveConfig(), site,
+    });
+    expect(result.html).toContain('/authored.md');
+    expect(result.html).toContain('type="text/markdown"');
+  });
+
+  test.each(['de_DE', 42])('ignores a non-array Open Graph localeAlternates value: %j', (localeAlternates) => {
+    const result = enrichHtmlHead({
+      html: document(marker({ openGraph: { localeAlternates } })),
+      page: page(), config: resolveConfig(), site,
+    });
+    expect(result.html).not.toContain('og:locale:alternate');
   });
 
   test('fills only absent metadata from page facts and explicit defaults', () => {

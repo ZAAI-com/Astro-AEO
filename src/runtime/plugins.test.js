@@ -50,6 +50,19 @@ describe('runtime plugin artifacts', () => {
       .toMatchObject({ plugin: 'feed', claim: { replace: true }, conflict: false });
   });
 
+  test('matches encoded claims to decoded runtime pathnames', () => {
+    const encoded = loader({
+      claims: [{ id: 'feed', pathname: '/caf%C3%A9%25.txt', replace: true }],
+    });
+
+    expect(runtimePluginArtifactFor('/café%.txt', [encoded], { projectOwned: true }))
+      .toMatchObject({
+        pathname: '/caf%C3%A9%25.txt',
+        plugin: 'feed',
+        claim: { pathname: '/caf%C3%A9%25.txt' },
+      });
+  });
+
   test('fails duplicate generated claims closed regardless of owner or replacement', async () => {
     const target = runtimePluginArtifactFor('/feed.txt', [loader(), loader({ name: 'other' })]);
     expect(target).toMatchObject({ conflict: true });
@@ -286,24 +299,33 @@ describe('runtime plugin artifacts', () => {
         },
       })),
     });
-    const target = runtimePluginArtifactFor('/feed.txt', [commandLoader]);
+    const loaders = [commandLoader];
+    const target = runtimePluginArtifactFor('/feed.txt', loaders);
 
     const preview = await serveRuntimePluginArtifact(
       target,
       new Request('https://example.com/feed.txt'),
-      [commandLoader],
+      loaders,
+      [],
+      'preview',
+    );
+    const repeatedPreview = await serveRuntimePluginArtifact(
+      target,
+      new Request('https://example.com/feed.txt'),
+      loaders,
       [],
       'preview',
     );
     const development = await serveRuntimePluginArtifact(
       target,
       new Request('https://example.com/feed.txt'),
-      [commandLoader],
+      loaders,
       [],
       'dev',
     );
 
     expect(await preview.text()).toBe('preview\n');
+    expect(await repeatedPreview.text()).toBe('preview\n');
     expect(await development.text()).toBe('dev\n');
     expect(setupCommands).toEqual(['preview', 'dev']);
     expect(commandLoader.load).toHaveBeenCalledTimes(2);

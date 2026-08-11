@@ -7,6 +7,7 @@ import {
 } from './config.js';
 import { mdPathnameFor, pagePathForMdPath, basePrefix } from '../core/page-model.js';
 import { inspectRootPathname, isIncluded, normalizePath } from '../core/match.js';
+import { exactPathnameIdentity, matchesExactPathname } from '../core/artifact-path.js';
 import { extractPageMeta } from '../core/page-meta.js';
 import { isOwnedArtifactPath } from '../core/owned-artifacts.js';
 import { COLLECT_FLAG, stripMarkersFromHtml } from '../core/extract/marker.js';
@@ -98,7 +99,8 @@ export const onRequest = async (context, next) => {
 
   const decoded = decodePathname(context.url.pathname);
   if (decoded === null) return new Response(null, { status: 400 });
-  const configuredBase = basePrefix(RUNTIME.site.base);
+  const configuredBasePath = basePrefix(RUNTIME.site.base);
+  const configuredBase = inspectRootPathname(configuredBasePath)?.decoded ?? configuredBasePath;
   if (
     configuredBase &&
     decoded !== configuredBase &&
@@ -109,9 +111,9 @@ export const onRequest = async (context, next) => {
   const pathname = stripBase(decoded, RUNTIME.site.base);
   const encodedPathname = encodeURI(pathname);
 
-  const coreReplacementAuthorized = RUNTIME.config.artifacts.replace.includes(
-    normalizePath(decoded),
-  );
+  const servedRequestPath = normalizePath(decoded);
+  const coreReplacementAuthorized = RUNTIME.config.artifacts.replace.some((configured) =>
+    matchesExactPathname(servedRequestPath, configured));
   const projectOwned = ownedByProject(pathname, encodedPathname);
   // A configured core generator remains a generated claimant even when an
   // external route blocks it. A plugin claiming that same pathname must still
@@ -165,12 +167,15 @@ export const onRequest = async (context, next) => {
         },
       );
       return textResponse({ body, contentType, request: context.request });
-    } catch {
+    } catch (error) {
+      const limited = error instanceof RuntimeCorpusLimitError;
       return textResponse({
-        body: 'astro-aeo: the semantic corpus is temporarily unavailable.\n',
+        body: limited
+          ? `${error.message}\n`
+          : 'astro-aeo: the semantic corpus is temporarily unavailable.\n',
         contentType: 'text/plain; charset=utf-8',
         request: context.request,
-        status: 500,
+        status: limited ? 503 : 500,
         headers: { 'cache-control': 'no-store' },
       });
     }
@@ -407,7 +412,7 @@ async function runtimePluginPageHandles(context, next) {
   );
   const artifactPaths = new Set(
     RUNTIME_PLUGIN_LOADERS.flatMap((loader) =>
-      loader.claims.map((claim) => normalizePath(claim.pathname)),
+      loader.claims.map((claim) => configuredPathKey(claim.pathname)).filter(Boolean),
     ),
   );
   /** @type {Map<string, { id: string; pathname: string; publicPathname: string; descriptor?: import('../page.js').PageDescriptor }>} */
@@ -603,18 +608,31 @@ function runtimeSchemaPairBlocked() {
   const paths = [corpus.graphPath, corpus.mapPath];
 
   if (RUNTIME_PLUGIN_LOADERS.some((loader) =>
-    loader.claims.some((claim) => paths.includes(claim.pathname)))) {
+    loader.claims.some((claim) => paths.some((path) => matchesExactPathname(
+      configuredPathKey(path),
+      claim.pathname,
+    ))))) {
     return true;
   }
 
   const prefix = basePrefix(RUNTIME.site.base);
   return paths.some((configuredPath) => {
-    const servedPath = normalizePath(`${prefix}${configuredPath}`);
-    if (RUNTIME.config.artifacts.replace.includes(servedPath)) return false;
-    const decodedPath = decodePathname(configuredPath);
+    const decodedPath = configuredPathKey(configuredPath);
     if (decodedPath === null) return true;
-    return ownedByProject(decodedPath, encodeURI(decodedPath));
+    const servedPath = normalizePath(`${prefix}${configuredPath}`);
+    if (RUNTIME.config.artifacts.replace.some((replacement) =>
+      matchesExactPathname(servedPath, replacement))) return false;
+    return ownedByProject(decodedPath, configuredPath);
   });
+}
+
+/** @param {unknown} pathname @returns {string | null} */
+function configuredPathKey(pathname) {
+  try {
+    return exactPathnameIdentity(pathname).key;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -1031,13 +1049,14 @@ function forwardSourceResponse(source, original, sourcePagePath) {
       if (target.origin === original.origin) {
         const decoded = decodePathname(target.pathname);
         if (decoded !== null) {
-          const prefix = basePrefix(RUNTIME.site.base);
+          const encodedPrefix = basePrefix(RUNTIME.site.base);
+          const prefix = inspectRootPathname(encodedPrefix)?.decoded ?? encodedPrefix;
           const insideBase = !prefix || decoded === prefix || decoded.startsWith(`${prefix}/`);
           if (insideBase) {
             const pagePath = normalizePath(stripBase(decoded, RUNTIME.site.base));
             const encoded = encodeURI(pagePath);
             if (pagePathForMdPath(pagePath) === null) {
-              target.pathname = `${prefix}${mdPathnameFor(normalizePath(encoded))}`;
+              target.pathname = `${encodedPrefix}${mdPathnameFor(normalizePath(encoded))}`;
             }
             headers.set('location', `${target.pathname}${target.search}${target.hash}`);
           }

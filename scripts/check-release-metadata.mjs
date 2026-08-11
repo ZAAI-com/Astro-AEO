@@ -2,6 +2,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { basename, dirname, resolve } from 'node:path';
+import { releaseEvidenceErrors } from './release-evidence.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
@@ -31,6 +32,20 @@ const pending = (await readdir(changesetDir, { withFileTypes: true }).catch(() =
   .map((entry) => basename(entry.name));
 if (requireTag && pending.length > 0) {
   errors.push(`unconsumed changesets remain: ${pending.join(', ')}`);
+}
+if (requireTag) {
+  const evidencePath = resolve(
+    root,
+    'docs',
+    'release-evidence',
+    `${pkg.version}-semantic-validation.md`,
+  );
+  try {
+    const evidence = await readFile(evidencePath, 'utf8');
+    errors.push(...releaseEvidenceErrors(evidence, pkg.version));
+  } catch {
+    errors.push(`semantic validation evidence is missing for ${pkg.version}`);
+  }
 }
 
 if (errors.length > 0) {

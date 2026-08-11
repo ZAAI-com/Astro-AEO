@@ -74,6 +74,41 @@ describe('request-time Markdown renderers', () => {
     expect(second.markdown).toBe(first.markdown);
     expect(load).toHaveBeenCalledOnce();
   });
+
+  test('preserves catalog source hashes in renderer input and page provenance', async () => {
+    const render = vi.fn(({ source }) => {
+      expect(source).toEqual({
+        kind: 'cms',
+        path: 'cms:guide',
+        body: '# CMS body',
+        hash: 'sha256:catalog-source',
+      });
+      return { status: 'rendered', markdown: '# Rendered CMS' };
+    });
+    const result = await pageFromHtml('/guide', html('Guide'), runtime(), {
+      descriptor: {
+        pathname: '/guide',
+        source: {
+          kind: 'cms',
+          path: 'cms:guide',
+          body: '# CMS body',
+          hash: 'sha256:catalog-source',
+        },
+      },
+      rendererLoaders: [{
+        name: 'cms-renderer',
+        module: './cms-renderer.js',
+        load: async () => ({ name: 'cms-renderer', apiVersion: 1, render }),
+      }],
+    });
+
+    expect(render).toHaveBeenCalledOnce();
+    expect(result.source).toMatchObject({
+      kind: 'cms',
+      path: 'cms:guide',
+      hash: 'sha256:catalog-source',
+    });
+  });
 });
 
 describe('request-time catalog breadcrumb ancestry', () => {
@@ -116,6 +151,44 @@ describe('request-time catalog breadcrumb ancestry', () => {
 });
 
 describe('request-time plugin page lifecycle', () => {
+  test('keeps encoded catalog identity and ISO dates stable through discovery', async () => {
+    const observed = [];
+    const pluginLoaders = [{
+      name: 'encoded-catalog',
+      module: './encoded-catalog.js',
+      stages: ['page:discovered'],
+      claims: [],
+      load: async () => ({
+        name: 'encoded-catalog',
+        apiVersion: 1,
+        setup(api) {
+          api.on('page:discovered', ({ value, pathname }) => {
+            observed.push({ valuePathname: value.pathname, pathname });
+            return { action: 'replace', value: { ...value, title: 'Encoded catalog' } };
+          });
+        },
+      }),
+    }];
+    const page = await pageFromHtml('/café', html('Rendered'), runtime(), {
+      descriptor: {
+        pathname: '/caf%C3%A9',
+        dates: { published: '2026-08-11' },
+      },
+      publicPathname: '/caf%C3%A9',
+      pluginLoaders,
+    });
+
+    expect(observed).toEqual([{
+      valuePathname: '/caf%C3%A9',
+      pathname: '/caf%C3%A9',
+    }]);
+    expect(page).toMatchObject({
+      pathname: '/caf%C3%A9',
+      title: 'Encoded catalog',
+      dates: { published: '2026-08-11T00:00:00.000Z' },
+    });
+  });
+
   test('runs page hooks in order with immutable validated replacements before the graph hook', async () => {
     const stages = [];
     const pluginLoaders = [{
@@ -148,7 +221,11 @@ describe('request-time plugin page lifecycle', () => {
             stages.push('page:transform');
             return {
               action: 'replace',
-              value: { ...value, metadata: { ...value.metadata, title: 'Transformed' } },
+              value: {
+                ...value,
+                title: 'Transformed',
+                metadata: { ...value.metadata, title: 'Transformed' },
+              },
             };
           });
           api.on('page:metadata', ({ value }) => {
@@ -211,6 +288,29 @@ describe('request-time plugin page lifecycle', () => {
     }];
     await expect(pageFromHtml('/page', html(), runtime(), { pluginLoaders: invalidPageLoaders }))
       .resolves.toBeNull();
+
+    const invalidRepresentationsLoaders = [{
+      name: 'invalid-representations',
+      module: './invalid-representations.js',
+      stages: ['page:transform'],
+      claims: [],
+      load: async () => ({
+        name: 'invalid-representations', apiVersion: 1,
+        setup(api) {
+          api.on('page:transform', ({ value }) => ({
+            action: 'replace',
+            value: {
+              ...value,
+              markdown: 42,
+              representations: { ...value.representations, markdown: 42 },
+            },
+          }));
+        },
+      }),
+    }];
+    await expect(pageFromHtml('/page', html(), runtime(), {
+      pluginLoaders: invalidRepresentationsLoaders,
+    })).resolves.toBeNull();
 
     const graphLoaders = [{
       name: 'broken-graph',
@@ -617,6 +717,10 @@ describe('serveMarkdown', () => {
       catalogLoaders: loaders,
       origin: 'https://one.example',
     });
+    const repeatedFirst = await serveLlmsIndex('llms', requestRuntime, async () => loaded(), {
+      catalogLoaders: loaders,
+      origin: 'https://one.example',
+    });
     const second = await serveLlmsIndex('llms', requestRuntime, async () => loaded(), {
       catalogLoaders: loaders,
       origin: 'https://two.example',
@@ -627,6 +731,7 @@ describe('serveMarkdown', () => {
     });
 
     expect(first).toContain('one.example');
+    expect(repeatedFirst).toContain('one.example');
     expect(second).toContain('two.example');
     expect(third).toContain('one.example');
     expect(listPages).toHaveBeenCalledTimes(3);

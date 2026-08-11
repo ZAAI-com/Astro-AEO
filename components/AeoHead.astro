@@ -1,10 +1,12 @@
 ---
+// @ts-check
 import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
 
 // The shared build/runtime enrichment pass owns precedence and deduplication.
 // Keeping the component as one inert, escaped marker lets that pass make the
 // same decision for prerendered and on-demand pages without rewriting unrelated
 // authored head bytes.
+/** @type {import('./index.js').AeoHeadProps} */
 const props = Astro.props ?? {};
 ---
 <script

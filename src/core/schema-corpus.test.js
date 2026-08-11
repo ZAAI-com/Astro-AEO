@@ -62,6 +62,16 @@ describe('schema corpus', () => {
     expect(output.diagnostics).toContainEqual(expect.objectContaining({ code: 'schema-map-anonymous-entity' }));
   });
 
+  test('removes characters forbidden by XML 1.0 while preserving valid Unicode', () => {
+    const output = renderSchemaCorpus([{
+      page: page('/a', 'https://example.com/a\u0000\u000b\ud800\ufffe🧭'),
+      graph: createGraph({ '@id': 'https://example.com/a#thing', '@type': 'Thing' }),
+    }], { graphUrl: 'https://example.com/schema/graph.jsonld' });
+
+    expect(output.map.body).not.toMatch(/[\u0000\u000b\ud800\ufffe]/u);
+    expect(output.map.body).toContain('🧭');
+  });
+
   test('resolves collected same-site references and rejects missing same-site targets', () => {
     const resolved = renderSchemaCorpus([
       {
@@ -165,5 +175,47 @@ describe('schema corpus', () => {
       code: 'authored-jsonld-malformed', severity: 'error',
     }));
     expect(result.normalizedGraph?.entries.some(({ entity }) => entity['@type'] === 'Thing')).toBe(false);
+  });
+
+  test('does not infer a status-page graph solely because corpus output is enabled', () => {
+    const statusPage = page('/404', 'https://example.com/404');
+    const config = resolveConfig({ schema: { corpus: { enabled: true } } });
+    const site = { siteUrl: 'https://example.com', base: '', trailingSlash: 'never' };
+    const ordinary = enrichHtmlHead({
+      html: '<!doctype html><html><head><title>Not found</title></head><body>Not found</body></html>',
+      page: statusPage,
+      config,
+      site,
+      allowGlobal: false,
+    });
+    expect(ordinary.graph).toBeNull();
+    expect(ordinary.normalizedGraph).toBeNull();
+
+    const authored = enrichHtmlHead({
+      html: '<!doctype html><html><head><title>Not found</title>' +
+        '<script type="application/ld+json">{"@type":"Thing","name":"Authored"}</script>' +
+        '</head><body>Not found</body></html>',
+      page: statusPage,
+      config,
+      site,
+      allowGlobal: false,
+    });
+    expect(authored.graph).toBeNull();
+    expect(authored.normalizedGraph?.entries[0].entity).toMatchObject({
+      '@type': 'Thing',
+      name: 'Authored',
+    });
+
+    const explicit = enrichHtmlHead({
+      html: '<!doctype html><html><head><title>Not found</title>' +
+        '<script type="application/vnd.astro-aeo-head+json" data-astro-aeo-head>{"infer":false,"graph":{"@type":"Thing","name":"Explicit"}}</script>' +
+        '</head><body>Not found</body></html>',
+      page: statusPage,
+      config,
+      site,
+      allowGlobal: false,
+    });
+    expect(explicit.normalizedGraph?.entries).toHaveLength(1);
+    expect(explicit.normalizedGraph?.entries[0].entity).toMatchObject({ '@type': 'Thing', name: 'Explicit' });
   });
 });

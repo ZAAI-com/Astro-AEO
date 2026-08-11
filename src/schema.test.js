@@ -324,6 +324,38 @@ describe('graph validation and serialization', () => {
     expect({}.polluted).toBeUndefined();
   });
 
+  test('distinguishes relative Schema URLs that only lack documentCanonical', () => {
+    const relative = validateGraph(createBreadcrumbList({
+      itemListElement: [{
+        '@type': 'ListItem',
+        position: 1,
+        name: 'Documentation',
+        item: '/docs/',
+      }],
+    }));
+    expect(relative.findings).toContainEqual(expect.objectContaining({
+      code: 'schema.relative-url-base-missing',
+      message: 'Relative Schema URL requires documentCanonical',
+      pointer: '/itemListElement/0/item',
+    }));
+
+    const withBase = validateGraph(relative.graph, {
+      documentCanonical: 'https://example.com/guide',
+    });
+    expect(withBase.findings).not.toContainEqual(expect.objectContaining({
+      code: 'schema.relative-url-base-missing',
+    }));
+
+    const malformed = validateGraph(createEntity({
+      '@type': 'Dataset',
+      contentUrl: 'https://[invalid',
+    }));
+    expect(malformed.findings).toContainEqual(expect.objectContaining({
+      code: 'schema.unsafe-url',
+      pointer: '/contentUrl',
+    }));
+  });
+
   test.each([
     ['javascript scheme', 'javascript:alert(1)'],
     ['data scheme', 'data:text/html,<script>alert(1)</script>'],

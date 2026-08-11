@@ -8,11 +8,19 @@ import { buildDomainProfile } from '../core/render/domain-profile.js';
 import { resolveSiteMeta } from '../core/site-meta.js';
 import { isOwnedArtifactPath } from '../core/owned-artifacts.js';
 import { inspectRootPathname, normalizeCatalogPathname } from '../core/match.js';
+import { matchesExactPathname } from '../core/artifact-path.js';
 import { cancelResponseBody, isIdentityEncoded, isNullBodyStatus } from './respond.js';
 import { enrichHtmlHead, stripAeoHeadMarkers } from '../core/head.js';
 import { renderSchemaCorpus } from '../core/schema-corpus.js';
 import { stableCanonical } from '../core/canonical.js';
 import { catalogBreadcrumbTrail } from '../core/catalog-breadcrumbs.js';
+import {
+  isExtractionEnvelope,
+  isGraphEnvelope,
+  isPageDescriptor,
+  isPageMetadata,
+  isPageRecord,
+} from '../core/plugin-validation.js';
 import { loadRuntimeMarkdownRenderers } from './markdown-renderers.js';
 import { loadRuntimePlugins } from './plugins.js';
 
@@ -25,7 +33,7 @@ import { loadRuntimePlugins } from './plugins.js';
  * @property {string[]} staticPaths
  * @property {string[]} [projectPaths]
  * @property {RegExp[]} [projectPatterns]
- * @property {Record<string, { kind?: 'markdown'|'mdx'; body?: string; markdown?: string; path: string }>} standaloneSources
+ * @property {Record<string, { kind?: 'markdown'|'mdx'; body?: string; markdown?: string; path: string; hash?: string }>} standaloneSources
  */
 
 /** @typedef {{ html: string | null; response: Response }} HtmlLoad */
@@ -58,8 +66,9 @@ const runtimeCatalogPages = new WeakMap();
  * @returns {string}
  */
 export function stripBase(pathname, base) {
-  const prefix = basePrefix(base);
-  if (!prefix || !pathname.startsWith(prefix)) return pathname;
+  const configured = basePrefix(base);
+  const prefix = inspectRootPathname(configured)?.decoded ?? configured;
+  if (!prefix || (pathname !== prefix && !pathname.startsWith(`${prefix}/`))) return pathname;
   return pathname.slice(prefix.length) || '/';
 }
 
@@ -75,8 +84,12 @@ export function artifactFor(pathname, config) {
   }
   if (pathname === '/llms.txt' && config.corpus.index.enabled) return 'llms';
   if (pathname === '/llms-full.txt' && config.corpus.full.enabled) return 'llms-full';
-  if (config.schema.corpus.enabled && pathname === config.schema.corpus.graphPath) return 'schema-graph';
-  if (config.schema.corpus.enabled && pathname === config.schema.corpus.mapPath) return 'schema-map';
+  if (config.schema.corpus.enabled && matchesExactPathname(pathname, config.schema.corpus.graphPath)) {
+    return 'schema-graph';
+  }
+  if (config.schema.corpus.enabled && matchesExactPathname(pathname, config.schema.corpus.mapPath)) {
+    return 'schema-map';
+  }
   return null;
 }
 
@@ -119,18 +132,22 @@ export async function pageFromHtml(pathname, html, runtime, opts = {}) {
     : null;
   /** @type {import('../page.js').PageDescriptor | undefined} */
   let descriptor = allowAuthored ? configuredDescriptor : undefined;
+  // Catalog descriptors retain their authored URL spelling through every
+  // lifecycle hook, as they do during a build. The decoded request pathname is
+  // still used for routing and source lookup, while publicPathname owns links.
+  const lifecyclePathname = descriptor?.pathname ?? pathname;
   /** @type {import('../index.js').Diagnostic[]} */
   const lifecycleDiagnostics = [];
   if (plugins) {
-    const initialDescriptor = descriptor ?? { pathname };
+    const initialDescriptor = descriptor ?? { pathname: lifecyclePathname };
     const discovered = await plugins.run('page:discovered', initialDescriptor, {
-      pathname,
-      validate: (value) => isPageDescriptor(value) && value.pathname === pathname,
+      pathname: lifecyclePathname,
+      validate: (value) => isPageDescriptor(value) && value.pathname === lifecyclePathname,
     });
     lifecycleDiagnostics.push(...discovered.diagnostics);
     if (discovered.isolated) return null;
     const candidate = /** @type {import('../page.js').PageDescriptor} */ (/** @type {unknown} */ (discovered.value));
-    descriptor = configuredDescriptor !== undefined || !isMinimalPageDescriptor(candidate, pathname)
+    descriptor = configuredDescriptor !== undefined || !isMinimalPageDescriptor(candidate, lifecyclePathname)
       ? candidate
       : undefined;
   }
@@ -183,10 +200,15 @@ export async function pageFromHtml(pathname, html, runtime, opts = {}) {
         ...(descriptor?.sourcePath || descriptor?.source?.path || standalone?.path
           ? { path: descriptor?.sourcePath ?? descriptor?.source?.path ?? standalone?.path }
           : {}),
+        ...(typeof descriptor?.source?.hash === 'string'
+          ? { hash: descriptor.source.hash }
+          : typeof standalone?.hash === 'string'
+            ? { hash: standalone.hash }
+            : {}),
       }
     : undefined;
   const result = await buildPage({
-    pathname,
+    pathname: lifecyclePathname,
     html,
     config: runtime.config,
     site: siteForRequest(runtime, origin),
@@ -206,7 +228,7 @@ export async function pageFromHtml(pathname, html, runtime, opts = {}) {
     extraction: page.extraction ?? null,
     source: page.source,
   }, {
-    pathname,
+    pathname: lifecyclePathname,
     validate: isExtractionEnvelope,
   });
   lifecycleDiagnostics.push(...extracted.diagnostics);
@@ -221,7 +243,7 @@ export async function pageFromHtml(pathname, html, runtime, opts = {}) {
   };
 
   const transformed = await plugins.run('page:transform', page, {
-    pathname,
+    pathname: lifecyclePathname,
     validate: (value) => isPageRecord(value) && value.id === page.id && value.pathname === page.pathname,
   });
   lifecycleDiagnostics.push(...transformed.diagnostics);
@@ -237,7 +259,7 @@ export async function pageFromHtml(pathname, html, runtime, opts = {}) {
   };
 
   const metadata = await plugins.run('page:metadata', page.metadata, {
-    pathname,
+    pathname: lifecyclePathname,
     validate: isPageMetadata,
   });
   if (metadata.isolated) return null;
@@ -289,7 +311,11 @@ export async function enrichRuntimePageGraph(html, page, runtime, opts = {}) {
   };
   const semantic = await plugins.run('graph:build', initial, {
     pathname: page.pathname,
-    validate: isGraphEnvelope,
+    validate: (value) => isGraphEnvelope(value, {
+      id: page.id,
+      pathname: page.pathname,
+      site: runtime.site,
+    }),
   });
   if (semantic.isolated) {
     return {
@@ -535,94 +561,9 @@ export class RuntimeSchemaCorpusError extends Error {
   }
 }
 
-/** @param {unknown} value @returns {value is import('../page.js').PageDescriptor} */
-function isPageDescriptor(value) {
-  const descriptor = /** @type {any} */ (value);
-  return Boolean(
-    descriptor &&
-    typeof descriptor === 'object' &&
-    typeof descriptor.pathname === 'string' &&
-    (descriptor.routePattern === undefined || typeof descriptor.routePattern === 'string') &&
-    (descriptor.rendering === undefined || descriptor.rendering === 'prerendered' || descriptor.rendering === 'on-demand') &&
-    (descriptor.title === undefined || typeof descriptor.title === 'string') &&
-    (descriptor.description === undefined || typeof descriptor.description === 'string') &&
-    (descriptor.image === undefined || typeof descriptor.image === 'string') &&
-    (descriptor.language === undefined || typeof descriptor.language === 'string') &&
-    (descriptor.markdown === undefined || typeof descriptor.markdown === 'string')
-  );
-}
-
 /** @param {import('../page.js').PageDescriptor} value @param {string} pathname */
 function isMinimalPageDescriptor(value, pathname) {
   return value.pathname === pathname && Object.keys(value).every((key) => key === 'pathname');
-}
-
-/** @param {unknown} value */
-function isExtractionEnvelope(value) {
-  const candidate = /** @type {any} */ (value);
-  return Boolean(
-    candidate &&
-    typeof candidate === 'object' &&
-    candidate.representations &&
-    typeof candidate.representations === 'object' &&
-    (candidate.representations.html === undefined || typeof candidate.representations.html === 'string') &&
-    (candidate.representations.markdown === undefined || typeof candidate.representations.markdown === 'string') &&
-    (candidate.representations.plainText === undefined || typeof candidate.representations.plainText === 'string') &&
-    (candidate.extraction === null || candidate.extraction === undefined || typeof candidate.extraction === 'object') &&
-    (candidate.source === undefined || (candidate.source && typeof candidate.source === 'object'))
-  );
-}
-
-/** @param {unknown} value @returns {value is import('../core/page-model.js').AeoPage} */
-function isPageRecord(value) {
-  const page = /** @type {any} */ (value);
-  return Boolean(
-    page &&
-    typeof page === 'object' &&
-    typeof page.id === 'string' &&
-    typeof page.pathname === 'string' &&
-    typeof page.url === 'string' &&
-    typeof page.mdHref === 'string' &&
-    typeof page.title === 'string' &&
-    typeof page.description === 'string' &&
-    typeof page.markdown === 'string' &&
-    (page.rendering === 'prerendered' || page.rendering === 'on-demand') &&
-    Array.isArray(page.aeoTokens) && page.aeoTokens.every((/** @type {unknown} */ token) => typeof token === 'string') &&
-    isPageMetadata(page.metadata) &&
-    page.representations && typeof page.representations === 'object' &&
-    Array.isArray(page.authors) &&
-    Array.isArray(page.entities) &&
-    page.directives && typeof page.directives === 'object'
-  );
-}
-
-/** @param {unknown} value @returns {value is import('../core/page-model.js').AeoPage['metadata']} */
-function isPageMetadata(value) {
-  const metadata = /** @type {any} */ (value);
-  return Boolean(
-    metadata &&
-    typeof metadata === 'object' &&
-    typeof metadata.title === 'string' &&
-    (metadata.description === undefined || typeof metadata.description === 'string') &&
-    (metadata.image === undefined || typeof metadata.image === 'string') &&
-    (metadata.canonicalSource === undefined || metadata.canonicalSource === 'authored' || metadata.canonicalSource === 'inferred')
-  );
-}
-
-/** @param {unknown} value */
-function isGraphEnvelope(value) {
-  const candidate = /** @type {any} */ (value);
-  return Boolean(
-    candidate &&
-    typeof candidate === 'object' &&
-    typeof candidate.html === 'string' &&
-    isPageRecord(candidate.page) &&
-    candidate.site && typeof candidate.site === 'object' &&
-    (candidate.graph === null || (candidate.graph && Array.isArray(candidate.graph.entries))) &&
-    (candidate.normalizedGraph === undefined || candidate.normalizedGraph === null ||
-      (candidate.normalizedGraph && Array.isArray(candidate.normalizedGraph.entries))) &&
-    typeof candidate.explicit === 'boolean'
-  );
 }
 
 /**

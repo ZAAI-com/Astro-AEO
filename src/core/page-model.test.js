@@ -97,6 +97,25 @@ describe('buildPage', () => {
     expect(() => JSON.stringify(p)).not.toThrow();
   });
 
+  test('omits non-content element text from the plain-text representation', async () => {
+    const result = await buildPage({
+      pathname: '/plain-text',
+      html: page(
+        '<h1>Visible</h1>' +
+        '<script>SECRET_SCRIPT</script>' +
+        '<style>SECRET_STYLE</style>' +
+        '<noscript>SECRET_NOSCRIPT</noscript>' +
+        '<template>SECRET_TEMPLATE</template>' +
+        '<iframe>SECRET_FRAME</iframe>' +
+        '<p>Body.</p>',
+      ),
+      config,
+      site,
+    });
+
+    expect(result.page.representations.plainText).toBe('Visible Body.');
+  });
+
   test('every skip is reported with a reason rather than silently dropped', async () => {
     const excluded = await buildPage({
       pathname: '/private/x',
@@ -308,7 +327,12 @@ describe('buildPage', () => {
       html: page('<h1>Rendered fallback</h1>'),
       config,
       site,
-      authored: { body: '# Authored MDX', kind: 'mdx', path: 'src/pages/mdx.mdx' },
+      authored: {
+        body: '# Authored MDX',
+        kind: 'mdx',
+        path: 'src/pages/mdx.mdx',
+        hash: 'sha256:authored-mdx',
+      },
       routePattern: '/[slug]',
       renderers: [{
         name: 'source-aware',
@@ -317,6 +341,7 @@ describe('buildPage', () => {
             kind: 'mdx',
             path: 'src/pages/mdx.mdx',
             body: '# Authored MDX',
+            hash: 'sha256:authored-mdx',
           });
           expect(input.canonicalUrl).toBe('https://x.com/mdx/');
           expect(input.routePattern).toBe('/[slug]');
@@ -327,6 +352,7 @@ describe('buildPage', () => {
     });
     expect(rendered.page.markdown).toBe('');
     expect(rendered.page.extraction).toMatchObject({ strategy: 'renderer:source-aware' });
+    expect(rendered.page.source.hash).toBe('sha256:authored-mdx');
     expect(fallbackLoader).not.toHaveBeenCalled();
   });
 

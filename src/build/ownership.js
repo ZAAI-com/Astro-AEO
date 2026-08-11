@@ -111,10 +111,21 @@ export function resolveRecordedOutputPath(outputRoot, value) {
       if (!stat.isDirectory() || stat.isSymbolicLink()) return null;
     } catch (error) {
       if (/** @type {any} */ (error)?.code !== 'ENOENT') return null;
-      // Once an ancestor does not exist, all later directories will be created
-      // below that ordinary path during the transaction.
+      // A missing ancestor is safe only for this inspection. Transaction callers
+      // must revalidate immediately before staging and applying filesystem work.
       break;
     }
   }
   return path;
+}
+
+/**
+ * Recheck that a concrete destination is still lexically confined and has no
+ * symlinked ancestor below its trusted output root.
+ * @param {string} outputRoot
+ * @param {string} path
+ */
+export function isSafeOutputPath(outputRoot, path) {
+  const outputPath = relativeOutputPath(outputRoot, path);
+  return outputPath !== null && resolveRecordedOutputPath(outputRoot, outputPath) !== null;
 }

@@ -58,12 +58,14 @@ export function enrichHtmlHead({
     return { html: output, page, graph: null, normalizedGraph: null, diagnostics, explicit };
   }
 
-  const configured = configuredCanonical(site, page.pathname);
+  const configured = page.metadata.canonicalSource === 'inferred'
+    ? stableCanonical(page.canonicalUrl) ?? configuredCanonical(site, page.pathname)
+    : configuredCanonical(site, page.pathname);
   const authored = authoredCanonical(output, configured ?? stableCanonical(site.siteUrl));
   diagnostics.push(...metadataDiagnostics(output, page.pathname));
   const explicitCanonical = head?.canonical === undefined
     ? undefined
-    : stableCanonical(head.canonical, authored.canonical ?? configured ?? stableCanonical(site.siteUrl));
+    : stableCanonical(head.canonical, configured ?? stableCanonical(site.siteUrl));
   if (head?.canonical !== undefined && !explicitCanonical && (authored.canonical || configured)) {
     diagnostics.push(diagnostic('canonical-invalid', 'warning', 'AeoHead canonical must resolve to a stable public HTTP(S) URL.', page.pathname));
   }
@@ -115,17 +117,19 @@ export function enrichHtmlHead({
       entity,
       provenance: { source: 'authored-head', pathname: effectivePage.pathname },
     })),
-    ...inferredEntities({
-      page: effectivePage,
-      html: output,
-      config,
-      site,
-      canonicalUrl,
-      infer,
-      breadcrumbTrail,
-    }),
+    ...(graphRequested
+      ? inferredEntities({
+          page: effectivePage,
+          html: output,
+          config,
+          site,
+          canonicalUrl,
+          infer,
+          breadcrumbTrail,
+        })
+      : []),
   ];
-  if (config.site.organization && typeof config.site.organization === 'object') {
+  if (graphRequested && config.site.organization && typeof config.site.organization === 'object') {
     candidates.push({
       entity: withDefaultOrganizationId(config.site.organization, site),
       provenance: { source: 'configuration', pathname: effectivePage.pathname },
@@ -150,6 +154,7 @@ export function enrichHtmlHead({
     .filter(Boolean);
 
   let graph = null;
+  /** @type {import('../schema.js').AeoGraph | null} */
   let normalizedGraph = authoredGraph.graph;
   try {
     const managedResult = validateGraph(
@@ -178,7 +183,7 @@ export function enrichHtmlHead({
       return { html: output, page: effectivePage, graph: null, normalizedGraph, canonicalUrl, diagnostics, explicit };
     }
     const managedGraph = managedResult.graph;
-    normalizedGraph = combinedResult.graph;
+    normalizedGraph = combinedResult.graph.entries.length > 0 ? combinedResult.graph : null;
     if (graphRequested) {
       const serialized = serializeGraph(managedGraph, {
         documentCanonical: canonicalUrl,
@@ -313,9 +318,10 @@ function applyExplicitMetadata(html, head, canonical, site, diagnostics, pathnam
     if (previous) tags.push(link({ rel: 'prev', href: previous }));
     if (next) tags.push(link({ rel: 'next', href: next }));
   }
-  if (head.markdownAlternate !== undefined) {
+  if (head.markdownAlternate !== undefined && head.markdownAlternate !== null) {
     output = removeVoidTags(output, 'link', (tag) => hasRel(tag, 'alternate') && attr(tag, 'type')?.toLowerCase() === 'text/markdown');
-    const source = typeof head.markdownAlternate === 'object' && !(head.markdownAlternate instanceof URL)
+    const source = typeof head.markdownAlternate === 'object' &&
+      !(head.markdownAlternate instanceof URL)
       ? head.markdownAlternate
       : { href: head.markdownAlternate };
     const href = resolveUrl(source.href, canonical, site.siteUrl);
@@ -463,7 +469,9 @@ function openGraphTags(head, canonical, site) {
       if (resolved !== undefined) tags.push(meta('property', `og:image:${suffix}`, String(resolved)));
     }
   }
-  for (const locale of graph.localeAlternates ?? []) if (typeof locale === 'string') tags.push(meta('property', 'og:locale:alternate', locale));
+  for (const locale of Array.isArray(graph.localeAlternates) ? graph.localeAlternates : []) {
+    if (typeof locale === 'string') tags.push(meta('property', 'og:locale:alternate', locale));
+  }
   return tags;
 }
 

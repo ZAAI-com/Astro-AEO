@@ -117,7 +117,7 @@ export function basePrefix(base) {
  * @param {SiteFacts} input.site
  * @param {import('turndown')} [input.td]
  * @param {() => Promise<import('turndown')>} [input.getTurndown]
- * @param {{ markdown?: string; body?: string; title?: string; description?: string; image?: string; language?: string; published?: string; lastModified?: string; authors?: unknown[]; entities?: unknown[]; directives?: Partial<Record<'index'|'includeInLlms'|'includeInLlmsFull'|'generateMarkdown', boolean>>; kind?: 'markdown'|'mdx'|'astro'|'cms'|'rendered'|'custom'; path?: string; strategy?: 'markdown-route'|'catalog'; extraction?: import('./extract/index.js').ExtractionDiagnostics }} [input.authored]
+ * @param {{ markdown?: string; body?: string; title?: string; description?: string; image?: string; language?: string; published?: string; lastModified?: string; authors?: unknown[]; entities?: unknown[]; directives?: Partial<Record<'index'|'includeInLlms'|'includeInLlmsFull'|'generateMarkdown', boolean>>; kind?: 'markdown'|'mdx'|'astro'|'cms'|'rendered'|'custom'; path?: string; hash?: string; strategy?: 'markdown-route'|'catalog'; extraction?: import('./extract/index.js').ExtractionDiagnostics }} [input.authored]
  * @param {import('./markdown-renderers.js').MarkdownRendererEntry[]} [input.renderers]
  * @param {boolean} [input.allowMarker]
  * @param {'prerendered'|'on-demand'} [input.rendering]
@@ -178,6 +178,7 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
                 kind: authored.kind,
                 ...(authored.path ? { path: authored.path } : {}),
                 ...(typeof authored.body === 'string' ? { body: authored.body } : {}),
+                ...(typeof authored.hash === 'string' ? { hash: authored.hash } : {}),
               },
             }
           : {}),
@@ -292,6 +293,7 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
               ? authored.strategy
               : 'rendered',
         ...(sourcePath ? { path: sourcePath } : {}),
+        ...(typeof authored?.hash === 'string' ? { hash: authored.hash } : {}),
       },
       diagnostics: [
         ...rendererDiagnostics,
@@ -326,6 +328,9 @@ function sourceKindFor(path, authoredMarkdown) {
 function documentPlainText(document) {
   if (!document.body) return '';
   const body = /** @type {HTMLElement} */ (document.body.cloneNode(true));
+  for (const element of body.querySelectorAll('script,style,noscript,template,iframe')) {
+    element.remove();
+  }
   for (const element of body.querySelectorAll(
     'address,article,aside,blockquote,br,dd,div,dl,dt,figcaption,figure,footer,h1,h2,h3,h4,h5,h6,header,hr,li,main,nav,ol,p,pre,section,table,tr,ul',
   )) {

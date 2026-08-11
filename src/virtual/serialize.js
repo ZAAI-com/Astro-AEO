@@ -10,8 +10,9 @@ import { isPlainObject } from '../lib/config-migrate.js';
  * @returns {T}
  */
 export function runtimeConfigProjection(config) {
+  const { plugins: _plugins, ...runtimeConfig } = /** @type {any} */ (config);
   return /** @type {T} */ ({
-    ...config,
+    ...runtimeConfig,
     markdown: {
       .../** @type {any} */ (config).markdown,
       // Renderer functions travel through validated literal module loaders.

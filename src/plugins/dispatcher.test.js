@@ -139,6 +139,25 @@ describe('plugin dispatcher', () => {
     expect(dispatcher.runtimeManifest.plugins[0]).toMatchObject({ name: 'feed', stages: [] });
   });
 
+  test('uses the configuration exact-path contract for encoded claims', async () => {
+    const encoded = await createPluginDispatcher({
+      command: 'build',
+      plugins: [{
+        name: 'encoded', apiVersion: 1,
+        setup(api) { api.claimArtifact({ id: 'feed', pathname: '/caf%C3%A9.txt' }); },
+      }],
+    });
+    expect(encoded.claims[0].pathname).toBe('/caf%C3%A9.txt');
+
+    await expect(createPluginDispatcher({
+      command: 'build',
+      plugins: [{
+        name: 'ambiguous', apiVersion: 1,
+        setup(api) { api.claimArtifact({ id: 'feed', pathname: '/caf%c3%a9.txt' }); },
+      }],
+    })).rejects.toThrow(/failed during setup/);
+  });
+
   test('rejects duplicate names, reserved names, and traversal claims', async () => {
     const plugin = { name: 'same', apiVersion: 1, setup() {} };
     await expect(createPluginDispatcher({ command: 'build', plugins: [plugin, plugin] })).rejects.toThrow(/duplicate/);

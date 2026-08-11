@@ -185,4 +185,93 @@ describe('catalog pathname validation', () => {
     expect(diagnostics).toHaveLength(3);
     expect(diagnostics.every((finding) => finding.code === 'catalog-invalid-pathname')).toBe(true);
   });
+
+  test('preserves the complete serializable page descriptor shape', async () => {
+    const descriptor = {
+      pathname: '/rich',
+      routePattern: '/rich/[slug]',
+      rendering: 'on-demand',
+      title: 'Rich page',
+      description: 'Complete catalog metadata.',
+      image: '/images/rich.png',
+      language: 'de',
+      markdown: '# Rich',
+      dates: { published: '2026-01-02', modified: '2026-02-03T04:05:06Z' },
+      authors: [{ name: 'Ada' }],
+      entities: [{ '@type': 'Thing', name: 'Catalog entity' }],
+      directives: {
+        index: false,
+        includeInLlms: true,
+        includeInLlmsFull: false,
+        generateMarkdown: true,
+        ignored: 'not-a-directive',
+      },
+      lastModified: '2026-03-04',
+      sourcePath: 'cms:rich',
+      source: { kind: 'cms', path: 'cms:rich', body: '# Rich', hash: 'sha256:rich' },
+      extraction: {
+        strategy: 'catalog',
+        selectedNodes: 0,
+        removedNodes: 0,
+        inputCharacters: 6,
+        outputCharacters: 6,
+      },
+    };
+
+    const pages = await loadCatalogPages(
+      [{ module: './catalog.js' }],
+      async () => ({ default: { listPages: () => [descriptor] } }),
+      { warn() {} },
+      {
+        command: 'build',
+        siteUrl: 'https://example.test',
+        base: '',
+        trailingSlash: 'ignore',
+      },
+    );
+
+    expect(pages).toEqual([{
+      ...descriptor,
+      dates: {
+        published: '2026-01-02T00:00:00.000Z',
+        modified: '2026-02-03T04:05:06.000Z',
+      },
+      directives: {
+        index: false,
+        includeInLlms: true,
+        includeInLlmsFull: false,
+        generateMarkdown: true,
+      },
+      lastModified: '2026-03-04T00:00:00.000Z',
+    }]);
+  });
+
+  test('diagnoses and removes invalid nested catalog dates', async () => {
+    const diagnostics = [];
+    const pages = await loadCatalogPages(
+      [{ module: './catalog.js' }],
+      async () => ({
+        default: {
+          listPages: () => [{
+            pathname: '/dated',
+            dates: { published: 'not-a-date', modified: 'also-invalid' },
+          }],
+        },
+      }),
+      { warn() {} },
+      {
+        command: 'build',
+        siteUrl: 'https://example.test',
+        base: '',
+        trailingSlash: 'ignore',
+      },
+      diagnostics,
+    );
+
+    expect(pages).toEqual([{ pathname: '/dated', dates: {} }]);
+    expect(diagnostics).toEqual([
+      expect.objectContaining({ code: 'catalog-invalid-date', pathname: '/dated' }),
+      expect.objectContaining({ code: 'catalog-invalid-date', pathname: '/dated' }),
+    ]);
+  });
 });

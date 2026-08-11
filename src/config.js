@@ -5,6 +5,7 @@ import { resolveSitemapPolicy } from './lib/sitemap.js';
 import { parseDocument } from './core/html-document.js';
 import { assertValidExtractionOptions } from './core/extract/index.js';
 import { cloneJsonValue } from './core/json-value.js';
+import { assertExactPathname } from './core/artifact-path.js';
 
 /** @type {import('./index.js').SectionRule[]} */
 const DEFAULT_SECTIONS = [{ title: 'Home', match: '/' }];
@@ -308,55 +309,6 @@ function validateReplacementPaths(paths) {
   return normalized;
 }
 
-/**
- * @param {unknown} path
- * @param {string} label
- * @returns {string}
- */
-export function assertExactPathname(path, label = 'pathname') {
-  if (typeof path !== 'string' || !path.startsWith('/') || path === '/' || path.startsWith('//')) {
-    throw new TypeError(`${label} must be an exact absolute served pathname below root.`);
-  }
-  const hasControl = [...path].some((character) => {
-    const code = character.charCodeAt(0);
-    return code < 32 || code === 127;
-  });
-  if (hasControl || /[\\?#*{}\[\]]/.test(path) || path.endsWith('/') || path.includes('//')) {
-    throw new TypeError(`${label} must be normalized and contain no query, fragment, glob, or trailing slash.`);
-  }
-  if (/%(?:2f|5c)/i.test(path)) {
-    throw new TypeError(`${label} must not contain encoded path separators.`);
-  }
-  let decoded = path;
-  let decodedOnce;
-  for (let depth = 0; depth < 3; depth++) {
-    try {
-      const next = decodeURIComponent(decoded);
-      if (depth === 0) decodedOnce = next;
-      if (next === decoded) break;
-      decoded = next;
-    } catch {
-      throw new TypeError(`${label} contains malformed URL encoding.`);
-    }
-  }
-  if (decoded.split('/').some((segment) => segment === '.' || segment === '..')) {
-    throw new TypeError(`${label} must not contain dot segments.`);
-  }
-  try {
-    if (
-      decodedOnce === undefined ||
-      /%[0-9a-f]{2}/i.test(decodedOnce) ||
-      encodeURI(decodedOnce) !== path
-    ) {
-      throw new TypeError(`${label} must use one unambiguous normalized URL spelling.`);
-    }
-  } catch (error) {
-    if (error instanceof TypeError && error.message.includes('unambiguous normalized')) throw error;
-    throw new TypeError(`${label} must use one unambiguous normalized URL spelling.`);
-  }
-  return path;
-}
-
 /** @param {unknown} defaults @returns {import('./index.js').MetadataDefaults} */
 function validateMetadataDefaults(defaults) {
   if (defaults === undefined) return {};
@@ -432,36 +384,47 @@ function validatePlugins(plugins) {
   if (plugins === undefined) return [];
   if (!Array.isArray(plugins)) throw new AeoConfigError('astro-aeo: plugins must be an array.');
   const names = new Set();
+  const resolved = [];
   for (let index = 0; index < plugins.length; index++) {
     const plugin = plugins[index];
     if (!isPlainObject(plugin) || typeof plugin.name !== 'string' || !plugin.name.trim()) {
       throw new AeoConfigError(`astro-aeo: plugins[${index}].name must be a non-empty string.`);
     }
-    if (plugin.name.startsWith('astro-aeo:')) {
-      throw new AeoConfigError(`astro-aeo: plugin name "${plugin.name}" uses a reserved prefix.`);
+    const name = plugin.name.trim();
+    if (name.startsWith('astro-aeo:')) {
+      throw new AeoConfigError(`astro-aeo: plugin name "${name}" uses a reserved prefix.`);
     }
-    if (names.has(plugin.name)) {
-      throw new AeoConfigError(`astro-aeo: duplicate plugin name "${plugin.name}".`);
+    if (names.has(name)) {
+      throw new AeoConfigError(`astro-aeo: duplicate plugin name "${name}".`);
     }
-    names.add(plugin.name);
+    names.add(name);
     if (plugin.apiVersion !== 1) {
-      throw new AeoConfigError(`astro-aeo: plugin "${plugin.name}" must declare apiVersion: 1.`);
+      throw new AeoConfigError(`astro-aeo: plugin "${name}" must declare apiVersion: 1.`);
     }
     if (typeof plugin.setup !== 'function') {
-      throw new AeoConfigError(`astro-aeo: plugin "${plugin.name}" must provide setup(api).`);
+      throw new AeoConfigError(`astro-aeo: plugin "${name}" must provide setup(api).`);
     }
+    let runtime;
     if (plugin.runtime !== undefined) {
       if (!isPlainObject(plugin.runtime) || !isModuleReference(plugin.runtime.entrypoint)) {
         throw new AeoConfigError(
-          `astro-aeo: plugin "${plugin.name}" runtime.entrypoint must be a non-empty string or URL.`,
+          `astro-aeo: plugin "${name}" runtime.entrypoint must be a non-empty string or URL.`,
         );
       }
-      if (plugin.runtime.options !== undefined) {
-        cloneConfigJson(plugin.runtime.options, `plugins[${index}].runtime.options`);
-      }
+      runtime = {
+        ...plugin.runtime,
+        ...(plugin.runtime.options === undefined
+          ? {}
+          : { options: cloneConfigJson(plugin.runtime.options, `plugins[${index}].runtime.options`) }),
+      };
     }
+    resolved.push({
+      ...plugin,
+      name,
+      ...(runtime === undefined ? {} : { runtime }),
+    });
   }
-  return [...plugins];
+  return resolved;
 }
 
 /** @param {unknown} value @param {string} label */
@@ -507,4 +470,5 @@ function warnUnknownKeys(value, shape, logger, path = '') {
   }
 }
 
+export { assertExactPathname };
 export { resolveSiteMeta } from './core/site-meta.js';

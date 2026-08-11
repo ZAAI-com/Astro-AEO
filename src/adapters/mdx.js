@@ -98,11 +98,15 @@ function visit(node, source, components, edits) {
     if (!Number.isInteger(start) || !Number.isInteger(end)) {
       return 'MDX contains JSX without a stable source range';
     }
+    const name = typeof node.name === 'string' ? node.name : null;
+    if (name !== null && NEVER_ELEMENTS.has(name)) {
+      edits.push({ start, end, value: '' });
+      return null;
+    }
     if (!literalAttributes(node.attributes ?? [])) {
       return `MDX component ${displayName(node.name)} contains an expression attribute`;
     }
 
-    const name = typeof node.name === 'string' ? node.name : null;
     const mapping = name === null ? { action: 'unwrap' } : components[name];
     const custom = name !== null && !SAFE_ELEMENT.test(name);
     if (custom && !mapping) {

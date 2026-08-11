@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { cloneJsonValue, immutableJsonValue } from './json-value.js';
+import { cloneJsonValue, deepFreeze, immutableJsonValue } from './json-value.js';
 
 describe('strict JSON values', () => {
   test('clones plain data without retaining caller state', () => {
@@ -34,5 +34,24 @@ describe('strict JSON values', () => {
     const value = immutableJsonValue({ nested: ['safe'] });
     expect(Object.isFrozen(value)).toBe(true);
     expect(Object.isFrozen(value.nested)).toBe(true);
+  });
+
+  test('deepFreeze includes callable values and their properties', () => {
+    const callable = Object.assign(() => {}, { options: { enabled: true } });
+    deepFreeze(callable);
+    expect(Object.isFrozen(callable)).toBe(true);
+    expect(Object.isFrozen(callable.options)).toBe(true);
+  });
+
+  test('deepFreeze traverses frozen parents and terminates cycles', () => {
+    const child = { enabled: true };
+    const parent = Object.freeze({ child });
+    /** @type {any} */
+    const cycle = { parent };
+    cycle.self = cycle;
+
+    expect(deepFreeze(cycle)).toBe(cycle);
+    expect(Object.isFrozen(cycle)).toBe(true);
+    expect(Object.isFrozen(child)).toBe(true);
   });
 });

@@ -73,6 +73,32 @@ describe('finalizeSitemapOutputs', () => {
     expect(warnings).toEqual([]);
   });
 
+  test('auto mode advertises an alias staged by the deferred writer', () => {
+    writeFileSync(join(dir, 'sitemap-index.xml'), '<index/>');
+    const writer = createArtifactWriter({
+      distDir,
+      logger,
+      deferred: true,
+      projectRoot: dir,
+      diagnostics: [],
+      failOn: 'error',
+    });
+    const result = finalize(
+      { robotsTxt: { enabled: true, sitemapPath: '/sitemap.xml' } },
+      { sitemapExpected: true, writer },
+    );
+
+    expect(result).toEqual({ aliasEmitted: true, sitemapAdvertised: true });
+    expect(existsSync(join(dir, 'sitemap.xml'))).toBe(false);
+    expect(existsSync(join(dir, 'robots.txt'))).toBe(false);
+
+    writer.commit();
+    expect(readFileSync(join(dir, 'sitemap.xml'), 'utf8')).toBe('<index/>');
+    expect(readFileSync(join(dir, 'robots.txt'), 'utf8')).toContain(
+      'Sitemap: https://example.com/sitemap.xml',
+    );
+  });
+
   test('expected but missing output warns once and is not advertised', () => {
     const result = finalize({}, { sitemapExpected: true });
 

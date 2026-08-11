@@ -35,4 +35,11 @@ describe('runtime plugin module resolution', () => {
     expect(() => resolveRuntimePluginSpecifier('data:text/javascript,export default {}', '/project'))
       .toThrow(/remote modules are not supported/);
   });
+
+  test('recognizes Windows drive paths before URL-scheme rejection', () => {
+    expect(resolveRuntimePluginSpecifier(
+      String.raw`C:\project files\plugin.js?mode=runtime`,
+      '/project',
+    )).toBe('file:///C:/project%20files/plugin.js?mode=runtime');
+  });
 });
