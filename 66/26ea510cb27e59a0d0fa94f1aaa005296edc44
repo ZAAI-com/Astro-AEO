@@ -1,0 +1,19 @@
+package.json
+  s_bcdb905d48f3da::t_238c52fccde2c7 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "6626ea510cb27e59a0d0fa94f1aaa005296edc44",
+  "prompts": {},
+  "sessions": {
+    "s_bcdb905d48f3da": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fefe8-89ae-77d3-807c-c1ed8ce065c9",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
