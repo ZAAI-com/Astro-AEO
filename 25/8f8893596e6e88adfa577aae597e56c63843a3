@@ -1,0 +1,257 @@
+src/core/owned-artifacts.js
+  s_eae55d90b30300::t_9ddb1c02811e17 2,16-17
+src/build/ownership.js
+  s_eae55d90b30300::t_ee2c8e3a951cfa 114-115,121-130
+  s_eae55d90b30300::t_e05603c06d1fdc 131
+src/plugins/runtime-modules.js
+  s_eae55d90b30300::t_de393701359983 2,46-54,62-74
+  s_eae55d90b30300::t_805f3075094e5e 75
+src/build/collect.js
+  s_eae55d90b30300::t_8936cd42e4f995 73-77,80-85,98,111,146,148,152-157,161,166,180,184,186
+src/schema-definition.test.js
+  s_eae55d90b30300::t_d7d6686a1a15fe 30-33
+  s_eae55d90b30300::t_024924aea18441 26-29,34-37,87
+src/core/schema-corpus.js
+  s_eae55d90b30300::t_2df3729feddc57 149-155
+components/AeoHead.astro
+  s_eae55d90b30300::t_cfdd8f2072164b 2,9
+src/runtime/serve.js
+  s_eae55d90b30300::t_cb75df55b40e9c 135-138,142,144-145,150,211,231,246,262
+  s_eae55d90b30300::t_df9c631401cefb 17-23,36,203-207,314-318
+  s_eae55d90b30300::t_0025ca6a04e804 11,87-92
+  s_eae55d90b30300::t_a117a00d46eeae 69-71
+src/core/page-model.test.js
+  s_eae55d90b30300::t_f46c9ec087eb70 330-335,344,355
+  s_eae55d90b30300::t_4333c00bc6ae96 100-118
+src/config.test.js
+  s_eae55d90b30300::t_382b21fdd9f03f 91-92
+  s_eae55d90b30300::t_68d50e9d04bd5d 69,105-110,117-135
+  s_eae55d90b30300::t_4da4bf3a194e0c 136-137
+src/core/head.js
+  s_eae55d90b30300::t_2df3729feddc57 61-63,324,472-474
+  s_eae55d90b30300::t_2714e8a41d2c83 157
+  s_eae55d90b30300::t_e1e0d2ccc610c6 321,323
+  s_eae55d90b30300::t_6339bb6660673c 120-130,132,186
+  s_eae55d90b30300::t_1db97a52b4bcb6 68
+components/index.d.ts
+  s_eae55d90b30300::t_cfdd8f2072164b 4-5,63
+src/generators/sitemap-finalize.test.js
+  s_eae55d90b30300::t_a7807e3758e65f 76-101
+schema/astro-aeo.schema.json
+  s_eae55d90b30300::t_a8f99e9fe62a40 1
+src/integration-hooks.test.js
+  s_eae55d90b30300::t_836aa838bd83de 270,274-276
+  s_eae55d90b30300::t_92e94855368600 157,160,344,408,443,447,464
+  s_eae55d90b30300::t_2424b34b81dfd6 63-64,81,108-110
+  s_eae55d90b30300::t_40663ba2d4cb5e 82,111
+  s_eae55d90b30300::t_855d6123a7df5a 312-314
+src/config.js
+  s_eae55d90b30300::t_68d50e9d04bd5d 387,393-395,397-398,400,402,405,407,411,414-419,421-425,427
+  s_eae55d90b30300::t_234660beb335f6 473
+  s_eae55d90b30300::t_382b21fdd9f03f 8
+src/core/head.test.js
+  s_eae55d90b30300::t_e1e0d2ccc610c6 274,281-282
+  s_eae55d90b30300::t_1db97a52b4bcb6 127-146
+  s_eae55d90b30300::t_2df3729feddc57 115-126,147-168,275-280,283-291
+  s_eae55d90b30300::t_0dbadaf02ddb2a 292
+src/build/transaction.test.js
+  s_eae55d90b30300::t_ee3d2f3a0e4b5d 6,9,80-94,109-132
+  s_eae55d90b30300::t_02d4abbb8b3e3a 5,8,13,95-108,152-217
+  s_eae55d90b30300::t_dc257f33ffa7b5 133,135-151,218-219
+  s_eae55d90b30300::t_ae5091c9d3a394 134
+src/release-evidence.test.js
+  s_eae55d90b30300::t_b68c16985cebd3 1-38
+src/plugins/dispatcher.test.js
+  s_eae55d90b30300::t_e490b19436d2d3 142-160
+src/core/json-value.js
+  s_eae55d90b30300::t_1164cb351ac918 83-95
+README.md
+  s_eae55d90b30300::t_6e98f5cc935c76 274
+src/runtime/serve.test.js
+  s_eae55d90b30300::t_40663ba2d4cb5e 154-191
+  s_eae55d90b30300::t_ecb1351cabef3c 77-111,224-228,292-314,720-723,734
+src/runtime/middleware.js
+  s_eae55d90b30300::t_a117a00d46eeae 102-103,622,1052-1053,1059
+  s_eae55d90b30300::t_a031a512a522c6 170-171,173-175,178
+  s_eae55d90b30300::t_0025ca6a04e804 10,114-116,415,611-614,620,623-625,629-635
+  s_e2588e1e8702ba::t_8d6b89fcff6f4b 636-637
+src/build/catalogs.js
+  s_eae55d90b30300::t_e1588c9f69930b 174-175,184-203,208-209,211-221
+src/hooks/build-done.js
+  s_eae55d90b30300::t_3764429b8865ca 452-455
+CHANGELOG.md
+  s_eae55d90b30300::t_a2bd61823cda9e 57-59
+src/plugins/runtime-modules.test.js
+  s_eae55d90b30300::t_de393701359983 38-44
+fixtures/adapters/shared/provider-plugin.mjs
+  s_eae55d90b30300::t_2550630ee18458 1
+src/generators/dotmd.js
+  s_eae55d90b30300::t_a46ee0541c135f 40-42
+src/core/json-value.test.js
+  s_eae55d90b30300::t_1164cb351ac918 44-48,50-56
+  s_eae55d90b30300::t_2df3729feddc57 2,38-43
+  s_eae55d90b30300::t_a4fadfe8e2060d 49
+test/adapters/build.test.js
+  s_eae55d90b30300::t_2550630ee18458 38,94-96
+  s_908e0617a04450::t_059cbedfb42959 28,33
+src/core/schema-corpus.test.js
+  s_eae55d90b30300::t_2df3729feddc57 65-74,179-193,209-220
+  s_eae55d90b30300::t_6339bb6660673c 194-208
+src/schema.js
+  s_eae55d90b30300::t_bc3a19c95ec1d6 1033-1057
+src/virtual/serialize.js
+  s_eae55d90b30300::t_f1a62b1f2d85c6 13,15
+fixtures/representations-1.2/src/pages/rich.astro
+  s_eae55d90b30300::t_cfdd8f2072164b 14
+src/schema.test.js
+  s_eae55d90b30300::t_bc3a19c95ec1d6 327-358
+src/plugins/dispatcher.js
+  s_eae55d90b30300::t_e490b19436d2d3 4,202-204
+src/build/transaction.js
+  s_eae55d90b30300::t_ee2c8e3a951cfa 12-13,16,32-36,39-40,45-53,62-63,65,86,89,98,100,114,116,121,127-128,142-143,146,150,161-163,171-198
+  s_eae55d90b30300::t_7b3fa7199fd0d9 69
+  s_eae55d90b30300::t_dc257f33ffa7b5 25,56-59,61,64,66-68,70-85,87-88,90-92,96-97,101,105-108,129-132,149
+  s_eae55d90b30300::t_b460c8a8bb0293 2,28-31,37,60,115,117-120,122-125,134,147-148
+src/core/plugin-validation.js
+  s_eae55d90b30300::t_1e291b789ee877 216,220
+  s_eae55d90b30300::t_2424b34b81dfd6 25-26,49,140,143-150,233-256
+  s_eae55d90b30300::t_6ce23636f87566 39-41,310-314
+  s_eae55d90b30300::t_59ca80397eb8db 1-15,17-24,27-37,42-48,50-139,141-142,151-215,217-219,221-232,279-309,315-327
+  s_eae55d90b30300::t_a24d1817117834 16,38,257-278
+src/build/artifacts.test.js
+  s_eae55d90b30300::t_02d4abbb8b3e3a 4,597-621,661-690,751-763,914-955
+  s_eae55d90b30300::t_846b1e53e20bec 570
+  s_eae55d90b30300::t_94a2b4ac9c4edd 386-394,542,544-548,560-562
+  s_eae55d90b30300::t_26c52835fca6a4 469-490
+  s_eae55d90b30300::t_3123db07b18f47 581-596
+  s_eae55d90b30300::t_359b92c89ead33 956
+src/runtime/plugins.test.js
+  s_eae55d90b30300::t_9a156f41656169 53-58,64-65
+  s_eae55d90b30300::t_cb75df55b40e9c 59-63
+  s_eae55d90b30300::t_b92cae8e931d27 302-303,308-315,322,328
+src/core/artifact-path.js
+  s_eae55d90b30300::t_9168607f46f932 26-27,30-31
+  s_eae55d90b30300::t_b215369559c893 56-73
+  s_eae55d90b30300::t_e69432f4a17239 1-25,28-29,32-55
+src/adapters/mdx.test.js
+  s_eae55d90b30300::t_61844dea2da6cc 48-57
+src/core/page-model.js
+  s_eae55d90b30300::t_43778c82beb170 120,181,296
+  s_eae55d90b30300::t_86339548d383d7 331-333
+src/runtime/plugins.js
+  s_eae55d90b30300::t_cb75df55b40e9c 64,66,70
+  s_eae55d90b30300::t_9a156f41656169 3,58,87,479,484-491,495,502-503
+src/core/owned-artifacts.test.js
+  s_eae55d90b30300::t_9ddb1c02811e17 33-41
+scripts/schema-definition.mjs
+  s_eae55d90b30300::t_024924aea18441 292-295
+scripts/check-release-metadata.mjs
+  s_eae55d90b30300::t_b68c16985cebd3 5,36-48
+  s_298c92d3557fd6::t_43321b5e4b4c7a 49
+src/runtime/middleware-limit.test.js
+  s_eae55d90b30300::t_a031a512a522c6 8-11,24-25,63-72
+  s_eae55d90b30300::t_14e0cde4b4e44d 73-74
+src/virtual/serialize.test.js
+  s_eae55d90b30300::t_f1a62b1f2d85c6 102-112
+src/runtime/middleware-schema-corpus.test.js
+  s_eae55d90b30300::t_ed501692662657 121-144
+src/build/catalogs.test.js
+  s_eae55d90b30300::t_2799d59f280918 188-276
+src/build/artifacts.js
+  s_eae55d90b30300::t_0bba3a95f61c93 312-326,330,332-339,345-354,469-471,473
+  s_eae55d90b30300::t_382b21fdd9f03f 6,304-306
+  s_eae55d90b30300::t_649337572bef56 225-238,262,265,268,271,274,355-366,370-377,521-522,524,728,738,749
+  s_eae55d90b30300::t_d10bc9174cd51f 2,107,138,644,730-731,742,875,1069
+  s_eae55d90b30300::t_e1d2ab49fd1427 628-639,735-737,739,741,761-762
+  s_eae55d90b30300::t_aefab60a04f1d7 310,1094,1185-1195
+  s_eae55d90b30300::t_eab8c515f5a106 896,909,969,1037-1044,1047,1065-1068,1086-1093
+  s_eae55d90b30300::t_c3e4eb7526e1b6 311
+  s_eae55d90b30300::t_d16d2e51af9b9c 1095
+src/hooks/plugin-validation.js
+  s_eae55d90b30300::t_59ca80397eb8db 3-9
+src/hooks/build-done.test.js
+  s_eae55d90b30300::t_0e36f712780948 289-328,330-332
+  s_eae55d90b30300::t_e0a491d647acf0 329
+  s_eae55d90b30300::t_6ce23636f87566 62-102
+src/core/artifact-path.test.js
+  s_eae55d90b30300::t_e69432f4a17239 1,7-22,31-32
+  s_eae55d90b30300::t_b215369559c893 2-6,23-30
+scripts/package-smoke.mjs
+  s_eae55d90b30300::t_48e7ff995348ec 163-170,173
+  s_eae55d90b30300::t_026a95457d99fb 172,174
+scripts/release-evidence.mjs
+  s_eae55d90b30300::t_945afc2b56af48 12-13,16
+  s_eae55d90b30300::t_b68c16985cebd3 1-11,14-15,17-33
+src/index-config.test.js
+  s_eae55d90b30300::t_92e94855368600 5,16,27,38
+src/adapters/mdx.js
+  s_eae55d90b30300::t_61844dea2da6cc 101-105
+src/index.js
+  s_eae55d90b30300::t_40663ba2d4cb5e 432-437
+  s_eae55d90b30300::t_942bc89bb396ca 190,444-447,452,471
+  s_eae55d90b30300::t_2424b34b81dfd6 30,428-431
+fixtures/types-consumer/consumer.ts
+  s_eae55d90b30300::t_cfdd8f2072164b 8,111,388,697-698
+src/runtime/middleware-project-routes.test.js
+  s_eae55d90b30300::t_1bbf26c017515a 29
+  s_eae55d90b30300::t_3b430540c9fea5 28,125-144
+  s_eae55d90b30300::t_a117a00d46eeae 82-84,87-100,145,147
+  s_eae55d90b30300::t_4bda9a322bfe8a 85-86
+  s_eae55d90b30300::t_884e739619053c 146
+  s_eae55d90b30300::t_0479697bf05220 148
+src/generators/dotmd.test.js
+  s_eae55d90b30300::t_51b9954fec7273 112-136
+src/hooks/plugin-validation.test.js
+  s_eae55d90b30300::t_0b93d4b610b5e8 83,85-86,88-97,99,111-112
+  s_eae55d90b30300::t_6ce23636f87566 113-126
+  s_eae55d90b30300::t_cb75df55b40e9c 98
+  s_eae55d90b30300::t_2424b34b81dfd6 84,87,100-110
+src/build/collect.test.js
+  s_eae55d90b30300::t_0e7613dc7c0be1 91,112-115,248-252,272-323
+src/generators/sitemap-finalize.js
+  s_298c92d3557fd6::t_e15e82034d6724 63-66,69
+fixtures/adapters/netlify/astro.config.mjs
+  s_908e0617a04450::t_0de8cfe423397f 14-20
+fixtures/adapters/vercel/astro.config.mjs
+  s_908e0617a04450::t_ed414058dacb22 17-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "258f8893596e6e88adfa577aae597e56c63843a3",
+  "prompts": {},
+  "sessions": {
+    "s_298c92d3557fd6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019feff1-b7e2-74d0-9ecb-a28f322098f6",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_908e0617a04450": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019feff6-3d7f-74e1-b029-df350e6e9ed6",
+        "model": "unknown"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_e2588e1e8702ba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d85fc56b-2393-4191-8a44-f33ac3079bb5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_eae55d90b30300": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019feff5-7bcc-7c60-9f79-9bd9b3834a2d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
