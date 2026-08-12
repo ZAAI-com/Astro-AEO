@@ -1,0 +1,73 @@
+src/config.test.js
+  s_f53d64c7cb70e2::t_dfbfabf063330f 496-517
+  s_f53d64c7cb70e2::t_6b9849d86931ea 16-22,24-25,51-59,163-199,202-240,244-287,291-302
+  s_f53d64c7cb70e2::t_3d415f1eeb296a 200-201,241-243,288-290
+  s_ac4b42a621d0b5::t_e37a5fdda436fc 303
+scripts/schema-definition.mjs
+  s_f53d64c7cb70e2::t_8124a334530b23 637,673
+  s_f53d64c7cb70e2::t_49dca9e58eef9a 361-398,413-433,466,618
+  s_f53d64c7cb70e2::t_140c0019311b22 454-465
+  s_f53d64c7cb70e2::t_b7df3629e7709f 39-46,151-234
+  s_f53d64c7cb70e2::t_126d17905f29e9 235
+src/config.js
+  s_f53d64c7cb70e2::t_ec9c42db4addee 337,399
+  s_f53d64c7cb70e2::t_1d353a4d899c4c 77-78,193-197,199-209,211-229,231-264,266-273,275-292,294-301,303-316,324-336,338-358,364-379,381-398,400-410,416-455,457-533
+  s_f53d64c7cb70e2::t_9a32d6a692c6c7 412
+  s_f53d64c7cb70e2::t_7eaa494f54bf55 198,210,230,265,274,293,302,317-323,359-363,380,456,534-548
+  s_f53d64c7cb70e2::t_24abbfc1ae8c6d 411,413-415
+  s_f53d64c7cb70e2::t_8bbdeb1adbcb51 43-44,58-62,65-66,79-89,137-138,141,149,152-156,176-180,184-186,188,599-603,607-608,637-657
+  s_2831ea801decc7::t_59d2833740612c 549
+src/index.d.ts
+  s_f53d64c7cb70e2::t_64f69082e3f76d 28-104,162-163,165
+  s_f53d64c7cb70e2::t_72be9169085b56 1110,1112-1116
+  s_f53d64c7cb70e2::t_65891b0cbafd09 509-510,537-570,576,608-639,662-671,678-688,1117
+  s_f53d64c7cb70e2::t_bcee8e839ea23a 746,923-924,930,946-948,975-979,1001-1002,1073-1074,1078-1082,1092-1093,1101,1105-1109,1111
+  s_2831ea801decc7::t_f5bb5f680e9f93 689,1118
+src/page.d.ts
+  s_f53d64c7cb70e2::t_4621894be86f1f 2,53-56,63
+fixtures/types-consumer/consumer.ts
+  s_f53d64c7cb70e2::t_1f9fb8bb2436dd 283-284
+  s_f53d64c7cb70e2::t_c58df80de03a5f 19,21,23,46-47,152,155-163,198-200,244-245,255-274,297-304
+  s_f53d64c7cb70e2::t_4a2f7b6ab588e8 357-364,369-373
+  s_f53d64c7cb70e2::t_008c7267289553 799-806
+  s_f53d64c7cb70e2::t_69025316e47cdc 183-184,186-189,563-565
+  s_f53d64c7cb70e2::t_31d140f451b7ee 491-492,499,521-522,529-532
+  s_f53d64c7cb70e2::t_45769a6a7dcf58 581-619
+schema/astro-aeo.schema.json
+  s_f53d64c7cb70e2::t_323bfba212bac6 1
+src/schema-definition.test.js
+  s_f53d64c7cb70e2::t_37d9d4cb1da12e 117-152,154-161,171-174,187,194
+  s_f53d64c7cb70e2::t_58a7f5db12437a 153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "8940300e5be6c8d1f5b6fab2e41c0542d4d6f766",
+  "prompts": {},
+  "sessions": {
+    "s_2831ea801decc7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ff259-e90c-78a3-b9ae-3d13879a3469",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_ac4b42a621d0b5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ff6cc-9e41-7db1-b249-e8f3f2e33fef",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_f53d64c7cb70e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ff6aa-27ed-7770-b7c5-24919862bb2d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
