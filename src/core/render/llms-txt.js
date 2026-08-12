@@ -131,7 +131,7 @@ export function selectFullTxtPages(pages, config) {
  * @param {import('../../index.js').ResolvedAstroAeoConfig} config
  * @returns {string}
  */
-function entryLine(p, config) {
+export function renderLlmsEntryLine(p, config) {
   let line = `- [${p.title}](${llmsEntryHref(p, config)})`;
   if (config.corpus.index.includeDescriptions && p.description) line += `: ${p.description}`;
   if (config.corpus.index.showLastModified && p.lastModified) {
@@ -162,7 +162,7 @@ export function renderLlmsTxt(pages, config, siteMeta, opts = {}) {
 
   for (const group of groups) {
     lines.push(`## ${group.title}`, '');
-    for (const p of group.pages) lines.push(entryLine(p, config));
+    for (const p of group.pages) lines.push(renderLlmsEntryLine(p, config));
     lines.push('');
   }
 
