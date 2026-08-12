@@ -4,8 +4,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const input = resolve(root, process.argv[2] ?? '.astro/aeo-benchmarks/1.2-reference.json');
-const output = resolve(root, 'benchmarks/baseline-1.2.json');
+const input = resolve(root, process.argv[2] ?? '.astro/aeo-benchmarks/1.3-reference.json');
+const output = resolve(root, 'benchmarks/baseline-1.3.json');
 const report = JSON.parse(await readFile(input, 'utf8'));
 
 if (!report.environment?.runnerClass) {

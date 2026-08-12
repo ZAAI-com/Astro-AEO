@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "recordedAt": "2026-08-12",
+  "environment": {
+    "node": "v24.15.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "ci": false,
+    "runnerClass": "portable-size-only"
+  },
+  "package": {
+    "packedBytes": 254831,
+    "unpackedBytes": 1037673,
+    "files": 111
+  },
+  "bundles": {
+    "node": {
+      "files": 33,
+      "rawBytes": 1509958,
+      "gzipBytes": 354164,
+      "deltaRawBytes": 263502,
+      "deltaGzipBytes": 63797,
+      "baseline": { "files": 31, "rawBytes": 1246456, "gzipBytes": 290367 }
+    },
+    "cloudflare": {
+      "files": 36,
+      "rawBytes": 1690988,
+      "gzipBytes": 408608,
+      "deltaRawBytes": 1037882,
+      "deltaGzipBytes": 239631,
+      "baseline": { "files": 33, "rawBytes": 653106, "gzipBytes": 168977 }
+    }
+  },
+  "notes": [
+    "The 1.3 package byte counts were measured after the complete discovery implementation.",
+    "Adapter bundle measurements retain the stabilized 1.2 reference until the full release gate refreshes them.",
+    "Timing and memory values are omitted because this shared machine is not a controlled runner."
+  ]
+}

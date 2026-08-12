@@ -140,6 +140,12 @@ aeo({
       mode: 'all',                   // 'all' | 'index' | 'first-page-only'
     },
 
+    small: { enabled: false, maxTokens: 20_000 },
+    chunks: { enabled: false, maxTokensPerFile: 100_000, by: 'section' },
+    manifest: { enabled: false },    // /llms/manifest.json
+    tokenizer: undefined,            // { module, options? }; local importable module only
+    compression: { gzip: false },    // deterministic static .gz siblings
+
     urlMap: {
       enabled: false,
       outputFilepath: 'docs/Url-Map.md',
@@ -149,6 +155,13 @@ aeo({
       maxPages: 50,                  // positive integer | 'unlimited'; refuses larger live corpora
     },
   },
+
+  i18n: {
+    indexes: 'auto',                 // 'auto' | 'global' | 'locale' | 'both'
+    unresolvedLanguage: 'default',  // 'default' | 'error' | 'exclude'
+  },
+
+  cache: { enabled: true },
 
   discovery: {
     sitemap: {
@@ -164,6 +177,7 @@ aeo({
 
     robots: {
       enabled: false,
+      policy: 'custom',                  // custom | open | search-open-training-closed | retrieval-only | closed
       universalAllow: true,              // lead with "User-agent: * / Allow: /" (suppressed if '*' is named below)
       allow: [],                          // e.g. ['Googlebot', 'OAI-SearchBot', 'Claude-SearchBot']
       disallow: [],                       // e.g. ['GPTBot', 'ClaudeBot', 'Google-Extended']
@@ -171,6 +185,17 @@ aeo({
       sitemapPath: '/sitemap-index.xml',  // defaults to the @astrojs/sitemap output name (tracks filenameBase)
       includeLlmsTxt: true,
       extraLines: [],
+      // contentSignals: { search: true, aiInput: true, aiTrain: false },
+    },
+
+    indexNow: {
+      enabled: false,
+      submit: 'changed',              // 'changed' | 'all'
+      state: 'public',                // 'public' | 'private' | 'stateless'
+      strict: false,
+      key: { source: 'env', name: 'ASTRO_AEO_INDEXNOW_KEY' },
+      // keyLocation: '/indexnow-key.txt',
+      origins: [],
     },
   },
 
@@ -203,8 +228,29 @@ aeo({
 });
 ```
 
-Only these 1.2 groups are active. Configuration for later roadmap releases, including i18n,
-chunking, caching, IndexNow, analytics, and audit output, is not accepted as a placeholder.
+All 1.3 corpus, i18n, cache, crawler, and IndexNow outputs shown above are implemented. New corpus
+families, gzip, crawler presets, Content Signals, and IndexNow remain disabled until configured.
+The 1.4 audit, doctor, provider-fix, SARIF, and static edge-negotiation roadmap remains out of scope.
+
+### Migrating to 1.3
+
+Ordinary projects with one implicit locale keep the 1.2 root `llms.txt`, `llms-full.txt`,
+Markdown, profile, and custom `robots.txt` bytes. Multilingual projects can choose a topology with
+`i18n.indexes`. In `auto`, one active locale remains at the root while multiple locales receive
+canonical families under `/<locale>/` and a root language directory. `locale` emits no root
+corpus, `global` groups languages at the root, and `both` adds locale families plus flat byte-copy
+aliases such as `/llms-en.txt`.
+
+Astro string locale values are the directory identity. Locale objects use `path` as the directory
+and `codes[0]` as the primary BCP 47 language. Page language resolves after semantic enrichment.
+Invalid explicit declarations are errors; unresolved pages follow `i18n.unresolvedLanguage`.
+External public HTTPS `hreflang` links are allowed but never fetched.
+
+The private `.astro/aeo-cache` directory can contain normalized derived page content and IndexNow
+notification state. Keep `.astro` uncommitted, transfer the `indexnow` pending and acknowledgment
+directory between separate CI prepare/submit jobs, and protect it as sensitive build data. Cache
+files use restrictive permissions where supported. `cache.enabled: false` disables payload reuse,
+not artifact ownership or IndexNow safety ledgers.
 
 ### Migrating to 1.2
 
@@ -551,9 +597,64 @@ corpus: {
 
 Globs are segment-aware: `*` stays inside one path segment, `**` crosses segments and matches the base (`/blog/**` matches `/blog` and `/blog/post`). `/error` matches `/error` but not `/error-log`.
 
+### Small corpora, chunks, manifests, and gzip
+
+`corpus.small` builds a strict token-budgeted `llms-small.txt` from contiguous leading source
+blocks. It uses stable round-robin allocation across locales, sections, and pages, counts wrappers
+against the limit, and never summarizes or rewrites content. `corpus.chunks` splits full-corpus
+content at page, heading, paragraph, and fenced-code boundaries. Fences remain indivisible and an
+oversized unit is emitted with a diagnostic rather than silently truncated.
+
+The built-in `astro-aeo-approx@1` counter is deterministic and explicitly approximate. A custom
+local tokenizer module must default-export API version 1 with stable `name`, `version`,
+`approximate`, and `count()` fields. It is probed twice. Any load or count failure restarts the
+whole plan with the built-in tokenizer so a manifest never mixes identities.
+
+When enabled, `/llms/manifest.json` records locales, canonical artifacts, pages, token counts, and
+exact SHA-256 byte hashes. Static `corpus.compression.gzip` adds deterministic level-9 siblings for
+text corpus artifacts. Runtime middleware serves every logical artifact except precompressed gzip
+and relies on provider transport compression.
+
+### Incremental processing cache
+
+Build extraction results and core artifact payloads are content-addressed under
+`.astro/aeo-cache/processing-v1`. An exclusive same-host process lock protects reusable state;
+invalid, foreign, or active locks force a cold read-only build with no stale deletion authority.
+Project routes and `public/` files still win. A stale file is deleted only when the prior ledger
+names Astro-AEO, the path is confined, the file is regular and not a symlink, and its bytes still
+match the prior emitted hash.
+
 ### The universal robots.txt group
 
 `discovery.robots.universalAllow` (default `true`) makes `robots.txt` lead with a `User-agent: *` / `Allow: /` group, so unlisted crawlers see an explicit open policy even when you also name specific bots in `allow`/`disallow`. It is suppressed automatically if you already declare a `User-agent: *` group yourself (via `allow`, `disallow`, or `extraLines`), so there is no duplicate group. Set it to `false` for a named-bots-only policy.
+
+The `custom` policy preserves this renderer. Presets use a frozen, first-party-documented crawler
+registry: `open`, `search-open-training-closed`, `retrieval-only`, and `closed`. Per-token
+`allow`/`disallow` overrides are case-insensitive and cannot overlap. Content Signals are emitted
+only when all three booleans are supplied. Robots policies and experimental Content Signals state
+preferences, not access control or guaranteed crawler compliance.
+
+### IndexNow prepare and submit
+
+An enabled build prepares notification state but never submits it. Keys are resolved only by the
+submit command from an environment variable or local secret file; literal keys are rejected.
+
+```bash
+npx astro-aeo indexnow prepare dist
+npx astro-aeo indexnow submit
+```
+
+`public` state publishes a key-free `/.well-known/astro-aeo-indexnow-v1.json` and verifies its
+deployed digest before submission. `private` uses only the transferred CI acknowledgment ledger.
+`stateless` sends all current URLs and cannot notify removals. The default queue is
+`.astro/aeo-cache/indexnow/pending-v1.json`.
+
+Submission verifies a same-origin HTTPS key file without redirects, pins public DNS addresses,
+batches at 10,000 URLs, and retries network errors, `429`, and `5xx` responses three total times.
+Successful batches update acknowledgment state atomically; failed work remains pending. Remote
+failures warn with exit 0 unless `strict` is enabled, while malformed invocation, origins,
+credentials, or key responses always exit 2. Keys, secret-derived paths, and POST bodies are never
+logged or persisted.
 
 ### Profile email
 
@@ -810,7 +911,11 @@ npx astro-aeo validate            # validates ./dist
 npx astro-aeo validate dist --strict --json
 ```
 
-Checks: `llms.txt` follows the spec and every referenced `.md` exists; `llms-full.txt` is present and separated; each page has exactly one Markdown alternate link; page titles, image alt attributes, robots meta tags, Open Graph previews, and Twitter card type pass basic crawler checks; `robots.txt` parses and its `Sitemap` is absolute; `domain-profile.json` is valid and has `@context`, `@type`, and `name`.
+Checks: corpus topology is discovered from its manifest or the filesystem; locale families,
+canonical selections, page/chunk/artifact hashes, token counts, aliases, and gzip siblings are
+verified. The validator also checks strict sitemap indexes and confined shards, Markdown links,
+alternate metadata, robots references, page metadata, and domain profiles. Standalone validation
+does not import arbitrary project tokenizer code.
 
 Exit codes: `0` pass, `1` validation errors (or warnings with `--strict`), `2` usage or IO error.
 

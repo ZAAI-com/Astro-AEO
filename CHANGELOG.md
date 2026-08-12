@@ -2,6 +2,49 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## 1.3.0
+
+Astro-AEO 1.3 adds deterministic multilingual discovery and incremental processing while keeping
+ordinary single-locale 1.2 output bytes unchanged.
+
+This release also consumes the stabilized 1.2 patch contracts: canonical URL bases, semantic
+graph reconciliation, aligned artifact ownership, exact-path validation, and corrected public
+schema IDs.
+
+Benchmark regression explanation: The package and integration bundles grow because 1.3 ships a
+dependency-free multilingual planner, strict XML and corpus validators, processing cache, frozen
+crawler registry, and failure-safe IndexNow CLI on top of runtime-safe semantic reconciliation.
+The measured package remains below the updated 1.3 safety ceiling, and all absolute bundle,
+startup, memory, and request ceilings remain enforced.
+
+### Highlights
+
+- Added one shared build/runtime corpus planner with `auto`, `global`, `locale`, and `both`
+  multilingual topologies, normalized BCP 47 languages and alternates, small token-budgeted
+  corpora, section chunks, versioned manifests, custom tokenizer fallback, and deterministic
+  static gzip siblings.
+- Added content-addressed processing reuse under `.astro/aeo-cache`, restrictive private-state
+  permissions, process-safe locking, clean-output restoration, and atomic ownership/state commits.
+- Added strict sitemap index and shard validation plus manifest-first `astro-aeo validate` checks
+  for locale families, hashes, token counts, aliases, and gzip bytes.
+- Added frozen crawler classifications, four RFC 9309 policy presets, explicit Content Signals,
+  and two-phase IndexNow prepare/submit commands with public, private, and stateless ledgers.
+- Extended page, catalog, renderer, plugin, tokenizer, manifest, and runtime declarations without
+  changing the frozen `ResolvedAeoConfig` compatibility type.
+
+### Upgrade notes
+
+- New corpus files, gzip, crawler presets, Content Signals, and IndexNow are opt-in. One implicit
+  locale keeps the legacy root corpus bytes. Multilingual `auto` moves canonical locale families
+  under `/<locale>/`; use `global`, `locale`, or `both` for another published topology.
+- `.astro/aeo-cache` may contain derived page content and must remain uncommitted and protected as
+  sensitive build state. CI deployments using IndexNow must transfer the pending and
+  acknowledgment directory between prepare and submit jobs.
+- Runtime serves logical corpus artifacts but does not precompress gzip. Hosting transport remains
+  responsible for runtime compression.
+- Crawler presets and Content Signals express preferences only. They are not access control and do
+  not guarantee crawler compliance.
+
 ## 1.2.0
 
 Astro-AEO 1.2 completes the universal representation work and adds deterministic semantic

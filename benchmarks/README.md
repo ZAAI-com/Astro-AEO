@@ -1,4 +1,4 @@
-# Astro-AEO 1.2 Benchmarks
+# Astro-AEO 1.3 Benchmarks
 
 The benchmark harness records extraction time, retained heap, package size, runtime corpus fan-out,
 optional request latency, and optional adapter bundle sizes as JSON.
@@ -8,7 +8,7 @@ node --expose-gc benchmarks/run.mjs
 node --expose-gc benchmarks/run.mjs --enforce
 ```
 
-Results are written to `.astro/aeo-benchmarks/1.2.json`. That path is ignored by git. Use the same
+Results are written to `.astro/aeo-benchmarks/1.3.json`. That path is ignored by git. Use the same
 Node version and runner class when comparing results; absolute timing from unrelated machines is
 not meaningful.
 
@@ -42,9 +42,10 @@ The release check builds minimal Node and Cloudflare fixtures without Astro-AEO,
 with the equivalent adapter fixtures. This keeps the reported delta separate from Astro and adapter
 framework code that both builds share.
 
-`--enforce` applies the 1.2 safety ceilings embedded in the report:
+`--enforce` applies the 1.3 safety ceilings embedded in the report:
 
-- Packed package at most 190,000 bytes and unpacked package at most 740,000 bytes.
+- Packed package at most 280,000 bytes and unpacked package at most 1,150,000 bytes. The measured
+  1.3 package is 254,831 packed and 1,037,673 unpacked bytes.
 - 100 KB parse p95 below 50 ms and conversion p95 below 150 ms.
 - Retained heap after 100 conversions at most 10 MB.
 - Paired Markdown-minus-HTML p95 request overhead at most 10 ms. Direct and negotiated modes each
@@ -54,7 +55,7 @@ framework code that both builds share.
 - Cloudflare output at most 51.2 MB raw and 2.4 MB gzip, with locally profiled Worker startup
   active time below 800 ms.
 
-The committed 1.2 baseline records measured package and Node/Cloudflare bundle byte counts. Those
+The committed 1.3 baseline records measured package and Node/Cloudflare bundle byte counts. Those
 portable measurements always receive the 10 percent comparison in tag CI. The initial 1.2
 reference deliberately omits timing and memory samples because it was recorded on a shared,
 non-idle machine; the absolute timing, memory, request, and Worker-startup ceilings remain enforced
@@ -85,7 +86,7 @@ complete passing report on the declared reference runner, then update the baseli
 ASTRO_AEO_BENCHMARK_RUNNER=astro-aeo-m2-pro-reference \
   node scripts/run-release-benchmark.mjs \
   --baseline none \
-  --output .astro/aeo-benchmarks/1.2-reference.json
+  --output .astro/aeo-benchmarks/1.3-reference.json
 pnpm run benchmark:baseline
 ```
 
