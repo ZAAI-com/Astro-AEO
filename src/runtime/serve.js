@@ -603,6 +603,18 @@ export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {
       origin: expectedPageOrigin(resolved.page, routeLocale, snapshot, activeOrigin),
     });
   }
+  if (snapshot.locales.length === 0) {
+    const concrete = [...new Set(localized.flatMap((page) =>
+      page.language && page.locale ? [page.language] : [],
+    ))];
+    if (concrete.length === 1) {
+      for (let index = 0; index < localized.length; index++) {
+        if (localized[index].locale == null) {
+          localized[index] = { ...localized[index], locale: concrete[0], language: concrete[0] };
+        }
+      }
+    }
+  }
   const alternates = normalizePageAlternates(localized);
   const home = alternates.pages.find((page) => page.pathname === '/');
   const siteMeta = resolveSiteMeta(
@@ -906,7 +918,7 @@ export function runtimeArtifactOrigin(runtime, requestOrigin) {
   if (configured.includes(requested)) return requested;
   // The Astro dev server necessarily runs on a local preview origin while
   // generated links and host profiles retain the configured public site.
-  if (runtime.command === 'dev' && isLocalDevelopmentOrigin(requested)) {
+  if (isLocalDevelopmentOrigin(requested)) {
     return normalizeOrigin(runtime.site.siteUrl) ?? requested;
   }
   return null;
