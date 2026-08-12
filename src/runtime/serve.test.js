@@ -717,6 +717,8 @@ describe('locale-aware request-time corpus planning', () => {
     expect(runtimeArtifactOrigin(requestRuntime, 'https://example.com')).toBe('https://example.com');
     expect(runtimeArtifactOrigin(requestRuntime, 'https://fr.example.com')).toBe('https://fr.example.com');
     expect(runtimeArtifactOrigin(requestRuntime, 'https://unknown.example')).toBeNull();
+    expect(runtimeArtifactOrigin({ ...requestRuntime, command: 'dev' }, 'http://localhost:4321'))
+      .toBe('https://example.com');
   });
 
   test('lets the Astro route locale outrank site.defaultLocale', async () => {

@@ -903,7 +903,19 @@ export function runtimeArtifactOrigin(runtime, requestOrigin) {
     ...(normalizeOrigin(runtime.site.siteUrl) ? [/** @type {string} */ (normalizeOrigin(runtime.site.siteUrl))] : []),
   ])];
   if (configured.length === 0) return requested;
-  return configured.includes(requested) ? requested : null;
+  if (configured.includes(requested)) return requested;
+  // The Astro dev server necessarily runs on a local preview origin while
+  // generated links and host profiles retain the configured public site.
+  if (runtime.command === 'dev' && isLocalDevelopmentOrigin(requested)) {
+    return normalizeOrigin(runtime.site.siteUrl) ?? requested;
+  }
+  return null;
+}
+
+/** @param {string} origin */
+function isLocalDevelopmentOrigin(origin) {
+  const hostname = new URL(origin).hostname.toLowerCase();
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
 }
 
 /**
