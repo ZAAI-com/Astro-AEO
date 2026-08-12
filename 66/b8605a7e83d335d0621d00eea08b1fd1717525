@@ -1,0 +1,39 @@
+benchmarks/README.md
+  s_f53d64c7cb70e2::t_225718bdc50026 1,11,45,47,58,89
+  s_f53d64c7cb70e2::t_944b042e7d6060 48
+benchmarks/run.mjs
+  s_f53d64c7cb70e2::t_225718bdc50026 30,33
+package.json
+  s_f53d64c7cb70e2::t_1c4525baf33eed 3
+README.md
+  s_f53d64c7cb70e2::t_b4f99ad32f7cf8 914-918
+  s_f53d64c7cb70e2::t_2eaafd03588af8 600-626,631-657
+  s_f53d64c7cb70e2::t_8f969475ff39bc 143-148,159-165,180,188-198,231-253
+  s_f53d64c7cb70e2::t_fddb970eb885f7 658
+scripts/update-benchmark-baseline.mjs
+  s_f53d64c7cb70e2::t_225718bdc50026 7-8
+benchmarks/baseline-1.3.json
+  s_f53d64c7cb70e2::t_225718bdc50026 1-11,15-39
+  s_f53d64c7cb70e2::t_944b042e7d6060 12-14
+CHANGELOG.md
+  s_f53d64c7cb70e2::t_b4f99ad32f7cf8 5-8,19-47
+  s_f53d64c7cb70e2::t_ac67a6a87bef38 9-18
+benchmarks/thresholds.mjs
+  s_f53d64c7cb70e2::t_225718bdc50026 2-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "66b8605a7e83d335d0621d00eea08b1fd1717525",
+  "prompts": {},
+  "sessions": {
+    "s_f53d64c7cb70e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ff6aa-27ed-7770-b7c5-24919862bb2d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
