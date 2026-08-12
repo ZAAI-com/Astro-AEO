@@ -48,20 +48,115 @@ export function readOwnershipManifest(projectRoot) {
   if (!projectRoot) return null;
   try {
     const parsed = JSON.parse(readFileSync(ownershipManifestPath(projectRoot), 'utf8'));
-    if (
-      !parsed ||
-      typeof parsed !== 'object' ||
-      parsed.version !== OWNERSHIP_MANIFEST_VERSION ||
-      typeof parsed.outputRootId !== 'string' ||
-      !Array.isArray(parsed.artifacts) ||
-      !Array.isArray(parsed.groups)
-    ) {
+    if (!isOwnershipManifest(parsed)) {
       return null;
     }
     return parsed;
   } catch {
     return null;
   }
+}
+
+/**
+ * Decode the complete authority-bearing shape. A single malformed nested
+ * entry makes the prior ledger unusable so untrusted JSON can never grant
+ * overwrite or deletion rights.
+ * @param {unknown} value
+ */
+function isOwnershipManifest(value) {
+  if (!isRecord(value)) return false;
+  if (value.version !== OWNERSHIP_MANIFEST_VERSION) return false;
+  if (typeof value.outputRootId !== 'string' || !/^sha256:[a-f\d]{64}$/.test(value.outputRootId)) return false;
+  if (typeof value.base !== 'string' || !value.base.startsWith('/')) return false;
+  if (!Array.isArray(value.artifacts) || !value.artifacts.every(isOwnershipArtifact)) return false;
+  if (!Array.isArray(value.groups) || !value.groups.every(isOwnershipGroup)) return false;
+  return value.generatedAt === undefined || (
+    typeof value.generatedAt === 'string' && !Number.isNaN(Date.parse(value.generatedAt))
+  );
+}
+
+/** @param {unknown} value */
+function isOwnershipArtifact(value) {
+  if (!isRecord(value) || typeof value.pathname !== 'string') return false;
+  if (!safeManifestPathname(value.pathname)) return false;
+  if (!['emitted', 'runtime', 'preserved', 'conflict', 'group-skipped'].includes(value.status)) return false;
+  if (value.group !== undefined && (typeof value.group !== 'string' || !value.group)) return false;
+  if (value.status === 'conflict') {
+    return Array.isArray(value.claimants) && value.claimants.every((entry) =>
+      isRecord(entry) && isGeneratedOwner(entry.owner) && Number.isSafeInteger(entry.count) && entry.count > 0,
+    );
+  }
+  if (!isGeneratedOwner(value.owner)) return false;
+  if (value.status === 'emitted') {
+    return (
+      safeRecordedPath(value.outputPath) &&
+      isRecord(value.representation) &&
+      typeof value.representation.contentType === 'string' &&
+      Number.isSafeInteger(value.representation.byteLength) &&
+      value.representation.byteLength >= 0 &&
+      typeof value.representation.etag === 'string' &&
+      /^"[a-f\d]{64}"$/.test(value.representation.etag)
+    );
+  }
+  if (value.status === 'preserved') {
+    return Array.isArray(value.blockingOwners) && value.blockingOwners.every(isBlockingOwner);
+  }
+  if (value.status === 'group-skipped') {
+    return typeof value.group === 'string' && Array.isArray(value.causedBy) && value.causedBy.every(safeManifestPathname);
+  }
+  return true;
+}
+
+/** @param {unknown} value */
+function isOwnershipGroup(value) {
+  return Boolean(
+    isRecord(value) &&
+    typeof value.id === 'string' && value.id &&
+    value.mode === 'all-or-none' &&
+    (value.status === 'emitted' || value.status === 'skipped') &&
+    Array.isArray(value.pathnames) && value.pathnames.every(safeManifestPathname)
+  );
+}
+
+/** @param {unknown} value */
+function isGeneratedOwner(value) {
+  return Boolean(
+    isRecord(value) &&
+    (value.kind === 'core' || value.kind === 'plugin') &&
+    typeof value.name === 'string' && value.name &&
+    (value.claimId === undefined || typeof value.claimId === 'string')
+  );
+}
+
+/** @param {unknown} value */
+function isBlockingOwner(value) {
+  return Boolean(
+    isRecord(value) &&
+    ['project-route', 'public-file', 'existing-output'].includes(value.kind) &&
+    (value.rendering === undefined || value.rendering === 'prerendered' || value.rendering === 'on-demand')
+  );
+}
+
+/** @param {unknown} value */
+function safeManifestPathname(value) {
+  if (typeof value !== 'string' || !value.startsWith('/') || value.includes('\\')) return false;
+  try {
+    const decoded = decodeURIComponent(value);
+    return !decoded.split('/').some((part) => part === '.' || part === '..' || part.includes('\0'));
+  } catch {
+    return false;
+  }
+}
+
+/** @param {unknown} value */
+function safeRecordedPath(value) {
+  return typeof value === 'string' && Boolean(value) && !value.startsWith('/') && !value.includes('\\') &&
+    value.split('/').every((part) => part !== '' && part !== '.' && part !== '..');
+}
+
+/** @param {unknown} value @returns {value is Record<string, any>} */
+function isRecord(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** @param {unknown} manifest @returns {string} */

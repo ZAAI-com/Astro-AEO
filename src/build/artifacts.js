@@ -41,6 +41,8 @@ const MANDATORY_ARTIFACT_CODES = new Set([
   'artifact-invalid-destination',
   'artifact-generated-conflict',
   'plugin-build-complete-isolated',
+  'indexnow-site-required',
+  'indexnow-state-unavailable',
 ]);
 
 /**
@@ -49,9 +51,10 @@ const MANDATORY_ARTIFACT_CODES = new Set([
  * @property {ArtifactOwner | { kind: 'core'|'plugin'; name: string; claimId?: string }} owner
  * @property {string} [route]             Root-relative URL, for the route and public checks.
  * @property {string} [pathname]          Canonical served URL for public/plugin claims.
- * @property {string} [contents]          Mutually exclusive with `copyFrom`.
+ * @property {string | Uint8Array} [contents] Mutually exclusive with `copyFrom`.
  * @property {string} [copyFrom]          Byte-copy source; keeps the copy at the filesystem level.
  * @property {{ body: string; contentType: string }} [representation]
+ * @property {string} [contentType]        Internal binary/text content type override.
  * @property {boolean} [replace]           Plugin-owned exact replacement authorization.
  * @property {boolean} [runtime]           Reserve ownership for middleware without emitting a file.
  * @property {string} [group]              Internal all-or-none group.
@@ -79,6 +82,7 @@ const MANDATORY_ARTIFACT_CODES = new Set([
  *   Supplies page-local diagnostics at commit time, after every staged lifecycle has run.
  * @param {() => void} [deps.onDiagnostics] Persist the sanitized diagnostics attempt.
  * @param {(operation: any, index: number) => void} [deps.beforeApply] Test seam for rollback.
+ * @param {(result: { committed: boolean }) => void} [deps.onSettled] Release build-session resources.
  */
 export function createArtifactWriter(deps) {
   return deps.deferred ? createDeferredArtifactWriter(deps) : createImmediateArtifactWriter(deps);
@@ -423,8 +427,17 @@ function artifactContent(artifact) {
     // integration mutates its source before the final transaction.
     return { contents: readFileSync(artifact.copyFrom), contentType: contentTypeFor(artifact) };
   }
-  if (artifact.contents === undefined || typeof artifact.contents === 'string') {
-    return { contents: artifact.contents ?? '', contentType: contentTypeFor(artifact) };
+  if (
+    artifact.contents === undefined ||
+    typeof artifact.contents === 'string' ||
+    artifact.contents instanceof Uint8Array
+  ) {
+    return {
+      contents: artifact.contents instanceof Uint8Array
+        ? Buffer.from(artifact.contents)
+        : artifact.contents ?? '',
+      contentType: contentTypeFor(artifact),
+    };
   }
   return null;
 }
@@ -440,10 +453,15 @@ function validContentType(value) {
 
 /** @param {Artifact} artifact */
 function contentTypeFor(artifact) {
+  if (artifact.contentType && validContentType(artifact.contentType)) return artifact.contentType;
   const owner = typeof artifact.owner === 'string' ? artifact.owner : artifact.owner?.name;
   if (owner === 'dotmd' || owner === 'urlMap') return 'text/markdown; charset=utf-8';
   if (owner === 'domainProfile') return 'application/json; charset=utf-8';
   if (owner === 'sitemapAlias') return 'application/xml; charset=utf-8';
+  const pathname = artifact.pathname ?? artifact.route ?? '';
+  if (pathname.endsWith('.json')) return 'application/json; charset=utf-8';
+  if (pathname.endsWith('.xml')) return 'application/xml; charset=utf-8';
+  if (pathname.endsWith('.gz')) return 'application/gzip';
   return 'text/plain; charset=utf-8';
 }
 
@@ -467,6 +485,7 @@ function createDeferredArtifactWriter(deps) {
     diagnosticsProvider,
     onDiagnostics,
     beforeApply,
+    onSettled,
   } = deps;
   const root = fileURLToPath(distDir);
   const publicRoot = publicDir ? fileURLToPath(publicDir) : undefined;
@@ -487,10 +506,16 @@ function createDeferredArtifactWriter(deps) {
   const transforms = new Map();
   /** @type {Map<string, number>} */
   const counts = new Map();
+  /** @type {{ kind: 'write'; path: string; contents: string | Buffer | (() => string | Buffer); mode?: number; confineTo?: string }[]} */
+  const privateWrites = [];
+  /** @type {{ kind: 'delete'; path: string; confineTo?: string }[]} */
+  const privateDeletes = [];
   /** @type {any} */
   let resolution;
   let committed = false;
+  let settled = false;
   const diagnosticStart = diagnostics.length;
+  const reportedDiagnosticKeys = new Set();
 
   for (const value of deps.replacePaths ?? []) {
     const normalized = normalizeArtifactPathname(value);
@@ -500,6 +525,9 @@ function createDeferredArtifactWriter(deps) {
 
   /** @param {string} code @param {'info'|'warning'|'error'} severity @param {string} message @param {string} [pathname] */
   function reportDiagnostic(code, severity, message, pathname) {
+    const key = JSON.stringify([code, severity, message, pathname ?? null]);
+    if (reportedDiagnosticKeys.has(key)) return;
+    reportedDiagnosticKeys.add(key);
     diagnostics.push({ version: 1, code, severity, message, ...(pathname ? { pathname } : {}) });
     if (severity === 'warning' || severity === 'error') logger.warn(message);
   }
@@ -581,7 +609,50 @@ function createDeferredArtifactWriter(deps) {
     return true;
   }
 
-  function resolveClaims() {
+  /**
+   * Stage a private build-state write in the same rollback boundary as public
+   * artifacts and ownership. The value may be produced at commit time so the
+   * final diagnostic/ownership decisions are represented.
+   * @param {string} path
+   * @param {string | Buffer | (() => string | Buffer)} contents
+   * @param {{ mode?: number; confineTo?: string }} [options]
+   */
+  function stagePrivateWrite(path, contents, options = {}) {
+    if (committed || resolution) {
+      throw new Error('astro-aeo: cannot register private state after ownership resolution');
+    }
+    if (typeof path !== 'string' || !path) {
+      throw new TypeError('astro-aeo: private state requires a non-empty destination');
+    }
+    if (
+      typeof contents !== 'string' &&
+      !Buffer.isBuffer(contents) &&
+      typeof contents !== 'function'
+    ) {
+      throw new TypeError('astro-aeo: private state must be text, bytes, or a producer');
+    }
+    privateWrites.push({ kind: 'write', path, contents, ...options });
+    return true;
+  }
+
+  /**
+   * Stage deletion of a coordinator-owned private state file.
+   * @param {string} path
+   * @param {{ confineTo?: string }} [options]
+   */
+  function stagePrivateDelete(path, options = {}) {
+    if (committed || resolution) {
+      throw new Error('astro-aeo: cannot register private state after ownership resolution');
+    }
+    if (typeof path !== 'string' || !path) {
+      throw new TypeError('astro-aeo: private state requires a non-empty destination');
+    }
+    privateDeletes.push({ kind: 'delete', path, ...options });
+    return true;
+  }
+
+  /** @param {boolean} [finalize] */
+  function resolveClaims(finalize = true) {
     if (resolution) return resolution;
     /** @type {Map<number, any>} */
     const decisions = new Map();
@@ -725,8 +796,9 @@ function createDeferredArtifactWriter(deps) {
       status: members.every((member) => decisions.get(member.id)?.status === 'emit') ? 'emitted' : 'skipped',
     })).sort((a, b) => a.id.localeCompare(b.id));
 
-    resolution = { decisions, manifestEntries, manifestGroups, byServed };
-    return resolution;
+    const value = { decisions, manifestEntries, manifestGroups, byServed };
+    if (finalize) resolution = value;
+    return value;
   }
 
   /** @param {any} claim */
@@ -785,7 +857,11 @@ function createDeferredArtifactWriter(deps) {
       (/** @type {any} */ entry) =>
         entry?.status === 'emitted' && entry.outputPath === outputPath,
     );
-    return Boolean(previous?.representation?.etag && fileEtag(claim.artifact.path) === previous.representation.etag);
+    return Boolean(
+      previous?.representation?.etag &&
+      pathEntryIsRegularFile(claim.artifact.path) &&
+      fileEtag(claim.artifact.path) === previous.representation.etag
+    );
   }
 
   /** @param {Map<string, any[]>} byServed @param {Map<number, any>} decisions @param {Map<number, Set<number>>} conflictPeers */
@@ -857,7 +933,7 @@ function createDeferredArtifactWriter(deps) {
         ...(claim.group ? { group: claim.group } : {}),
       });
     }
-    return entries.sort((a, b) => a.pathname.localeCompare(b.pathname));
+    return entries.sort((a, b) => codeUnitCompare(a.pathname, b.pathname));
   }
 
   function commit() {
@@ -923,6 +999,20 @@ function createDeferredArtifactWriter(deps) {
       operations.push(...transformOperations(false));
       operations.push(...staleCleanupOperations(resolved.byServed));
 
+      for (const operation of privateWrites) {
+        const contents = typeof operation.contents === 'function'
+          ? operation.contents()
+          : operation.contents;
+        operations.push({
+          kind: 'write',
+          path: operation.path,
+          contents,
+          mode: operation.mode ?? 0o600,
+          ...(operation.confineTo ? { confineTo: operation.confineTo } : {}),
+        });
+      }
+      operations.push(...privateDeletes);
+
       if (projectRoot) {
         const manifest = {
           version: 1,
@@ -953,8 +1043,17 @@ function createDeferredArtifactWriter(deps) {
       // manifest snapshot. Persist again only after the transaction failure
       // finding has joined it, so the failed attempt remains fully auditable.
       throwAfterRedactions(error, true);
+    } finally {
+      settle(committed);
     }
     return ownershipReport();
+  }
+
+  /** @param {boolean} didCommit */
+  function settle(didCommit) {
+    if (settled) return;
+    settled = true;
+    onSettled?.({ committed: didCommit });
   }
 
   /**
@@ -1060,11 +1159,13 @@ function createDeferredArtifactWriter(deps) {
       }
     }
     if (failures.length) {
+      settle(false);
       throw new AggregateError(
         [error, ...failures],
         'astro-aeo: the build failed and one or more mandatory marker redactions could not be completed.',
       );
     }
+    settle(false);
     throw error;
   }
 
@@ -1104,6 +1205,7 @@ function createDeferredArtifactWriter(deps) {
         ? physicalArtifactPath(publicRoot, served.key, previousBase)
         : undefined;
       if (publicPath && pathEntryExists(publicPath)) return null;
+      if (!pathEntryIsRegularFile(path)) return null;
       if (fileEtag(path) !== entry.representation?.etag) return null;
       return path;
     };
@@ -1196,11 +1298,21 @@ function createDeferredArtifactWriter(deps) {
     },
     stageTransform,
     stageRedaction,
+    stagePrivateWrite,
+    stagePrivateDelete,
     isPlannedStaleDeletion,
     commit,
     report,
     resolve: resolveClaims,
+    preview() {
+      return resolveClaims(false);
+    },
   };
+}
+
+/** @param {string} left @param {string} right */
+function codeUnitCompare(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 /** @param {any} owner */
@@ -1272,6 +1384,17 @@ function pathEntryExists(path) {
 function pathEntryIsDirectory(path) {
   try {
     return lstatSync(path).isDirectory();
+  } catch (error) {
+    if (/** @type {any} */ (error)?.code === 'ENOENT') return false;
+    throw error;
+  }
+}
+
+/** @param {string} path */
+function pathEntryIsRegularFile(path) {
+  try {
+    const stat = lstatSync(path);
+    return stat.isFile() && !stat.isSymbolicLink();
   } catch (error) {
     if (/** @type {any} */ (error)?.code === 'ENOENT') return false;
     throw error;

@@ -9,6 +9,7 @@ import { buildPage, mdPathnameFor, toIsoTimestamp } from '../core/page-model.js'
 import { createDistHtmlSource } from '../sources/dist-html.js';
 import { getGitLastModified } from '../lib/git-mtime.js';
 import { normalizePath } from '../core/match.js';
+import { stripMarkersFromHtml } from '../core/extract/marker.js';
 
 /**
  * @typedef {import('../core/page-model.js').BuildPage} BuildPage
@@ -28,6 +29,7 @@ import { normalizePath } from '../core/match.js';
  * @property {Map<string, string>} routeEntrypoints  Normalized pathname -> source entrypoint.
  * @property {{ warn: (m: string) => void }} logger
  * @property {import('../core/markdown-renderers.js').MarkdownRendererEntry[]} [renderers]
+ * @property {{ key: (stage: string, inputs: unknown) => string; get: (key: string) => unknown; put: (key: string, value: unknown) => void }} [cache]
  */
 
 /**
@@ -56,26 +58,70 @@ export async function collectPages(rawPages, config, ctx) {
       continue;
     }
 
-    const result = await buildPage({
-      pathname,
-      html: read?.html ?? descriptorDocument(raw),
-      config,
-      site,
-      getTurndown,
-      strip,
-      authored,
-      renderers: ctx.renderers,
-      rendering: raw.rendering ?? 'prerendered',
-      routePattern: raw.routePattern,
-    });
-    if ('skip' in result) continue;
+    const html = read?.html ?? descriptorDocument(raw);
+    const rendererIdentities = (ctx.renderers ?? []).map((renderer) => ({
+      name: renderer.name,
+      module: renderer.module,
+      options: renderer.options,
+      cache: renderer.cache,
+      inline: renderer.inline,
+    }));
+    const cache = ctx.cache;
+    const cacheable = Boolean(
+      cache &&
+      (ctx.renderers ?? []).every((renderer) =>
+        !renderer.inline && renderer.cache?.pure === true && typeof renderer.cache.version === 'string'),
+    );
+    const cacheKey = cacheable
+      ? cache?.key('extraction-v1', {
+          pathname,
+          html,
+          authored,
+          rendering: raw.rendering ?? 'prerendered',
+          routePattern: raw.routePattern,
+          site,
+          pages: config.pages,
+          markdown: config.markdown,
+          defaultLocale: config.site.defaultLocale,
+          renderers: rendererIdentities,
+        })
+      : undefined;
+    const cached = cacheKey ? cache?.get(cacheKey) : undefined;
+    const result = validCachedPageResult(cached)
+      ? 'skip' in cached
+        ? { skip: cached.skip }
+        : {
+            page: {
+              ...cached.page,
+              representations: {
+                ...cached.page.representations,
+                html: stripMarkersFromHtml(html),
+              },
+            },
+          }
+      : await buildPage({
+          pathname,
+          html,
+          config,
+          site,
+          getTurndown,
+          strip,
+          authored,
+          renderers: ctx.renderers,
+          rendering: raw.rendering ?? 'prerendered',
+          routePattern: raw.routePattern,
+        });
+    if ('skip' in result) {
+      if (cacheKey && cached === undefined) ctx.cache?.put(cacheKey, { skip: result.skip });
+      continue;
+    }
 
     const lastModified =
       result.page.lastModified ??
       toIsoTimestamp(raw.lastModified) ??
       gitLastModified(pathname, config, ctx);
 
-    pages.push({
+    const page = {
       ...result.page,
       ...(lastModified
         ? {
@@ -85,10 +131,41 @@ export async function collectPages(rawPages, config, ctx) {
         : {}),
       htmlPath: read?.htmlPath ?? '',
       mdPath: join(source.root, mdPathnameFor(pathname)),
-    });
+    };
+    pages.push(page);
+    if (cacheKey && cached === undefined) {
+      const { html: _html, ...cachedRepresentations } = page.representations;
+      const { htmlPath: _htmlPath, mdPath: _mdPath, ...cachedPage } = page;
+      ctx.cache?.put(cacheKey, {
+        page: {
+          ...cachedPage,
+          representations: cachedRepresentations,
+        },
+      });
+    }
   }
 
   return pages;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is { skip: string } | { page: any }}
+ */
+function validCachedPageResult(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = /** @type {any} */ (value);
+  if (typeof candidate.skip === 'string') {
+    return ['excluded', 'redirect', 'noindex', 'skip-token'].includes(candidate.skip);
+  }
+  return Boolean(
+    candidate.page &&
+    typeof candidate.page === 'object' &&
+    typeof candidate.page.id === 'string' &&
+    typeof candidate.page.pathname === 'string' &&
+    candidate.page.representations &&
+    typeof candidate.page.representations.markdown === 'string',
+  );
 }
 
 /**
