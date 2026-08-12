@@ -1,0 +1,114 @@
+src/runtime/middleware-redirect.test.js
+  s_f53d64c7cb70e2::t_375b9e86039581 20
+src/runtime/middleware-head.test.js
+  s_f53d64c7cb70e2::t_375b9e86039581 23
+src/build/corpus.js
+  s_f53d64c7cb70e2::t_a5bf42a7cae534 3,5,7,12-13,25-34,36-39,41,43,47,49,59,64-83,85-92,94,97,99-106,109,111,117-120
+  s_f53d64c7cb70e2::t_a097dc8a77398b 35,40
+  s_f53d64c7cb70e2::t_0e5bc38f704926 1-2,4,6,8-11,14-16,18-24,42,44-46,48,50-58,60-63,84,93,95-96,98,107-108,110,112-116,121
+  s_f53d64c7cb70e2::t_44a46e7714efa3 17
+src/runtime/plugins.js
+  s_f53d64c7cb70e2::t_7ea96a612d67c8 80,95-97,479-481
+  s_f53d64c7cb70e2::t_a4872fb8330070 26,201-202,210,212-213,331-338
+  s_f53d64c7cb70e2::t_135bcb15091276 188,209,211,214,234-235
+  s_f53d64c7cb70e2::t_80d1d48b055296 339-340
+src/runtime/config.js
+  s_f53d64c7cb70e2::t_8b373554a13eef 15,28-30
+src/virtual/plugin.js
+  s_f53d64c7cb70e2::t_b8c7dc48d9118c 13,22,58-64,86
+  s_f53d64c7cb70e2::t_02111466fb4979 11,42,45
+src/runtime/serve.test.js
+  s_f53d64c7cb70e2::t_1555311a3e1b8a 721-743
+  s_f53d64c7cb70e2::t_11ec9f3778bee9 9-10,18,675-720
+src/build/corpus-tokenizer.js
+  s_f53d64c7cb70e2::t_a855b9ebcd1b7a 1-87
+src/runtime/serve.js
+  s_f53d64c7cb70e2::t_3411723c9aec89 31-32,574-577,583-584,586-591,593,942-974
+  s_f53d64c7cb70e2::t_1942a79606f7f2 474-478,481-482,484-485,489,522-523,534-537,540,542-551,553-557,563-573,581-582,585,592,594-600,605-607,610,613-621,623-656
+  s_f53d64c7cb70e2::t_25c326cec3480d 988
+  s_f53d64c7cb70e2::t_0e99358bc6eba1 851,854
+  s_f53d64c7cb70e2::t_f270dee375ec9b 852-853,855-859
+  s_f53d64c7cb70e2::t_bcde09e8e73453 846-850,866-867,871-872,885-906,924,927-928,930-941
+  s_f53d64c7cb70e2::t_2ac57fe9163609 99-100
+  s_f53d64c7cb70e2::t_f8ff5fa43f0dc0 238-243
+  s_f53d64c7cb70e2::t_1d766cc10b914a 552,558-562,975-987,989-997
+  s_f53d64c7cb70e2::t_bdfd2f1edf902c 5-8,30,33-38,44,58,92,101
+  s_f53d64c7cb70e2::t_c0bfbe40bc0eab 622
+  s_f53d64c7cb70e2::t_964ab0e8a390b5 601-604,925-926,929
+  s_f53d64c7cb70e2::t_3fec05d3891b19 998
+src/core/markdown-renderers.js
+  s_f53d64c7cb70e2::t_4cabe7f4d84126 9-10,153,168-178
+src/runtime/middleware-corpus-auth.test.js
+  s_f53d64c7cb70e2::t_375b9e86039581 16,88-89,114
+  s_f53d64c7cb70e2::t_21a1a14444022b 74-87
+src/runtime/middleware-limit.test.js
+  s_f53d64c7cb70e2::t_375b9e86039581 19
+src/hooks/build-done.js
+  s_f53d64c7cb70e2::t_a41d56c274bd7f 20,240,479,493-505
+  s_f53d64c7cb70e2::t_03f0d2accdd3a3 670-673
+  s_f53d64c7cb70e2::t_251f2c6fdd1c0f 729-732,740
+  s_f53d64c7cb70e2::t_e95bd5ac461c76 37,74,480-492,506-519
+  s_f53d64c7cb70e2::t_badae65aee1fce 23-36,94-97,520,652-663,682-710,715-728,733-739,741-804,806-872
+  s_f53d64c7cb70e2::t_2ce1eb055e0f6e 17-19,21-22,88-93,168,241,244-247,674-677
+  s_f53d64c7cb70e2::t_7035d75a0ecaf0 14,75,243,614-629,669
+  s_f53d64c7cb70e2::t_f289ee81f901f4 711-714,805
+  s_ac4b42a621d0b5::t_37c193531a511f 521,678,873
+src/plugins/runtime-modules.js
+  s_f53d64c7cb70e2::t_d4291cecaee59c 15,27
+src/runtime/middleware.js
+  s_f53d64c7cb70e2::t_7bb704428eda47 5,39-40,44,163-167,248,259,265-266,268-269,271-273,275,278
+  s_f53d64c7cb70e2::t_3b9eb8f7cbfe92 1277-1280
+  s_2831ea801decc7::t_6da9af59f963f9 1281
+src/plugins/dispatcher.js
+  s_f53d64c7cb70e2::t_fd0a2586c76ff8 137
+  s_f53d64c7cb70e2::t_50b878b6ae8345 18-24,35,54-55,60-68,110-113,129-136,138-140,201-215
+  s_f53d64c7cb70e2::t_bf855f24e9ea69 114
+  s_f53d64c7cb70e2::t_51911e01d46ec0 216-217
+src/build/markdown-renderers.js
+  s_f53d64c7cb70e2::t_65613c21a5f38b 24,100,171
+src/index.js
+  s_f53d64c7cb70e2::t_90f371b5d7ba16 4,36-41,126,397-440
+  s_f53d64c7cb70e2::t_23e67e99c1c403 31,59,116,200,392
+  s_f53d64c7cb70e2::t_7377404333f206 32-35,96-97,185,224-229,390
+src/runtime/corpus-tokenizer.js
+  s_f53d64c7cb70e2::t_3f07f36f7c6799 1-43
+src/runtime/middleware-schema-corpus.test.js
+  s_f53d64c7cb70e2::t_375b9e86039581 27
+src/runtime/markdown-renderers.js
+  s_f53d64c7cb70e2::t_dfa57b8a1c0fd2 12,60
+  s_f53d64c7cb70e2::t_2fa5e0de56ebbe 47-53
+src/runtime/middleware-project-routes.test.js
+  s_f53d64c7cb70e2::t_375b9e86039581 18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "04a6f04f287ca29f46cddad266c4ed66ad0d14b6",
+  "prompts": {},
+  "sessions": {
+    "s_2831ea801decc7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ff259-e90c-78a3-b9ae-3d13879a3469",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_ac4b42a621d0b5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ff6cc-9e41-7db1-b249-e8f3f2e33fef",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_f53d64c7cb70e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ff6aa-27ed-7770-b7c5-24919862bb2d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
