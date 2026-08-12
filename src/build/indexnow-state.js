@@ -309,9 +309,16 @@ export function parseIndexNowPrepareInput(value) {
   ], 'IndexNow prepare input');
   const mode = enumValue(value.mode, ['public', 'private', 'stateless'], 'mode');
   const submit = enumValue(value.submit, ['changed', 'all'], 'submit');
-  if (typeof value.projectRoot !== 'string' || !value.projectRoot) throw new TypeError('IndexNow prepare input projectRoot is required');
+  if (typeof value.projectRoot !== 'string' || !value.projectRoot || value.projectRoot.includes('\0')) {
+    throw new TypeError('IndexNow prepare input projectRoot is required');
+  }
   if (typeof value.strict !== 'boolean' || typeof value.base !== 'string' || typeof value.statePathname !== 'string') {
     throw new TypeError('IndexNow prepare input metadata is invalid');
+  }
+  const base = normalizePrepareBase(value.base);
+  const statePathname = validateRootPath(value.statePathname, 'statePathname');
+  if (statePathname !== `${base}/.well-known/${INDEXNOW_PUBLIC_FILENAME}`) {
+    throw new TypeError('IndexNow statePathname does not match the configured base');
   }
   const key = parseKeySource(value.key);
   const origins = parseOriginConfigs(value.origins);
@@ -325,8 +332,8 @@ export function parseIndexNowPrepareInput(value) {
     mode,
     submit,
     strict: value.strict,
-    base: value.base,
-    statePathname: validateRootPath(value.statePathname, 'statePathname'),
+    base,
+    statePathname,
     key,
     ...(value.keyLocation === undefined ? {} : { keyLocation: validateRootPath(value.keyLocation, 'keyLocation') }),
     origins,
@@ -540,7 +547,18 @@ function validateSameOriginUrl(value, origin) {
   const url = validateCanonicalUrl(value, origin);
   const parsed = new URL(url);
   if (parsed.search || parsed.hash) throw new TypeError('IndexNow state URL cannot contain a query or fragment');
+  if (!parsed.pathname.endsWith(`/.well-known/${INDEXNOW_PUBLIC_FILENAME}`)) {
+    throw new TypeError('IndexNow state URL must use the Astro-AEO public state pathname');
+  }
   return url;
+}
+
+/** @param {string} value */
+function normalizePrepareBase(value) {
+  if (!value || value === '/') return '';
+  const path = validateRootPath(value.replace(/\/$/u, ''), 'base');
+  if (path === '/') return '';
+  return path;
 }
 
 /** @param {string} value @param {string} name */

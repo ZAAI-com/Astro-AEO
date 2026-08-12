@@ -4,11 +4,14 @@ import {
   openSync,
   closeSync,
   chmodSync,
+  fsyncSync,
+  lstatSync,
   readFileSync,
   renameSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { dirname } from 'node:path';
 
 /** @param {string} path */
@@ -29,12 +32,17 @@ export function readJsonFile(path) {
 export function writePrivateFile(path, contents) {
   const directory = dirname(path);
   mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const stat = lstatSync(directory);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    throw new IndexNowInvocationError('cannot write IndexNow state through an unsafe directory');
+  }
   try { chmodSync(directory, 0o700); } catch {}
-  const temporary = `${path}.${process.pid}.tmp`;
+  const temporary = `${path}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`;
   let fd;
   try {
-    fd = openSync(temporary, 'w', 0o600);
+    fd = openSync(temporary, 'wx', 0o600);
     writeFileSync(fd, contents, 'utf8');
+    fsyncSync(fd);
     closeSync(fd);
     fd = undefined;
     renameSync(temporary, path);
