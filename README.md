@@ -725,6 +725,11 @@ references must resolve, known same-site references can resolve across collected
 external IDs remain valid without fetching. Provenance and conflict values remain outside emitted
 JSON-LD, and serialization is deterministic and safe for an inline script.
 
+`createId` is the boundary that returns a branded, absolute identifier. Entity builders and
+`createEntity` may retain relative IDs and URL properties while a graph is being assembled;
+`validateGraph` resolves them against its explicit `documentCanonical` and returns the normalized
+graph. No request host is used as an implicit base.
+
 ### Experimental schema corpus
 
 Set `schema.corpus.enabled: true` to emit the atomic pair `/schema/graph.jsonld` and
@@ -732,6 +737,10 @@ Set `schema.corpus.enabled: true` to emit the atomic pair `/schema/graph.jsonld`
 Astro-AEO-specific discovery aids, not Schema.org, Google, or other standards. Their presence does
 not imply search-feature eligibility. JSON-LD retains anonymous entities; the XML map omits them
 with a diagnostic because it can list only stable IDs.
+
+Both corpus paths must use one exact, normalized, app-relative URL spelling below `/`: no query,
+fragment, glob, dot segment, encoded separator, ambiguous encoding, duplicate slash, or trailing
+slash. Cross-page reference validation is scoped to the configured Astro site and `base` path.
 
 Runtime schema corpora use the same anonymous, serial, in-process renderer as the text corpora,
 including `GET`, `HEAD`, ETags, and conditional requests. Astro 5 and Astro 6.0 through 6.2 return
@@ -762,7 +771,10 @@ aeo({ plugins: [plugin] });
 Hooks run sequentially in configured order through `page:discovered`, `page:extract`,
 `page:transform`, `page:metadata`, `graph:build`, `artifact:generate`, `artifact:validate`, and
 `build:complete`. Inputs are immutable; a hook keeps, replaces, or isolates its current scope.
-Runtime modules use literal entrypoints and strict JSON options. Artifact claims are exact
+Runtime modules use literal entrypoints and strict JSON options. Omitting runtime `options` leaves
+`api.options` undefined, while an explicit JSON `null` remains `null`. Graph replacements are
+reconciled with unchanged authored JSON-LD before Astro-AEO regenerates its one managed script, so
+build and runtime corpora use the same final graph. Artifact claims are exact
 app-relative pathnames, and runtime page access never exposes raw requests, cookies, credentials,
 or arbitrary rendering. The built-in semantic pipeline uses this same dispatcher.
 

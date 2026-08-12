@@ -48,6 +48,12 @@ publishing through one shared build/runtime pipeline.
 - Build output now passes through staged graph, artifact, ownership, and threshold validation
   before atomic commit. Ownership manifests permit stale cleanup only for unmodified files proven
   to have been written by Astro-AEO.
+- Semantic graph validation now preserves each page's canonical base and the configured Astro
+  base path, reconciles plugin graph replacements with the managed JSON-LD script, and rejects
+  malformed nested JSON-LD fields before serialization.
+- Build and runtime ownership now agree for Markdown companions, runtime-only artifacts, catalog
+  pages, homepage plugin handles, replacement claims, and sitemap cleanup. Recommended validation
+  includes page-local findings before the artifact transaction commits.
 - Managed HTML edits use targeted ranges, preserve unrelated authored bytes, and strip internal
   page/head markers even when validation aborts. Diagnostics omit content, entity values, plugin
   payloads, marker data, secrets, and thrown values.
@@ -57,6 +63,9 @@ publishing through one shared build/runtime pipeline.
 - MDX adapters discard active authored elements before component mappings, plugin runtime options
   are cloned into the resolved configuration, and schema diagnostics distinguish unsafe URLs from
   relative URLs that require `documentCanonical`.
+- Canonical attributes decode HTML entities, source kinds use one shared inference policy, runtime
+  plugin option omission remains distinct from `null`, and exact artifact path validation is
+  aligned between startup and the published configuration schema.
 - Secure live corpora continue to require Astro 6.3 or newer. Astro 5 and Astro 6.0 through 6.2
   return `503` with `Cache-Control: no-store`; direct Markdown, negotiation, static corpora, and
   non-corpus behavior remain supported.
