@@ -12,7 +12,7 @@
  */
 
 // @ts-expect-error resolved at build time by src/virtual/plugin.js
-import { CATALOG_LOADERS as VIRTUAL_CATALOG_LOADERS, MARKDOWN_RENDERER_LOADERS as VIRTUAL_MARKDOWN_RENDERER_LOADERS, RUNTIME_PLUGIN_LOADERS as VIRTUAL_RUNTIME_PLUGIN_LOADERS, RUNTIME as VIRTUAL } from 'astro-aeo:runtime-config';
+import { CATALOG_LOADERS as VIRTUAL_CATALOG_LOADERS, MARKDOWN_RENDERER_LOADERS as VIRTUAL_MARKDOWN_RENDERER_LOADERS, RUNTIME_PLUGIN_LOADERS as VIRTUAL_RUNTIME_PLUGIN_LOADERS, CORPUS_TOKENIZER_LOADER as VIRTUAL_CORPUS_TOKENIZER_LOADER, RUNTIME as VIRTUAL } from 'astro-aeo:runtime-config';
 
 /** @type {import('./serve.js').Runtime} */
 export const RUNTIME = VIRTUAL;
@@ -25,3 +25,6 @@ export const RUNTIME_MARKDOWN_RENDERER_LOADERS = VIRTUAL_MARKDOWN_RENDERER_LOADE
 
 /** @type {import('./plugins.js').RuntimePluginLoader[]} */
 export const RUNTIME_PLUGIN_LOADERS = VIRTUAL_RUNTIME_PLUGIN_LOADERS;
+
+/** @type {import('./corpus-tokenizer.js').RuntimeCorpusTokenizerLoader | undefined} */
+export const RUNTIME_CORPUS_TOKENIZER_LOADER = VIRTUAL_CORPUS_TOKENIZER_LOADER;

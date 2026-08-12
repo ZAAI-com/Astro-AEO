@@ -13,6 +13,7 @@ vi.mock('./config.js', async () => {
     RUNTIME_CATALOG_LOADERS: [],
     RUNTIME_MARKDOWN_RENDERER_LOADERS: [],
     RUNTIME_PLUGIN_LOADERS: [],
+    RUNTIME_CORPUS_TOKENIZER_LOADER: undefined,
   };
 });
 
@@ -70,8 +71,22 @@ function disposableContext({ request, url, locals = {}, render }) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('runtime corpus subrequests', () => {
-  test('serializes rewrites without making a forged-Host network request', async () => {
-    const url = new URL('https://forged-host.invalid/llms-full.txt');
+  test('does not serve origin-scoped artifacts on an unknown host', async () => {
+    const url = new URL('https://unknown.example/llms.txt');
+    const fallback = new Response('project fallback', { status: 404 });
+    const next = vi.fn(async () => fallback);
+
+    const response = await onRequest(
+      { request: new Request(url), url, locals: {}, isPrerendered: false },
+      next,
+    );
+
+    expect(response).toBe(fallback);
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  test('serializes rewrites without making a network request', async () => {
+    const url = new URL('https://example.test/llms-full.txt');
     const request = new Request(url, {
       headers: {
         accept: 'text/markdown',
@@ -96,7 +111,7 @@ describe('runtime corpus subrequests', () => {
         active++;
         peak = Math.max(peak, active);
         expect(target).toBeInstanceOf(Request);
-        expect(new URL(target.url).origin).toBe('https://forged-host.invalid');
+        expect(new URL(target.url).origin).toBe('https://example.test');
         expect(target.method).toBe('GET');
         expect(target.headers.get('authorization')).toBeNull();
         expect(target.headers.get('cookie')).toBeNull();

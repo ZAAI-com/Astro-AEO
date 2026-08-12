@@ -15,6 +15,13 @@ export const PLUGIN_STAGES = /** @type {const} */ ([
 ]);
 
 const STAGE_SET = new Set(PLUGIN_STAGES);
+const CACHEABLE_STAGES = new Set([
+  'page:discovered',
+  'page:extract',
+  'page:transform',
+  'page:metadata',
+  'graph:build',
+]);
 
 /**
  * Set up the internal and public plugins once, preserving registration order.
@@ -25,7 +32,7 @@ const STAGE_SET = new Set(PLUGIN_STAGES);
  * @param {'dev'|'build'|'preview'} input.command
  */
 export async function createPluginDispatcher({ plugins = [], internalPlugins = [], command }) {
-  /** @type {Map<import('../index.js').AstroAeoPluginStage, { plugin: string; hook: import('../index.js').AstroAeoPluginHook<any> }[]>} */
+  /** @type {Map<import('../index.js').AstroAeoPluginStage, { plugin: string; hook: import('../index.js').AstroAeoPluginHook<any>; cache?: import('../index.js').CacheDeclaration; ordinal: number }[]>} */
   const hooks = new Map(PLUGIN_STAGES.map((stage) => [stage, []]));
   /** @type {(import('../index.js').PluginArtifactClaim & { plugin: string })[]} */
   const claims = [];
@@ -44,13 +51,21 @@ export async function createPluginDispatcher({ plugins = [], internalPlugins = [
     let active = true;
     const api = Object.freeze({
       command,
-      /** @param {import('../index.js').AstroAeoPluginStage} stage @param {import('../index.js').AstroAeoPluginHook<any>} hook */
-      on(stage, hook) {
+      /** @param {import('../index.js').AstroAeoPluginStage} stage @param {import('../index.js').AstroAeoPluginHook<any>} hook @param {{ cache?: import('../index.js').CacheDeclaration }} [options] */
+      on(stage, hook, options = {}) {
         if (!active) throw new AeoConfigError(`astro-aeo: plugin "${plugin.name}" registered a hook after setup completed.`);
         if (!STAGE_SET.has(stage) || typeof hook !== 'function') {
           throw new AeoConfigError(`astro-aeo: plugin "${plugin.name}" registered an invalid ${String(stage)} hook.`);
         }
-        hooks.get(stage)?.push({ plugin: plugin.name, hook });
+        const cache = validateCacheDeclaration(plugin.name, stage, options.cache);
+        const registrations = hooks.get(stage) ?? [];
+        registrations.push({
+          plugin: plugin.name,
+          hook,
+          ordinal: registrations.filter((entry) => entry.plugin === plugin.name).length,
+          ...(cache ? { cache } : {}),
+        });
+        hooks.set(stage, registrations);
         if (!internal) userHookStages.add(stage);
       },
       /** @param {import('../index.js').PluginArtifactClaim} claim */
@@ -92,6 +107,11 @@ export async function createPluginDispatcher({ plugins = [], internalPlugins = [
               ),
             }),
         stages: PLUGIN_STAGES.filter((stage) => hooks.get(stage)?.some((item) => item.plugin === plugin.name)),
+        hookManifest: PLUGIN_STAGES.flatMap((stage) =>
+          (hooks.get(stage) ?? [])
+            .filter((item) => item.plugin === plugin.name)
+            .map((item) => ({ stage, ordinal: item.ordinal, ...(item.cache ? { cache: item.cache } : {}) })),
+        ),
         claims: claims
           .filter((claim) => claim.plugin === plugin.name)
           .map(({ plugin: _plugin, ...claim }) => claim),
@@ -105,6 +125,18 @@ export async function createPluginDispatcher({ plugins = [], internalPlugins = [
     /** @param {import('../index.js').AstroAeoPluginStage} stage */
     hasUserHooks(stage) {
       return userHookStages.has(stage);
+    },
+    /** @param {import('../index.js').AstroAeoPluginStage} stage */
+    cacheIdentities(stage) {
+      const registrations = hooks.get(stage) ?? [];
+      return registrations.every((registration) => registration.cache?.pure === true)
+        ? registrations.map((registration) => ({
+            plugin: registration.plugin,
+            stage,
+            ordinal: registration.ordinal,
+            version: /** @type {{ version: string }} */ (registration.cache).version,
+          }))
+        : null;
     },
 
     /**
@@ -164,6 +196,23 @@ export async function createPluginDispatcher({ plugins = [], internalPlugins = [
       return { value, diagnostics, isolated: false };
     },
   };
+}
+
+/** @param {string} plugin @param {string} stage @param {unknown} value */
+function validateCacheDeclaration(plugin, stage, value) {
+  if (value === undefined) return undefined;
+  if (!CACHEABLE_STAGES.has(stage)) {
+    throw new AeoConfigError(`astro-aeo: plugin "${plugin}" cannot declare cache behavior for ${stage}.`);
+  }
+  if (
+    !value || typeof value !== 'object' || Array.isArray(value) ||
+    /** @type {any} */ (value).pure !== true ||
+    typeof /** @type {any} */ (value).version !== 'string' ||
+    !/** @type {any} */ (value).version.trim()
+  ) {
+    throw new AeoConfigError(`astro-aeo: plugin "${plugin}" registered an invalid cache declaration for ${stage}.`);
+  }
+  return Object.freeze({ pure: /** @type {const} */ (true), version: /** @type {any} */ (value).version.trim() });
 }
 
 /**

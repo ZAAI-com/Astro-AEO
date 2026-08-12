@@ -2,7 +2,10 @@
 import { buildPage, basePrefix, pagePathForMdPath } from '../core/page-model.js';
 import { createTurndown } from '../core/html-to-md.js';
 import { renderMarkdownDocument } from '../core/render/markdown-doc.js';
-import { renderLlmsTxt, renderLlmsFullTxt } from '../core/render/llms-txt.js';
+import {
+  isPotentialCorpusArtifactPath,
+  planCorpusArtifacts,
+} from '../core/corpus-artifacts.js';
 import { buildRobotsTxt } from '../core/render/robots-txt.js';
 import { buildDomainProfile } from '../core/render/domain-profile.js';
 import { resolveSiteMeta } from '../core/site-meta.js';
@@ -24,12 +27,21 @@ import {
 } from '../core/plugin-validation.js';
 import { loadRuntimeMarkdownRenderers } from './markdown-renderers.js';
 import { loadRuntimePlugins } from './plugins.js';
+import { loadRuntimeCorpusTokenizer } from './corpus-tokenizer.js';
+import { parseDocument } from '../core/html-document.js';
+import { readMarker } from '../core/extract/marker.js';
+import {
+  astroRouteLocale,
+  normalizeOrigin,
+  normalizePageAlternates,
+  resolvePageLocale,
+} from '../core/locale.js';
 
 /**
  * @typedef {object} Runtime
  * @property {'dev'|'build'|'preview'} command
  * @property {import('../index.js').ResolvedAstroAeoConfig} config
- * @property {{ siteUrl: string; stableSiteUrl?: string; base: string; trailingSlash: 'always'|'never'|'ignore' }} site
+ * @property {{ siteUrl: string; stableSiteUrl?: string; base: string; trailingSlash: 'always'|'never'|'ignore'; i18n?: import('../core/locale.js').LocaleSnapshot }} site
  * @property {boolean} [sitemapAvailable]
  * @property {string[]} staticPaths
  * @property {string[]} [projectPaths]
@@ -43,6 +55,7 @@ import { loadRuntimePlugins } from './plugins.js';
 /** @typedef {{ module: string; load: () => Promise<import('../page.js').PageCatalog> }} RuntimeCatalogLoader */
 /** @typedef {import('./markdown-renderers.js').RuntimeMarkdownRendererLoader} RuntimeMarkdownRendererLoader */
 /** @typedef {import('./plugins.js').RuntimePluginLoader} RuntimePluginLoader */
+/** @typedef {import('./corpus-tokenizer.js').RuntimeCorpusTokenizerLoader} RuntimeCorpusTokenizerLoader */
 
 export class RuntimeCorpusLimitError extends Error {
   /** @param {number} pages @param {number} limit */
@@ -76,15 +89,16 @@ export function stripBase(pathname, base) {
 /**
  * @param {string} pathname
  * @param {import('../index.js').ResolvedAstroAeoConfig} config
- * @returns {'robots'|'domain-profile'|'llms'|'llms-full'|'schema-graph'|'schema-map'|null}
+ * @returns {'robots'|'domain-profile'|'llms'|'llms-full'|'corpus'|'schema-graph'|'schema-map'|null}
  */
 export function artifactFor(pathname, config) {
   if (pathname === '/robots.txt' && config.discovery.robots.enabled) return 'robots';
   if (pathname === '/.well-known/domain-profile.json' && config.site.profile.enabled) {
     return 'domain-profile';
   }
-  if (pathname === '/llms.txt' && config.corpus.index.enabled) return 'llms';
-  if (pathname === '/llms-full.txt' && config.corpus.full.enabled) return 'llms-full';
+  if (pathname === '/llms.txt' && isPotentialCorpusArtifactPath(pathname, config)) return 'llms';
+  if (pathname === '/llms-full.txt' && isPotentialCorpusArtifactPath(pathname, config)) return 'llms-full';
+  if (isPotentialCorpusArtifactPath(pathname, config)) return 'corpus';
   if (config.schema.corpus.enabled && matchesExactPathname(pathname, config.schema.corpus.graphPath)) {
     return 'schema-graph';
   }
@@ -221,7 +235,12 @@ export async function pageFromHtml(pathname, html, runtime, opts = {}) {
     routePattern: descriptor?.routePattern,
   });
   if ('skip' in result) return null;
-  let page = result.page;
+  let page = {
+    ...result.page,
+    ...(descriptor?.origin ? { origin: descriptor.origin } : {}),
+    ...(descriptor?.locale ? { locale: descriptor.locale } : {}),
+    ...(descriptor?.alternates ? { alternates: descriptor.alternates.map((alternate) => ({ ...alternate })) } : {}),
+  };
   if (!plugins) return page;
 
   const extracted = await plugins.run('page:extract', {
@@ -452,17 +471,22 @@ export async function serveMarkdown(mdPathname, runtime, fetchHtml, opts = {}) {
 }
 
 /**
- * @param {'llms'|'llms-full'} kind
+ * Collect the complete runtime page pipeline once and return the requested
+ * logical corpus artifact. A null result means that the requested pathname is
+ * not part of this host's deterministic plan.
+ *
+ * @param {string} pathname
  * @param {Runtime} runtime
  * @param {HtmlFetcher} fetchHtml
- * @param {{ note?: string; concurrency?: number; catalogLoaders?: RuntimeCatalogLoader[]; rendererLoaders?: RuntimeMarkdownRendererLoader[]; pluginLoaders?: RuntimePluginLoader[]; origin?: string }} [opts]
- * @returns {Promise<string>}
+ * @param {{ note?: string; concurrency?: number; catalogLoaders?: RuntimeCatalogLoader[]; rendererLoaders?: RuntimeMarkdownRendererLoader[]; pluginLoaders?: RuntimePluginLoader[]; tokenizerLoader?: RuntimeCorpusTokenizerLoader; origin?: string }} [opts]
+ * @returns {Promise<{ body: string; contentType: string } | null>}
  */
-export async function serveLlmsIndex(kind, runtime, fetchHtml, opts = {}) {
+export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {}) {
+  const activeOrigin = effectiveSiteUrl(runtime, opts.origin);
   const descriptors = await runtimeCatalogPagesFor(
     opts.catalogLoaders ?? [],
     runtime,
-    opts.origin,
+    activeOrigin,
   );
   /** @type {Map<string, { pathname: string; publicPathname: string; descriptor?: import('../page.js').PageDescriptor }>} */
   const pagesByPath = new Map();
@@ -495,8 +519,8 @@ export async function serveLlmsIndex(kind, runtime, fetchHtml, opts = {}) {
   const pages = await collectConcurrently(
     paths,
     Math.min(Math.max(opts.concurrency ?? 1, 1), 4),
-    async (pathname) => {
-      const loaded = await fetchHtml(pathname.publicPathname);
+    async (target) => {
+      const loaded = await fetchHtml(target.publicPathname);
       if (
         loaded === null ||
         loaded.html === null ||
@@ -507,24 +531,129 @@ export async function serveLlmsIndex(kind, runtime, fetchHtml, opts = {}) {
         cancelResponseBody(loaded?.response);
         return null;
       }
-      return await pageFromHtml(pathname.pathname, loaded.html, runtime, {
-        descriptor: pathname.descriptor,
-        origin: opts.origin,
-        publicPathname: pathname.publicPathname,
+      const page = await pageFromHtml(target.pathname, loaded.html, runtime, {
+        descriptor: target.descriptor,
+        origin: activeOrigin,
+        publicPathname: target.publicPathname,
         rendererLoaders: opts.rendererLoaders,
         pluginLoaders: opts.pluginLoaders,
+        failOnPluginIsolation: true,
       });
+      if (!page) return null;
+      const enriched = await enrichRuntimePageGraph(loaded.html, page, runtime, {
+        pluginLoaders: opts.pluginLoaders,
+        catalogDescriptors: descriptors,
+        origin: activeOrigin,
+        allowGlobal: true,
+      });
+      if (enriched.isolated) {
+        throw new RuntimeCorpusPlanError('A runtime graph plugin isolated a collected page.');
+      }
+      const headAlternates = runtimeHeadAlternates(loaded.html);
+      const semanticPage = {
+        ...page,
+        ...(enriched.page ?? {}),
+        ...(target.descriptor?.origin ? { origin: target.descriptor.origin } : {}),
+        ...(target.descriptor?.locale ? { locale: target.descriptor.locale } : {}),
+        ...(headAlternates.present
+          ? { alternates: headAlternates.value }
+          : target.descriptor?.alternates
+            ? { alternates: target.descriptor.alternates }
+            : {}),
+        representations: {
+          ...page.representations,
+          ...(enriched.page?.representations ?? {}),
+          html: enriched.html,
+        },
+        diagnostics: uniqueDiagnostics([
+          ...page.diagnostics,
+          ...(enriched.page?.diagnostics ?? []),
+          ...enriched.diagnostics,
+        ]),
+      };
+      return {
+        page: semanticPage,
+        languageDeclaration: runtimeLanguageDeclaration(loaded.html, target.descriptor),
+      };
     },
   );
 
-  const home = pages.find((p) => p.pathname === '/');
+  const snapshot = runtime.site.i18n ?? emptyLocaleSnapshot(activeOrigin);
+  const localized = [];
+  for (const collected of pages) {
+    const page = collected.page;
+    const routeLocale = astroRouteLocale(page.pathname, activeOrigin, snapshot);
+    const languagePage = { ...page };
+    if (collected.languageDeclaration.present) {
+      languagePage.language = collected.languageDeclaration.value;
+    } else {
+      delete languagePage.language;
+    }
+    const resolved = resolvePageLocale(
+      { ...languagePage, origin: normalizeOrigin(page.origin) ?? activeOrigin },
+      snapshot,
+      {
+        unresolvedLanguage: runtime.config.i18n.unresolvedLanguage,
+        siteDefaultLocale: runtime.config.site.defaultLocale,
+      },
+    );
+    if (resolved.excluded) continue;
+    localized.push({
+      ...resolved.page,
+      origin: expectedPageOrigin(resolved.page, routeLocale, snapshot, activeOrigin),
+    });
+  }
+  const alternates = normalizePageAlternates(localized);
+  const home = alternates.pages.find((page) => page.pathname === '/');
   const siteMeta = resolveSiteMeta(
     runtime.config,
-    effectiveSiteUrl(runtime, opts.origin),
+    activeOrigin,
     home?.title ?? '',
   );
-  const render = kind === 'llms-full' ? renderLlmsFullTxt : renderLlmsTxt;
-  return render(pages, runtime.config, siteMeta, { note: opts.note });
+  const loadedTokenizer = await loadRuntimeCorpusTokenizer(opts.tokenizerLoader);
+  const plan = await planCorpusArtifacts({
+    pages: alternates.pages,
+    config: runtime.config,
+    siteMeta,
+    origin: activeOrigin,
+    base: runtime.site.base,
+    i18n: snapshot,
+    tokenizer: loadedTokenizer.implementation,
+    tokenizerOptions: 'options' in loadedTokenizer ? loadedTokenizer.options : undefined,
+    note: opts.note,
+  });
+  if (plan.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
+    throw new RuntimeCorpusPlanError('The runtime corpus plan failed validation.');
+  }
+  const requested = plan.artifacts.find((artifact) => artifact.pathname === pathname);
+  if (requested) return { body: requested.contents, contentType: 'text/plain; charset=utf-8' };
+  if (pathname === '/llms/manifest.json' && plan.manifestText) {
+    return { body: plan.manifestText, contentType: 'application/json; charset=utf-8' };
+  }
+  return null;
+}
+
+/**
+ * Backward-compatible entry used by direct consumers and the existing test
+ * suite. It delegates to the same complete planner used by middleware.
+ * @param {'llms'|'llms-full'} kind
+ * @param {Runtime} runtime
+ * @param {HtmlFetcher} fetchHtml
+ * @param {{ note?: string; concurrency?: number; catalogLoaders?: RuntimeCatalogLoader[]; rendererLoaders?: RuntimeMarkdownRendererLoader[]; pluginLoaders?: RuntimePluginLoader[]; tokenizerLoader?: RuntimeCorpusTokenizerLoader; origin?: string }} [opts]
+ * @returns {Promise<string>}
+ */
+export async function serveLlmsIndex(kind, runtime, fetchHtml, opts = {}) {
+  const pathname = kind === 'llms-full' ? '/llms-full.txt' : '/llms.txt';
+  const result = await serveCorpusArtifact(pathname, runtime, fetchHtml, opts);
+  return result?.body ?? '';
+}
+
+export class RuntimeCorpusPlanError extends Error {
+  /** @param {string} message */
+  constructor(message) {
+    super(`astro-aeo: ${message}`);
+    this.name = 'RuntimeCorpusPlanError';
+  }
 }
 
 /**
@@ -714,18 +843,33 @@ async function loadRuntimeCatalogPages(loaders, runtime, siteUrl) {
       if (typeof catalog?.listPages !== 'function') throw new Error('no listPages() export');
       const listed = await catalog.listPages(context);
       for (const value of Array.isArray(listed) ? listed : []) {
+        const descriptorOrigin = value?.origin === undefined ? null : normalizeOrigin(value.origin);
+        if (value?.origin !== undefined && descriptorOrigin === null) {
+          console.warn('astro-aeo: a runtime page catalog returned an invalid origin; its descriptor was ignored.');
+          continue;
+        }
+        const configuredSiteOrigin = normalizeOrigin(runtime.site.siteUrl);
+        const configuredOrigins = new Set([
+          ...(runtime.site.i18n?.origins ?? []),
+          ...(configuredSiteOrigin ? [configuredSiteOrigin] : []),
+        ]);
+        if (descriptorOrigin && (!configuredOrigins.has(descriptorOrigin) || descriptorOrigin !== normalizeOrigin(siteUrl))) {
+          console.warn('astro-aeo: a runtime page catalog origin did not match the active configured Astro origin; its descriptor was ignored.');
+          continue;
+        }
         const pathname = normalizeCatalogPathname(value?.pathname);
         if (pathname === null) {
           console.warn('astro-aeo: a runtime page catalog returned an unsafe or non-root-relative pathname; it was ignored.');
           continue;
         }
         const canonicalPathname = catalogRuntimePath(pathname).canonical;
-        if (seen.has(canonicalPathname)) {
+        const identity = `${descriptorOrigin ?? normalizeOrigin(siteUrl) ?? ''}\0${canonicalPathname}`;
+        if (seen.has(identity)) {
           console.warn(`astro-aeo: more than one runtime catalog described ${pathname}; the first descriptor wins.`);
           continue;
         }
-        seen.add(canonicalPathname);
-        descriptors.push({ ...value, pathname });
+        seen.add(identity);
+        descriptors.push({ ...value, pathname, ...(descriptorOrigin ? { origin: descriptorOrigin } : {}) });
       }
     } catch {
       console.warn(
@@ -738,7 +882,28 @@ async function loadRuntimeCatalogPages(loaders, runtime, siteUrl) {
 
 /** @param {Runtime} runtime @param {string} [origin] @returns {string} */
 function effectiveSiteUrl(runtime, origin) {
-  return runtime.site.siteUrl || origin || '';
+  const requestOrigin = normalizeOrigin(origin ?? '');
+  const configuredOrigins = runtime.site.i18n?.origins ?? [];
+  if (requestOrigin && configuredOrigins.includes(requestOrigin)) return requestOrigin;
+  return runtime.site.siteUrl || requestOrigin || '';
+}
+
+/**
+ * Resolve the exact configured host allowed to serve origin-scoped artifacts.
+ * Projects without a stable site retain the historical request-origin mode.
+ * @param {Runtime} runtime
+ * @param {string} requestOrigin
+ * @returns {string|null}
+ */
+export function runtimeArtifactOrigin(runtime, requestOrigin) {
+  const requested = normalizeOrigin(requestOrigin);
+  if (!requested) return null;
+  const configured = [...new Set([
+    ...(runtime.site.i18n?.origins ?? []),
+    ...(normalizeOrigin(runtime.site.siteUrl) ? [/** @type {string} */ (normalizeOrigin(runtime.site.siteUrl))] : []),
+  ])];
+  if (configured.length === 0) return requested;
+  return configured.includes(requested) ? requested : null;
 }
 
 /**
@@ -754,6 +919,81 @@ function siteForRequest(runtime, origin) {
   return siteUrl === runtime.site.siteUrl && stableSiteUrl === runtime.site.stableSiteUrl
     ? runtime.site
     : { ...runtime.site, siteUrl, stableSiteUrl };
+}
+
+/** @param {any} page @param {any} routeLocale @param {import('../core/locale.js').LocaleSnapshot} snapshot @param {string} activeOrigin */
+function expectedPageOrigin(page, routeLocale, snapshot, activeOrigin) {
+  if (!snapshot.primaryOrigin && snapshot.origins.length === 0) return activeOrigin;
+  const locale = snapshot.locales.find((entry) => entry.locale === page.locale) ?? routeLocale;
+  const expected = normalizeOrigin(locale?.origin) ?? normalizeOrigin(snapshot.primaryOrigin);
+  return expected ?? normalizeOrigin(page.origin) ?? activeOrigin;
+}
+
+/** @param {string} origin @returns {import('../core/locale.js').LocaleSnapshot} */
+function emptyLocaleSnapshot(origin) {
+  const normalized = normalizeOrigin(origin) ?? undefined;
+  return {
+    locales: [],
+    ...(normalized ? { primaryOrigin: normalized } : {}),
+    origins: normalized ? [normalized] : [],
+    prefixDefaultLocale: false,
+    manual: false,
+  };
+}
+
+/**
+ * Preserve declaration provenance until semantic enrichment is complete. The
+ * legacy page model exposes only the resolved string, which would otherwise
+ * let site.defaultLocale incorrectly outrank Astro route and i18n defaults.
+ * @param {string} html
+ * @param {import('../page.js').PageDescriptor | undefined} descriptor
+ * @returns {{ present: boolean; value?: any }}
+ */
+function runtimeLanguageDeclaration(html, descriptor) {
+  try {
+    const document = parseDocument(html);
+    const headMarker = document.querySelector('script[data-astro-aeo-head]');
+    if (headMarker) {
+      try {
+        const value = JSON.parse(headMarker.textContent ?? '');
+        if (value && typeof value === 'object' && Object.hasOwn(value, 'locale')) {
+          return { present: true, value: value.locale };
+        }
+      } catch {}
+    }
+    const marker = readMarker(document);
+    if (marker && Object.hasOwn(marker, 'language')) {
+      return { present: true, value: marker.language };
+    }
+    if (descriptor && Object.hasOwn(descriptor, 'language')) {
+      return { present: true, value: descriptor.language };
+    }
+    const root = document.documentElement;
+    if (root?.hasAttribute('lang')) return { present: true, value: root.getAttribute('lang') };
+  } catch {}
+  return { present: false };
+}
+
+/** @param {string} html @returns {{ present: boolean; value: any[] }} */
+function runtimeHeadAlternates(html) {
+  try {
+    const document = parseDocument(html);
+    const marker = document.querySelector('script[data-astro-aeo-head]');
+    if (!marker) return { present: false, value: [] };
+    const value = JSON.parse(marker.textContent ?? '');
+    if (value && typeof value === 'object' && Object.hasOwn(value, 'hreflang')) {
+      return {
+        present: true,
+        value: Array.isArray(value.hreflang)
+          ? value.hreflang.map((/** @type {any} */ alternate) => ({
+              language: alternate?.language ?? alternate?.lang,
+              url: alternate?.url ?? alternate?.href,
+            }))
+          : [],
+      };
+    }
+  } catch {}
+  return { present: false, value: [] };
 }
 
 /** @param {string} pathname @returns {string} */

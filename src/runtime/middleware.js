@@ -2,6 +2,7 @@
 import {
   RUNTIME,
   RUNTIME_CATALOG_LOADERS,
+  RUNTIME_CORPUS_TOKENIZER_LOADER,
   RUNTIME_MARKDOWN_RENDERER_LOADERS,
   RUNTIME_PLUGIN_LOADERS,
 } from './config.js';
@@ -35,10 +36,12 @@ import {
   enrichRuntimePageGraph,
   pageFromHtml,
   renderStandaloneArtifact,
+  runtimeArtifactOrigin,
+  RuntimeCorpusPlanError,
   runtimeCatalogPagesFor,
   RuntimeCorpusLimitError,
   RuntimePageLifecycleError,
-  serveLlmsIndex,
+  serveCorpusArtifact,
   serveMarkdown,
   serveSchemaCorpus,
   stripBase,
@@ -157,7 +160,11 @@ export const onRequest = async (context, next) => {
   // A configured core generator remains a generated claimant even when an
   // external route blocks it. A plugin claiming that same pathname must still
   // collide instead of becoming an implicit replacement.
-  const configuredArtifact = artifactFor(pathname, RUNTIME.config);
+  const requestedArtifact = artifactFor(pathname, RUNTIME.config);
+  const activeArtifactOrigin = runtimeArtifactOrigin(RUNTIME, context.url.origin);
+  const configuredArtifact = isOriginScopedArtifact(requestedArtifact) && !activeArtifactOrigin
+    ? null
+    : requestedArtifact;
   const schemaPairBlocked = isSchemaArtifact(configuredArtifact) && runtimeSchemaPairBlocked();
   const artifact = (projectOwned && !coreReplacementAuthorized) || schemaPairBlocked
     ? null
@@ -238,7 +245,7 @@ export const onRequest = async (context, next) => {
       });
     }
   }
-  if (artifact === 'llms' || artifact === 'llms-full') {
+  if (artifact === 'llms' || artifact === 'llms-full' || artifact === 'corpus') {
     if (!disposableCorpusStateFor(context)) {
       return textResponse({
         body: LEGACY_CORPUS_UNAVAILABLE,
@@ -249,22 +256,26 @@ export const onRequest = async (context, next) => {
       });
     }
     try {
-      const body = await serveLlmsIndex(artifact, RUNTIME, htmlFetcher(context, next, { sanitizeCredentials: true }), {
+      const planned = await serveCorpusArtifact(pathname, RUNTIME, htmlFetcher(context, next, { sanitizeCredentials: true }), {
         note: RUNTIME.command === 'dev' ? DEV_NOTE : undefined,
         concurrency: 1,
         catalogLoaders: RUNTIME_CATALOG_LOADERS,
         rendererLoaders: RUNTIME_MARKDOWN_RENDERER_LOADERS,
         pluginLoaders: RUNTIME_PLUGIN_LOADERS,
-        origin: context.url.origin,
+        tokenizerLoader: RUNTIME_CORPUS_TOKENIZER_LOADER,
+        origin: activeArtifactOrigin ?? context.url.origin,
       });
-      return textResponse({ body, contentType: 'text/plain; charset=utf-8', request: context.request });
+      if (!planned) return redactAeoHeadMarkers(await next(), context.request);
+      return textResponse({ body: planned.body, contentType: planned.contentType, request: context.request });
     } catch (error) {
-      if (!(error instanceof RuntimeCorpusLimitError)) throw error;
+      const limited = error instanceof RuntimeCorpusLimitError;
+      const invalid = error instanceof RuntimeCorpusPlanError;
+      if (!limited && !invalid) throw error;
       return textResponse({
-        body: `${error.message}\n`,
+        body: limited ? `${error.message}\n` : 'astro-aeo: the corpus is temporarily unavailable.\n',
         contentType: 'text/plain; charset=utf-8',
         request: context.request,
-        status: 503,
+        status: limited ? 503 : 500,
         headers: { 'cache-control': 'no-store' },
       });
     }
@@ -1262,4 +1273,9 @@ function stripInternalHeaders(headers) {
  */
 function decodePathname(pathname) {
   return inspectRootPathname(pathname)?.decoded ?? null;
+}
+
+/** @param {ReturnType<typeof artifactFor>} artifact */
+function isOriginScopedArtifact(artifact) {
+  return artifact === 'domain-profile' || artifact === 'llms' || artifact === 'llms-full' || artifact === 'corpus';
 }

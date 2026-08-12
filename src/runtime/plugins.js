@@ -23,6 +23,7 @@ const GENERIC_FAILURE = 'Internal Server Error\n';
  * @property {string} module
  * @property {import('../index.js').JsonValue} [options]
  * @property {string[]} stages
+ * @property {{ stage: string; ordinal: number; cache?: import('../index.js').CacheDeclaration }[]} [hookManifest]
  * @property {{ id: string; pathname: string; replace?: boolean }[]} claims
  * @property {() => Promise<unknown>} load
  */
@@ -76,7 +77,7 @@ export function runtimePluginArtifactFor(pathname, loaders, options = {}) {
  * already enumerated and cannot supply a pathname, request, headers, cookies,
  * credentials, or rewrite target of its own.
  *
- * @template {{ id?: string; pathname: string }} T
+ * @template {{ id?: string; pathname: string; origin?: string; locale?: string; alternates?: readonly { language: string; url: string }[] }} T
  * @param {readonly T[]} pages
  * @param {(page: T) => Promise<unknown>} readPage
  * @returns {readonly RuntimePluginPageHandle[]}
@@ -91,6 +92,9 @@ export function createRuntimePluginPageHandles(pages, readPage) {
     const handle = {
       id: typeof page.id === 'string' && page.id ? page.id : page.pathname,
       pathname: page.pathname,
+      ...(typeof page.origin === 'string' ? { origin: page.origin } : {}),
+      ...(typeof page.locale === 'string' ? { locale: page.locale } : {}),
+      ...(Array.isArray(page.alternates) ? { alternates: page.alternates.map((item) => ({ ...item })) } : {}),
       read() {
         pending ??= Promise.resolve(readPage(page)).then(sanitizeRuntimePage);
         return pending;
@@ -181,6 +185,7 @@ async function loadAll(loaders, command) {
 
   for (const loader of loaders) {
     const registeredStages = new Set();
+    const registeredHookCounts = new Map();
     /** @type {{ id: string; pathname: string; replace?: boolean }[]} */
     const registeredClaims = [];
     let active = true;
@@ -193,14 +198,20 @@ async function loadAll(loaders, command) {
         options: loader.options === undefined
           ? undefined
           : immutableJsonValue(loader.options, `${loader.name} runtime options`),
-        /** @param {string} stage @param {Function} hook */
-        on(stage, hook) {
+        /** @param {string} stage @param {Function} hook @param {{ cache?: import('../index.js').CacheDeclaration }} [options] */
+        on(stage, hook, options = {}) {
           if (!active || !PLUGIN_STAGES.has(stage) || typeof hook !== 'function') {
             throw new TypeError('invalid runtime hook registration');
           }
           if (!loader.stages.includes(stage)) {
             throw new TypeError('runtime hook is absent from the build manifest');
           }
+          const ordinal = registeredHookCounts.get(stage) ?? 0;
+          const expected = loader.hookManifest?.find((entry) => entry.stage === stage && entry.ordinal === ordinal);
+          if (loader.hookManifest && (!expected || !sameCacheDeclaration(expected.cache, options.cache))) {
+            throw new TypeError('runtime hook cache declaration differs from the build manifest');
+          }
+          registeredHookCounts.set(stage, ordinal + 1);
           registeredStages.add(stage);
           hooks.get(stage)?.push({ plugin: loader.name, hook });
         },
@@ -220,7 +231,8 @@ async function loadAll(loaders, command) {
       if (result !== undefined) throw new TypeError('runtime setup must not return a value');
       if (
         registeredStages.size !== loader.stages.length ||
-        loader.stages.some((stage) => !registeredStages.has(stage))
+        loader.stages.some((stage) => !registeredStages.has(stage)) ||
+        (loader.hookManifest && loader.hookManifest.length !== [...registeredHookCounts.values()].reduce((sum, count) => sum + count, 0))
       ) {
         throw new TypeError('runtime hook stages differ from the build manifest');
       }
@@ -314,6 +326,16 @@ async function loadAll(loaders, command) {
       return { value, diagnostics, isolated: false };
     },
   };
+}
+
+/** @param {unknown} left @param {unknown} right */
+function sameCacheDeclaration(left, right) {
+  if (left === undefined && right === undefined) return true;
+  return Boolean(
+    left && right &&
+    /** @type {any} */ (left).pure === true && /** @type {any} */ (right).pure === true &&
+    /** @type {any} */ (left).version === /** @type {any} */ (right).version,
+  );
 }
 
 /**
@@ -454,6 +476,9 @@ function sanitizeRuntimePage(value) {
     ...(typeof page.canonicalUrl === 'string' ? { canonicalUrl: page.canonicalUrl } : {}),
     ...(typeof page.markdownUrl === 'string' ? { markdownUrl: page.markdownUrl } : {}),
     ...(typeof page.language === 'string' ? { language: page.language } : {}),
+    ...(typeof page.origin === 'string' ? { origin: page.origin } : {}),
+    ...(typeof page.locale === 'string' ? { locale: page.locale } : {}),
+    ...(Array.isArray(page.alternates) ? { alternates: page.alternates } : {}),
     ...(page.metadata && typeof page.metadata === 'object' ? { metadata: page.metadata } : {}),
     representations: {
       ...(typeof page.representations?.markdown === 'string'

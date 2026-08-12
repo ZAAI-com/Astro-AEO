@@ -1,7 +1,7 @@
 // @ts-check
 import { fileURLToPath } from 'node:url';
 import { isAbsolute, resolve } from 'node:path';
-import { readdirSync } from 'node:fs';
+import { lstatSync, readFileSync, readdirSync } from 'node:fs';
 import sitemap from '@astrojs/sitemap';
 import { resolveConfig } from './config.js';
 import {
@@ -28,6 +28,17 @@ import { createPluginDispatcher } from './plugins/dispatcher.js';
 import { runtimePluginModules } from './plugins/runtime-modules.js';
 import { createSemanticPlugin } from './semantic/plugin.js';
 import { exactPathnameIdentity } from './core/artifact-path.js';
+import { createLocaleSnapshot } from './core/locale.js';
+import {
+  preloadCorpusTokenizer,
+  runtimeCorpusTokenizerModule,
+} from './build/corpus-tokenizer.js';
+import {
+  INDEXNOW_PREPARE_PROVIDER,
+  indexNowPaths,
+  indexNowStatePathname,
+} from './build/indexnow.js';
+import { parseIndexNowPrepareInput } from './build/indexnow-state.js';
 
 const FALLBACK_ENTRYPOINT = fileURLToPath(new URL('./runtime/fallback.js', import.meta.url));
 
@@ -45,6 +56,7 @@ export default function aeo(userConfig = {}) {
   /** @type {'directory'|'file'} */
   let buildFormat = 'directory';
   let projectRoot = '';
+  let localeSnapshot = createLocaleSnapshot(undefined);
   /** @type {URL | undefined} */
   let publicDir;
   /** @type {'dev'|'build'|'preview'} */
@@ -81,6 +93,8 @@ export default function aeo(userConfig = {}) {
   let catalogModules = [];
   /** @type {import('./build/markdown-renderers.js').LoadedMarkdownRenderer[]} */
   let markdownRenderers = [];
+  /** @type {import('./build/corpus-tokenizer.js').LoadedCorpusTokenizer | undefined} */
+  let corpusTokenizer;
   /** @type {{ warn: (message: string) => void } | undefined} */
   let integrationLogger;
   /** @type {ReturnType<typeof createArtifactWriter> | undefined} */
@@ -99,7 +113,7 @@ export default function aeo(userConfig = {}) {
     return {
       command,
       config: runtimeConfigProjection(config),
-      site: { siteUrl, base, trailingSlash, buildFormat },
+      site: { siteUrl, base, trailingSlash, buildFormat, i18n: localeSnapshot },
       sitemapAvailable,
       staticPaths: [...runtimePagePaths],
       projectPaths: [...new Set([...runtimeProjectPaths, ...runtimePublicPaths])],
@@ -109,7 +123,7 @@ export default function aeo(userConfig = {}) {
     };
   }
 
-  return {
+  const integration = {
     name: 'astro-aeo',
     hooks: {
       'astro:config:setup': async ({ config: astroConfig, command: astroCommand, addMiddleware, injectRoute, updateConfig, logger }) => {
@@ -168,6 +182,7 @@ export default function aeo(userConfig = {}) {
                   pluginDispatcher?.runtimeManifest ?? { version: 1, plugins: [] },
                   projectRoot,
                 ),
+                () => runtimeCorpusTokenizerModule(corpusTokenizer),
               ),
             ],
           },
@@ -182,6 +197,7 @@ export default function aeo(userConfig = {}) {
         base = astroConfig.base && astroConfig.base !== '/' ? astroConfig.base : '';
         trailingSlash = astroConfig.trailingSlash ?? 'ignore';
         buildFormat = astroConfig.build?.format === 'file' ? 'file' : 'directory';
+        localeSnapshot = createLocaleSnapshot(astroConfig.i18n, siteUrl);
         serverOutput = buildOutput === 'server' || astroConfig.output === 'server' || adapterFallbacks;
         projectRoot = fileURLToPath(astroConfig.root);
         publicDir = astroConfig.publicDir;
@@ -201,6 +217,12 @@ export default function aeo(userConfig = {}) {
         rendererDiagnostics.length = 0;
         markdownRenderers = await preloadMarkdownRenderers(
           config.markdown.renderers ?? [],
+          projectRoot,
+          logger,
+          rendererDiagnostics,
+        );
+        corpusTokenizer = await preloadCorpusTokenizer(
+          config.corpus.tokenizer,
           projectRoot,
           logger,
           rendererDiagnostics,
@@ -365,11 +387,57 @@ export default function aeo(userConfig = {}) {
           runtimeCorpora: serverOutput || hasOnDemandProjectPage,
           catalogModules,
           markdownRenderers,
+          corpusTokenizer: corpusTokenizer?.implementation,
           pluginDispatcher,
+          i18n: localeSnapshot,
         });
       },
     },
   };
+  Object.defineProperty(integration, INDEXNOW_PREPARE_PROVIDER, {
+    enumerable: false,
+    value: ({ root, astroConfig }) => {
+      const resolved = resolveConfig(userConfig);
+      if (!resolved.discovery.indexNow.enabled) {
+        throw new Error('astro-aeo: discovery.indexNow.enabled is false in the loaded config');
+      }
+      const path = indexNowPaths(root).prepareInput;
+      const stat = lstatSync(path);
+      if (!stat.isFile() || stat.isSymbolicLink()) {
+        throw new Error('astro-aeo: the cached IndexNow prepare input is not a safe regular file');
+      }
+      const cached = parseIndexNowPrepareInput(JSON.parse(readFileSync(path, 'utf8')));
+      const nextBase = astroConfig?.base && astroConfig.base !== '/' ? astroConfig.base : '';
+      const configured = new Map(resolved.discovery.indexNow.origins.map((item) => [item.origin, item]));
+      const origins = cached.origins.map((item) => {
+        const override = configured.get(item.origin);
+        return {
+          origin: item.origin,
+          ...(override?.key ? { key: override.key } : {}),
+          ...(override?.keyLocation ? { keyLocation: override.keyLocation } : {}),
+          ...(item.targetDigest ? { targetDigest: item.targetDigest } : {}),
+        };
+      });
+      for (const item of resolved.discovery.indexNow.origins) {
+        if (!origins.some((candidate) => candidate.origin === item.origin)) origins.push({ ...item });
+      }
+      return {
+        ...cached,
+        projectRoot: root,
+        mode: resolved.discovery.indexNow.state,
+        submit: resolved.discovery.indexNow.submit,
+        strict: resolved.discovery.indexNow.strict,
+        base: nextBase,
+        statePathname: indexNowStatePathname(nextBase),
+        key: resolved.discovery.indexNow.key,
+        ...(resolved.discovery.indexNow.keyLocation
+          ? { keyLocation: resolved.discovery.indexNow.keyLocation }
+          : { keyLocation: undefined }),
+        origins,
+      };
+    },
+  });
+  return integration;
 }
 
 /**

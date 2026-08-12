@@ -21,6 +21,7 @@ const nativeImport = /** @type {(specifier: string) => Promise<any>} */ (
  * @property {string} [specifier]
  * @property {boolean} inline
  * @property {import('../index.js').JsonValue} [options]
+ * @property {import('../index.js').CacheDeclaration} [cache]
  * @property {(input: any) => unknown | Promise<unknown>} render
  */
 
@@ -96,6 +97,7 @@ export async function preloadMarkdownRenderers(
         specifier,
         inline: false,
         ...(options === undefined ? {} : { options }),
+        ...(implementation.cache ? { cache: implementation.cache } : {}),
         render: implementation.render,
       });
     } catch {
@@ -166,6 +168,7 @@ export function runtimeMarkdownRendererModules(renderers) {
           module: renderer.module,
           specifier: renderer.specifier,
           ...(renderer.options === undefined ? {} : { options: renderer.options }),
+          ...(renderer.cache ? { cache: renderer.cache } : {}),
         }],
   );
 }

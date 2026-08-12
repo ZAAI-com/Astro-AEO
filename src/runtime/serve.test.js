@@ -6,6 +6,8 @@ import {
   pageFromHtml,
   renderStandaloneArtifact,
   RuntimeCorpusLimitError,
+  runtimeArtifactOrigin,
+  serveCorpusArtifact,
   RuntimeSchemaCorpusError,
   serveLlmsIndex,
   serveMarkdown,
@@ -13,6 +15,7 @@ import {
 } from './serve.js';
 import mdxRenderer from '../adapters/mdx.js';
 import { createGraph } from '../schema.js';
+import { createLocaleSnapshot } from '../core/locale.js';
 
 const html = (title = 'Page') =>
   `<!doctype html><html><head><title>${title}</title></head><body><main><h1>${title}</h1></main></body></html>`;
@@ -669,6 +672,75 @@ describe('request-time corpus limits', () => {
       expect(fetcher).not.toHaveBeenCalled();
     },
   );
+});
+
+describe('locale-aware request-time corpus planning', () => {
+  test('serves locale families, chunks, and the manifest from one semantic plan', async () => {
+    const requestRuntime = runtime(['/en/guide', '/fr/guide'], 50);
+    requestRuntime.config = resolveConfig({
+      corpus: {
+        small: { enabled: true, maxTokens: 1_000 },
+        chunks: { enabled: true, maxTokensPerFile: 1_000 },
+        manifest: { enabled: true },
+      },
+    });
+    requestRuntime.site.i18n = createLocaleSnapshot({
+      locales: ['en', 'fr'],
+      defaultLocale: 'en',
+      routing: { prefixDefaultLocale: true },
+    }, requestRuntime.site.siteUrl);
+    const fetcher = async (pathname) => loaded(
+      html(pathname).replace('<html>', `<html lang="${pathname.startsWith('/fr') ? 'fr' : 'en'}">`),
+    );
+
+    const root = await serveCorpusArtifact('/llms.txt', requestRuntime, fetcher);
+    const french = await serveCorpusArtifact('/fr/llms-full.txt', requestRuntime, fetcher);
+    const manifest = await serveCorpusArtifact('/llms/manifest.json', requestRuntime, fetcher);
+    const parsed = JSON.parse(manifest.body);
+
+    expect(root.body).toContain('## Languages');
+    expect(french.body).toContain('URL: https://example.com/fr/guide/');
+    expect(french.body).not.toContain('/en/guide/');
+    expect(parsed.locales.map(({ locale }) => locale)).toEqual(['en', 'fr']);
+    expect(parsed.artifacts.some(({ pathname }) => pathname.startsWith('/fr/llms/'))).toBe(true);
+    expect(manifest.contentType).toBe('application/json; charset=utf-8');
+  });
+
+  test('selects configured domain origins exactly and rejects unknown hosts', async () => {
+    const requestRuntime = runtime([], 50);
+    requestRuntime.site.i18n = createLocaleSnapshot({
+      locales: ['en', 'fr'],
+      defaultLocale: 'en',
+      domains: { fr: 'https://fr.example.com' },
+    }, requestRuntime.site.siteUrl);
+
+    expect(runtimeArtifactOrigin(requestRuntime, 'https://example.com')).toBe('https://example.com');
+    expect(runtimeArtifactOrigin(requestRuntime, 'https://fr.example.com')).toBe('https://fr.example.com');
+    expect(runtimeArtifactOrigin(requestRuntime, 'https://unknown.example')).toBeNull();
+  });
+
+  test('lets the Astro route locale outrank site.defaultLocale', async () => {
+    const requestRuntime = runtime(['/fr/guide'], 50);
+    requestRuntime.config = resolveConfig({
+      site: { defaultLocale: 'en' },
+      corpus: { manifest: { enabled: true } },
+    });
+    requestRuntime.site.i18n = createLocaleSnapshot({
+      locales: ['en', 'fr'],
+      defaultLocale: 'en',
+      routing: { prefixDefaultLocale: true },
+    }, requestRuntime.site.siteUrl);
+
+    const manifest = await serveCorpusArtifact(
+      '/llms/manifest.json',
+      requestRuntime,
+      async () => loaded(html('French guide')),
+    );
+
+    expect(JSON.parse(manifest.body).locales).toMatchObject([
+      { locale: 'fr', language: 'fr' },
+    ]);
+  });
 });
 
 describe('request-time schema corpus', () => {

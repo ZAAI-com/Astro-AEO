@@ -6,6 +6,8 @@ import { immutableJsonValue } from './json-value.js';
  * @property {string} name
  * @property {string} [module]
  * @property {import('../index.js').JsonValue} [options]
+ * @property {import('../index.js').CacheDeclaration} [cache]
+ * @property {boolean} [inline]
  * @property {(input: Readonly<MarkdownRendererInput>) => unknown | Promise<unknown>} render
  */
 
@@ -148,7 +150,7 @@ export async function resolveMarkdownWithRenderers(renderers, input) {
  * Validate the public default export without retaining the module namespace.
  * @param {unknown} value
  * @param {string} source
- * @returns {{ name: string; render: MarkdownRendererEntry['render'] }}
+ * @returns {{ name: string; render: MarkdownRendererEntry['render']; cache?: import('../index.js').CacheDeclaration }}
  */
 export function validateMarkdownRendererModule(value, source) {
   if (!isPlainObject(value)) {
@@ -163,7 +165,17 @@ export function validateMarkdownRendererModule(value, source) {
   if (typeof value.render !== 'function') {
     throw new TypeError(`Markdown renderer "${source}" must provide render().`);
   }
-  return { name: value.name.trim(), render: value.render };
+  let cache;
+  if (value.cache !== undefined) {
+    if (
+      !isPlainObject(value.cache) || value.cache.pure !== true ||
+      typeof value.cache.version !== 'string' || !value.cache.version.trim()
+    ) {
+      throw new TypeError(`Markdown renderer "${source}" has an invalid cache declaration.`);
+    }
+    cache = Object.freeze({ pure: /** @type {const} */ (true), version: value.cache.version.trim() });
+  }
+  return { name: value.name.trim(), render: value.render, ...(cache ? { cache } : {}) };
 }
 
 /**

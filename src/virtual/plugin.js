@@ -8,8 +8,9 @@ const RESOLVED_ID = `\0${RUNTIME_CONFIG_ID}`;
  * @param {() => Record<string, unknown>} getSnapshot
  * @param {() => { module: string; specifier: string }[]} [getCatalogModules]
  * @param {() => { pathname: string; path: string; specifier: string; kind?: 'markdown'|'mdx' }[]} [getMarkdownSources]
- * @param {() => { name: string; module: string; specifier: string; options?: import('../index.js').JsonValue }[]} [getMarkdownRenderers]
+ * @param {() => { name: string; module: string; specifier: string; options?: import('../index.js').JsonValue; cache?: import('../index.js').CacheDeclaration }[]} [getMarkdownRenderers]
  * @param {() => { name: string; module: string; specifier: string; options?: import('../index.js').JsonValue; stages: string[]; claims: { id: string; pathname: string; replace?: boolean }[] }[]} [getRuntimePlugins]
+ * @param {() => { name: string; version: string; approximate: boolean; module: string; specifier: string; options?: import('../index.js').JsonValue } | undefined} [getCorpusTokenizer]
  * @returns {{ name: string; enforce: 'pre'; resolveId(id: string): string | undefined; load(id: string): string | undefined }}
  */
 export function aeoRuntimeConfigPlugin(
@@ -18,6 +19,7 @@ export function aeoRuntimeConfigPlugin(
   getMarkdownSources = () => [],
   getMarkdownRenderers = () => [],
   getRuntimePlugins = () => [],
+  getCorpusTokenizer = () => undefined,
 ) {
   return {
     name: 'astro-aeo:runtime-config',
@@ -37,9 +39,10 @@ export function aeoRuntimeConfigPlugin(
         .join(', ');
       const markdownRendererLoaders = getMarkdownRenderers()
         .map(
-          ({ name, module, specifier, options }) =>
+          ({ name, module, specifier, options, cache }) =>
             `{ name: ${JSON.stringify(name)}, module: ${JSON.stringify(module)}, ` +
             `${options === undefined ? '' : `options: ${toSource(options)}, `}` +
+            `${cache === undefined ? '' : `cache: ${toSource(cache)}, `}` +
             `load: () => import(${JSON.stringify(specifier)}).then((namespace) => namespace.default) }`,
         )
         .join(', ');
@@ -52,6 +55,13 @@ export function aeoRuntimeConfigPlugin(
             `load: () => import(${JSON.stringify(specifier)}).then((namespace) => namespace.default ?? namespace) }`,
         )
         .join(', ');
+      const tokenizer = getCorpusTokenizer();
+      const corpusTokenizerLoader = tokenizer
+        ? `{ name: ${JSON.stringify(tokenizer.name)}, version: ${JSON.stringify(tokenizer.version)}, ` +
+          `approximate: ${JSON.stringify(tokenizer.approximate)}, module: ${JSON.stringify(tokenizer.module)}, ` +
+          `${tokenizer.options === undefined ? '' : `options: ${toSource(tokenizer.options)}, `}` +
+          `load: () => import(${JSON.stringify(tokenizer.specifier)}).then((namespace) => namespace.default) }`
+        : 'undefined';
       const sources = getMarkdownSources();
       const sourceImports = sources
         .map(
@@ -73,6 +83,7 @@ export function aeoRuntimeConfigPlugin(
         `export const CATALOG_LOADERS = [${catalogLoaders}];\n` +
         `export const MARKDOWN_RENDERER_LOADERS = [${markdownRendererLoaders}];\n` +
         `export const RUNTIME_PLUGIN_LOADERS = [${runtimePluginLoaders}];\n` +
+        `export const CORPUS_TOKENIZER_LOADER = ${corpusTokenizerLoader};\n` +
         `const __astroAeoStripFrontmatter = (markdown) => markdown.startsWith('---') ? markdown.replace(/^---[\\t ]*\\r?\\n[\\s\\S]*?\\r?\\n---[\\t ]*(?:\\r?\\n|$)/, '') : markdown;\n` +
         `export const RUNTIME = ${toSource(getSnapshot())};\n` +
         `RUNTIME.standaloneSources = { ${sourceRegistry} };\n` +
