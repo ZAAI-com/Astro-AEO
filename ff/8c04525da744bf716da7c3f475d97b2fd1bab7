@@ -1,0 +1,20 @@
+src/runtime/serve.js
+  s_f53d64c7cb70e2::t_5cf329f4adb294 606-617
+  s_f53d64c7cb70e2::t_e365a7450d7dce 921
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "ff8c04525da744bf716da7c3f475d97b2fd1bab7",
+  "prompts": {},
+  "sessions": {
+    "s_f53d64c7cb70e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ff6aa-27ed-7770-b7c5-24919862bb2d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
