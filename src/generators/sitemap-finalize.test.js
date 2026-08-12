@@ -185,6 +185,43 @@ describe('finalizeSitemapOutputs', () => {
     );
   });
 
+  test('does not advertise a previously owned sitemap scheduled for stale cleanup', () => {
+    const first = createArtifactWriter({
+      distDir,
+      logger,
+      deferred: true,
+      projectRoot: dir,
+      diagnostics: [],
+      failOn: 'error',
+    });
+    first.write({
+      route: '/sitemap.xml',
+      owner: 'sitemapAlias',
+      contents: '<urlset/>',
+    });
+    first.commit();
+
+    const second = createArtifactWriter({
+      distDir,
+      logger,
+      deferred: true,
+      projectRoot: dir,
+      diagnostics: [],
+      failOn: 'error',
+    });
+    const result = finalize({
+      discovery: {
+        sitemap: { mode: 'external', alias: { enabled: false } },
+        robots: { enabled: true, sitemapPath: '/sitemap.xml' },
+      },
+    }, { writer: second });
+
+    expect(result).toEqual({ aliasEmitted: false, sitemapAdvertised: false });
+    second.commit();
+    expect(existsSync(join(dir, 'sitemap.xml'))).toBe(false);
+    expect(readFileSync(join(dir, 'robots.txt'), 'utf8')).not.toContain('Sitemap:');
+  });
+
   test('retains main-phase claims while writing late outputs', () => {
     const writer = createArtifactWriter({ distDir, logger });
     writer.write({

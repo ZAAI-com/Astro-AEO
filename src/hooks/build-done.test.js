@@ -13,6 +13,7 @@ import { pathToFileURL } from 'node:url';
 import { resolveConfig } from '../config.js';
 import { createPluginDispatcher } from '../plugins/dispatcher.js';
 import { createSemanticPlugin } from '../semantic/plugin.js';
+import { createGraph } from '../schema.js';
 import { onBuildDone } from './build-done.js';
 
 const roots = [];
@@ -59,6 +60,40 @@ function environment(root, dispatcher, diagnostics = []) {
 const logger = { info() {}, warn() {} };
 
 describe('staged build plugin pipeline', () => {
+  test('recommended validation includes page-local diagnostics at commit time', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    const diagnostics = [];
+    const env = environment(files.root, undefined, diagnostics);
+    env.markdownRenderers = [{
+      name: 'diagnostic-renderer',
+      module: './diagnostic-renderer.js',
+      render: () => ({
+        status: 'continue',
+        diagnostics: [{
+          code: 'renderer-page-error',
+          severity: 'error',
+          message: 'The renderer could not produce the preferred representation.',
+        }],
+      }),
+    }];
+    const writer = await onBuildDone(
+      config({ validation: { onBuild: 'recommended', failOn: 'error' } }),
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      env,
+    );
+
+    expect(diagnostics).toEqual([]);
+    expect(() => writer.commit()).toThrow(
+      'astro-aeo: artifact validation failed with 1 blocking diagnostic(s).',
+    );
+    const manifest = JSON.parse(
+      readFileSync(join(files.root, '.astro', 'aeo-cache', 'diagnostics-v1.json'), 'utf8'),
+    );
+    expect(manifest.pages[0].diagnostics).toEqual([
+      expect.objectContaining({ code: 'renderer-page-error', severity: 'error' }),
+    ]);
+  });
+
   test('accepts page replacements when Astro has no configured site', async () => {
     const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
     const resolved = config();
@@ -192,7 +227,7 @@ describe('staged build plugin pipeline', () => {
       name: 'pipeline-test',
       apiVersion: 1,
       setup(api) {
-        api.claimArtifact({ id: 'plugin-output', pathname: '/plugin.txt' });
+        api.claimArtifact({ id: 'plugin-output', pathname: '/plugin.txt', replace: true });
         api.on('page:discovered', ({ value }) => {
           stages.push('page:discovered');
           frozen.push(Object.isFrozen(value));
@@ -236,6 +271,7 @@ describe('staged build plugin pipeline', () => {
         });
         api.on('artifact:validate', ({ value }) => {
           stages.push('artifact:validate');
+          expect(value.claim.replace).toBe(true);
           return {
             action: 'replace',
             value: {
@@ -286,12 +322,390 @@ describe('staged build plugin pipeline', () => {
     expect(html).toContain('name="later-integration" content="preserved"');
   });
 
-  test('does not reapply a pure insertion at an ambiguous first anchor', async () => {
+  test('reconciles managed-only graph replacements without rewriting authored JSON-LD', async () => {
+    const authoredScript = '<script type="application/ld+json">{"@context":"https://schema.org","@type":"Person","@id":"#author","name":"Authored"}</script>';
+    const files = fixture(`<!doctype html><html><head><title>Home</title>${authoredScript}</head><body><main>Home</main></body></html>`);
+    const resolved = config();
+    const dispatcher = await createPluginDispatcher({
+      command: 'build',
+      internalPlugins: [createSemanticPlugin(resolved)],
+      plugins: [{
+        name: 'managed-replacement',
+        apiVersion: 1,
+        setup(api) {
+          api.on('graph:build', ({ value }) => ({
+            action: 'replace',
+            value: {
+              ...value,
+              graph: createGraph([{
+                '@id': 'https://example.test/#replacement',
+                '@type': 'Thing',
+                name: 'Managed replacement',
+              }]),
+            },
+          }));
+        },
+      }],
+    });
+
+    const writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, dispatcher),
+    );
+    writer.commit();
+
+    const output = readFileSync(join(files.dist, 'index.html'), 'utf8');
+    expect(output).toContain(authoredScript);
+    expect(output).toContain('data-astro-aeo-graph');
+    expect(output).toContain('Managed replacement');
+    expect(output.match(/"name":"Authored"/g)).toHaveLength(1);
+  });
+
+  test('retains authored normalization for graph hooks when automatic injection is disabled', async () => {
+    const authoredScript = '<script type="application/ld+json">{"@context":"https://schema.org","@type":"Person","@id":"#author","name":"Authored"}</script>';
+    const files = fixture(`<!doctype html><html><head><title>Home</title>${authoredScript}</head><body><main>Home</main></body></html>`);
+    const resolved = config({ schema: { autoInject: false } });
+    const dispatcher = await createPluginDispatcher({
+      command: 'build',
+      internalPlugins: [createSemanticPlugin(resolved)],
+      plugins: [{
+        name: 'managed-without-auto-injection',
+        apiVersion: 1,
+        setup(api) {
+          api.on('graph:build', ({ value }) => ({
+            action: 'replace',
+            value: {
+              ...value,
+              graph: createGraph([{
+                '@id': 'https://example.test/#managed',
+                '@type': 'Thing',
+                name: 'Managed opt-in',
+              }]),
+            },
+          }));
+        },
+      }],
+    });
+
+    const writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, dispatcher),
+    );
+    writer.commit();
+
+    const output = readFileSync(join(files.dist, 'index.html'), 'utf8');
+    expect(output).toContain(authoredScript);
+    expect(output).toContain('Managed opt-in');
+    expect(output.match(/"name":"Authored"/g)).toHaveLength(1);
+  });
+
+  test('reconciles managed intent against authored JSON-LD added before commit', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    const resolved = config();
+    const dispatcher = await createPluginDispatcher({
+      command: 'build',
+      internalPlugins: [createSemanticPlugin(resolved)],
+      plugins: [{
+        name: 'managed-before-late-authored',
+        apiVersion: 1,
+        setup(api) {
+          api.on('graph:build', ({ value }) => ({
+            action: 'replace',
+            value: {
+              ...value,
+              html: value.html.replace('</body>', '<p data-plugin>Preserved plugin edit</p></body>'),
+              graph: createGraph([{
+                '@id': 'https://example.test/#managed-late',
+                '@type': 'Thing',
+                name: 'Managed late',
+              }]),
+            },
+          }));
+        },
+      }],
+    });
+    const writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, dispatcher),
+    );
+    const htmlPath = join(files.dist, 'index.html');
+    const authoredScript = '<script type="application/ld+json">{"@context":"https://schema.org","@id":"#late-author","@type":"Person","name":"Late authored"}</script>';
+    writeFileSync(
+      htmlPath,
+      readFileSync(htmlPath, 'utf8').replace('</head>', `${authoredScript}<meta name="later" content="preserved"></head>`),
+    );
+
+    writer.commit();
+
+    const output = readFileSync(htmlPath, 'utf8');
+    expect(output).toContain(authoredScript);
+    expect(output).toContain('Managed late');
+    expect(output).toContain('data-plugin');
+    expect(output).toContain('name="later" content="preserved"');
+    expect(output.match(/"name":"Late authored"/g)).toHaveLength(1);
+  });
+
+  test('does not turn an HTML-only hook into a graph replacement after late authored JSON-LD', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    const resolved = config();
+    const dispatcher = await createPluginDispatcher({
+      command: 'build',
+      internalPlugins: [createSemanticPlugin(resolved)],
+      plugins: [{
+        name: 'html-only',
+        apiVersion: 1,
+        setup(api) {
+          api.on('graph:build', ({ value }) => ({
+            action: 'replace',
+            value: {
+              ...value,
+              html: value.html.replace('</body>', '<p data-plugin>Preserved HTML</p></body>'),
+            },
+          }));
+        },
+      }],
+    });
+    const writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, dispatcher),
+    );
+    const htmlPath = join(files.dist, 'index.html');
+    const authoredScript = '<script type="application/ld+json">{"@context":"https://schema.org","@id":"https://example.test/#webpage","@type":"WebPage","url":"https://example.test/","name":"Home"}</script>';
+    writeFileSync(
+      htmlPath,
+      readFileSync(htmlPath, 'utf8').replace('</head>', `${authoredScript}</head>`),
+    );
+
+    writer.commit();
+
+    const output = readFileSync(htmlPath, 'utf8');
+    expect(output).toContain(authoredScript);
+    expect(output).toContain('<p data-plugin>Preserved HTML</p>');
+    expect(output.match(/"@type":"WebPage"/g)).toHaveLength(1);
+  });
+
+  test('retains inspect-only authored diagnostics for build graph hooks', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title><script type="application/ld+json">{"@type":"Thing",}</script></head><body><main>Home</main></body></html>');
+    const diagnostics = [];
+    const resolved = config({ schema: { autoInject: false, corpus: { enabled: false } } });
+    const dispatcher = await createPluginDispatcher({
+      command: 'build',
+      internalPlugins: [createSemanticPlugin(resolved)],
+      plugins: [{
+        name: 'inspect-authored',
+        apiVersion: 1,
+        setup(api) {
+          api.on('graph:build', () => ({ action: 'keep' }));
+        },
+      }],
+    });
+
+    const writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, dispatcher, diagnostics),
+    );
+    writer.commit();
+
+    expect(diagnostics.filter(({ code }) => code === 'authored-jsonld-malformed'))
+      .toHaveLength(1);
+    const manifest = JSON.parse(
+      readFileSync(join(files.root, '.astro', 'aeo-cache', 'diagnostics-v1.json'), 'utf8'),
+    );
+    expect(manifest.pages[0].diagnostics.filter(({ code }) =>
+      code === 'authored-jsonld-malformed')).toHaveLength(1);
+  });
+
+  test('fails closed when late semantic facts would stale a static schema corpus', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    const diagnostics = [];
+    const resolved = config({ schema: { corpus: { enabled: true } } });
+    const dispatcher = await createPluginDispatcher({
+      command: 'build',
+      internalPlugins: [createSemanticPlugin(resolved)],
+      plugins: [],
+    });
+    const writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, dispatcher, diagnostics),
+    );
+    const htmlPath = join(files.dist, 'index.html');
+    const latePerson = '<script type="application/ld+json">{"@context":"https://schema.org","@id":"#late-person","@type":"Person","name":"Late Person"}</script>';
+    writeFileSync(
+      htmlPath,
+      readFileSync(htmlPath, 'utf8').replace('</head>', `${latePerson}</head>`),
+    );
+
+    expect(() => writer.commit()).toThrow(/semantic replacement could not be reconciled safely/);
+
+    expect(diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'schema-corpus-late-semantic-change',
+        severity: 'error',
+        pathname: '/',
+      }),
+      expect.objectContaining({ code: 'artifact-commit-failed', severity: 'error' }),
+    ]));
+    expect(existsSync(join(files.dist, 'schema', 'graph.jsonld'))).toBe(false);
+    expect(existsSync(join(files.dist, 'schema', 'schema-map.xml'))).toBe(false);
+    const manifest = JSON.parse(
+      readFileSync(join(files.root, '.astro', 'aeo-cache', 'diagnostics-v1.json'), 'utf8'),
+    );
+    expect(manifest.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'schema-corpus-late-semantic-change' }),
+      expect.objectContaining({ code: 'artifact-commit-failed' }),
+    ]));
+  });
+
+  test('derives managed output from a normalized-only graph replacement', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    const resolved = config();
+    const dispatcher = await createPluginDispatcher({
+      command: 'build',
+      internalPlugins: [createSemanticPlugin(resolved)],
+      plugins: [{
+        name: 'normalized-replacement',
+        apiVersion: 1,
+        setup(api) {
+          api.on('graph:build', ({ value }) => ({
+            action: 'replace',
+            value: {
+              ...value,
+              normalizedGraph: createGraph([
+                ...value.normalizedGraph.entries,
+                {
+                  '@id': 'https://example.test/#faq',
+                  '@type': 'FAQPage',
+                  name: 'Managed from normalized',
+                },
+              ]),
+            },
+          }));
+        },
+      }],
+    });
+
+    const writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, dispatcher),
+    );
+    writer.commit();
+
+    const output = readFileSync(join(files.dist, 'index.html'), 'utf8');
+    expect(output).toContain('data-astro-aeo-graph');
+    expect(output).toContain('Managed from normalized');
+  });
+
+  test('rebases a normalized-only delta onto authored facts added before commit', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    const resolved = config();
+    const dispatcher = await createPluginDispatcher({
+      command: 'build',
+      internalPlugins: [createSemanticPlugin(resolved)],
+      plugins: [{
+        name: 'normalized-delta',
+        apiVersion: 1,
+        setup(api) {
+          api.on('graph:build', ({ value }) => ({
+            action: 'replace',
+            value: {
+              ...value,
+              normalizedGraph: createGraph([
+                ...value.normalizedGraph.entries,
+                {
+                  '@id': 'https://example.test/#faq-late',
+                  '@type': 'FAQPage',
+                  name: 'Rebased FAQ',
+                },
+              ]),
+            },
+          }));
+        },
+      }],
+    });
+    const writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, dispatcher),
+    );
+    const htmlPath = join(files.dist, 'index.html');
+    const authoredScript = '<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://example.test/#webpage","@type":"WebPage","url":"https://example.test/","name":"Home"},{"@id":"https://example.test/#late-person","@type":"Person","name":"Late Person"}]}</script>';
+    writeFileSync(
+      htmlPath,
+      readFileSync(htmlPath, 'utf8').replace('</head>', `${authoredScript}</head>`),
+    );
+
+    writer.commit();
+
+    const output = readFileSync(htmlPath, 'utf8');
+    expect(output).toContain(authoredScript);
+    expect(output).toContain('Rebased FAQ');
+    expect(output.match(/"@type":"WebPage"/g)).toHaveLength(1);
+    expect(output.match(/"name":"Late Person"/g)).toHaveLength(1);
+  });
+
+  test('isolates inconsistent dual graph replacements with a sanitized diagnostic', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    const diagnostics = [];
+    const resolved = config();
+    const dispatcher = await createPluginDispatcher({
+      command: 'build',
+      internalPlugins: [createSemanticPlugin(resolved)],
+      plugins: [{
+        name: 'inconsistent-graphs',
+        apiVersion: 1,
+        setup(api) {
+          api.on('graph:build', ({ value }) => ({
+            action: 'replace',
+            value: {
+              ...value,
+              graph: createGraph([{
+                '@id': 'https://example.test/#secret-managed',
+                '@type': 'Thing',
+                name: 'SECRET MANAGED VALUE',
+              }]),
+              normalizedGraph: createGraph([{
+                '@id': 'https://example.test/#different',
+                '@type': 'Thing',
+                name: 'SECRET NORMALIZED VALUE',
+              }]),
+            },
+          }));
+        },
+      }],
+    });
+
+    const writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, dispatcher, diagnostics),
+    );
+    expect(() => writer.commit()).toThrow(/artifact validation failed/);
+
+    expect(diagnostics).toContainEqual(expect.objectContaining({
+      code: 'plugin-graph-inconsistent',
+      severity: 'error',
+      pathname: '/',
+    }));
+    expect(JSON.stringify(diagnostics)).not.toContain('SECRET');
+    const output = readFileSync(join(files.dist, 'index.html'), 'utf8');
+    expect(output).not.toContain('data-astro-aeo-graph');
+    expect(output).not.toContain('SECRET');
+  });
+
+  test('aborts and reports a sanitized diagnostic for an ambiguous HTML delta', async () => {
     const anchor = `<section data-repeat>${'a'.repeat(100)}</section>`;
-    const inserted = '<span data-user-insertion></span>';
+    const inserted = '<span data-user-insertion>SECRET PLUGIN HTML</span>';
     const files = fixture(
       `<!doctype html><html><head><title>Repeated</title></head><body>${anchor}${anchor}</body></html>`,
     );
+    const diagnostics = [];
     const resolved = config();
     const dispatcher = await createPluginDispatcher({
       command: 'build',
@@ -317,17 +731,28 @@ describe('staged build plugin pipeline', () => {
     const writer = await onBuildDone(
       resolved,
       { dir: files.dir, pages: [{ pathname: '/' }], logger },
-      environment(files.root, dispatcher),
+      environment(files.root, dispatcher, diagnostics),
     );
-    writer.commit();
+    const htmlPath = join(files.dist, 'index.html');
+    const laterHtml = readFileSync(htmlPath, 'utf8')
+      .replace('</head>', '<meta name="later-integration" content="preserved"></head>');
+    writeFileSync(htmlPath, laterHtml);
 
-    const html = readFileSync(join(files.dist, 'index.html'), 'utf8');
-    const firstAnchor = html.indexOf(anchor);
-    const insertion = html.indexOf(inserted);
-    const secondAnchor = html.lastIndexOf(anchor);
-    expect(firstAnchor).toBeGreaterThan(-1);
-    expect(insertion).toBe(firstAnchor + anchor.length);
-    expect(insertion).toBeLessThan(secondAnchor);
+    expect(() => writer.commit()).toThrow(/could not be reapplied safely/);
+
+    const html = readFileSync(htmlPath, 'utf8');
+    expect(html).toBe(laterHtml);
+    expect(html).not.toContain(inserted);
+    expect(html).toContain('name="later-integration" content="preserved"');
+    expect(diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'plugin-html-delta-conflict',
+        severity: 'error',
+        pathname: '/',
+      }),
+      expect.objectContaining({ code: 'artifact-commit-failed', severity: 'error' }),
+    ]));
+    expect(JSON.stringify(diagnostics)).not.toContain('SECRET PLUGIN HTML');
   });
 
   test('a build-complete isolation aborts enrichment even when validation is off', async () => {

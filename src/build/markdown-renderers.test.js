@@ -10,7 +10,7 @@ import {
 describe('Markdown renderer preflight', () => {
   test('promotes the explicit MDX adapter and otherwise preserves configuration order', () => {
     const first = { module: './first.js' };
-    const mdx = { module: 'astro-aeo/mdx' };
+    const mdx = { module: ' astro-aeo/mdx ' };
     const last = { module: './last.js' };
     expect(orderMarkdownRenderers([first, mdx, last])).toEqual([mdx, first, last]);
     expect(() => orderMarkdownRenderers([mdx, mdx])).toThrow(/only once/);
@@ -126,5 +126,11 @@ describe('inline renderer compatibility', () => {
   test('resolves project-relative files and preserves bare package imports', () => {
     expect(resolveRendererSpecifier('./renderer.js', '/project')).toBe('file:///project/renderer.js');
     expect(resolveRendererSpecifier('pkg/renderer', '/project')).toBe('pkg/renderer');
+    expect(resolveRendererSpecifier('C:\\project\\renderer.mjs', '/project'))
+      .toBe('file:///C:/project/renderer.mjs');
+    expect(resolveRendererSpecifier('C:\\project\\renderer.mjs?raw', '/project'))
+      .toBe('file:///C:/project/renderer.mjs?raw');
+    expect(resolveRendererSpecifier(String.raw`\\server\share\renderer.mjs`, '/project'))
+      .toBe('file://server/share/renderer.mjs');
   });
 });

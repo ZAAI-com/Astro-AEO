@@ -75,6 +75,8 @@ const MANDATORY_ARTIFACT_CODES = new Set([
  * @param {import('../index.js').Diagnostic[]} [deps.diagnostics]
  * @param {'off'|'warning'|'error'} [deps.failOn]
  * @param {'artifacts'|'recommended'|'off'} [deps.validationOnBuild]
+ * @param {() => import('../index.js').Diagnostic[]} [deps.diagnosticsProvider]
+ *   Supplies page-local diagnostics at commit time, after every staged lifecycle has run.
  * @param {() => void} [deps.onDiagnostics] Persist the sanitized diagnostics attempt.
  * @param {(operation: any, index: number) => void} [deps.beforeApply] Test seam for rollback.
  */
@@ -281,6 +283,10 @@ function createImmediateArtifactWriter({ distDir, logger, routePaths, routeMatch
     stageRedaction(path, _owner, transform) {
       return applyTransform(path, transform);
     },
+    /** @param {string} _pathname */
+    isPlannedStaleDeletion(_pathname) {
+      return false;
+    },
   };
 }
 
@@ -458,6 +464,7 @@ function createDeferredArtifactWriter(deps) {
     diagnostics = [],
     failOn = 'off',
     validationOnBuild = 'artifacts',
+    diagnosticsProvider,
     onDiagnostics,
     beforeApply,
   } = deps;
@@ -592,9 +599,14 @@ function createDeferredArtifactWriter(deps) {
         list.push(claim);
         byServed.set(claim.served.key, list);
       }
-      const physical = byDestination.get(claim.artifact.path) ?? [];
-      physical.push(claim);
-      byDestination.set(claim.artifact.path, physical);
+      // Middleware-only claims reserve served pathnames but never create a
+      // filesystem entry. Their synthetic destination must not participate in
+      // file-versus-directory ancestry checks.
+      if (!claim.artifact.runtime) {
+        const physical = byDestination.get(claim.artifact.path) ?? [];
+        physical.push(claim);
+        byDestination.set(claim.artifact.path, physical);
+      }
     }
 
     const markConflict = (/** @type {any[]} */ related, /** @type {string} */ label) => {
@@ -727,8 +739,20 @@ function createDeferredArtifactWriter(deps) {
     const publicPath = publicRoot
       ? physicalArtifactPath(publicRoot, claim.served.key, base)
       : undefined;
-    if (publicPath && pathEntryExists(publicPath)) owners.push({ kind: 'public-file' });
-    if (pathEntryExists(claim.artifact.path) && owners.length === 0) owners.push({ kind: 'existing-output' });
+    if (
+      publicPath &&
+      pathEntryExists(publicPath) &&
+      (!claim.artifact.runtime || !pathEntryIsDirectory(publicPath))
+    ) {
+      owners.push({ kind: 'public-file' });
+    }
+    if (
+      !claim.artifact.runtime &&
+      pathEntryExists(claim.artifact.path) &&
+      owners.length === 0
+    ) {
+      owners.push({ kind: 'existing-output' });
+    }
     return owners;
   }
 
@@ -839,14 +863,21 @@ function createDeferredArtifactWriter(deps) {
   function commit() {
     if (committed) return ownershipReport();
     let resolved;
+    let recommendedDiagnostics = diagnostics;
     try {
       resolved = resolveClaims();
+      if (validationOnBuild === 'recommended' && diagnosticsProvider) {
+        recommendedDiagnostics = uniqueDiagnostics([
+          ...diagnostics,
+          ...diagnosticsProvider(),
+        ]);
+      }
       onDiagnostics?.();
     } catch (error) {
       throwAfterRedactions(error);
     }
     const validationDiagnostics = validationOnBuild === 'recommended'
-      ? diagnostics
+      ? recommendedDiagnostics
       : validationOnBuild === 'artifacts'
         ? diagnostics.slice(diagnosticStart)
         : [];
@@ -860,7 +891,7 @@ function createDeferredArtifactWriter(deps) {
     const mandatory = diagnostics
       .slice(diagnosticStart)
       .filter((diagnostic) => MANDATORY_ARTIFACT_CODES.has(diagnostic.code));
-    const blocking = [...new Set([...thresholdBlocking, ...mandatory])];
+    const blocking = uniqueDiagnostics([...thresholdBlocking, ...mandatory]);
     if (blocking.length) {
       throwAfterRedactions(new ArtifactValidationError(blocking.length));
     }
@@ -872,7 +903,10 @@ function createDeferredArtifactWriter(deps) {
       for (const claim of claims) {
         if (resolved.decisions.get(claim.id)?.status !== 'emit') continue;
         if (claim.artifact.runtime) {
-          if (pathEntryExists(claim.artifact.path)) {
+          if (
+            pathEntryExists(claim.artifact.path) &&
+            !pathEntryIsDirectory(claim.artifact.path)
+          ) {
             operations.push({ kind: 'delete', path: claim.artifact.path });
           }
           continue;
@@ -915,6 +949,9 @@ function createDeferredArtifactWriter(deps) {
         'error',
         'astro-aeo: the artifact transaction failed and was rolled back.',
       );
+      // A staged transform can discover a diagnostic after the initial
+      // manifest snapshot. Persist again only after the transaction failure
+      // finding has joined it, so the failed attempt remains fully auditable.
       throwAfterRedactions(error, true);
     }
     return ownershipReport();
@@ -1083,6 +1120,25 @@ function createDeferredArtifactWriter(deps) {
     return deletes;
   }
 
+  /** @param {string} pathname */
+  function isPlannedStaleDeletion(pathname) {
+    const served = normalizeArtifactPathname(withBase(pathname, base));
+    if (!served) return false;
+    const destination = physicalArtifactPath(root, served.key, base);
+    if (!destination) return false;
+    /** @type {Map<string, any[]>} */
+    const currentClaims = new Map();
+    for (const claim of claims) {
+      if (!claim.served) continue;
+      const related = currentClaims.get(claim.served.key) ?? [];
+      related.push(claim);
+      currentClaims.set(claim.served.key, related);
+    }
+    return staleCleanupOperations(currentClaims).some(
+      (operation) => operation.kind === 'delete' && operation.path === destination,
+    );
+  }
+
   /** @param {import('./transaction.js').FileOperation} operation */
   function confineOperation(operation) {
     const confineTo = pathWithin(root, operation.path)
@@ -1140,6 +1196,7 @@ function createDeferredArtifactWriter(deps) {
     },
     stageTransform,
     stageRedaction,
+    isPlannedStaleDeletion,
     commit,
     report,
     resolve: resolveClaims,
@@ -1151,6 +1208,24 @@ function ownerLabel(owner) {
   if (owner.kind === 'project-route') return 'a project route';
   if (owner.kind === 'public-file') return 'public/';
   return 'existing build output';
+}
+
+/** @param {import('../index.js').Diagnostic[]} diagnostics */
+function uniqueDiagnostics(diagnostics) {
+  const seen = new Set();
+  return diagnostics.filter((diagnostic) => {
+    const key = JSON.stringify([
+      diagnostic.version,
+      diagnostic.code,
+      diagnostic.severity,
+      diagnostic.message,
+      diagnostic.pathname ?? null,
+      diagnostic.sourcePath ?? null,
+    ]);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /** @param {{ owner: { kind: string; name: string } }} a @param {{ owner: { kind: string; name: string } }} b */
@@ -1187,6 +1262,16 @@ function pathEntryExists(path) {
   try {
     lstatSync(path);
     return true;
+  } catch (error) {
+    if (/** @type {any} */ (error)?.code === 'ENOENT') return false;
+    throw error;
+  }
+}
+
+/** @param {string} path */
+function pathEntryIsDirectory(path) {
+  try {
+    return lstatSync(path).isDirectory();
   } catch (error) {
     if (/** @type {any} */ (error)?.code === 'ENOENT') return false;
     throw error;

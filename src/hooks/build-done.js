@@ -17,9 +17,15 @@ import { emitUrlMap } from '../generators/url-map.js';
 import { writeDiagnosticsManifest } from '../build/diagnostics.js';
 import { isOwnedArtifactPath } from '../core/owned-artifacts.js';
 import { renderSchemaCorpus, validateCollectedSchemaGraphs } from '../core/schema-corpus.js';
-import { stableCanonical } from '../core/canonical.js';
+import { siteScopeUrl, stableCanonical } from '../core/canonical.js';
 import { enrichHtmlHead, stripAeoHeadMarkers } from '../core/head.js';
 import { catalogBreadcrumbTrail } from '../core/catalog-breadcrumbs.js';
+import {
+  applySemanticGraphPatch,
+  reconcileSemanticEnvelope,
+  removeManagedGraph,
+  sameSemanticEntities,
+} from '../core/semantic-envelope.js';
 import {
   isExtractionEnvelope,
   isGraphEnvelope,
@@ -56,6 +62,7 @@ import {
  */
 export async function onBuildDone(config, options, env) {
   const { dir, pages: rawPages, logger } = options;
+  const buildDiagnostics = env.diagnostics ?? (env.diagnostics = []);
 
   // Routes generated from data are invisible to Astro's own page list, so a
   // catalog is the only way they can appear in the corpus.
@@ -196,6 +203,7 @@ export async function onBuildDone(config, options, env) {
     diagnostics: env.diagnostics ?? [],
     failOn: config.validation?.failOn ?? 'error',
     validationOnBuild: config.validation?.onBuild ?? 'artifacts',
+    diagnosticsProvider: () => pages.flatMap((page) => page.diagnostics),
     onDiagnostics: () =>
       writeDiagnosticsManifest(env.projectRoot, pages, env.diagnostics ?? []),
   });
@@ -229,6 +237,27 @@ export async function onBuildDone(config, options, env) {
         graph: null,
         explicit: false,
       };
+      const internalBaseline = enrichHtmlHead({
+        html: initial.html,
+        page: publicPage,
+        config,
+        site: semanticSite,
+        allowGlobal,
+        breadcrumbTrail,
+      });
+      const authoredBaseline = enrichHtmlHead({
+        html: initial.html,
+        page: publicPage,
+        config,
+        site: semanticSite,
+        allowGlobal,
+        inspectAuthored: true,
+        breadcrumbTrail,
+      });
+      const baseline = {
+        ...internalBaseline,
+        authoredGraph: authoredBaseline.authoredGraph,
+      };
       const semantic = await env.pluginDispatcher.run('graph:build', initial, {
         pathname: page.pathname,
         mode: 'build',
@@ -238,19 +267,44 @@ export async function onBuildDone(config, options, env) {
           site: semanticSite,
         }),
       });
-      env.diagnostics?.push(...semantic.diagnostics);
+      const semanticDiagnostics = uniqueBuildDiagnostics([
+        ...semantic.diagnostics,
+        ...authoredBaseline.diagnostics,
+      ]);
+      env.diagnostics?.push(...semanticDiagnostics);
       if (semantic.isolated) {
-        pages[index] = { ...page, diagnostics: [...page.diagnostics, ...semantic.diagnostics] };
+        pages[index] = { ...page, diagnostics: [...page.diagnostics, ...semanticDiagnostics] };
         if (page.htmlPath) writer.stageTransform(page.htmlPath, 'head-marker-redaction', stripAeoHeadMarkers);
         continue;
       }
-      const value = /** @type {any} */ (semantic.value);
+      const reconciled = reconcileSemanticEnvelope({
+        baseline,
+        value: /** @type {any} */ (semantic.value),
+        siteUrl: siteScopeUrl(env.siteUrl, env.base),
+        strictReferences: config.schema.strictReferences,
+        pathname: page.pathname,
+      });
+      if (!reconciled.valid) {
+        buildDiagnostics.push(...reconciled.diagnostics);
+        pages[index] = {
+          ...page,
+          diagnostics: [...page.diagnostics, ...semanticDiagnostics, ...reconciled.diagnostics],
+        };
+        if (page.htmlPath) writer.stageTransform(page.htmlPath, 'head-marker-redaction', stripAeoHeadMarkers);
+        continue;
+      }
+      const value = reconciled.value;
+      buildDiagnostics.push(...reconciled.diagnostics);
       const candidate = isPageRecord(value.page) ? value.page : page;
       const enrichedHtml = typeof value.html === 'string' ? value.html : stripAeoHeadMarkers(initial.html);
       const enrichedPage = {
         ...candidate,
         representations: { ...candidate.representations, html: enrichedHtml },
-        diagnostics: [...candidate.diagnostics, ...semantic.diagnostics],
+        diagnostics: [
+          ...candidate.diagnostics,
+          ...semanticDiagnostics,
+          ...reconciled.diagnostics,
+        ],
       };
       const corpusGraph = value.normalizedGraph?.entries ? value.normalizedGraph : value.graph;
       if (corpusGraph?.entries) {
@@ -259,29 +313,126 @@ export async function onBuildDone(config, options, env) {
       }
       pages[index] = /** @type {typeof page} */ ({ ...page, ...enrichedPage });
       if (page.htmlPath) {
+        /** @param {import('../schema.js').AeoGraph | null | undefined} refreshedGraph */
+        const assertStaticCorpusStable = (refreshedGraph) => {
+          if (
+            !config.schema.corpus.enabled ||
+            env.runtimeCorpora ||
+            sameSemanticEntities(
+              refreshedGraph?.entries ? refreshedGraph : null,
+              corpusGraph?.entries ? corpusGraph : null,
+            )
+          ) return;
+          if (!buildDiagnostics.some((diagnostic) =>
+            diagnostic.code === 'schema-corpus-late-semantic-change' &&
+            diagnostic.pathname === page.pathname)) {
+            buildDiagnostics.push({
+              version: 1,
+              code: 'schema-corpus-late-semantic-change',
+              severity: 'error',
+              message: 'A page semantic graph changed after the static schema corpus was collected; the artifact transaction was aborted.',
+              pathname: page.pathname,
+            });
+          }
+          throw new SemanticTransformConflictError();
+        };
         writer.stageTransform(page.htmlPath, 'semantic-head', (html) => {
-          const refreshed = enrichHtmlHead({
+          const refreshedInternal = enrichHtmlHead({
             html,
             page: publicPage,
             config,
             site: semanticSite,
             allowGlobal,
             breadcrumbTrail,
-          }).html;
-          if (!env.pluginDispatcher?.hasUserHooks('graph:build')) return refreshed;
+          });
+          if (!env.pluginDispatcher?.hasUserHooks('graph:build')) {
+            assertStaticCorpusStable(refreshedInternal.normalizedGraph ?? refreshedInternal.graph);
+            return refreshedInternal.html;
+          }
 
-          // User graph hooks already ran once at the public lifecycle boundary.
-          // Reapply only their delta to the freshly enriched bytes so a later
-          // integration's unrelated HTML edits are retained.
-          const internalHtml = enrichHtmlHead({
-            html: initial.html,
+          const refreshedAuthored = enrichHtmlHead({
+            html,
             page: publicPage,
             config,
             site: semanticSite,
             allowGlobal,
+            inspectAuthored: true,
             breadcrumbTrail,
-          }).html;
-          return applyHtmlDelta(refreshed, internalHtml, enrichedHtml);
+          });
+          const refreshedBaseline = {
+            ...refreshedInternal,
+            authoredGraph: refreshedAuthored.authoredGraph,
+          };
+
+          // User graph hooks already ran once at the public lifecycle boundary.
+          // Reapply only their non-managed HTML delta, then regenerate managed
+          // JSON-LD against the latest authored graph and HTML bytes.
+          try {
+            const pluginHtml = applyHtmlDelta(
+              removeManagedGraph(refreshedInternal.html),
+              removeManagedGraph(baseline.html),
+              removeManagedGraph(enrichedHtml),
+            );
+            const replayed = applySemanticGraphPatch(
+              refreshedInternal.graph,
+              reconciled.changes.managedPatch,
+            );
+            if (!replayed.valid) {
+              if (!buildDiagnostics.some((diagnostic) =>
+                diagnostic.code === 'plugin-graph-inconsistent' &&
+                diagnostic.pathname === page.pathname)) {
+                buildDiagnostics.push({
+                  version: 1,
+                  code: 'plugin-graph-inconsistent',
+                  severity: 'error',
+                  message: 'A graph plugin change conflicted with semantic facts added later in the build.',
+                  pathname: page.pathname,
+                });
+              }
+              throw new SemanticTransformConflictError();
+            }
+            const finalized = reconcileSemanticEnvelope({
+              baseline: refreshedBaseline,
+              value: {
+                ...value,
+                html: pluginHtml,
+                graph: replayed.graph,
+                normalizedGraph: refreshedInternal.normalizedGraph,
+              },
+              siteUrl: siteScopeUrl(env.siteUrl, env.base),
+              strictReferences: config.schema.strictReferences,
+              pathname: page.pathname,
+            });
+            if (!finalized.valid) {
+              for (const diagnostic of finalized.diagnostics) {
+                if (!buildDiagnostics.some((current) =>
+                  current.code === diagnostic.code && current.pathname === diagnostic.pathname)) {
+                  buildDiagnostics.push(diagnostic);
+                }
+              }
+              throw new SemanticTransformConflictError();
+            }
+            const refreshedCorpusGraph = finalized.value.normalizedGraph?.entries
+              ? finalized.value.normalizedGraph
+              : finalized.value.graph;
+            assertStaticCorpusStable(refreshedCorpusGraph);
+            return finalized.value.html;
+          } catch (error) {
+            if (error instanceof HtmlDeltaConflictError && !buildDiagnostics.some(
+              (diagnostic) =>
+                diagnostic.code === 'plugin-html-delta-conflict' &&
+                diagnostic.pathname === page.pathname,
+            )) {
+              buildDiagnostics.push({
+                version: 1,
+                code: 'plugin-html-delta-conflict',
+                severity: 'error',
+                message: 'A plugin HTML replacement could not be reapplied safely after the page changed; the artifact transaction was aborted.',
+                pathname: page.pathname,
+              });
+            }
+            throw error;
+          }
         });
       }
     }
@@ -291,7 +442,7 @@ export async function onBuildDone(config, options, env) {
     const stableSite = stableCanonical(env.siteUrl);
     if (stableSite) {
       env.diagnostics?.push(...validateCollectedSchemaGraphs(semanticPages, {
-        siteUrl: new URL('/', stableSite).href,
+        siteUrl: siteScopeUrl(stableSite, env.base) ?? stableSite,
         strictReferences: config.schema.strictReferences,
       }));
     }
@@ -309,8 +460,10 @@ export async function onBuildDone(config, options, env) {
     } else {
       try {
         const graphPath = `${env.base || ''}${config.schema.corpus.graphPath}`;
+        const scopeUrl = siteScopeUrl(stableSite, env.base) ?? stableSite;
         const corpus = renderSchemaCorpus(semanticPages, {
           graphUrl: new URL(graphPath, stableSite).href,
+          siteUrl: scopeUrl,
           strictReferences: config.schema.strictReferences,
         });
         env.diagnostics?.push(...corpus.diagnostics);
@@ -451,15 +604,51 @@ function applyHtmlDelta(current, before, after) {
     const right = before.slice(prefix, prefix + 80);
     if (!right) return `${current}${inserted}`;
     const at = current.indexOf(right);
-    if (at === -1 || current.indexOf(right, at + right.length) !== -1) return after;
+    if (at === -1 || current.indexOf(right, at + right.length) !== -1) {
+      throw new HtmlDeltaConflictError();
+    }
     return `${current.slice(0, at)}${inserted}${current.slice(at)}`;
   }
   const first = current.indexOf(removed);
-  if (first === -1 || current.indexOf(removed, first + removed.length) !== -1) return after;
+  if (first === -1 || current.indexOf(removed, first + removed.length) !== -1) {
+    throw new HtmlDeltaConflictError();
+  }
   return `${current.slice(0, first)}${inserted}${current.slice(first + removed.length)}`;
 }
 
-/** @param {unknown} value @param {{ id: string; pathname: string }} expected */
+class HtmlDeltaConflictError extends Error {
+  constructor() {
+    super('astro-aeo: a plugin HTML replacement could not be reapplied safely after the page changed.');
+    this.name = 'HtmlDeltaConflictError';
+  }
+}
+
+class SemanticTransformConflictError extends Error {
+  constructor() {
+    super('astro-aeo: a plugin semantic replacement could not be reconciled safely after the page changed.');
+    this.name = 'SemanticTransformConflictError';
+  }
+}
+
+/** @param {import('../index.js').Diagnostic[]} diagnostics */
+function uniqueBuildDiagnostics(diagnostics) {
+  const seen = new Set();
+  return diagnostics.filter((diagnostic) => {
+    const key = JSON.stringify([
+      diagnostic.version,
+      diagnostic.code,
+      diagnostic.severity,
+      diagnostic.message,
+      diagnostic.pathname ?? null,
+      diagnostic.sourcePath ?? null,
+    ]);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** @param {unknown} value @param {{ id: string; pathname: string; replace?: boolean }} expected */
 function isArtifactEnvelope(value, expected) {
   const candidate = /** @type {any} */ (value);
   return Boolean(
@@ -467,6 +656,7 @@ function isArtifactEnvelope(value, expected) {
     typeof candidate === 'object' &&
     candidate.claim?.id === expected.id &&
     candidate.claim?.pathname === expected.pathname &&
+    candidate.claim?.replace === expected.replace &&
     candidate.representation &&
     typeof candidate.representation.body === 'string' &&
     typeof candidate.representation.contentType === 'string'
@@ -506,7 +696,12 @@ async function emitPluginArtifacts(dispatcher, pages, writer, diagnostics, runti
       continue;
     }
     const validated = await dispatcher.run('artifact:validate', {
-      claim: { id: claim.id, pathname: claim.pathname }, representation,
+      claim: {
+        id: claim.id,
+        pathname: claim.pathname,
+        ...(claim.replace ? { replace: true } : {}),
+      },
+      representation,
     }, {
       mode: 'build',
       pathname: claim.pathname,

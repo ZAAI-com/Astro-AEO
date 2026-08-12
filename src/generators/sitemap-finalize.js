@@ -59,7 +59,9 @@ export function finalizeSitemapOutputs(
     }
   }
 
-  const advertisedPathExists = sitemapPathExists(distDir, config.discovery.robots.sitemapPath);
+  const advertisedPathExists =
+    sitemapPathExists(distDir, config.discovery.robots.sitemapPath) &&
+    !activeWriter.isPlannedStaleDeletion?.(config.discovery.robots.sitemapPath);
   const advertisedAliasClaimed =
     aliasEmitted &&
     config.discovery.robots.sitemapPath ===

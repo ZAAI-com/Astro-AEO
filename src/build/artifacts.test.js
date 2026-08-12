@@ -761,6 +761,79 @@ describe('deferred ownership and transaction', () => {
     ]);
   });
 
+  test('allows runtime-only ancestor and descendant pathnames without filesystem conflicts', () => {
+    const diagnostics = [];
+    const writer = deferredWriter({ diagnostics });
+    writer.write({ route: '/schema', owner: { kind: 'core', name: 'schema' }, runtime: true });
+    writer.write({
+      route: '/schema/map.xml',
+      owner: { kind: 'core', name: 'schemaMap' },
+      runtime: true,
+    });
+
+    expect(() => writer.commit()).not.toThrow();
+    expect(diagnostics).toEqual([]);
+    const manifest = JSON.parse(
+      readFileSync(join(dir, '.astro', 'aeo-cache', 'ownership-v1.json'), 'utf8'),
+    );
+    expect(manifest.artifacts).toEqual([
+      expect.objectContaining({ pathname: '/schema', status: 'runtime' }),
+      expect.objectContaining({ pathname: '/schema/map.xml', status: 'runtime' }),
+    ]);
+  });
+
+  test('keeps a runtime ancestor beside a static descendant across repeated builds', () => {
+    const publicRoot = join(dir, 'public');
+    mkdirSync(join(publicRoot, 'schema'), { recursive: true });
+    const first = deferredWriter({ publicDir: pathToFileURL(`${publicRoot}/`) });
+    first.write(artifact({
+      route: '/schema/map.xml',
+      owner: 'schemaMap',
+      contents: 'first map',
+    }));
+    first.commit();
+
+    const diagnostics = [];
+    const second = deferredWriter({
+      diagnostics,
+      publicDir: pathToFileURL(`${publicRoot}/`),
+    });
+    second.write({
+      route: '/schema',
+      owner: { kind: 'core', name: 'schemaGraph' },
+      runtime: true,
+    });
+    second.write(artifact({
+      route: '/schema/map.xml',
+      owner: 'schemaMap',
+      contents: 'second map',
+    }));
+
+    expect(() => second.commit()).not.toThrow();
+    expect(diagnostics).toEqual([]);
+    expect(lstatSync(join(dir, 'schema')).isDirectory()).toBe(true);
+    expect(readFileSync(join(dir, 'schema', 'map.xml'), 'utf8')).toBe('second map');
+    const manifest = JSON.parse(
+      readFileSync(join(dir, '.astro', 'aeo-cache', 'ownership-v1.json'), 'utf8'),
+    );
+    expect(manifest.artifacts).toEqual([
+      expect.objectContaining({ pathname: '/schema', status: 'runtime' }),
+      expect.objectContaining({ pathname: '/schema/map.xml', status: 'emitted' }),
+    ]);
+  });
+
+  test('keeps exact served-path collisions mandatory for runtime-only claims', () => {
+    const diagnostics = [];
+    const writer = deferredWriter({ diagnostics });
+    writer.write({ route: '/schema', owner: { kind: 'core', name: 'schema' }, runtime: true });
+    writer.write(artifact({ route: '/schema', owner: 'urlMap', contents: 'file' }));
+
+    expect(() => writer.commit()).toThrow(/artifact validation failed/);
+    expect(diagnostics).toEqual([
+      expect.objectContaining({ code: 'artifact-generated-conflict', severity: 'error' }),
+    ]);
+  });
+
   test('freezes candidate registration once ownership resolution starts', () => {
     const writer = deferredWriter({ failOn: 'off' });
     writer.write(artifact({ path: join(dir, 'first.txt'), route: '/first.txt' }));
@@ -823,6 +896,34 @@ describe('deferred ownership and transaction', () => {
     });
     recommended.write(artifact({ path: join(dir, 'recommended.txt'), route: '/recommended.txt' }));
     expect(() => recommended.commit()).toThrow(/artifact validation failed/);
+    expect(existsSync(join(dir, 'recommended.txt'))).toBe(false);
+  });
+
+  test('loads page diagnostics at commit time and deduplicates shared findings', () => {
+    const shared = {
+      version: 1,
+      code: 'shared-page-finding',
+      severity: 'error',
+      message: 'shared page finding',
+      pathname: '/guide',
+    };
+    const pageOnly = {
+      version: 1,
+      code: 'page-only-finding',
+      severity: 'error',
+      message: 'page-only finding',
+      pathname: '/guide',
+    };
+    const writer = deferredWriter({
+      diagnostics: [shared],
+      validationOnBuild: 'recommended',
+      diagnosticsProvider: () => [{ ...shared }, pageOnly],
+    });
+    writer.write(artifact({ route: '/recommended.txt' }));
+
+    expect(() => writer.commit()).toThrow(
+      'astro-aeo: artifact validation failed with 2 blocking diagnostic(s).',
+    );
     expect(existsSync(join(dir, 'recommended.txt'))).toBe(false);
   });
 
@@ -1022,5 +1123,34 @@ describe('deferred ownership and transaction', () => {
       expect.objectContaining({ code: 'artifact-commit-failed', severity: 'error' }),
     ]));
     expect(JSON.stringify(diagnostics)).not.toContain('injected commit failure');
+  });
+
+  test('repersists diagnostics discovered by a staged transform before commit failure', () => {
+    const diagnostics = [];
+    const snapshots = [];
+    const html = join(dir, 'index.html');
+    writeFileSync(html, '<head></head>');
+    const writer = deferredWriter({
+      diagnostics,
+      onDiagnostics() {
+        snapshots.push(diagnostics.map((diagnostic) => diagnostic.code));
+      },
+    });
+    writer.stageTransform(html, 'conflicting-transform', () => {
+      diagnostics.push({
+        version: 1,
+        code: 'plugin-html-delta-conflict',
+        severity: 'error',
+        message: 'astro-aeo: a staged HTML transform could not be applied safely.',
+      });
+      throw new Error('typed transform conflict');
+    });
+
+    expect(() => writer.commit()).toThrow('typed transform conflict');
+    expect(snapshots).toEqual([
+      [],
+      ['plugin-html-delta-conflict', 'artifact-commit-failed'],
+    ]);
+    expect(readFileSync(html, 'utf8')).toBe('<head></head>');
   });
 });

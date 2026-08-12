@@ -1,5 +1,5 @@
 // @ts-check
-import { isAbsolute, resolve } from 'node:path';
+import { isAbsolute, resolve, win32 } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { AeoConfigError } from '../lib/errors.js';
 import {
@@ -213,23 +213,38 @@ export function resolveRendererSpecifier(module, projectRoot) {
       return value;
     }
   }
+  if (value.startsWith('.') || isAbsolute(value) || win32.isAbsolute(value)) {
+    const suffixAt = value.search(/[?#]/);
+    const pathname = suffixAt === -1 ? value : value.slice(0, suffixAt);
+    const suffix = suffixAt === -1 ? '' : value.slice(suffixAt);
+    const url = win32.isAbsolute(pathname) && !isAbsolute(pathname)
+      ? portableWindowsFileUrl(pathname)
+      : pathToFileURL(resolve(projectRoot, pathname)).href;
+    return `${url}${suffix}`;
+  }
   if (REMOTE_URL.test(value)) {
     throw new AeoConfigError(
       `astro-aeo: Markdown renderer "${value}" must be a local file or package module; remote modules are not supported.`,
     );
-  }
-  if (value.startsWith('.') || isAbsolute(value)) {
-    const suffixAt = value.search(/[?#]/);
-    const pathname = suffixAt === -1 ? value : value.slice(0, suffixAt);
-    const suffix = suffixAt === -1 ? '' : value.slice(suffixAt);
-    return `${pathToFileURL(resolve(projectRoot, pathname)).href}${suffix}`;
   }
   return value;
 }
 
 /** @param {unknown} value */
 function isMdxDescriptor(value) {
-  return isPlainObject(value) && value.module === 'astro-aeo/mdx';
+  return isPlainObject(value) &&
+    typeof value.module === 'string' &&
+    value.module.trim() === 'astro-aeo/mdx';
+}
+
+/** @param {string} pathname */
+function portableWindowsFileUrl(pathname) {
+  const normalized = pathname.replace(/\\/g, '/');
+  if (/^[a-z]:\//i.test(normalized)) return pathToFileURL(`/${normalized}`).href;
+  const [host, ...segments] = normalized.replace(/^\/+/, '').split('/');
+  const url = pathToFileURL(`/${segments.join('/')}`);
+  url.hostname = host;
+  return url.href;
 }
 
 /** @param {string | URL} module */
