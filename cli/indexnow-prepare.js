@@ -18,7 +18,7 @@ import {
 } from '../src/build/indexnow-state.js';
 import { IndexNowInvocationError, errorMessage, readJsonFile, writePrivateFile } from './indexnow-io.js';
 import { createSafeHttpsTransport } from './indexnow-submit.js';
-import { INDEXNOW_PREPARE_PROVIDER } from '../src/build/indexnow.js';
+import { INDEXNOW_PREPARE_PROVIDER, acquireIndexNowLock } from '../src/build/indexnow.js';
 
 /**
  * @typedef {{
@@ -43,6 +43,23 @@ export async function prepareIndexNow(distDir, options = {}) {
   if (!['cache', 'config'].includes(source)) throw new IndexNowInvocationError('indexnow prepare --source must be cache or config');
   if (source === 'config' && options.input) throw new IndexNowInvocationError('--input is valid only with --source cache');
   const root = resolve(options.projectRoot ?? process.cwd());
+  let release;
+  try { release = acquireIndexNowLock(root); }
+  catch { throw new IndexNowInvocationError('IndexNow notification state is locked or unsafe'); }
+  try {
+    return await prepareIndexNowLocked(distDir, options, source, root);
+  } finally {
+    release();
+  }
+}
+
+/**
+ * @param {string} distDir
+ * @param {PrepareOptions} options
+ * @param {'cache'|'config'} source
+ * @param {string} root
+ */
+async function prepareIndexNowLocked(distDir, options, source, root) {
   const cacheDir = join(root, '.astro', 'aeo-cache', 'indexnow');
   const inputPath = resolve(options.input ?? join(cacheDir, INDEXNOW_PREPARE_INPUT_FILENAME));
   const outputRoot = resolve(distDir);

@@ -98,4 +98,20 @@ describe('build IndexNow helpers', () => {
     expect(indexNowStatePathname('')).toBe('/.well-known/astro-aeo-indexnow-v1.json');
     expect(indexNowStatePathname('/docs/')).toBe('/docs/.well-known/astro-aeo-indexnow-v1.json');
   });
+
+  test('holds notification state exclusively and releases by nonce', () => {
+    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-indexnow-lock-'));
+    roots.push(root);
+    const first = readIndexNowPrivateState(root);
+    expect(first.readOnly).toBe(false);
+    const competing = readIndexNowPrivateState(root);
+    expect(competing).toMatchObject({
+      readOnly: true,
+      diagnostics: [expect.objectContaining({ code: 'indexnow-state-locked' })],
+    });
+    first.close();
+    const resumed = readIndexNowPrivateState(root);
+    expect(resumed.readOnly).toBe(false);
+    resumed.close();
+  });
 });

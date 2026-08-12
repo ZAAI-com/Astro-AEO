@@ -238,7 +238,10 @@ export async function onBuildDone(config, options, env) {
     validationOnBuild: config.validation?.onBuild ?? 'artifacts',
     diagnosticsProvider: () => pages.flatMap((page) => page.diagnostics),
     onDiagnostics: () => writeDiagnosticsManifest(env.projectRoot, pages, env.diagnostics ?? []),
-    onSettled: () => processingCache.close(),
+    onSettled: () => {
+      processingCache.close();
+      indexNowPrivate?.close();
+    },
   });
   /** @type {any} */ (writer).stagePrivateWrite?.(
     diagnosticsManifestPath(env.projectRoot),

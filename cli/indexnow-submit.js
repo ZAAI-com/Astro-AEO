@@ -17,6 +17,7 @@ import {
   serializeIndexNowQueue,
   validateRootPath,
 } from '../src/build/indexnow-state.js';
+import { acquireIndexNowLock } from '../src/build/indexnow.js';
 import {
   IndexNowInvocationError,
   IndexNowRemoteError,
@@ -52,6 +53,18 @@ const MAX_STATE_RESPONSE = 2 * 1024 * 1024;
 export async function submitIndexNow(queueFile, options = {}) {
   const queuePath = resolve(queueFile);
   const root = resolve(options.projectRoot ?? process.cwd());
+  let release;
+  try { release = acquireIndexNowLock(root); }
+  catch { throw new IndexNowInvocationError('IndexNow notification state is locked or unsafe'); }
+  try {
+    return await submitIndexNowLocked(queuePath, root, options);
+  } finally {
+    release();
+  }
+}
+
+/** @param {string} queuePath @param {string} root @param {SubmitOptions} options */
+async function submitIndexNowLocked(queuePath, root, options) {
   const ackPath = resolve(options.acknowledgmentFile ?? join(root, '.astro', 'aeo-cache', 'indexnow', INDEXNOW_ACK_FILENAME));
   const progressPath = join(dirname(queuePath), 'progress-v1.json');
   recoverProgress(progressPath, queuePath, ackPath);
