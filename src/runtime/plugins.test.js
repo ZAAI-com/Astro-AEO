@@ -50,6 +50,46 @@ describe('runtime plugin artifacts', () => {
       .toMatchObject({ plugin: 'feed', claim: { replace: true }, conflict: false });
   });
 
+  test('preserves replacement authorization through both artifact hooks', async () => {
+    const claim = { id: 'replacing-feed', pathname: '/feed.txt', replace: true };
+    const observed = [];
+    const replacing = loader({
+      claims: [claim],
+      load: async () => ({
+        name: 'feed',
+        apiVersion: 1,
+        setup(api) {
+          api.claimArtifact(claim);
+          api.on('artifact:generate', ({ value }) => {
+            observed.push({ stage: 'generate', claim: value.claim });
+            return {
+              action: 'replace',
+              value: {
+                claim: value.claim,
+                representation: { body: 'feed', contentType: 'text/plain' },
+              },
+            };
+          });
+          api.on('artifact:validate', ({ value }) => {
+            observed.push({ stage: 'validate', claim: value.claim });
+          });
+        },
+      }),
+    });
+    const target = runtimePluginArtifactFor('/feed.txt', [replacing]);
+    const response = await serveRuntimePluginArtifact(
+      target,
+      new Request('https://example.com/feed.txt'),
+      [replacing],
+    );
+
+    expect(response.status).toBe(200);
+    expect(observed).toEqual([
+      { stage: 'generate', claim },
+      { stage: 'validate', claim },
+    ]);
+  });
+
   test('matches encoded claims to decoded runtime pathnames', () => {
     const encoded = loader({
       claims: [{ id: 'feed', pathname: '/caf%C3%A9%25.txt', replace: true }],
@@ -143,6 +183,55 @@ describe('runtime plugin artifacts', () => {
     expect(notModified.status).toBe(304);
     expect(await notModified.text()).toBe('');
     expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  test('includes the root page in fixed runtime handles', async () => {
+    const read = vi.fn(async (page) => ({
+      id: page.pathname,
+      pathname: page.pathname,
+      metadata: { title: 'Home' },
+      representations: { markdown: '# Home' },
+    }));
+    const pages = createRuntimePluginPageHandles([
+      { pathname: '/' },
+      { pathname: '/guide' },
+    ], read);
+
+    expect(pages.map((page) => page.pathname)).toEqual(['/', '/guide']);
+    expect(await pages[0].read()).toMatchObject({ pathname: '/', metadata: { title: 'Home' } });
+  });
+
+  test.each([
+    '/%2e%2e/secret',
+    '/safe%2Fsecret',
+    '/%252e%252e/secret',
+    '/safe%252Fsecret',
+  ])('rejects unsafe encoded runtime page handle %s', (pathname) => {
+    const pages = createRuntimePluginPageHandles(
+      [{ pathname: '/' }, { pathname }, { pathname: '/guide' }],
+      async () => null,
+    );
+
+    expect(pages.map((page) => page.pathname)).toEqual(['/', '/guide']);
+  });
+
+  test('compares runtime module names using configured trimming', async () => {
+    let seenOptions;
+    const trimmed = loader({
+      name: ' feed ',
+      options: undefined,
+      stages: [],
+      claims: [],
+      load: async () => ({
+        name: 'feed',
+        apiVersion: 1,
+        setup(api) { seenOptions = api.options; },
+      }),
+    });
+
+    const runtime = await loadRuntimePlugins([trimmed]);
+    expect(runtime.failed).not.toContain(' feed ');
+    expect(seenOptions).toBeUndefined();
   });
 
   test('rejects invalid runtime modules and hook failures with a generic no-store response', async () => {

@@ -12,7 +12,7 @@ const URL_SCHEME = /^[a-z][a-z\d+.-]*:/i;
  * bare specifiers remain package imports. Remote URL modules are rejected so
  * plugin loading can never become a network operation.
  *
- * @param {{ version: 1; plugins: readonly { name: string; entrypoint: string; options: import('../index.js').JsonValue | null; stages: readonly string[]; claims: readonly { id: string; pathname: string; replace?: boolean }[] }[] }} manifest
+ * @param {{ version: 1; plugins: readonly { name: string; entrypoint: string; options?: import('../index.js').JsonValue; stages: readonly string[]; claims: readonly { id: string; pathname: string; replace?: boolean }[] }[] }} manifest
  * @param {string} projectRoot
  */
 export function runtimePluginModules(manifest, projectRoot) {
@@ -20,7 +20,9 @@ export function runtimePluginModules(manifest, projectRoot) {
     name: plugin.name,
     module: plugin.entrypoint,
     specifier: resolveRuntimePluginSpecifier(plugin.entrypoint, projectRoot),
-    options: plugin.options,
+    ...(Object.prototype.hasOwnProperty.call(plugin, 'options')
+      ? { options: plugin.options }
+      : {}),
     stages: [...plugin.stages],
     claims: plugin.claims.map((claim) => ({ ...claim })),
   }));

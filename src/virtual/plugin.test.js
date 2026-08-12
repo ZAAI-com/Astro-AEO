@@ -119,6 +119,29 @@ describe('aeoRuntimeConfigPlugin', () => {
     expect(code).not.toContain('import * as');
   });
 
+  test('emits omitted runtime options as absent and explicit null as null', () => {
+    const plugin = aeoRuntimeConfigPlugin(
+      () => ({}),
+      () => [],
+      () => [],
+      () => [],
+      () => [
+        {
+          name: 'omitted', module: './omitted.js', specifier: './omitted.js',
+          stages: [], claims: [],
+        },
+        {
+          name: 'explicit', module: './explicit.js', specifier: './explicit.js',
+          options: null, stages: [], claims: [],
+        },
+      ],
+    );
+
+    const code = plugin.load(`\0${RUNTIME_CONFIG_ID}`);
+    expect(code).toContain('module: "./omitted.js", stages: []');
+    expect(code).toContain('module: "./explicit.js", options: null, stages: []');
+  });
+
   test('the snapshot is read at load time, not at registration time', () => {
     // Site facts (siteUrl, base, trailingSlash) are captured in astro:config:done,
     // which runs after the plugin is registered. Reading eagerly would emit a

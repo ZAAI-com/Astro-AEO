@@ -5,6 +5,10 @@ const claims = [
   { id: 'project', pathname: '/project.txt' },
   { id: 'catalog-feed', pathname: '/catalog-feed.txt' },
   { id: 'core-index', pathname: '/llms.txt', replace: true },
+  { id: 'page-companion', pathname: '/page.md' },
+  { id: 'missing-companion', pathname: '/missing.md' },
+  { id: 'disabled-companion', pathname: '/disabled.md' },
+  { id: 'isolated-companion', pathname: '/isolated.md' },
 ];
 
 vi.mock('./config.js', async () => {
@@ -28,8 +32,10 @@ vi.mock('./config.js', async () => {
         listPages: async () => [{
           pathname: '/catalog-page',
           title: 'Catalog title',
+          description: 'Catalog description',
           markdown: '# Private catalog source',
           source: { kind: 'cms', body: 'private catalog payload' },
+          directives: { generateMarkdown: false },
         }],
       }),
     }],
@@ -44,10 +50,13 @@ vi.mock('./config.js', async () => {
         apiVersion: 1,
         setup(api) {
           for (const claim of claims) api.claimArtifact(claim);
-          api.on('page:metadata', ({ value }) => ({
-            action: 'replace',
-            value: { ...value, title: 'Runtime plugin title' },
-          }));
+          api.on('page:metadata', ({ value, pathname }) => {
+            if (pathname === '/isolated') throw new Error('private lifecycle failure');
+            return {
+              action: 'replace',
+              value: { ...value, title: 'Runtime plugin title' },
+            };
+          });
           api.on('graph:build', ({ value }) => {
             if (!value.graph?.entries?.length) throw new Error('internal semantic plugin did not run first');
             return {
@@ -187,6 +196,62 @@ describe('runtime plugin middleware integration', () => {
     }
   });
 
+  test('fails a plugin claim closed when an eligible Markdown companion owns the path', async () => {
+    const harness = disposableContext('/page.md', {}, async () => new Response(
+      '<!doctype html><html><head><title>Page</title></head><body><main>Page</main></body></html>',
+      { headers: { 'content-type': 'text/html; charset=utf-8' } },
+    ));
+
+    const response = await onRequest(harness.context, vi.fn());
+
+    expect(response.status).toBe(500);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.text()).toBe('Internal Server Error\n');
+    expect(harness.rewrites).toHaveLength(2);
+  });
+
+  test('fails a plugin claim closed when companion lifecycle enrichment is isolated', async () => {
+    const harness = disposableContext('/isolated.md', {}, async () => new Response(
+      '<!doctype html><html><head><title>Isolated</title></head><body><main>Isolated</main></body></html>',
+      { headers: { 'content-type': 'text/html; charset=utf-8' } },
+    ));
+
+    const response = await onRequest(harness.context, vi.fn());
+
+    expect(response.status).toBe(500);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.text()).toBe('Internal Server Error\n');
+    expect(harness.rewrites).toHaveLength(2);
+  });
+
+  test.each([
+    ['missing', '/missing.md', () => new Response(null, { status: 404 })],
+    [
+      'HTML 404',
+      '/missing.md',
+      () => new Response(
+        '<!doctype html><html><head><title>Missing</title></head><body><main>Missing</main></body></html>',
+        { status: 404, headers: { 'content-type': 'text/html; charset=utf-8' } },
+      ),
+    ],
+    [
+      'opted-out',
+      '/disabled.md',
+      () => new Response(
+        '<!doctype html><html><head><title>Disabled</title><meta name="aeo" content="no-dotmd"></head><body><main>Disabled</main></body></html>',
+        { headers: { 'content-type': 'text/html; charset=utf-8' } },
+      ),
+    ],
+  ])('allows a plugin claim when its source page is %s', async (_case, pathname, render) => {
+    const harness = disposableContext(pathname, {}, render);
+
+    const response = await onRequest(harness.context, vi.fn());
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toMatch(/^plugin:(missing|disabled)-companion\n$/);
+    expect(harness.rewrites.length).toBeGreaterThan(0);
+  });
+
   test('gives runtime plugins anonymous lazy handles for catalog-known pages', async () => {
     const harness = disposableContext('/catalog-feed.txt?private=query', {
       headers: {
@@ -234,6 +299,22 @@ describe('runtime plugin middleware integration', () => {
     expect(body).toContain('data-astro-aeo-graph');
     expect(body).toContain('<meta name="runtime-plugin" content="preview">');
     expect(body).toContain('Runtime plugin title');
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  test('uses the matching catalog descriptor for ordinary runtime HTML enrichment', async () => {
+    const source = '<!doctype html><html><head><title>Rendered title</title></head><body><main>Rendered body</main></body></html>';
+    const next = vi.fn(async () => new Response(source, {
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+    }));
+
+    const response = await onRequest(context('/catalog-page'), next);
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain('"description":"Catalog description"');
+    expect(body).toContain('Runtime plugin title');
+    expect(body).not.toContain('type="text/markdown"');
     expect(next).toHaveBeenCalledOnce();
   });
 });

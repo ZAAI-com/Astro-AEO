@@ -37,6 +37,7 @@ import {
   renderStandaloneArtifact,
   runtimeCatalogPagesFor,
   RuntimeCorpusLimitError,
+  RuntimePageLifecycleError,
   serveLlmsIndex,
   serveMarkdown,
   serveSchemaCorpus,
@@ -115,6 +116,44 @@ export const onRequest = async (context, next) => {
   const coreReplacementAuthorized = RUNTIME.config.artifacts.replace.some((configured) =>
     matchesExactPathname(servedRequestPath, configured));
   const projectOwned = ownedByProject(pathname, encodedPathname);
+  const mdPagePath = pagePathForMdPath(pathname);
+  const encodedMdPagePath = pagePathForMdPath(encodedPathname) ??
+    (mdPagePath === null ? null : encodeURI(mdPagePath));
+  const companionAvailable = RUNTIME.config.markdown.enabled &&
+    mdPagePath !== null &&
+    (!projectOwned || coreReplacementAuthorized);
+  /** @type {ReturnType<typeof serveMarkdown> | undefined} */
+  let markdownResolution;
+  /** @param {boolean} [failClosed] */
+  const resolveMarkdownCompanion = (failClosed = false) => {
+    if (!markdownResolution) {
+      const rewritePathname = encodedMdPagePath ?? mdPagePath ?? '/';
+      const probe = htmlFetcher(context, next, {
+        preserveQuery: true,
+        rewritePathname,
+        collect: false,
+      });
+      const collected = htmlFetcher(context, next, { preserveQuery: true, rewritePathname });
+      const fetcher = async (sourcePathname) => {
+        const safe = await probe(sourcePathname);
+        if (safe === null || safe.html === null || !safe.response.ok) return safe;
+        const authored = await collected(sourcePathname);
+        if (authored !== null && authored.html !== null) return authored;
+        cancelResponseBody(authored?.response);
+        return safe;
+      };
+      markdownResolution = serveMarkdown(pathname, RUNTIME, fetcher, {
+        catalogLoaders: RUNTIME_CATALOG_LOADERS,
+        rendererLoaders: RUNTIME_MARKDOWN_RENDERER_LOADERS,
+        pluginLoaders: RUNTIME_PLUGIN_LOADERS,
+        origin: context.url.origin,
+        publicPathname: encodedMdPagePath ?? mdPagePath ?? '/',
+        failOnPluginIsolation: failClosed,
+        requireSuccessfulSource: failClosed,
+      });
+    }
+    return markdownResolution;
+  };
   // A configured core generator remains a generated claimant even when an
   // external route blocks it. A plugin claiming that same pathname must still
   // collide instead of becoming an implicit replacement.
@@ -123,10 +162,29 @@ export const onRequest = async (context, next) => {
   const artifact = (projectOwned && !coreReplacementAuthorized) || schemaPairBlocked
     ? null
     : configuredArtifact;
-  const pluginTarget = runtimePluginArtifactFor(pathname, RUNTIME_PLUGIN_LOADERS, {
+  let pluginTarget = runtimePluginArtifactFor(pathname, RUNTIME_PLUGIN_LOADERS, {
     projectOwned,
     coreOwned: Boolean(configuredArtifact),
   });
+  if (pluginTarget && !pluginTarget.conflict && companionAvailable) {
+    let companion;
+    try {
+      companion = await resolveMarkdownCompanion(true);
+    } catch (error) {
+      if (!(error instanceof RuntimePageLifecycleError)) throw error;
+      pluginTarget = runtimePluginArtifactFor(pathname, RUNTIME_PLUGIN_LOADERS, {
+        projectOwned,
+        coreOwned: true,
+      });
+    }
+    if (companion?.body !== null && companion?.source?.ok) {
+      pluginTarget = runtimePluginArtifactFor(pathname, RUNTIME_PLUGIN_LOADERS, {
+        projectOwned,
+        coreOwned: true,
+      });
+    }
+    cancelResponseBody(companion?.source);
+  }
   if (pluginTarget) {
     const response = await serveRuntimePluginArtifact(
       pluginTarget,
@@ -212,36 +270,8 @@ export const onRequest = async (context, next) => {
     }
   }
 
-  const mdPagePath = pagePathForMdPath(pathname);
-  const encodedMdPagePath = pagePathForMdPath(encodedPathname) ??
-    (mdPagePath === null ? null : encodeURI(mdPagePath));
-  if (
-    RUNTIME.config.markdown.enabled &&
-    mdPagePath !== null &&
-    (!projectOwned || coreReplacementAuthorized)
-  ) {
-    const rewritePathname = encodedMdPagePath ?? mdPagePath;
-    const probe = htmlFetcher(context, next, {
-      preserveQuery: true,
-      rewritePathname,
-      collect: false,
-    });
-    const collected = htmlFetcher(context, next, { preserveQuery: true, rewritePathname });
-    const fetcher = async (sourcePathname) => {
-      const safe = await probe(sourcePathname);
-      if (safe === null || safe.html === null || !safe.response.ok) return safe;
-      const authored = await collected(sourcePathname);
-      if (authored !== null && authored.html !== null) return authored;
-      cancelResponseBody(authored?.response);
-      return safe;
-    };
-    const { body, source } = await serveMarkdown(pathname, RUNTIME, fetcher, {
-      catalogLoaders: RUNTIME_CATALOG_LOADERS,
-      rendererLoaders: RUNTIME_MARKDOWN_RENDERER_LOADERS,
-      pluginLoaders: RUNTIME_PLUGIN_LOADERS,
-      origin: context.url.origin,
-      publicPathname: encodedMdPagePath ?? mdPagePath,
-    });
+  if (companionAvailable) {
+    const { body, source } = await resolveMarkdownCompanion();
     if (body === null) {
       if (
         source &&
@@ -307,7 +337,16 @@ export const onRequest = async (context, next) => {
     html = await response.clone().text();
   }
   const cleanHtml = stripMarkersFromHtml(html);
-  const eligible = RUNTIME.config.markdown.enabled && isMarkdownEligible(pagePath, cleanHtml);
+  const semanticEligible = isSemanticEligible(pagePath, cleanHtml);
+  const catalogDescriptors = semanticEligible
+    ? await runtimeCatalogPagesFor(RUNTIME_CATALOG_LOADERS, RUNTIME, context.url.origin)
+    : [];
+  const descriptor = catalogDescriptors.find(
+    (candidate) => catalogRuntimePath(candidate.pathname).canonical === pagePath,
+  );
+  const eligible = RUNTIME.config.markdown.enabled &&
+    isMarkdownEligible(pagePath, cleanHtml) &&
+    descriptor?.directives?.generateMarkdown !== false;
   const vary = negotiation !== 'off';
 
   if (wantsMarkdown && eligible && negotiation === 'redirect') {
@@ -360,9 +399,10 @@ export const onRequest = async (context, next) => {
     ? withMarkdownAlternateLink(cleanHtml, href, mode)
     : cleanHtml;
 
-  if (isSemanticEligible(pagePath, cleanHtml)) {
+  if (semanticEligible) {
     try {
       const page = await pageFromHtml(pagePath, cleanHtml, RUNTIME, {
+        descriptor,
         origin: context.url.origin,
         publicPathname: encodedPagePath,
         rendererLoaders: RUNTIME_MARKDOWN_RENDERER_LOADERS,
@@ -371,8 +411,7 @@ export const onRequest = async (context, next) => {
       if (page) {
         output = (await enrichRuntimePageGraph(output, page, RUNTIME, {
           pluginLoaders: RUNTIME_PLUGIN_LOADERS,
-          catalogLoaders: RUNTIME_CATALOG_LOADERS,
-          origin: context.url.origin,
+          catalogDescriptors,
           allowGlobal: true,
         })).html;
       } else {

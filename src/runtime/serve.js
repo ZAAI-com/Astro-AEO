@@ -12,8 +12,9 @@ import { matchesExactPathname } from '../core/artifact-path.js';
 import { cancelResponseBody, isIdentityEncoded, isNullBodyStatus } from './respond.js';
 import { enrichHtmlHead, stripAeoHeadMarkers } from '../core/head.js';
 import { renderSchemaCorpus } from '../core/schema-corpus.js';
-import { stableCanonical } from '../core/canonical.js';
+import { siteScopeUrl, stableCanonical } from '../core/canonical.js';
 import { catalogBreadcrumbTrail } from '../core/catalog-breadcrumbs.js';
+import { reconcileSemanticEnvelope } from '../core/semantic-envelope.js';
 import {
   isExtractionEnvelope,
   isGraphEnvelope,
@@ -120,7 +121,7 @@ export function renderStandaloneArtifact(kind, runtime, opts = {}) {
  * @param {string} pathname
  * @param {string} html
  * @param {Runtime} runtime
- * @param {{ descriptor?: import('../page.js').PageDescriptor; allowAuthored?: boolean; origin?: string; publicPathname?: string; rendererLoaders?: RuntimeMarkdownRendererLoader[]; pluginLoaders?: RuntimePluginLoader[] }} [opts]
+ * @param {{ descriptor?: import('../page.js').PageDescriptor; allowAuthored?: boolean; origin?: string; publicPathname?: string; rendererLoaders?: RuntimeMarkdownRendererLoader[]; pluginLoaders?: RuntimePluginLoader[]; failOnPluginIsolation?: boolean }} [opts]
  * @returns {Promise<import('../core/page-model.js').AeoPage | null>}
  */
 export async function pageFromHtml(pathname, html, runtime, opts = {}) {
@@ -145,7 +146,7 @@ export async function pageFromHtml(pathname, html, runtime, opts = {}) {
       validate: (value) => isPageDescriptor(value) && value.pathname === lifecyclePathname,
     });
     lifecycleDiagnostics.push(...discovered.diagnostics);
-    if (discovered.isolated) return null;
+    if (discovered.isolated) return isolatedRuntimePage(opts, 'page:discovered');
     const candidate = /** @type {import('../page.js').PageDescriptor} */ (/** @type {unknown} */ (discovered.value));
     descriptor = configuredDescriptor !== undefined || !isMinimalPageDescriptor(candidate, lifecyclePathname)
       ? candidate
@@ -232,7 +233,7 @@ export async function pageFromHtml(pathname, html, runtime, opts = {}) {
     validate: isExtractionEnvelope,
   });
   lifecycleDiagnostics.push(...extracted.diagnostics);
-  if (extracted.isolated) return null;
+  if (extracted.isolated) return isolatedRuntimePage(opts, 'page:extract');
   const extraction = /** @type {any} */ (extracted.value);
   page = {
     ...page,
@@ -247,7 +248,7 @@ export async function pageFromHtml(pathname, html, runtime, opts = {}) {
     validate: (value) => isPageRecord(value) && value.id === page.id && value.pathname === page.pathname,
   });
   lifecycleDiagnostics.push(...transformed.diagnostics);
-  if (transformed.isolated) return null;
+  if (transformed.isolated) return isolatedRuntimePage(opts, 'page:transform');
   const replacement = /** @type {import('../core/page-model.js').AeoPage} */ (/** @type {unknown} */ (transformed.value));
   page = {
     ...page,
@@ -262,7 +263,7 @@ export async function pageFromHtml(pathname, html, runtime, opts = {}) {
     pathname: lifecyclePathname,
     validate: isPageMetadata,
   });
-  if (metadata.isolated) return null;
+  if (metadata.isolated) return isolatedRuntimePage(opts, 'page:metadata');
   page = {
     ...page,
     metadata: /** @type {import('../core/page-model.js').AeoPage['metadata']} */ (metadata.value),
@@ -300,6 +301,21 @@ export async function enrichRuntimePageGraph(html, page, runtime, opts = {}) {
   const loaders = opts.pluginLoaders ?? [];
   if (loaders.length === 0) return { ...internal, isolated: false };
 
+  const inspected = enrichHtmlHead({
+    html,
+    page,
+    config: runtime.config,
+    site: runtime.site,
+    allowGlobal: opts.allowGlobal ?? true,
+    inspectAuthored: true,
+    breadcrumbTrail: catalogBreadcrumbTrail(page.pathname, catalogDescriptors, runtime.site),
+  });
+  const baseline = { ...internal, authoredGraph: inspected.authoredGraph };
+  const inspectedDiagnostics = uniqueDiagnostics([
+    ...internal.diagnostics,
+    ...inspected.diagnostics,
+  ]);
+
   const plugins = await loadRuntimePlugins(loaders, runtime.command);
   const initial = {
     html: internal.html,
@@ -325,11 +341,37 @@ export async function enrichRuntimePageGraph(html, page, runtime, opts = {}) {
       normalizedGraph: undefined,
       explicit: internal.explicit,
       canonicalUrl: internal.canonicalUrl,
-      diagnostics: [...internal.diagnostics, ...semantic.diagnostics],
+      diagnostics: uniqueDiagnostics([
+        ...inspectedDiagnostics,
+        ...semantic.diagnostics,
+      ]),
       isolated: true,
     };
   }
-  const value = /** @type {any} */ (semantic.value);
+  const reconciled = reconcileSemanticEnvelope({
+    baseline,
+    value: /** @type {any} */ (semantic.value),
+    siteUrl: siteScopeUrl(runtime.site.siteUrl, runtime.site.base),
+    strictReferences: runtime.config.schema.strictReferences,
+    pathname: page.pathname,
+  });
+  if (!reconciled.valid) {
+    return {
+      html: stripAeoHeadMarkers(html),
+      page: internal.page,
+      graph: null,
+      normalizedGraph: undefined,
+      explicit: internal.explicit,
+      canonicalUrl: internal.canonicalUrl,
+      diagnostics: uniqueDiagnostics([
+        ...inspectedDiagnostics,
+        ...semantic.diagnostics,
+        ...reconciled.diagnostics,
+      ]),
+      isolated: true,
+    };
+  }
+  const value = reconciled.value;
   return {
     html: value.html,
     page: value.page,
@@ -339,7 +381,11 @@ export async function enrichRuntimePageGraph(html, page, runtime, opts = {}) {
     canonicalUrl: typeof value.page?.canonicalUrl === 'string'
       ? value.page.canonicalUrl
       : internal.canonicalUrl,
-    diagnostics: [...internal.diagnostics, ...semantic.diagnostics],
+    diagnostics: uniqueDiagnostics([
+      ...inspectedDiagnostics,
+      ...semantic.diagnostics,
+      ...reconciled.diagnostics,
+    ]),
     isolated: false,
   };
 }
@@ -348,7 +394,7 @@ export async function enrichRuntimePageGraph(html, page, runtime, opts = {}) {
  * @param {string} mdPathname
  * @param {Runtime} runtime
  * @param {HtmlFetcher} fetchHtml
- * @param {{ catalogLoaders?: RuntimeCatalogLoader[]; rendererLoaders?: RuntimeMarkdownRendererLoader[]; pluginLoaders?: RuntimePluginLoader[]; origin?: string; publicPathname?: string }} [opts]
+ * @param {{ catalogLoaders?: RuntimeCatalogLoader[]; rendererLoaders?: RuntimeMarkdownRendererLoader[]; pluginLoaders?: RuntimePluginLoader[]; origin?: string; publicPathname?: string; failOnPluginIsolation?: boolean; requireSuccessfulSource?: boolean }} [opts]
  * @returns {Promise<MarkdownResult>}
  */
 export async function serveMarkdown(mdPathname, runtime, fetchHtml, opts = {}) {
@@ -381,6 +427,9 @@ export async function serveMarkdown(mdPathname, runtime, fetchHtml, opts = {}) {
   if (loaded.response.status >= 300 && loaded.response.status < 400) {
     return { body: null, source: loaded.response };
   }
+  if (opts.requireSuccessfulSource && !loaded.response.ok) {
+    return { body: null, source: loaded.response };
+  }
 
   const page = await pageFromHtml(
     pagePath,
@@ -393,6 +442,7 @@ export async function serveMarkdown(mdPathname, runtime, fetchHtml, opts = {}) {
       publicPathname,
       rendererLoaders: opts.rendererLoaders,
       pluginLoaders: opts.pluginLoaders,
+      failOnPluginIsolation: opts.failOnPluginIsolation,
     },
   );
   if (!page || page.aeoTokens.includes('no-dotmd') || page.directives.generateMarkdown === false) {
@@ -523,13 +573,22 @@ export async function serveSchemaCorpus(kind, runtime, fetchHtml, opts = {}) {
       cancelResponseBody(loaded?.response);
       return null;
     }
-    const page = await pageFromHtml(target.pathname, loaded.html, runtime, {
-      descriptor: target.descriptor,
-      origin: opts.origin,
-      publicPathname: target.publicPathname,
-      rendererLoaders: opts.rendererLoaders,
-      pluginLoaders: opts.pluginLoaders,
-    });
+    let page;
+    try {
+      page = await pageFromHtml(target.pathname, loaded.html, runtime, {
+        descriptor: target.descriptor,
+        origin: opts.origin,
+        publicPathname: target.publicPathname,
+        rendererLoaders: opts.rendererLoaders,
+        pluginLoaders: opts.pluginLoaders,
+        failOnPluginIsolation: true,
+      });
+    } catch (error) {
+      if (error instanceof RuntimePageLifecycleError) {
+        throw new RuntimeSchemaCorpusError('A runtime page plugin isolated a collected page.');
+      }
+      throw error;
+    }
     if (!page) return null;
     const enriched = await enrichRuntimePageGraph(loaded.html, page, runtime, {
       pluginLoaders: opts.pluginLoaders,
@@ -539,7 +598,12 @@ export async function serveSchemaCorpus(kind, runtime, fetchHtml, opts = {}) {
     if (enriched.isolated) {
       throw new RuntimeSchemaCorpusError('A runtime graph plugin isolated a collected page.');
     }
-    if (enriched.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
+    const diagnostics = [
+      ...page.diagnostics,
+      ...(enriched.page?.diagnostics ?? []),
+      ...enriched.diagnostics,
+    ];
+    if (diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
       throw new RuntimeSchemaCorpusError('A collected page failed semantic validation.');
     }
     const graph = enriched.normalizedGraph ?? enriched.graph;
@@ -548,6 +612,7 @@ export async function serveSchemaCorpus(kind, runtime, fetchHtml, opts = {}) {
   const graphPath = `${basePrefix(runtime.site.base)}${runtime.config.schema.corpus.graphPath}`;
   const pair = renderSchemaCorpus(records, {
     graphUrl: new URL(graphPath, siteUrl).href,
+    siteUrl: siteScopeUrl(siteUrl, runtime.site.base) ?? siteUrl,
     strictReferences: runtime.config.schema.strictReferences,
   });
   return kind === 'schema-map' ? pair.map : pair.graph;
@@ -559,6 +624,47 @@ export class RuntimeSchemaCorpusError extends Error {
     super(`astro-aeo: ${message}`);
     this.name = 'RuntimeSchemaCorpusError';
   }
+}
+
+export class RuntimePageLifecycleError extends Error {
+  /** @param {string} stage */
+  constructor(stage) {
+    super(`astro-aeo: a runtime page plugin isolated ${stage}.`);
+    this.name = 'RuntimePageLifecycleError';
+  }
+}
+
+/**
+ * Ordinary page and Markdown callers retain the established null result when a
+ * plugin is isolated. Ownership and corpus callers opt into an exception so a
+ * failed lifecycle cannot silently transfer or omit output.
+ *
+ * @param {{ failOnPluginIsolation?: boolean }} opts
+ * @param {string} stage
+ * @returns {null}
+ */
+function isolatedRuntimePage(opts, stage) {
+  if (opts.failOnPluginIsolation) throw new RuntimePageLifecycleError(stage);
+  return null;
+}
+
+/** @param {import('../index.js').Diagnostic[]} diagnostics */
+function uniqueDiagnostics(diagnostics) {
+  const seen = new Set();
+  return diagnostics.filter((diagnostic) => {
+    const key = JSON.stringify([
+      diagnostic.version,
+      diagnostic.code,
+      diagnostic.severity,
+      diagnostic.message,
+      diagnostic.pathname ?? null,
+      diagnostic.sourcePath ?? null,
+      diagnostic.details ?? null,
+    ]);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /** @param {import('../page.js').PageDescriptor} value @param {string} pathname */

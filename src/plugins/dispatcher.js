@@ -83,9 +83,14 @@ export async function createPluginDispatcher({ plugins = [], internalPlugins = [
         entrypoint: plugin.runtime.entrypoint instanceof URL
           ? plugin.runtime.entrypoint.href
           : plugin.runtime.entrypoint,
-        options: plugin.runtime.options === undefined
-          ? null
-          : cloneJsonValue(plugin.runtime.options, `plugin ${plugin.name} runtime options`),
+        ...(plugin.runtime.options === undefined
+          ? {}
+          : {
+              options: cloneJsonValue(
+                plugin.runtime.options,
+                `plugin ${plugin.name} runtime options`,
+              ),
+            }),
         stages: PLUGIN_STAGES.filter((stage) => hooks.get(stage)?.some((item) => item.plugin === plugin.name)),
         claims: claims
           .filter((claim) => claim.plugin === plugin.name)

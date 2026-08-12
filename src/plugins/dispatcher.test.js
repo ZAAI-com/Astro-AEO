@@ -139,6 +139,28 @@ describe('plugin dispatcher', () => {
     expect(dispatcher.runtimeManifest.plugins[0]).toMatchObject({ name: 'feed', stages: [] });
   });
 
+  test('distinguishes omitted runtime options from explicit null', async () => {
+    const omitted = await createPluginDispatcher({
+      command: 'build',
+      plugins: [{
+        name: 'omitted', apiVersion: 1,
+        runtime: { entrypoint: './omitted.js' },
+        setup() {},
+      }],
+    });
+    const explicit = await createPluginDispatcher({
+      command: 'build',
+      plugins: [{
+        name: 'explicit', apiVersion: 1,
+        runtime: { entrypoint: './explicit.js', options: null },
+        setup() {},
+      }],
+    });
+
+    expect(omitted.runtimeManifest.plugins[0]).not.toHaveProperty('options');
+    expect(explicit.runtimeManifest.plugins[0]).toHaveProperty('options', null);
+  });
+
   test('uses the configuration exact-path contract for encoded claims', async () => {
     const encoded = await createPluginDispatcher({
       command: 'build',

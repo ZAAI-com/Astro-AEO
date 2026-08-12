@@ -386,6 +386,38 @@ describe('runtime schema corpus middleware', () => {
     expect(result.next).not.toHaveBeenCalled();
   });
 
+  test('returns 500 when page lifecycle diagnostics contain an error', async () => {
+    RUNTIME_PLUGIN_LOADERS.push({
+      name: 'page-validator',
+      module: './page-validator.js',
+      stages: ['page:metadata'],
+      claims: [],
+      load: async () => ({
+        name: 'page-validator',
+        apiVersion: 1,
+        setup(api) {
+          api.on('page:metadata', () => ({
+            action: 'keep',
+            diagnostics: [{
+              code: 'invalid-page-metadata',
+              severity: 'error',
+              message: 'private validation details',
+            }],
+          }));
+        },
+      }),
+    });
+
+    const result = await requestCorpus('/schema/graph.jsonld');
+
+    expect(result.response.status).toBe(500);
+    expect(result.response.headers.get('cache-control')).toBe('no-store');
+    expect(await result.response.text()).toBe(
+      'astro-aeo: the semantic corpus is temporarily unavailable.\n',
+    );
+    expect(result.next).not.toHaveBeenCalled();
+  });
+
   test.each([
     ['/schema/graph.jsonld', 'GET'],
     ['/schema/graph.jsonld', 'HEAD'],

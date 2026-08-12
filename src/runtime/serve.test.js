@@ -12,6 +12,7 @@ import {
   serveSchemaCorpus,
 } from './serve.js';
 import mdxRenderer from '../adapters/mdx.js';
+import { createGraph } from '../schema.js';
 
 const html = (title = 'Page') =>
   `<!doctype html><html><head><title>${title}</title></head><body><main><h1>${title}</h1></main></body></html>`;
@@ -335,6 +336,158 @@ describe('request-time plugin page lifecycle', () => {
       details: { plugin: 'broken-graph', stage: 'graph:build' },
     });
   });
+
+  test('reconciles graph-only runtime replacements and preserves authored JSON-LD', async () => {
+    const authoredScript = '<script type="application/ld+json">{"@context":"https://schema.org","@type":"Person","@id":"#author","name":"Authored"}</script>';
+    const source = `<!doctype html><html><head><title>Page</title>${authoredScript}</head><body><main>Page</main></body></html>`;
+    const pluginLoaders = [{
+      name: 'managed-runtime-replacement',
+      module: './managed-runtime-replacement.js',
+      stages: ['graph:build'],
+      claims: [],
+      load: async () => ({
+        name: 'managed-runtime-replacement',
+        apiVersion: 1,
+        setup(api) {
+          api.on('graph:build', ({ value }) => ({
+            action: 'replace',
+            value: {
+              ...value,
+              graph: createGraph([{
+                '@id': 'https://example.com/page#replacement',
+                '@type': 'Thing',
+                name: 'Runtime managed replacement',
+              }]),
+            },
+          }));
+        },
+      }),
+    }];
+    const pageRuntime = runtime();
+    const page = await pageFromHtml('/page', source, pageRuntime, { pluginLoaders });
+    const enriched = await enrichRuntimePageGraph(source, page, pageRuntime, { pluginLoaders });
+
+    expect(enriched.isolated).toBe(false);
+    expect(enriched.html).toContain(authoredScript);
+    expect(enriched.html).toContain('Runtime managed replacement');
+    expect(enriched.html.match(/"name":"Authored"/g)).toHaveLength(1);
+  });
+
+  test('derives runtime managed output from normalized-only replacements', async () => {
+    const pluginLoaders = [{
+      name: 'normalized-runtime-replacement',
+      module: './normalized-runtime-replacement.js',
+      stages: ['graph:build'],
+      claims: [],
+      load: async () => ({
+        name: 'normalized-runtime-replacement',
+        apiVersion: 1,
+        setup(api) {
+          api.on('graph:build', ({ value }) => ({
+            action: 'replace',
+            value: {
+              ...value,
+              normalizedGraph: createGraph([
+                ...value.normalizedGraph.entries,
+                {
+                  '@id': 'https://example.com/page#faq',
+                  '@type': 'FAQPage',
+                  name: 'Runtime normalized replacement',
+                },
+              ]),
+            },
+          }));
+        },
+      }),
+    }];
+    const pageRuntime = runtime();
+    const source = html();
+    const page = await pageFromHtml('/page', source, pageRuntime, { pluginLoaders });
+    const enriched = await enrichRuntimePageGraph(source, page, pageRuntime, { pluginLoaders });
+
+    expect(enriched.isolated).toBe(false);
+    expect(enriched.html).toContain('Runtime normalized replacement');
+    expect(enriched.graph.entries.some(({ entity }) => entity.name === 'Runtime normalized replacement'))
+      .toBe(true);
+  });
+
+  test('isolates inconsistent runtime graph replacements without exposing values', async () => {
+    const pluginLoaders = [{
+      name: 'inconsistent-runtime-graphs',
+      module: './inconsistent-runtime-graphs.js',
+      stages: ['graph:build'],
+      claims: [],
+      load: async () => ({
+        name: 'inconsistent-runtime-graphs',
+        apiVersion: 1,
+        setup(api) {
+          api.on('graph:build', ({ value }) => ({
+            action: 'replace',
+            value: {
+              ...value,
+              graph: createGraph([{
+                '@id': 'https://example.com/page#secret-managed',
+                '@type': 'Thing',
+                name: 'SECRET MANAGED VALUE',
+              }]),
+              normalizedGraph: createGraph([{
+                '@id': 'https://example.com/page#different',
+                '@type': 'Thing',
+                name: 'SECRET NORMALIZED VALUE',
+              }]),
+            },
+          }));
+        },
+      }),
+    }];
+    const pageRuntime = runtime();
+    const source = html();
+    const page = await pageFromHtml('/page', source, pageRuntime, { pluginLoaders });
+    const enriched = await enrichRuntimePageGraph(source, page, pageRuntime, { pluginLoaders });
+
+    expect(enriched.isolated).toBe(true);
+    expect(enriched.html).toBe(source);
+    expect(enriched.diagnostics).toContainEqual(expect.objectContaining({
+      code: 'plugin-graph-inconsistent',
+      severity: 'error',
+      pathname: '/page',
+    }));
+    expect(JSON.stringify(enriched)).not.toContain('SECRET');
+  });
+
+  test('retains inspect-only authored diagnostics once when graph hooks run', async () => {
+    const pluginLoaders = [{
+      name: 'inspect-authored',
+      module: './inspect-authored.js',
+      stages: ['graph:build'],
+      claims: [],
+      load: async () => ({
+        name: 'inspect-authored',
+        apiVersion: 1,
+        setup(api) {
+          api.on('graph:build', () => ({ action: 'keep' }));
+        },
+      }),
+    }];
+    const pageRuntime = runtime();
+    pageRuntime.config = resolveConfig({
+      schema: { autoInject: false, corpus: { enabled: false } },
+    });
+    const source = '<!doctype html><html><head>' +
+      '<title>Page</title><title>Page</title>' +
+      '<script type="application/ld+json">{"@type":"Thing",}</script>' +
+      '</head><body><main>Page</main></body></html>';
+    const page = await pageFromHtml('/page', source, pageRuntime, { pluginLoaders });
+
+    const enriched = await enrichRuntimePageGraph(source, page, pageRuntime, { pluginLoaders });
+
+    expect(enriched.isolated).toBe(false);
+    expect(enriched.graph).toBeNull();
+    expect(enriched.diagnostics.filter(({ code }) => code === 'authored-jsonld-malformed'))
+      .toHaveLength(1);
+    expect(enriched.diagnostics.filter(({ code }) => code === 'metadata-duplicate'))
+      .toHaveLength(1);
+  });
 });
 
 describe('request-time corpus limits', () => {
@@ -571,6 +724,67 @@ describe('request-time schema corpus', () => {
         '<script type="application/ld+json">{"@type":"Thing",}</script></head>',
       )),
     )).rejects.toBeInstanceOf(RuntimeSchemaCorpusError);
+  });
+
+  test('fails closed when a page lifecycle hook throws during collection', async () => {
+    const schemaRuntime = runtime(['/page']);
+    schemaRuntime.config = resolveConfig({ schema: { corpus: { enabled: true } } });
+    const pluginLoaders = [{
+      name: 'throwing-metadata',
+      module: './throwing-metadata.js',
+      stages: ['page:metadata'],
+      claims: [],
+      load: async () => ({
+        name: 'throwing-metadata',
+        apiVersion: 1,
+        setup(api) {
+          api.on('page:metadata', () => {
+            throw new Error('private lifecycle details');
+          });
+        },
+      }),
+    }];
+
+    await expect(serveSchemaCorpus(
+      'schema-graph',
+      schemaRuntime,
+      async () => loaded(),
+      { pluginLoaders },
+    )).rejects.toBeInstanceOf(RuntimeSchemaCorpusError);
+  });
+
+  test('keeps lifecycle warnings non-fatal during collection', async () => {
+    const schemaRuntime = runtime(['/page']);
+    schemaRuntime.config = resolveConfig({ schema: { corpus: { enabled: true } } });
+    const pluginLoaders = [{
+      name: 'warning-metadata',
+      module: './warning-metadata.js',
+      stages: ['page:metadata'],
+      claims: [],
+      load: async () => ({
+        name: 'warning-metadata',
+        apiVersion: 1,
+        setup(api) {
+          api.on('page:metadata', () => ({
+            action: 'keep',
+            diagnostics: [{
+              code: 'metadata-warning',
+              severity: 'warning',
+              message: 'private warning details',
+            }],
+          }));
+        },
+      }),
+    }];
+
+    const result = await serveSchemaCorpus(
+      'schema-graph',
+      schemaRuntime,
+      async () => loaded(),
+      { pluginLoaders },
+    );
+
+    expect(result.body).toContain('https://example.com/page/#webpage');
   });
 });
 

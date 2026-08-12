@@ -1,6 +1,7 @@
 // @ts-check
 import { immutableJsonValue } from '../core/json-value.js';
 import { assertExactPathname, matchesExactPathname } from '../core/artifact-path.js';
+import { inspectRootPathname } from '../core/match.js';
 import { textResponse } from './respond.js';
 
 const PLUGIN_STAGES = new Set([
@@ -404,7 +405,8 @@ function validateRuntimeModule(implementation, loader) {
   if (
     !implementation ||
     typeof implementation !== 'object' ||
-    plugin.name !== loader.name ||
+    typeof plugin.name !== 'string' ||
+    plugin.name.trim() !== loader.name.trim() ||
     plugin.apiVersion !== 1 ||
     typeof plugin.setup !== 'function'
   ) {
@@ -412,12 +414,13 @@ function validateRuntimeModule(implementation, loader) {
   }
 }
 
-/** @param {unknown} value @param {{ id: string; pathname: string }} expected @param {boolean} requireRepresentation @returns {value is { claim: { id: string; pathname: string }; representation: { body: string; contentType: string } }} */
+/** @param {unknown} value @param {{ id: string; pathname: string; replace?: boolean }} expected @param {boolean} requireRepresentation @returns {value is { claim: { id: string; pathname: string; replace?: boolean }; representation: { body: string; contentType: string } }} */
 function isArtifactEnvelope(value, expected, requireRepresentation) {
   if (!value || typeof value !== 'object') return false;
   const envelope = /** @type {any} */ (value);
   const claim = envelope.claim;
-  if (!claim || claim.id !== expected.id || claim.pathname !== expected.pathname) return false;
+  if (!claim || claim.id !== expected.id || claim.pathname !== expected.pathname ||
+    claim.replace !== expected.replace) return false;
   return requireRepresentation ? isRepresentation(envelope.representation) : true;
 }
 
@@ -493,14 +496,11 @@ function isExactClaim(claim) {
 
 /** @param {string} pathname */
 function isSafePagePathname(pathname) {
-  if (typeof pathname !== 'string' || !pathname.startsWith('/') || pathname === '/') return false;
-  if ([...pathname].some((character) => {
-    const code = character.charCodeAt(0);
-    return code < 32 || code === 127;
-  })) return false;
+  if (typeof pathname !== 'string' || inspectRootPathname(pathname) === null) return false;
+  if (pathname === '/') return true;
   if (pathname.startsWith('//') || pathname.endsWith('/') || /[\\?#*{}\[\]]/.test(pathname)) return false;
   if (pathname.includes('//')) return false;
-  return !pathname.split('/').some((part) => part === '.' || part === '..');
+  return true;
 }
 
 /** @param {{ id: string; pathname: string; replace?: boolean }} left @param {{ id: string; pathname: string; replace?: boolean }} right */
