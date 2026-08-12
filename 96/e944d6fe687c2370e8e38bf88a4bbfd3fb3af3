@@ -1,0 +1,22 @@
+src/runtime/serve.test.js
+  s_f53d64c7cb70e2::t_9542041fb3baf0 720-721
+src/runtime/serve.js
+  s_f53d64c7cb70e2::t_816865022e8ec0 906-908,912
+  s_f53d64c7cb70e2::t_f6c34d0ccea7d3 909-911,913-918
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "96e944d6fe687c2370e8e38bf88a4bbfd3fb3af3",
+  "prompts": {},
+  "sessions": {
+    "s_f53d64c7cb70e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ff6aa-27ed-7770-b7c5-24919862bb2d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
