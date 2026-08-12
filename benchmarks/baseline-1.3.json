@@ -9,31 +9,31 @@
     "runnerClass": "portable-size-only"
   },
   "package": {
-    "packedBytes": 254831,
-    "unpackedBytes": 1037673,
+    "packedBytes": 256269,
+    "unpackedBytes": 1043119,
     "files": 111
   },
   "bundles": {
     "node": {
       "files": 33,
-      "rawBytes": 1509958,
-      "gzipBytes": 354164,
-      "deltaRawBytes": 263502,
-      "deltaGzipBytes": 63797,
-      "baseline": { "files": 31, "rawBytes": 1246456, "gzipBytes": 290367 }
+      "rawBytes": 1638840,
+      "gzipBytes": 383338,
+      "deltaRawBytes": 392423,
+      "deltaGzipBytes": 92986,
+      "baseline": { "files": 31, "rawBytes": 1246417, "gzipBytes": 290352 }
     },
     "cloudflare": {
       "files": 36,
-      "rawBytes": 1690988,
-      "gzipBytes": 408608,
-      "deltaRawBytes": 1037882,
-      "deltaGzipBytes": 239631,
-      "baseline": { "files": 33, "rawBytes": 653106, "gzipBytes": 168977 }
+      "rawBytes": 1819872,
+      "gzipBytes": 437820,
+      "deltaRawBytes": 1166800,
+      "deltaGzipBytes": 268856,
+      "baseline": { "files": 33, "rawBytes": 653072, "gzipBytes": 168964 }
     }
   },
   "notes": [
     "The 1.3 package byte counts were measured after the complete discovery implementation.",
-    "Adapter bundle measurements retain the stabilized 1.2 reference until the full release gate refreshes them.",
+    "Adapter bundle measurements were refreshed by the complete 1.3 release gate.",
     "Timing and memory values are omitted because this shared machine is not a controlled runner."
   ]
 }
