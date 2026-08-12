@@ -95,4 +95,45 @@ describe('processing cache', () => {
     expect(writer.deletes).toEqual([]);
     cache.close();
   });
+
+  test('reuses 10,000 unchanged pages and reconverts exactly one edited page', () => {
+    const root = project();
+    const pages = Array.from({ length: 10_000 }, (_, index) => ({ id: `/page-${index}`, body: `body-${index}` }));
+    let conversions = 0;
+    const cold = openProcessingCache(root, { enabled: true });
+    for (const page of pages) {
+      const key = cold.key('extraction-v1', page);
+      if (cold.get(key) === undefined) {
+        conversions++;
+        cold.put(key, { markdown: '# Shared normalized payload' });
+      }
+    }
+    expect(conversions).toBe(10_000);
+    const writer = memoryWriter();
+    cold.stage(writer);
+    writer.apply();
+    cold.close();
+
+    conversions = 0;
+    const warm = openProcessingCache(root, { enabled: true });
+    for (const page of pages) {
+      const key = warm.key('extraction-v1', page);
+      if (warm.get(key) === undefined) conversions++;
+    }
+    expect(conversions).toBe(0);
+    warm.close();
+
+    pages[4_321] = { ...pages[4_321], body: 'one edited body' };
+    conversions = 0;
+    const edited = openProcessingCache(root, { enabled: true });
+    for (const page of pages) {
+      const key = edited.key('extraction-v1', page);
+      if (edited.get(key) === undefined) {
+        conversions++;
+        edited.put(key, { markdown: '# Shared normalized payload' });
+      }
+    }
+    expect(conversions).toBe(1);
+    edited.close();
+  });
 });
