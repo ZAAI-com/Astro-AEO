@@ -1,0 +1,24 @@
+CHANGELOG.md
+  s_f140af05ef6abf::t_928e2494dd7771 51-56,66-68
+README.md
+  s_f140af05ef6abf::t_928e2494dd7771 728-732,741-744,774-777
+.changeset/calm-buffaloes-stabilize.md
+  s_f140af05ef6abf::t_6eefe98449e65a 6-7
+  s_f140af05ef6abf::t_928e2494dd7771 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "bede6b26c18bf5bd7d051efd2e07f68a48d7a415",
+  "prompts": {},
+  "sessions": {
+    "s_f140af05ef6abf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ff625-1250-79c0-9929-8cdf6d898d91",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
