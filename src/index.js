@@ -167,6 +167,7 @@ export default function aeo(userConfig = {}) {
             sitemapState,
             () => ({ routePaths: resolvedRoutePaths, routeMatchers: resolvedRouteMatchers, publicDir }),
             () => artifactWriter,
+            (diagnostic) => buildDiagnostics.push(diagnostic),
           ),
         );
         updateConfig({
@@ -561,9 +562,10 @@ function isRuntimeFallbackEntrypoint(entrypoint, projectRoot) {
  * @param {{ expected: boolean; siteUrl: string; base: string }} state
  * @param {() => { routePaths: Set<string>; routeMatchers: { pattern: RegExp; prerendered: boolean }[]; publicDir: URL | undefined }} collisionInputs
  * @param {() => ReturnType<typeof createArtifactWriter> | undefined} retainedWriter
+ * @param {(diagnostic: import('./index.js').Diagnostic) => void} [onDiagnostic]
  * @returns {import('astro').AstroIntegration}
  */
-function sitemapFinalizerIntegration(config, state, collisionInputs, retainedWriter) {
+function sitemapFinalizerIntegration(config, state, collisionInputs, retainedWriter, onDiagnostic) {
   return {
     name: 'astro-aeo/sitemap-finalizer',
     hooks: {
@@ -585,6 +587,7 @@ function sitemapFinalizerIntegration(config, state, collisionInputs, retainedWri
           logger,
           ...inputs,
           writer,
+          onDiagnostic,
         });
         writer.report();
       },

@@ -5,6 +5,7 @@ import {
   mkdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
@@ -60,6 +61,115 @@ function environment(root, dispatcher, diagnostics = []) {
 const logger = { info() {}, warn() {} };
 
 describe('staged build plugin pipeline', () => {
+  test('prepares IndexNow state atomically without resolving or submitting a key', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    const resolved = config({
+      discovery: {
+        sitemap: { mode: 'disabled' },
+        indexNow: {
+          enabled: true,
+          state: 'public',
+          key: { source: 'env', name: 'INDEXNOW_BUILD_KEY' },
+        },
+      },
+    });
+    const writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, undefined),
+    );
+    const publicPath = join(files.dist, '.well-known', 'astro-aeo-indexnow-v1.json');
+    const privateRoot = join(files.root, '.astro', 'aeo-cache', 'indexnow');
+    expect(existsSync(publicPath)).toBe(false);
+    expect(existsSync(join(privateRoot, 'pending-v1.json'))).toBe(false);
+
+    writer.commit();
+
+    const state = JSON.parse(readFileSync(publicPath, 'utf8'));
+    const queue = JSON.parse(readFileSync(join(privateRoot, 'pending-v1.json'), 'utf8'));
+    const prepare = JSON.parse(readFileSync(join(privateRoot, 'prepare-input-v1.json'), 'utf8'));
+    expect(state).toMatchObject({ version: 1, origin: 'https://example.test' });
+    expect(state.current.urls).toHaveLength(1);
+    expect(queue.origins[0]).toMatchObject({
+      origin: 'https://example.test',
+      mode: 'public',
+      targetDigest: state.digest,
+      key: { source: 'env', name: 'INDEXNOW_BUILD_KEY' },
+    });
+    expect(queue.origins[0].operations).toEqual([{
+      url: 'https://example.test/',
+      operation: 'upsert',
+      fingerprint: state.current.urls[0].fingerprint,
+    }]);
+    expect(prepare.current).toEqual(state.current.urls);
+    expect(readFileSync(publicPath, 'utf8')).not.toContain('INDEXNOW_BUILD_KEY');
+    expect(statSync(privateRoot).mode & 0o777).toBe(0o700);
+    for (const filename of ['pending-v1.json', 'ack-v1.json', 'prepare-input-v1.json']) {
+      expect(statSync(join(privateRoot, filename)).mode & 0o777).toBe(0o600);
+    }
+  });
+
+  test('uses acknowledged fingerprints to queue removals without resubmitting unchanged pages', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    const resolved = config({
+      discovery: { sitemap: { mode: 'disabled' }, indexNow: { enabled: true, state: 'private' } },
+    });
+    let writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, undefined),
+    );
+    writer.commit();
+    const privateRoot = join(files.root, '.astro', 'aeo-cache', 'indexnow');
+    const firstQueue = JSON.parse(readFileSync(join(privateRoot, 'pending-v1.json'), 'utf8'));
+    const current = firstQueue.origins[0].operations[0];
+    writeFileSync(join(privateRoot, 'ack-v1.json'), `${JSON.stringify({
+      version: 1,
+      origins: [{
+        origin: 'https://example.test',
+        acknowledged: [
+          { url: current.url, fingerprint: current.fingerprint },
+          { url: 'https://example.test/removed', fingerprint: 'sha256:' + 'a'.repeat(64) },
+        ],
+      }],
+    }, null, 2)}\n`);
+
+    writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, undefined),
+    );
+    writer.commit();
+    const secondQueue = JSON.parse(readFileSync(join(privateRoot, 'pending-v1.json'), 'utf8'));
+    expect(secondQueue.origins[0].operations).toEqual([
+      { url: 'https://example.test/removed', operation: 'remove' },
+    ]);
+    expect(existsSync(join(files.dist, '.well-known', 'astro-aeo-indexnow-v1.json'))).toBe(false);
+  });
+
+  test('does not advance private IndexNow state when its public path is externally owned', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    const stateRoute = '/.well-known/astro-aeo-indexnow-v1.json';
+    const diagnostics = [];
+    const resolved = config({
+      discovery: { sitemap: { mode: 'disabled' }, indexNow: { enabled: true, state: 'public' } },
+    });
+    const env = environment(files.root, undefined, diagnostics);
+    env.resolvedRoutePaths = new Set(['/', stateRoute]);
+    const writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      env,
+    );
+    expect(() => writer.commit()).toThrow(/artifact validation failed/u);
+    expect(diagnostics).toContainEqual(expect.objectContaining({
+      code: 'indexnow-state-unavailable',
+      severity: 'error',
+      pathname: stateRoute,
+    }));
+    expect(existsSync(join(files.root, '.astro', 'aeo-cache', 'indexnow', 'pending-v1.json'))).toBe(false);
+  });
+
   test('recommended validation includes page-local diagnostics at commit time', async () => {
     const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
     const diagnostics = [];

@@ -9,12 +9,14 @@ describe('isOwnedArtifactPath', () => {
       discovery: {
         robots: { enabled: true },
         sitemap: { alias: { outputFilename: 'index/sitemap.xml' } },
+        indexNow: { enabled: true },
       },
     });
     for (const path of [
       '/llms.txt',
       '/llms-full.txt',
       '/robots.txt',
+      '/.well-known/astro-aeo-indexnow-v1.json',
       '/.well-known/domain-profile.json',
       '/index/sitemap.xml',
     ]) {
@@ -29,6 +31,7 @@ describe('isOwnedArtifactPath', () => {
     });
     expect(isOwnedArtifactPath('/llms.txt', config)).toBe(false);
     expect(isOwnedArtifactPath('/sitemap.xml', config)).toBe(false);
+    expect(isOwnedArtifactPath('/.well-known/astro-aeo-indexnow-v1.json', config)).toBe(false);
   });
 
   test('recognizes encoded schema paths in public and request spellings', () => {
