@@ -114,6 +114,51 @@ describe('published configuration schema', () => {
       expect(conforms(invalid), JSON.stringify(invalid)).toBe(false);
     }
   });
+
+  test('publishes the 1.3 corpus, locale, cache, crawler, and IndexNow contracts', () => {
+    expect(conforms({
+      corpus: {
+        small: { enabled: true, maxTokens: 20_000 },
+        chunks: { enabled: true, maxTokensPerFile: 100_000, by: 'section' },
+        manifest: { enabled: true },
+        tokenizer: { module: './tokenizer.js', options: { encoding: 'example' } },
+        compression: { gzip: true },
+      },
+      i18n: { indexes: 'both', unresolvedLanguage: 'exclude' },
+      cache: { enabled: false },
+      discovery: {
+        robots: {
+          policy: 'retrieval-only',
+          contentSignals: { search: true, aiInput: true, aiTrain: false },
+        },
+        indexNow: {
+          enabled: true,
+          submit: 'changed',
+          state: 'private',
+          key: { source: 'env', name: 'INDEXNOW_KEY' },
+          keyLocation: '/indexnow.txt',
+          origins: [{ origin: 'https://example.com', key: { source: 'file', path: '/run/secrets/key' } }],
+        },
+      },
+    })).toBe(true);
+
+    for (const invalid of [
+      { corpus: { small: { maxTokens: 0 } } },
+      { corpus: { chunks: { maxTokensPerFile: 1.5 } } },
+      { corpus: { chunks: { by: 'page' } } },
+      { corpus: { tokenizer: {} } },
+      { i18n: { indexes: 'everywhere' } },
+      { i18n: { unresolvedLanguage: 'guess' } },
+      { discovery: { robots: { policy: 'unknown' } } },
+      { discovery: { robots: { policy: 'open', universalAllow: true } } },
+      { discovery: { robots: { contentSignals: { search: true, aiInput: false } } } },
+      { discovery: { indexNow: { key: { source: 'literal', value: 'secret' } } } },
+      { discovery: { indexNow: { key: { source: 'env', name: 'NOT VALID' } } } },
+      { discovery: { indexNow: { keyLocation: '/key.txt?secret=yes' } } },
+    ]) {
+      expect(conforms(invalid), JSON.stringify(invalid)).toBe(false);
+    }
+  });
 });
 
 function conforms(value) {
@@ -123,6 +168,10 @@ function conforms(value) {
 function matches(value, schema) {
   if (schema.$ref) return matches(value, resolveReference(schema.$ref));
   if (schema.anyOf && !schema.anyOf.some((candidate) => matches(value, candidate))) return false;
+  if (schema.oneOf && schema.oneOf.filter((candidate) => matches(value, candidate)).length !== 1) return false;
+  if (schema.allOf && !schema.allOf.every((candidate) => matches(value, candidate))) return false;
+  if (schema.not && matches(value, schema.not)) return false;
+  if (schema.if && matches(value, schema.if) && schema.then && !matches(value, schema.then)) return false;
   if ('const' in schema && value !== schema.const) return false;
   if (schema.enum && !schema.enum.includes(value)) return false;
 
@@ -135,13 +184,14 @@ function matches(value, schema) {
   if (schema.type === 'integer') {
     if (!Number.isInteger(value)) return false;
     if (schema.minimum !== undefined && value < schema.minimum) return false;
+    if (schema.maximum !== undefined && value > schema.maximum) return false;
   }
   if (schema.type === 'array') {
     if (!Array.isArray(value)) return false;
     if (schema.minItems !== undefined && value.length < schema.minItems) return false;
     if (schema.items && value.some((item) => !matches(item, schema.items))) return false;
   }
-  if (schema.type === 'object') {
+  if (schema.type === 'object' || (isObject(value) && (schema.required || schema.properties))) {
     if (!isObject(value)) return false;
     if (schema.required?.some((key) => !(key in value))) return false;
     for (const [key, child] of Object.entries(value)) {

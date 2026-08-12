@@ -1,5 +1,5 @@
 import type { AeoPageProps } from '../components/index.js';
-import type { ExtractionDiagnostics } from './index.js';
+import type { ExtractionDiagnostics, PageAlternate } from './index.js';
 import type { EntityReference, SchemaEntity } from './schema.js';
 
 export type { AeoPageProps };
@@ -50,12 +50,17 @@ export interface PageSource {
 export interface PageDescriptor {
   /** Root-relative path, e.g. `/blog/hello`. */
   pathname: string;
+  /** Optional configured origin used with `pathname` as the cross-domain identity. */
+  origin?: string;
+  /** Normalized Astro locale identity or derived canonical language tag. */
+  locale?: string;
   routePattern?: string;
   rendering?: 'prerendered' | 'on-demand';
   title?: string;
   description?: string;
   image?: string;
   language?: string;
+  alternates?: PageAlternate[];
   markdown?: string;
   dates?: { published?: string; modified?: string };
   authors?: EntityReference[];

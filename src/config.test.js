@@ -13,7 +13,16 @@ describe('resolveConfig', () => {
     expect(c.corpus.full.mode).toBe('all');
     expect(c.corpus.urlMap.enabled).toBe(false);
     expect(c.corpus.runtime.maxPages).toBe(50);
+    expect(c.corpus.small).toEqual({ enabled: false, maxTokens: 20_000 });
+    expect(c.corpus.chunks).toEqual({ enabled: false, maxTokensPerFile: 100_000, by: 'section' });
+    expect(c.corpus.manifest).toEqual({ enabled: false });
+    expect(c.corpus.tokenizer).toBeUndefined();
+    expect(c.corpus.compression).toEqual({ gzip: false });
+    expect(c.i18n).toEqual({ indexes: 'auto', unresolvedLanguage: 'default' });
+    expect(c.cache).toEqual({ enabled: true });
     expect(c.discovery.robots.enabled).toBe(false);
+    expect(c.discovery.robots.policy).toBe('custom');
+    expect(c.discovery.robots.contentSignals).toBeUndefined();
     expect(c.discovery.robots.sitemapPath).toBe('/sitemap-index.xml');
     expect(c.site.profile.enabled).toBe(false);
     expect(c.discovery.sitemap.mode).toBe('auto');
@@ -39,6 +48,15 @@ describe('resolveConfig', () => {
     });
     expect(c.validation).toEqual({ onBuild: 'artifacts', failOn: 'error' });
     expect(c.plugins).toEqual([]);
+    expect(c.discovery.indexNow).toEqual({
+      enabled: false,
+      submit: 'changed',
+      state: 'public',
+      strict: false,
+      key: { source: 'env', name: 'ASTRO_AEO_INDEXNOW_KEY' },
+      keyLocation: undefined,
+      origins: [],
+    });
   });
 
   test('resolves only the active 1.2 configuration groups', () => {
@@ -140,6 +158,147 @@ describe('resolveConfig', () => {
     expect(resolveConfig({ corpus: { runtime: { maxPages: 'unlimited' } } }).corpus.runtime.maxPages).toBe('unlimited');
     expect(() => resolveConfig({ corpus: { runtime: { maxPages: 0 } } })).toThrow(AeoConfigError);
     expect(() => resolveConfig({ corpus: { runtime: { maxPages: 1.5 } } })).toThrow(AeoConfigError);
+  });
+
+  test('resolves corpus planning, locale, and cache options', () => {
+    const tokenizerOptions = { model: 'example', nested: { enabled: true } };
+    const c = resolveConfig({
+      corpus: {
+        small: { enabled: true, maxTokens: 123 },
+        chunks: { enabled: true, maxTokensPerFile: 456, by: 'section' },
+        manifest: { enabled: true },
+        tokenizer: { module: './tokenizer.js', options: tokenizerOptions },
+        compression: { gzip: true },
+      },
+      i18n: { indexes: 'both', unresolvedLanguage: 'exclude' },
+      cache: { enabled: false },
+    });
+
+    expect(c).toMatchObject({
+      corpus: {
+        small: { enabled: true, maxTokens: 123 },
+        chunks: { enabled: true, maxTokensPerFile: 456, by: 'section' },
+        manifest: { enabled: true },
+        tokenizer: { module: './tokenizer.js', options: tokenizerOptions },
+        compression: { gzip: true },
+      },
+      i18n: { indexes: 'both', unresolvedLanguage: 'exclude' },
+      cache: { enabled: false },
+    });
+    expect(c.corpus.tokenizer.options).not.toBe(tokenizerOptions);
+  });
+
+  test('rejects invalid corpus planning and locale options', () => {
+    for (const value of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(() => resolveConfig({ corpus: { small: { maxTokens: value } } }))
+        .toThrow(/positive safe integer/);
+      expect(() => resolveConfig({ corpus: { chunks: { maxTokensPerFile: value } } }))
+        .toThrow(/positive safe integer/);
+    }
+    expect(() => resolveConfig({ corpus: { chunks: { by: /** @type {any} */ ('page') } } }))
+      .toThrow(/corpus\.chunks\.by/);
+    expect(() => resolveConfig({ corpus: { small: /** @type {any} */ (true) } }))
+      .toThrow(/corpus\.small must be an object/);
+    expect(() => resolveConfig({ corpus: { tokenizer: { module: 'https://example.com/tokenizer.js' } } }))
+      .toThrow(/must be local/);
+    expect(() => resolveConfig({ corpus: { tokenizer: { module: './tokenizer.js', options: { run() {} } } } }))
+      .toThrow(/strict JSON/);
+    expect(() => resolveConfig({ i18n: { indexes: /** @type {any} */ ('everywhere') } }))
+      .toThrow(/i18n\.indexes/);
+    expect(() => resolveConfig({ i18n: { unresolvedLanguage: /** @type {any} */ ('guess') } }))
+      .toThrow(/i18n\.unresolvedLanguage/);
+    expect(() => resolveConfig({ corpus: {
+      index: { enabled: false },
+      full: { enabled: false },
+      small: { enabled: false },
+      chunks: { enabled: false },
+      manifest: { enabled: true },
+    } })).toThrow(/manifest\.enabled requires/);
+  });
+
+  test('resolves crawler policy and explicit Content Signals', () => {
+    const c = resolveConfig({ discovery: { robots: {
+      enabled: true,
+      policy: 'retrieval-only',
+      allow: ['Claude-User'],
+      disallow: ['GPTBot'],
+      contentSignals: { search: true, aiInput: true, aiTrain: false },
+    } } });
+    expect(c.discovery.robots).toMatchObject({
+      policy: 'retrieval-only',
+      universalAllow: true,
+      allow: ['Claude-User'],
+      disallow: ['GPTBot'],
+      contentSignals: { search: true, aiInput: true, aiTrain: false },
+    });
+    expect(() => resolveConfig({ discovery: { robots: {
+      policy: 'open', universalAllow: true,
+    } } })).toThrow(/universalAllow/);
+    expect(() => resolveConfig({ discovery: { robots: {
+      policy: 'closed', allow: ['GPTBot'], disallow: ['gptbot'],
+    } } })).toThrow(/overlap/);
+    expect(() => resolveConfig({ discovery: { robots: {
+      policy: 'open', allow: ['bad\ntoken'],
+    } } })).toThrow(/user-agent tokens/);
+    expect(() => resolveConfig({ discovery: { robots: {
+      contentSignals: /** @type {any} */ ({ search: true, aiInput: false }),
+    } } })).toThrow(/aiTrain/);
+  });
+
+  test('normalizes safe IndexNow descriptors without resolving secrets', () => {
+    const c = resolveConfig({ discovery: { indexNow: {
+      enabled: true,
+      submit: 'all',
+      state: 'private',
+      strict: true,
+      key: { source: 'file', path: '/run/secrets/indexnow' },
+      keyLocation: '/keys/indexnow.txt',
+      origins: [
+        { origin: 'https://EXAMPLE.com/', key: { source: 'env', name: 'EXAMPLE_INDEXNOW' } },
+        { origin: 'https://docs.example.com', keyLocation: '/indexnow.txt' },
+      ],
+    } } });
+
+    expect(c.discovery.indexNow).toEqual({
+      enabled: true,
+      submit: 'all',
+      state: 'private',
+      strict: true,
+      key: { source: 'file', path: '/run/secrets/indexnow' },
+      keyLocation: '/keys/indexnow.txt',
+      origins: [
+        { origin: 'https://example.com', key: { source: 'env', name: 'EXAMPLE_INDEXNOW' } },
+        { origin: 'https://docs.example.com', keyLocation: '/indexnow.txt' },
+      ],
+    });
+  });
+
+  test('forces stateless IndexNow preparation to all and validates unsafe descriptors', () => {
+    const warnings = [];
+    const c = resolveConfig(
+      { discovery: { indexNow: { state: 'stateless', submit: 'changed' } } },
+      { warn: (message) => warnings.push(message) },
+    );
+    expect(c.discovery.indexNow.submit).toBe('all');
+    expect(warnings.join('\n')).toContain('stateless');
+
+    expect(() => resolveConfig({ discovery: { indexNow: {
+      key: /** @type {any} */ ({ source: 'env', name: 'NOT VALID' }),
+    } } })).toThrow(/environment variable/);
+    expect(() => resolveConfig({ discovery: { indexNow: {
+      key: /** @type {any} */ ({ source: 'env', name: 'INDEXNOW_KEY', value: 'literal-secret' }),
+    } } })).toThrow(/value is not supported/);
+    expect(() => resolveConfig({ discovery: { indexNow: {
+      key: /** @type {any} */ ({ source: 'file' }),
+    } } })).toThrow(/non-empty local file/);
+    expect(() => resolveConfig({ discovery: { indexNow: { keyLocation: '/key.txt?secret=yes' } } }))
+      .toThrow(/keyLocation/);
+    expect(() => resolveConfig({ discovery: { indexNow: {
+      origins: [{ origin: 'http://example.com' }],
+    } } })).toThrow(/HTTPS/);
+    expect(() => resolveConfig({ discovery: { indexNow: {
+      origins: [{ origin: 'https://example.com' }, { origin: 'https://EXAMPLE.com/' }],
+    } } })).toThrow(/duplicate origin/);
   });
 
   test('page catalog descriptors require a non-empty module', () => {
@@ -334,7 +493,28 @@ describe('resolveConfig', () => {
       {
         site: { profile: { enabled: true, name: 'Acme', email: 'hi@acme.dev' } },
         markdown: { frontmatter: true },
-        discovery: { robots: { enabled: true, allow: ['Googlebot'] } },
+        corpus: {
+          small: { enabled: true, maxTokens: 10_000 },
+          chunks: { enabled: true, maxTokensPerFile: 50_000, by: 'section' },
+          manifest: { enabled: true },
+          tokenizer: { module: './tokenizer.js', options: { model: 'example' } },
+          compression: { gzip: true },
+        },
+        i18n: { indexes: 'both', unresolvedLanguage: 'default' },
+        cache: { enabled: true },
+        discovery: {
+          robots: {
+            enabled: true,
+            policy: 'open',
+            allow: ['Googlebot'],
+            contentSignals: { search: true, aiInput: true, aiTrain: false },
+          },
+          indexNow: {
+            enabled: true,
+            key: { source: 'env', name: 'INDEXNOW_KEY' },
+            origins: [{ origin: 'https://example.com', keyLocation: '/indexnow.txt' }],
+          },
+        },
       },
       { warn: (m) => warnings.push(m) },
     );

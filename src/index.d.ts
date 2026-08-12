@@ -25,6 +25,83 @@ export type { ExtractedDocument } from './extract.js';
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
+export interface PageAlternate {
+  language: string | 'x-default';
+  url: string;
+}
+
+export interface CacheDeclaration {
+  pure: true;
+  version: string;
+}
+
+export interface CorpusTokenizerModule {
+  apiVersion: 1;
+  name: string;
+  version: string;
+  approximate: boolean;
+  count(text: string, options?: JsonValue): number | Promise<number>;
+}
+
+export interface CorpusManifestV1 {
+  version: 1;
+  origin: string;
+  base: string;
+  tokenizer: { name: string; version: string; approximate: boolean };
+  locales: CorpusManifestLocaleV1[];
+  pages: CorpusManifestPageV1[];
+  artifacts: CorpusManifestArtifactV1[];
+}
+
+export interface CorpusManifestLocaleV1 {
+  origin: string;
+  locale: string | null;
+  language: string | null;
+  canonicalArtifact: string;
+}
+
+export interface CorpusManifestPageV1 {
+  origin: string;
+  id: string;
+  canonicalUrl: string;
+  markdownUrl: string;
+  locale: string | null;
+  language: string | null;
+  section: string;
+  tokenCount: number;
+  hash: `sha256:${string}`;
+  sourceStrategy: string;
+  modified?: string;
+  chunks: string[];
+}
+
+export interface CorpusManifestArtifactV1 {
+  origin: string;
+  pathname: string;
+  kind: 'index' | 'full' | 'small' | 'chunk' | 'alias';
+  locale: string | null;
+  section: string | null;
+  part: number | null;
+  tokenCount: number;
+  hash: `sha256:${string}`;
+  encoding: 'identity' | 'gzip';
+  sourcePathname: string | null;
+}
+
+export interface IndexNowStateManifestV1 {
+  version: 1;
+  origin: string;
+  current: {
+    digest: `sha256:${string}`;
+    urls: Array<{ url: string; fingerprint: `sha256:${string}` }>;
+  };
+  acknowledged: {
+    digest: `sha256:${string}`;
+    urls: Array<{ url: string; fingerprint: `sha256:${string}` }>;
+  };
+  digest: `sha256:${string}`;
+}
+
 export interface Diagnostic {
   version: 1;
   code: string;
@@ -82,7 +159,10 @@ export interface AeoPageRecord extends AeoPage {
   rendering: 'prerendered' | 'on-demand';
   canonicalUrl?: string;
   markdownUrl?: string;
+  origin?: string;
+  locale?: string;
   language?: string;
+  alternates?: PageAlternate[];
   metadata: {
     title: string;
     description?: string;
@@ -426,6 +506,8 @@ export interface DiscoverySitemapOptions {
 export interface DiscoveryRobotsOptions {
   /** Generate /robots.txt. Default: false. */
   enabled?: boolean;
+  /** Crawler policy preset. `custom` preserves the 1.2 renderer. Default: `custom`. */
+  policy?: 'custom' | 'open' | 'search-open-training-closed' | 'retrieval-only' | 'closed';
   /**
    * Emit a leading "User-agent: *" + "Allow: /" group regardless of any named
    * allow/disallow groups, so unlisted crawlers see an explicit open policy.
@@ -452,11 +534,46 @@ export interface DiscoveryRobotsOptions {
   includeLlmsTxt?: boolean;
   /** Extra verbatim lines appended to the end. */
   extraLines?: string[];
+  /** Experimental Content Signals. All three fields must be supplied together. */
+  contentSignals?: ContentSignalsOptions;
+}
+
+export interface ContentSignalsOptions {
+  search: boolean;
+  aiInput: boolean;
+  aiTrain: boolean;
+}
+
+export type IndexNowKeySource =
+  | { source: 'env'; name?: string }
+  | { source: 'file'; path: string };
+
+export interface IndexNowOriginOptions {
+  origin: string;
+  key?: IndexNowKeySource;
+  keyLocation?: string;
+}
+
+export interface DiscoveryIndexNowOptions {
+  enabled?: boolean;
+  /** Submit changed URLs or every current URL. Default: `changed`. */
+  submit?: 'changed' | 'all';
+  /** Persistence and removal-notification strategy. Default: `public`. */
+  state?: 'public' | 'private' | 'stateless';
+  /** Exit unsuccessfully for remote submission failures. Default: false. */
+  strict?: boolean;
+  /** Secret descriptor. Literal key values are never accepted. */
+  key?: IndexNowKeySource;
+  /** Root-relative same-origin key pathname. Defaults to `/<key>.txt`. */
+  keyLocation?: string;
+  /** Per-origin key and key-location overrides. */
+  origins?: IndexNowOriginOptions[];
 }
 
 export interface DiscoveryOptions {
   sitemap?: DiscoverySitemapOptions;
   robots?: DiscoveryRobotsOptions;
+  indexNow?: DiscoveryIndexNowOptions;
 }
 
 /** How the robots.txt "Sitemap:" line is decided. Resolved from the optional tri-state. */
@@ -488,6 +605,38 @@ export interface CorpusFullOptions {
   mode?: 'all' | 'index' | 'first-page-only';
 }
 
+export interface CorpusSmallOptions {
+  /** Generate llms-small.txt. Default: false. */
+  enabled?: boolean;
+  /** Maximum exact planned token count. Default: 20,000. */
+  maxTokens?: number;
+}
+
+export interface CorpusChunksOptions {
+  /** Generate bounded corpus chunks. Default: false. */
+  enabled?: boolean;
+  /** Maximum planned tokens in a chunk, except indivisible oversized units. Default: 100,000. */
+  maxTokensPerFile?: number;
+  /** Chunk grouping strategy. The 1.3 value is `section`. */
+  by?: 'section';
+}
+
+export interface CorpusManifestOptions {
+  /** Generate /llms/manifest.json. Default: false. */
+  enabled?: boolean;
+}
+
+export interface CorpusTokenizerOptions {
+  /** Local importable module that default-exports `CorpusTokenizerModule`. */
+  module: string | URL;
+  options?: JsonValue;
+}
+
+export interface CorpusCompressionOptions {
+  /** Generate deterministic static `.gz` siblings for corpus text artifacts. Default: false. */
+  gzip?: boolean;
+}
+
 export interface CorpusUrlMapOptions {
   /** Generate a URL map file. Default: false. */
   enabled?: boolean;
@@ -510,10 +659,32 @@ export interface CorpusOptions {
   index?: CorpusIndexOptions;
   /** The /llms-full.txt full-text corpus. */
   full?: CorpusFullOptions;
+  /** A token-budgeted prefix corpus. */
+  small?: CorpusSmallOptions;
+  /** Bounded per-section corpus chunks. */
+  chunks?: CorpusChunksOptions;
+  /** Stable corpus inventory and exact-byte hashes. */
+  manifest?: CorpusManifestOptions;
+  /** Optional custom tokenizer module. */
+  tokenizer?: CorpusTokenizerOptions;
+  /** Static corpus compression settings. */
+  compression?: CorpusCompressionOptions;
   /** A committed URL map, written to the project root rather than the build output. */
   urlMap?: CorpusUrlMapOptions;
   /** Safety limits for request-time llms.txt and llms-full.txt generation. */
   runtime?: CorpusRuntimeOptions;
+}
+
+export interface I18nOptions {
+  /** Placement of global and locale corpus families. Default: `auto`. */
+  indexes?: 'auto' | 'global' | 'locale' | 'both';
+  /** Policy for pages whose language cannot be resolved. Default: `default`. */
+  unresolvedLanguage?: 'default' | 'error' | 'exclude';
+}
+
+export interface CacheOptions {
+  /** Reuse content-addressed page-processing payloads. Default: true. */
+  enabled?: boolean;
 }
 
 export interface ExtractionOptions {
@@ -572,6 +743,7 @@ export type MarkdownRenderer = (
 export interface MarkdownRendererModule {
   readonly name: string;
   readonly apiVersion: 1;
+  readonly cache?: CacheDeclaration;
   readonly render: MarkdownRenderer;
 }
 
@@ -748,11 +920,14 @@ export type ImmutablePluginValue<T> =
 export interface RuntimePluginPageRecord {
   readonly id: string;
   readonly pathname: string;
+  readonly origin?: string;
+  readonly locale?: string;
   readonly routePattern?: string;
   readonly rendering?: 'prerendered' | 'on-demand';
   readonly canonicalUrl?: string;
   readonly markdownUrl?: string;
   readonly language?: string;
+  readonly alternates?: readonly ImmutablePluginValue<PageAlternate>[];
   readonly metadata?: ImmutablePluginValue<AeoPageRecord['metadata']>;
   readonly representations: {
     readonly markdown?: string;
@@ -768,6 +943,9 @@ export interface RuntimePluginPageRecord {
 export interface RuntimePluginPageHandle {
   readonly id: string;
   readonly pathname: string;
+  readonly origin?: string;
+  readonly locale?: string;
+  readonly alternates?: readonly ImmutablePluginValue<PageAlternate>[];
   read(): Promise<RuntimePluginPageRecord | null>;
 }
 
@@ -794,6 +972,11 @@ export interface AstroAeoPluginApi {
   /** Present only in an importable runtime module, after strict JSON validation. */
   readonly options?: JsonValue;
   on<T>(stage: AstroAeoPluginStage, hook: AstroAeoPluginHook<T>): void;
+  on<T>(
+    stage: 'page:discovered' | 'page:extract' | 'page:transform' | 'page:metadata' | 'graph:build',
+    hook: AstroAeoPluginHook<T>,
+    options: { cache?: CacheDeclaration },
+  ): void;
   claimArtifact(claim: PluginArtifactClaim): void;
 }
 
@@ -815,6 +998,8 @@ export interface CanonicalAeoConfig {
   pages?: PagesOptions;
   markdown?: MarkdownOptions;
   corpus?: CorpusOptions;
+  i18n?: I18nOptions;
+  cache?: CacheOptions;
   discovery?: DiscoveryOptions;
   artifacts?: ArtifactsOptions;
   metadata?: MetadataOptions;
@@ -885,9 +1070,16 @@ export interface ResolvedAstroAeoConfig {
   };
   validation: Required<ValidationOptions>;
   plugins: AstroAeoPlugin[];
+  i18n: Required<I18nOptions>;
+  cache: Required<CacheOptions>;
   corpus: {
     index: Required<CorpusIndexOptions>;
     full: Required<CorpusFullOptions>;
+    small: Required<CorpusSmallOptions>;
+    chunks: Required<CorpusChunksOptions>;
+    manifest: Required<CorpusManifestOptions>;
+    tokenizer: CorpusTokenizerOptions | undefined;
+    compression: Required<CorpusCompressionOptions>;
     urlMap: Required<CorpusUrlMapOptions>;
     runtime: Required<CorpusRuntimeOptions>;
   };
@@ -897,7 +1089,8 @@ export interface ResolvedAstroAeoConfig {
       options: Record<string, unknown>;
       alias: Required<SitemapAliasCanonicalOptions>;
     };
-    robots: Required<DiscoveryRobotsOptions> & {
+    robots: Omit<Required<DiscoveryRobotsOptions>, 'contentSignals'> & {
+      contentSignals?: ContentSignalsOptions;
       /**
        * Resolved from the optional `includeSitemap` tri-state. Resolved-only: it
        * has no public counterpart, which is why the resolved config is
@@ -905,7 +1098,22 @@ export interface ResolvedAstroAeoConfig {
        */
       sitemapPolicy: SitemapPolicy;
     };
+    indexNow: ResolvedIndexNowOptions;
   };
+}
+
+export interface ResolvedIndexNowOptions {
+  enabled: boolean;
+  submit: 'changed' | 'all';
+  state: 'public' | 'private' | 'stateless';
+  strict: boolean;
+  key: { source: 'env'; name: string } | { source: 'file'; path: string };
+  keyLocation: string | undefined;
+  origins: Array<{
+    origin: string;
+    key?: { source: 'env'; name: string } | { source: 'file'; path: string };
+    keyLocation?: string;
+  }>;
 }
 
 /**

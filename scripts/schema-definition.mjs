@@ -36,6 +36,14 @@ const stringArray = (description, defaultValue) => ({
   ...(defaultValue === undefined ? {} : { default: defaultValue }),
 });
 
+const positiveSafeInteger = (description, defaultValue) => ({
+  type: 'integer',
+  description,
+  minimum: 1,
+  maximum: 9_007_199_254_740_991,
+  default: defaultValue,
+});
+
 const object = (properties, description) => ({
   type: 'object',
   description,
@@ -138,6 +146,91 @@ const robotsProperties = {
   sitemapPath: string('Root-relative sitemap path.', '/sitemap-index.xml'),
   includeLlmsTxt: boolean('Emit the llms.txt discovery comment.', true),
   extraLines: stringArray('Verbatim lines appended to robots.txt.', []),
+};
+
+const discoveryRobotsProperties = {
+  ...robotsProperties,
+  policy: {
+    type: 'string',
+    description: 'Crawler policy preset. Custom preserves the legacy renderer.',
+    enum: ['custom', 'open', 'search-open-training-closed', 'retrieval-only', 'closed'],
+    default: 'custom',
+  },
+  contentSignals: {
+    ...object(
+      {
+        search: boolean('Permit search use.'),
+        aiInput: boolean('Permit AI input or grounding use.'),
+        aiTrain: boolean('Permit AI training use.'),
+      },
+      'Experimental Content Signals. Every field is required when configured.',
+    ),
+    required: ['search', 'aiInput', 'aiTrain'],
+  },
+};
+
+const indexNowKeySource = {
+  description: 'Secret source descriptor. Literal IndexNow keys are not accepted.',
+  oneOf: [
+    {
+      type: 'object',
+      required: ['source'],
+      properties: {
+        source: { const: 'env' },
+        name: {
+          type: 'string',
+          pattern: '^[A-Za-z_][A-Za-z0-9_]*$',
+          default: 'ASTRO_AEO_INDEXNOW_KEY',
+        },
+      },
+      additionalProperties: false,
+    },
+    {
+      type: 'object',
+      required: ['source', 'path'],
+      properties: {
+        source: { const: 'file' },
+        path: { type: 'string', minLength: 1 },
+      },
+      additionalProperties: false,
+    },
+  ],
+};
+
+const indexNowOrigin = {
+  type: 'object',
+  required: ['origin'],
+  properties: {
+    origin: { type: 'string', format: 'uri', pattern: '^https://' },
+    key: indexNowKeySource,
+    keyLocation: exactPathname('Root-relative same-origin key pathname.'),
+  },
+  additionalProperties: false,
+};
+
+const indexNowProperties = {
+  enabled: boolean('Prepare IndexNow notification state.', false),
+  submit: {
+    type: 'string',
+    description: 'Queue changed URLs or all current URLs.',
+    enum: ['changed', 'all'],
+    default: 'changed',
+  },
+  state: {
+    type: 'string',
+    description: 'IndexNow acknowledgment persistence strategy.',
+    enum: ['public', 'private', 'stateless'],
+    default: 'public',
+  },
+  strict: boolean('Fail the submit command for remote submission errors.', false),
+  key: { ...indexNowKeySource, default: { source: 'env', name: 'ASTRO_AEO_INDEXNOW_KEY' } },
+  keyLocation: exactPathname('Root-relative same-origin key pathname.'),
+  origins: {
+    type: 'array',
+    description: 'Per-origin key-source and key-location overrides.',
+    items: indexNowOrigin,
+    default: [],
+  },
 };
 
 const sitemapAliasProperties = {
@@ -265,6 +358,44 @@ const canonicalProperties = {
     {
       index: object(indexProperties, 'llms.txt settings.'),
       full: object(fullProperties, 'llms-full.txt settings.'),
+      small: object(
+        {
+          enabled: boolean('Generate llms-small.txt.', false),
+          maxTokens: positiveSafeInteger('Maximum tokens in llms-small.txt.', 20_000),
+        },
+        'Token-budgeted small corpus settings.',
+      ),
+      chunks: object(
+        {
+          enabled: boolean('Generate bounded corpus chunks.', false),
+          maxTokensPerFile: positiveSafeInteger('Maximum tokens per chunk.', 100_000),
+          by: {
+            type: 'string',
+            description: 'Chunk grouping strategy.',
+            enum: ['section'],
+            default: 'section',
+          },
+        },
+        'Chunked corpus settings.',
+      ),
+      manifest: object(
+        { enabled: boolean('Generate /llms/manifest.json.', false) },
+        'Corpus manifest settings.',
+      ),
+      tokenizer: {
+        ...object(
+          {
+            module: { type: 'string', minLength: 1 },
+            options: { description: 'Strict JSON tokenizer options.' },
+          },
+          'Importable custom corpus tokenizer.',
+        ),
+        required: ['module'],
+      },
+      compression: object(
+        { gzip: boolean('Generate deterministic static gzip siblings.', false) },
+        'Static corpus compression settings.',
+      ),
       urlMap: object(urlMapProperties, 'URL-map settings.'),
       runtime: object(
         {
@@ -278,6 +409,27 @@ const canonicalProperties = {
       ),
     },
     'Corpus output settings.',
+  ),
+  i18n: object(
+    {
+      indexes: {
+        type: 'string',
+        description: 'Placement of global and locale corpus families.',
+        enum: ['auto', 'global', 'locale', 'both'],
+        default: 'auto',
+      },
+      unresolvedLanguage: {
+        type: 'string',
+        description: 'Policy for pages whose language cannot be resolved.',
+        enum: ['default', 'error', 'exclude'],
+        default: 'default',
+      },
+    },
+    'Locale-aware corpus topology and fallback settings.',
+  ),
+  cache: object(
+    { enabled: boolean('Reuse content-addressed page-processing payloads.', true) },
+    'Incremental processing cache settings.',
   ),
   discovery: object(
     {
@@ -299,7 +451,19 @@ const canonicalProperties = {
         },
         'Sitemap integration settings.',
       ),
-      robots: object(robotsProperties, 'robots.txt settings.'),
+      robots: {
+        ...object(discoveryRobotsProperties, 'robots.txt settings.'),
+        allOf: [
+          {
+            if: {
+              required: ['policy'],
+              properties: { policy: { enum: ['open', 'search-open-training-closed', 'retrieval-only', 'closed'] } },
+            },
+            then: { not: { required: ['universalAllow'] } },
+          },
+        ],
+      },
+      indexNow: object(indexNowProperties, 'IndexNow prepare and submit settings.'),
     },
     'Discovery artifact settings.',
   ),
@@ -451,7 +615,7 @@ export function buildSchema() {
     $id: 'https://raw.githubusercontent.com/ZAAI-com/Astro-AEO/main/schema/astro-aeo.schema.json',
     title: 'Astro-AEO configuration',
     description:
-      'Configuration passed to the astro-aeo integration. Canonical 1.2 settings and deprecated 1.0 aliases are accepted.',
+      'Configuration passed to the astro-aeo integration. Canonical 1.3 settings and deprecated 1.0 aliases are accepted.',
     type: 'object',
     properties: { ...canonicalProperties, ...legacyProperties },
     additionalProperties: false,
@@ -470,7 +634,7 @@ export function serializeSchema() {
 function buildPublishedSchema() {
   const source = buildSchema();
   const canonicalNames = [
-    'site', 'pages', 'markdown', 'corpus', 'discovery', 'artifacts', 'metadata',
+    'site', 'pages', 'markdown', 'corpus', 'i18n', 'cache', 'discovery', 'artifacts', 'metadata',
     'schema', 'validation', 'plugins',
   ];
   const legacyNames = [
@@ -499,7 +663,6 @@ function buildPublishedSchema() {
   // publishing the same schema twice.
   properties.llmsFullTxt = legacyReference('#/properties/corpus/properties/full');
   properties.urlMap = legacyReference('#/properties/corpus/properties/urlMap');
-  properties.robotsTxt = legacyReference('#/properties/discovery/properties/robots');
   properties.sitemapAlias = legacyReference(
     '#/properties/discovery/properties/sitemap/properties/alias',
   );
@@ -507,7 +670,7 @@ function buildPublishedSchema() {
   // because several child keys changed. Retain their exact accepted key sets
   // and unknown-key rejection, while canonical options carry the detailed value
   // schemas and editor documentation.
-  for (const name of ['dotmd', 'llmsTxt', 'sitemap', 'domainProfile']) {
+  for (const name of ['dotmd', 'llmsTxt', 'robotsTxt', 'sitemap', 'domainProfile']) {
     properties[name] = compactLegacyObject(source.properties[name]);
   }
 

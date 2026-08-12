@@ -40,6 +40,8 @@ export function resolveConfig(rawConfig = {}, logger) {
   const schema = validateSchemaOptions(userConfig.schema);
   const validation = validateValidationOptions(userConfig.validation);
   const plugins = validatePlugins(userConfig.plugins);
+  const i18n = validateI18nOptions(userConfig.i18n);
+  const cache = validateCacheOptions(userConfig.cache);
   if (userConfig.site?.organization !== undefined && !isPlainObject(userConfig.site.organization)) {
     throw new AeoConfigError('astro-aeo: site.organization must be a Schema.org entity or ID reference object.');
   }
@@ -53,9 +55,15 @@ export function resolveConfig(rawConfig = {}, logger) {
   const extraction = markdown.extraction ?? {};
   const corpusIndex = userConfig.corpus?.index ?? {};
   const corpusFull = userConfig.corpus?.full ?? {};
+  const corpusSmall = validateCorpusSmallOptions(userConfig.corpus?.small);
+  const corpusChunks = validateCorpusChunkOptions(userConfig.corpus?.chunks);
+  const corpusManifest = validateCorpusManifestOptions(userConfig.corpus?.manifest);
+  const corpusTokenizer = validateCorpusTokenizer(userConfig.corpus?.tokenizer);
+  const corpusCompression = validateCorpusCompressionOptions(userConfig.corpus?.compression);
   const corpusUrlMap = userConfig.corpus?.urlMap ?? {};
   const corpusRuntime = userConfig.corpus?.runtime ?? {};
-  const robots = userConfig.discovery?.robots ?? {};
+  const robots = validateRobotsOptions(userConfig.discovery?.robots);
+  const indexNow = validateIndexNowOptions(userConfig.discovery?.indexNow, logger);
   const sitemap = userConfig.discovery?.sitemap ?? {};
   const alias = sitemap.alias ?? {};
   const profile = userConfig.site?.profile ?? {};
@@ -66,6 +74,19 @@ export function resolveConfig(rawConfig = {}, logger) {
   const sitemapPolicy = sitemapMode === 'disabled'
     ? 'never'
     : resolveSitemapPolicy(robots.includeSitemap);
+  const indexEnabled = resolveBoolean(corpusIndex.enabled, 'corpus.index.enabled', true);
+  const fullEnabled = resolveBoolean(corpusFull.enabled, 'corpus.full.enabled', true);
+  if (
+    corpusManifest.enabled &&
+    !indexEnabled &&
+    !fullEnabled &&
+    !corpusSmall.enabled &&
+    !corpusChunks.enabled
+  ) {
+    throw new AeoConfigError(
+      'astro-aeo: corpus.manifest.enabled requires at least one enabled corpus index, full, small, or chunks artifact.',
+    );
+  }
 
   return {
     site: {
@@ -113,9 +134,11 @@ export function resolveConfig(rawConfig = {}, logger) {
     schema,
     validation,
     plugins,
+    i18n,
+    cache,
     corpus: {
       index: {
-        enabled: corpusIndex.enabled ?? true,
+        enabled: indexEnabled,
         sections: corpusIndex.sections ?? DEFAULT_SECTIONS,
         defaultSection: corpusIndex.defaultSection ?? 'Pages',
         includeDescriptions: corpusIndex.includeDescriptions ?? true,
@@ -123,9 +146,14 @@ export function resolveConfig(rawConfig = {}, logger) {
         includeHtmlOnly: corpusIndex.includeHtmlOnly ?? false,
       },
       full: {
-        enabled: corpusFull.enabled ?? true,
+        enabled: fullEnabled,
         mode: corpusFull.mode ?? 'all',
       },
+      small: corpusSmall,
+      chunks: corpusChunks,
+      manifest: corpusManifest,
+      tokenizer: corpusTokenizer,
+      compression: corpusCompression,
       urlMap: {
         enabled: corpusUrlMap.enabled ?? false,
         outputFilepath: corpusUrlMap.outputFilepath ?? 'docs/Url-Map.md',
@@ -145,18 +173,378 @@ export function resolveConfig(rawConfig = {}, logger) {
         },
       },
       robots: {
-        enabled: robots.enabled ?? false,
-        universalAllow: robots.universalAllow ?? true,
-        allow: robots.allow ?? [],
-        disallow: robots.disallow ?? [],
+        enabled: robots.enabled,
+        policy: robots.policy,
+        universalAllow: robots.universalAllow,
+        allow: robots.allow,
+        disallow: robots.disallow,
         sitemapPolicy,
         includeSitemap: sitemapPolicy !== 'never',
         sitemapPath: robots.sitemapPath ?? `/${sitemapFilenameBase}-index.xml`,
-        includeLlmsTxt: robots.includeLlmsTxt ?? true,
-        extraLines: robots.extraLines ?? [],
+        includeLlmsTxt: robots.includeLlmsTxt,
+        extraLines: robots.extraLines,
+        ...(robots.contentSignals === undefined ? {} : { contentSignals: robots.contentSignals }),
       },
+      indexNow,
     },
   };
+}
+
+/**
+ * @param {import('./index.js').CorpusSmallOptions | undefined} input
+ * @returns {Required<import('./index.js').CorpusSmallOptions>}
+ */
+function validateCorpusSmallOptions(input = {}) {
+  assertOptionObject(input, 'corpus.small');
+  return {
+    enabled: resolveBoolean(input.enabled, 'corpus.small.enabled', false),
+    maxTokens: resolvePositiveSafeInteger(input.maxTokens, 'corpus.small.maxTokens', 20_000),
+  };
+}
+
+/**
+ * @param {import('./index.js').CorpusChunksOptions | undefined} input
+ * @returns {Required<import('./index.js').CorpusChunksOptions>}
+ */
+function validateCorpusChunkOptions(input = {}) {
+  assertOptionObject(input, 'corpus.chunks');
+  if (input.by !== undefined && input.by !== 'section') {
+    throw new AeoConfigError('astro-aeo: corpus.chunks.by must be "section".');
+  }
+  return {
+    enabled: resolveBoolean(input.enabled, 'corpus.chunks.enabled', false),
+    maxTokensPerFile: resolvePositiveSafeInteger(
+      input.maxTokensPerFile,
+      'corpus.chunks.maxTokensPerFile',
+      100_000,
+    ),
+    by: 'section',
+  };
+}
+
+/**
+ * @param {import('./index.js').CorpusManifestOptions | undefined} input
+ * @returns {Required<import('./index.js').CorpusManifestOptions>}
+ */
+function validateCorpusManifestOptions(input = {}) {
+  assertOptionObject(input, 'corpus.manifest');
+  return { enabled: resolveBoolean(input.enabled, 'corpus.manifest.enabled', false) };
+}
+
+/**
+ * @param {import('./index.js').CorpusTokenizerOptions | undefined} input
+ * @returns {import('./index.js').CorpusTokenizerOptions | undefined}
+ */
+function validateCorpusTokenizer(input) {
+  if (input === undefined) return undefined;
+  if (!isPlainObject(input) || !isModuleReference(input.module)) {
+    throw new AeoConfigError(
+      'astro-aeo: corpus.tokenizer.module must be a non-empty local module specifier or file URL.',
+    );
+  }
+  const module = input.module;
+  if (module instanceof URL && module.protocol !== 'file:') {
+    throw new AeoConfigError('astro-aeo: corpus.tokenizer.module must be local; remote URL modules are not supported.');
+  }
+  if (typeof module === 'string' && /^[a-z][a-z\d+.-]*:/i.test(module.trim()) && !/^file:/i.test(module.trim())) {
+    throw new AeoConfigError('astro-aeo: corpus.tokenizer.module must be local; remote URL modules are not supported.');
+  }
+  return {
+    module: typeof module === 'string' ? module.trim() : module,
+    ...(input.options === undefined
+      ? {}
+      : { options: cloneConfigJson(input.options, 'corpus.tokenizer.options') }),
+  };
+}
+
+/**
+ * @param {import('./index.js').CorpusCompressionOptions | undefined} input
+ * @returns {Required<import('./index.js').CorpusCompressionOptions>}
+ */
+function validateCorpusCompressionOptions(input = {}) {
+  assertOptionObject(input, 'corpus.compression');
+  return { gzip: resolveBoolean(input.gzip, 'corpus.compression.gzip', false) };
+}
+
+/**
+ * @param {import('./index.js').I18nOptions | undefined} input
+ * @returns {Required<import('./index.js').I18nOptions>}
+ */
+function validateI18nOptions(input = {}) {
+  assertOptionObject(input, 'i18n');
+  const indexes = input.indexes ?? 'auto';
+  const unresolvedLanguage = input.unresolvedLanguage ?? 'default';
+  if (!['auto', 'global', 'locale', 'both'].includes(indexes)) {
+    throw new AeoConfigError('astro-aeo: i18n.indexes must be "auto", "global", "locale", or "both".');
+  }
+  if (!['default', 'error', 'exclude'].includes(unresolvedLanguage)) {
+    throw new AeoConfigError(
+      'astro-aeo: i18n.unresolvedLanguage must be "default", "error", or "exclude".',
+    );
+  }
+  return /** @type {Required<import('./index.js').I18nOptions>} */ ({ indexes, unresolvedLanguage });
+}
+
+/**
+ * @param {import('./index.js').CacheOptions | undefined} input
+ * @returns {Required<import('./index.js').CacheOptions>}
+ */
+function validateCacheOptions(input = {}) {
+  assertOptionObject(input, 'cache');
+  return { enabled: resolveBoolean(input.enabled, 'cache.enabled', true) };
+}
+
+/**
+ * @param {import('./index.js').DiscoveryRobotsOptions | undefined} input
+ * @returns {Required<Omit<import('./index.js').DiscoveryRobotsOptions, 'includeSitemap' | 'sitemapPath' | 'contentSignals'>> & { includeSitemap?: boolean; sitemapPath?: string; contentSignals?: import('./index.js').ContentSignalsOptions }}
+ */
+function validateRobotsOptions(input = {}) {
+  assertOptionObject(input, 'discovery.robots');
+  const policy = input.policy ?? 'custom';
+  if (!['custom', 'open', 'search-open-training-closed', 'retrieval-only', 'closed'].includes(policy)) {
+    throw new AeoConfigError(
+      'astro-aeo: discovery.robots.policy must be "custom", "open", "search-open-training-closed", "retrieval-only", or "closed".',
+    );
+  }
+  if (policy !== 'custom' && input.universalAllow !== undefined) {
+    throw new AeoConfigError(
+      'astro-aeo: discovery.robots.universalAllow cannot be configured with a crawler policy preset.',
+    );
+  }
+  const allow = validateStringArray(input.allow, 'discovery.robots.allow');
+  const disallow = validateStringArray(input.disallow, 'discovery.robots.disallow');
+  if (policy !== 'custom') {
+    for (const token of [...allow, ...disallow]) {
+      if (!/^[^\s\u0000-\u001f\u007f]+$/u.test(token)) {
+        throw new AeoConfigError(
+          'astro-aeo: crawler policy allow and disallow overrides must be non-empty user-agent tokens without whitespace or control characters.',
+        );
+      }
+    }
+    const allowed = new Set(allow.map((token) => token.toLowerCase()));
+    const overlap = disallow.find((token) => allowed.has(token.toLowerCase()));
+    if (overlap !== undefined) {
+      throw new AeoConfigError(
+        `astro-aeo: discovery.robots.allow and discovery.robots.disallow overlap at "${overlap}".`,
+      );
+    }
+  }
+  let contentSignals;
+  if (input.contentSignals !== undefined) {
+    if (!isPlainObject(input.contentSignals)) {
+      throw new AeoConfigError('astro-aeo: discovery.robots.contentSignals must be an object.');
+    }
+    for (const key of /** @type {const} */ (['search', 'aiInput', 'aiTrain'])) {
+      if (typeof input.contentSignals[key] !== 'boolean') {
+        throw new AeoConfigError(
+          `astro-aeo: discovery.robots.contentSignals.${key} must be explicitly set to a boolean.`,
+        );
+      }
+    }
+    contentSignals = /** @type {import('./index.js').ContentSignalsOptions} */ ({
+      search: input.contentSignals.search,
+      aiInput: input.contentSignals.aiInput,
+      aiTrain: input.contentSignals.aiTrain,
+    });
+  }
+  if (input.includeSitemap !== undefined && typeof input.includeSitemap !== 'boolean') {
+    throw new AeoConfigError('astro-aeo: discovery.robots.includeSitemap must be a boolean when supplied.');
+  }
+  if (input.sitemapPath !== undefined && typeof input.sitemapPath !== 'string') {
+    throw new AeoConfigError('astro-aeo: discovery.robots.sitemapPath must be a string.');
+  }
+  return /** @type {any} */ ({
+    enabled: resolveBoolean(input.enabled, 'discovery.robots.enabled', false),
+    policy,
+    universalAllow: resolveBoolean(
+      input.universalAllow,
+      'discovery.robots.universalAllow',
+      true,
+    ),
+    allow,
+    disallow,
+    includeSitemap: input.includeSitemap,
+    sitemapPath: input.sitemapPath,
+    includeLlmsTxt: resolveBoolean(input.includeLlmsTxt, 'discovery.robots.includeLlmsTxt', true),
+    extraLines: validateStringArray(input.extraLines, 'discovery.robots.extraLines'),
+    ...(contentSignals === undefined ? {} : { contentSignals }),
+  });
+}
+
+/**
+ * @param {import('./index.js').DiscoveryIndexNowOptions | undefined} input
+ * @param {{ warn: (message: string) => void } | undefined} logger
+ * @returns {import('./index.js').ResolvedIndexNowOptions}
+ */
+function validateIndexNowOptions(input = {}, logger) {
+  assertOptionObject(input, 'discovery.indexNow');
+  let submit = input.submit ?? 'changed';
+  const state = input.state ?? 'public';
+  if (!['changed', 'all'].includes(submit)) {
+    throw new AeoConfigError('astro-aeo: discovery.indexNow.submit must be "changed" or "all".');
+  }
+  if (!['public', 'private', 'stateless'].includes(state)) {
+    throw new AeoConfigError(
+      'astro-aeo: discovery.indexNow.state must be "public", "private", or "stateless".',
+    );
+  }
+  if (state === 'stateless' && submit === 'changed') {
+    submit = 'all';
+    logger?.warn(
+      'astro-aeo: discovery.indexNow.state "stateless" submits all current URLs; submit "changed" was resolved to "all".',
+    );
+  }
+  const key = validateIndexNowKey(input.key, 'discovery.indexNow.key', true);
+  const keyLocation = validateKeyLocation(input.keyLocation, 'discovery.indexNow.keyLocation');
+  /** @type {import('./index.js').IndexNowOriginOptions[]} */
+  let origins = [];
+  if (input.origins !== undefined) {
+    if (!Array.isArray(input.origins)) {
+      throw new AeoConfigError('astro-aeo: discovery.indexNow.origins must be an array.');
+    }
+    const seen = new Set();
+    origins = input.origins.map((entry, index) => {
+      const label = `discovery.indexNow.origins[${index}]`;
+      if (!isPlainObject(entry)) {
+        throw new AeoConfigError(`astro-aeo: ${label} must be an origin descriptor.`);
+      }
+      assertOnlyKeys(
+        /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (entry)),
+        ['origin', 'key', 'keyLocation'],
+        label,
+      );
+      const origin = validateIndexNowOrigin(entry.origin, `${label}.origin`);
+      if (seen.has(origin)) {
+        throw new AeoConfigError(`astro-aeo: discovery.indexNow.origins contains duplicate origin "${origin}".`);
+      }
+      seen.add(origin);
+      const originKey = entry.key === undefined
+        ? undefined
+        : validateIndexNowKey(entry.key, `${label}.key`, false);
+      const originKeyLocation = validateKeyLocation(entry.keyLocation, `${label}.keyLocation`);
+      return {
+        origin,
+        ...(originKey === undefined ? {} : { key: originKey }),
+        ...(originKeyLocation === undefined ? {} : { keyLocation: originKeyLocation }),
+      };
+    });
+  }
+  return /** @type {import('./index.js').ResolvedIndexNowOptions} */ ({
+    enabled: resolveBoolean(input.enabled, 'discovery.indexNow.enabled', false),
+    submit,
+    state,
+    strict: resolveBoolean(input.strict, 'discovery.indexNow.strict', false),
+    key,
+    keyLocation,
+    origins,
+  });
+}
+
+/**
+ * @param {import('./index.js').IndexNowKeySource | undefined} input
+ * @param {string} label
+ * @param {boolean} useDefault
+ * @returns {import('./index.js').IndexNowKeySource | undefined}
+ */
+function validateIndexNowKey(input, label, useDefault) {
+  if (input === undefined) {
+    return useDefault ? { source: 'env', name: 'ASTRO_AEO_INDEXNOW_KEY' } : undefined;
+  }
+  if (!isPlainObject(input) || !['env', 'file'].includes(input.source)) {
+    throw new AeoConfigError(`astro-aeo: ${label}.source must be "env" or "file".`);
+  }
+  assertOnlyKeys(input, input.source === 'env' ? ['source', 'name'] : ['source', 'path'], label);
+  if (input.source === 'env') {
+    if ('path' in input && input.path !== undefined) {
+      throw new AeoConfigError(`astro-aeo: ${label}.path is valid only when source is "file".`);
+    }
+    const name = input.name ?? 'ASTRO_AEO_INDEXNOW_KEY';
+    if (typeof name !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+      throw new AeoConfigError(`astro-aeo: ${label}.name must be a valid environment variable name.`);
+    }
+    return { source: 'env', name };
+  }
+  if ('name' in input && input.name !== undefined) {
+    throw new AeoConfigError(`astro-aeo: ${label}.name is valid only when source is "env".`);
+  }
+  if (typeof input.path !== 'string' || input.path.trim() === '' || input.path.includes('\0')) {
+    throw new AeoConfigError(`astro-aeo: ${label}.path must be a non-empty local file path.`);
+  }
+  return { source: 'file', path: input.path };
+}
+
+/** @param {unknown} value @param {string} label */
+function validateKeyLocation(value, label) {
+  if (value === undefined) return undefined;
+  try {
+    return assertExactPathname(value, label);
+  } catch (error) {
+    throw new AeoConfigError(`astro-aeo: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/** @param {unknown} value @param {string} label */
+function validateIndexNowOrigin(value, label) {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new AeoConfigError(`astro-aeo: ${label} must be a public HTTPS origin.`);
+  }
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new AeoConfigError(`astro-aeo: ${label} must be a public HTTPS origin.`);
+  }
+  if (
+    parsed.protocol !== 'https:' ||
+    parsed.username ||
+    parsed.password ||
+    parsed.pathname !== '/' ||
+    parsed.search ||
+    parsed.hash ||
+    (parsed.port && parsed.port !== '443')
+  ) {
+    throw new AeoConfigError(`astro-aeo: ${label} must contain only an HTTPS host on port 443.`);
+  }
+  return parsed.origin;
+}
+
+/** @param {unknown} value @param {string} label @param {boolean} fallback */
+function resolveBoolean(value, label, fallback) {
+  if (value === undefined) return fallback;
+  if (typeof value !== 'boolean') throw new AeoConfigError(`astro-aeo: ${label} must be a boolean.`);
+  return value;
+}
+
+/** @param {unknown} value @param {string} label @param {number} fallback */
+function resolvePositiveSafeInteger(value, label, fallback) {
+  if (value === undefined) return fallback;
+  if (!Number.isSafeInteger(value) || /** @type {number} */ (value) <= 0) {
+    throw new AeoConfigError(`astro-aeo: ${label} must be a positive safe integer.`);
+  }
+  return /** @type {number} */ (value);
+}
+
+/** @param {unknown} value @param {string} label */
+function validateStringArray(value, label) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string')) {
+    throw new AeoConfigError(`astro-aeo: ${label} must be an array of strings.`);
+  }
+  return [...value];
+}
+
+/** @param {unknown} value @param {string} label */
+function assertOptionObject(value, label) {
+  if (!isPlainObject(value)) throw new AeoConfigError(`astro-aeo: ${label} must be an object.`);
+}
+
+/** @param {Record<string, unknown>} value @param {string[]} keys @param {string} label */
+function assertOnlyKeys(value, keys, label) {
+  const allowed = new Set(keys);
+  const unexpected = Object.keys(value).find((key) => !allowed.has(key));
+  if (unexpected !== undefined) {
+    throw new AeoConfigError(`astro-aeo: ${label}.${unexpected} is not supported.`);
+  }
 }
 
 /** @param {{ module: string }[] | undefined} catalogs */
@@ -208,9 +596,16 @@ const CONFIG_SHAPE = {
   corpus: {
     index: { enabled: null, sections: null, defaultSection: null, includeDescriptions: null, showLastModified: null, includeHtmlOnly: null },
     full: { enabled: null, mode: null },
+    small: { enabled: null, maxTokens: null },
+    chunks: { enabled: null, maxTokensPerFile: null, by: null },
+    manifest: { enabled: null },
+    tokenizer: { module: null, options: PASSTHROUGH },
+    compression: { gzip: null },
     urlMap: { enabled: null, outputFilepath: null },
     runtime: { maxPages: null },
   },
+  i18n: { indexes: null, unresolvedLanguage: null },
+  cache: { enabled: null },
   site: {
     name: null,
     description: null,
@@ -239,7 +634,27 @@ const CONFIG_SHAPE = {
       options: PASSTHROUGH,
       alias: { enabled: null, sourceFilename: null, outputFilename: null },
     },
-    robots: { enabled: null, universalAllow: null, allow: null, disallow: null, includeSitemap: null, sitemapPath: null, includeLlmsTxt: null, extraLines: null },
+    robots: {
+      enabled: null,
+      policy: null,
+      universalAllow: null,
+      allow: null,
+      disallow: null,
+      includeSitemap: null,
+      sitemapPath: null,
+      includeLlmsTxt: null,
+      extraLines: null,
+      contentSignals: { search: null, aiInput: null, aiTrain: null },
+    },
+    indexNow: {
+      enabled: null,
+      submit: null,
+      state: null,
+      strict: null,
+      key: { source: null, name: null, path: null },
+      keyLocation: null,
+      origins: null,
+    },
   },
   domainProfile: { enabled: null, name: null, description: null, website: null, email: null, contact: null, logo: null, sameAs: null, entityType: null },
   sitemap: { enabled: null, options: PASSTHROUGH },

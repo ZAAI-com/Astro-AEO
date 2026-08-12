@@ -16,8 +16,11 @@ import type {
   AstroAeoPlugin,
   AstroAeoPluginStage,
   AstroAeoConfig,
+  CacheDeclaration,
   CanonicalAeoConfig,
+  CorpusManifestV1,
   CorpusOptions,
+  CorpusTokenizerModule,
   DiagnosticManifestV1,
   DiscoveryOptions,
   EntityId,
@@ -40,6 +43,8 @@ import type {
   GraphValidationOptions,
   GraphValidationResult,
   ImmutablePluginValue,
+  IndexNowKeySource,
+  IndexNowStateManifestV1,
   MarkdownRenderer,
   MarkdownRendererDescriptor,
   MarkdownRendererInput,
@@ -144,8 +149,18 @@ export const rendererResult: MarkdownRendererResult = { status: 'fallback-to-htm
 export const rendererModule: MarkdownRendererModule = {
   name: 'consumer-renderer',
   apiVersion: 1,
+  cache: { pure: true, version: '1' },
   render: inlineRenderer,
 };
+export const tokenizerModule: CorpusTokenizerModule = {
+  apiVersion: 1,
+  name: 'consumer-tokenizer',
+  version: '1',
+  approximate: false,
+  count: (text) => text.length,
+};
+export const cacheDeclaration: CacheDeclaration = { pure: true, version: '1' };
+export const indexNowKeySource: IndexNowKeySource = { source: 'env', name: 'INDEXNOW_KEY' };
 
 interface PluginEnvelope {
   count: number;
@@ -165,7 +180,13 @@ export const plugin: AstroAeoPlugin = {
       const stageMode: 'build' | 'runtime' = mode;
       const firstPage: RuntimePluginPageHandle | undefined = pages?.[0];
       const page = await firstPage?.read();
+      const pageOrigin: string | undefined = firstPage?.origin;
+      const pageLocale: string | undefined = page?.locale;
       void stageMode;
+      void pageOrigin;
+      void pageLocale;
+      void firstPage?.alternates?.[0]?.language;
+      void page?.alternates?.[0]?.url;
       void page?.representations.markdown;
       // @ts-expect-error hook inputs are deeply immutable
       value.nested.enabled = false;
@@ -174,7 +195,9 @@ export const plugin: AstroAeoPlugin = {
         value: { count: value.count + 1, nested: { enabled: value.nested.enabled } },
         diagnostics: [{ code: 'consumer-transform', message: 'Transformed.', recoverable: true }],
       };
-    });
+    }, { cache: cacheDeclaration });
+    // @ts-expect-error artifact stages cannot declare reusable cache behavior
+    api.on<PluginEnvelope>('artifact:generate', () => undefined, { cache: cacheDeclaration });
   },
   runtime: { entrypoint: './consumer-plugin-runtime.js', options: { format: 'json' } },
 };
@@ -218,6 +241,8 @@ export const config: AstroAeoConfig = {
   },
   validation: { onBuild: 'artifacts', failOn: 'error' },
   plugins: [plugin],
+  i18n: { indexes: 'both', unresolvedLanguage: 'default' },
+  cache: { enabled: true },
   dotmd: { enabled: true, linkTag: 'auto', includeLastModified: true, frontmatter: true },
   llmsTxt: { enabled: true, sections, defaultSection: 'Pages', includeDescriptions: true },
   llmsFullTxt: { enabled: true, mode: 'index' },
@@ -227,6 +252,26 @@ export const config: AstroAeoConfig = {
   sitemap: { enabled: true, options: { filenameBase: 'sitemap' } },
   sitemapAlias: { enabled: true, outputFilename: 'sitemap.xml' },
   markdown: { strategy: 'auto', renderers: [rendererDescriptor, inlineRenderer] },
+  corpus: {
+    small: { enabled: true, maxTokens: 20_000 },
+    chunks: { enabled: true, maxTokensPerFile: 100_000, by: 'section' },
+    manifest: { enabled: true },
+    tokenizer: { module: './tokenizer.js', options: { encoding: 'example' } },
+    compression: { gzip: true },
+  },
+  discovery: {
+    robots: {
+      policy: 'search-open-training-closed',
+      contentSignals: { search: true, aiInput: false, aiTrain: false },
+    },
+    indexNow: {
+      enabled: true,
+      submit: 'changed',
+      state: 'public',
+      key: indexNowKeySource,
+      origins: [{ origin: 'https://docs.example.com', key: { source: 'file', path: '/run/secrets/key' } }],
+    },
+  },
 };
 
 export const integrationName: string = aeo(config).name;
@@ -235,6 +280,8 @@ export const integrationName: string = aeo(config).name;
 declare const resolved: ResolvedAeoConfig;
 export const resolvedEnabled: boolean = resolved.dotmd.enabled;
 export const resolvedEntity: EntityType = resolved.domainProfile.entityType;
+// @ts-expect-error the deprecated 1.0 resolved shape remains frozen through 1.x
+export const noLegacyResolvedCache = resolved.cache;
 
 // The resolved type is hand-written, and `src/index.d.ts` is only ever compiled
 // with `skipLibCheck` (Astro's own declarations do not typecheck without it), so
@@ -247,6 +294,14 @@ export const rSelectors: string[] = resolvedCanonical.markdown.extraction.select
 export const rKeep: string[] = resolvedCanonical.markdown.extraction.keepSelectors;
 export const rMode: 'all' | 'index' | 'first-page-only' = resolvedCanonical.corpus.full.mode;
 export const rRuntimePages: number | 'unlimited' = resolvedCanonical.corpus.runtime.maxPages;
+export const rSmallTokens: number = resolvedCanonical.corpus.small.maxTokens;
+export const rChunkBy: 'section' = resolvedCanonical.corpus.chunks.by;
+export const rManifestEnabled: boolean = resolvedCanonical.corpus.manifest.enabled;
+export const rTokenizer = resolvedCanonical.corpus.tokenizer;
+export const rGzip: boolean = resolvedCanonical.corpus.compression.gzip;
+export const rIndexes: 'auto' | 'global' | 'locale' | 'both' = resolvedCanonical.i18n.indexes;
+export const rCacheEnabled: boolean = resolvedCanonical.cache.enabled;
+export const rIndexNowState: 'public' | 'private' | 'stateless' = resolvedCanonical.discovery.indexNow.state;
 export const rEntity: EntityType = resolvedCanonical.site.profile.entityType;
 export const rSections: SectionRule[] = resolvedCanonical.corpus.index.sections;
 export const rDefaultSection: string | false = resolvedCanonical.corpus.index.defaultSection;
@@ -299,11 +354,23 @@ export const mdOpts: MarkdownOptions = {
 export const extractionOpts: ExtractionOptions = { selectors: ['main'] };
 export const discoveryOpts: DiscoveryOptions = {
   sitemap: { mode: 'external', options: { filenameBase: 'sitemap' }, alias: { enabled: true } },
-  robots: { enabled: true, allow: ['GPTBot'], includeSitemap: true },
+  robots: {
+    enabled: true,
+    policy: 'open',
+    allow: ['GPTBot'],
+    includeSitemap: true,
+    contentSignals: { search: true, aiInput: true, aiTrain: false },
+  },
+  indexNow: { key: { source: 'file', path: '/run/secrets/indexnow' }, state: 'private' },
 };
 export const corpusOpts: CorpusOptions = {
   index: { sections, defaultSection: 'Pages', showLastModified: true, includeHtmlOnly: false },
   full: { mode: 'index' },
+  small: { enabled: true, maxTokens: 20_000 },
+  chunks: { enabled: true, maxTokensPerFile: 100_000, by: 'section' },
+  manifest: { enabled: true },
+  tokenizer: { module: new URL('./tokenizer.js', import.meta.url) },
+  compression: { gzip: true },
   urlMap: { enabled: false, outputFilepath: 'docs/Url-Map.md' },
   runtime: { maxPages: 50 },
 };
@@ -421,12 +488,15 @@ export const markerProps: AeoPageProps = defineAeoPage(markerInput);
 export const source: PageSource = { kind: 'mdx', path: 'src/pages/blog/hello.mdx', body: '# Hello', hash: 'sha256:value' };
 export const descriptor: PageDescriptor = {
   pathname: '/blog/hello',
+  origin: 'https://example.com',
+  locale: 'en',
   routePattern: '/blog/[slug]',
   rendering: 'on-demand',
   title: 'Hello',
   description: 'A post.',
   image: '/hello.jpg',
   language: 'en',
+  alternates: [{ language: 'de', url: 'https://example.com/de/blog/hello' }],
   markdown: '# Hello',
   dates: { published: '2026-01-01T00:00:00.000Z', modified: '2026-01-02T00:00:00.000Z' },
   authors: [],
@@ -448,12 +518,18 @@ export const catalog: PageCatalog = {
 export const record: AeoPageRecord = {
   id: '/blog/hello',
   pathname: '/blog/hello',
+  origin: 'https://example.com',
+  locale: 'en',
   routePattern: '/blog/[slug]',
   rendering: 'on-demand',
   url: 'https://runtime.example/blog/hello',
   canonicalUrl: 'https://example.com/blog/hello',
   markdownUrl: 'https://example.com/blog/hello.md',
   language: 'en',
+  alternates: [
+    { language: 'de', url: 'https://example.com/de/blog/hello' },
+    { language: 'x-default', url: 'https://example.com/blog/hello' },
+  ],
   metadata: {
     title: 'Hello',
     description: 'A post.',
@@ -484,6 +560,9 @@ export const recordWithOptionalCanonical: AeoPageRecord = {
 export const recordTokens: string[] = record.aeoTokens;
 export const recordRendering: 'prerendered' | 'on-demand' = record.rendering;
 export const recordDate: string | undefined = record.lastModified;
+export const recordOrigin: string | undefined = record.origin;
+export const recordLocale: string | undefined = record.locale;
+export const recordAlternateLanguage: string | undefined = record.alternates?.[0]?.language;
 export const extraction: ExtractionDiagnostics | undefined = record.extraction;
 export const diagnostic: Diagnostic = { version: 1, code: 'example', severity: 'info', message: 'Example' };
 export const extractionDefaults: string[] = DEFAULT_EXTRACTION.selectors;
@@ -498,6 +577,45 @@ export const diagnosticsManifest: DiagnosticManifestV1 = {
   generatedAt: '2026-01-01T00:00:00.000Z',
   pages: [{ pathname: '/blog/hello', source: 'marker', sourcePath: 'src/pages/blog/hello.mdx', diagnostics: [] }],
   diagnostics: [diagnostic],
+};
+export const corpusManifest: CorpusManifestV1 = {
+  version: 1,
+  origin: 'https://example.com',
+  base: '/',
+  tokenizer: { name: 'astro-aeo-approx', version: '1', approximate: true },
+  locales: [{ origin: 'https://example.com', locale: 'en', language: 'en', canonicalArtifact: '/en/llms.txt' }],
+  pages: [{
+    origin: 'https://example.com',
+    id: '/blog/hello',
+    canonicalUrl: 'https://example.com/blog/hello',
+    markdownUrl: 'https://example.com/blog/hello.md',
+    locale: 'en',
+    language: 'en',
+    section: 'Blog',
+    tokenCount: 3,
+    hash: 'sha256:page',
+    sourceStrategy: 'marker',
+    chunks: ['/en/llms/blog-0001.txt'],
+  }],
+  artifacts: [{
+    origin: 'https://example.com',
+    pathname: '/en/llms.txt',
+    kind: 'index',
+    locale: 'en',
+    section: null,
+    part: null,
+    tokenCount: 3,
+    hash: 'sha256:artifact',
+    encoding: 'identity',
+    sourcePathname: null,
+  }],
+};
+export const indexNowStateManifest: IndexNowStateManifestV1 = {
+  version: 1,
+  origin: 'https://example.com',
+  current: { digest: 'sha256:current', urls: [{ url: 'https://example.com/blog/hello', fingerprint: 'sha256:page' }] },
+  acknowledged: { digest: 'sha256:acknowledged', urls: [] },
+  digest: 'sha256:state',
 };
 export const ownershipManifest: ArtifactOwnershipManifestV1 = {
   version: 1,
@@ -678,14 +796,14 @@ export const badSitemapMode: AstroAeoConfig = { discovery: { sitemap: { mode: 'o
 export const badPerson = createPerson({ '@type': 'Organization', name: 'Wrong' });
 // @ts-expect-error sitemapPolicy is resolved-only and has no public counterpart
 export const noPublicPolicy: AstroAeoConfig = { discovery: { robots: { sitemapPolicy: 'auto' } } };
-// @ts-expect-error 1.3 i18n configuration is intentionally absent in 1.2
-export const noI18nYet: AstroAeoConfig = { i18n: { indexes: 'auto' } };
-// @ts-expect-error 1.3 cache configuration is intentionally absent in 1.2
-export const noCacheYet: AstroAeoConfig = { cache: { enabled: true } };
-// @ts-expect-error 1.3 IndexNow configuration is intentionally absent in 1.2
-export const noIndexNowYet: AstroAeoConfig = { discovery: { indexNow: { enabled: true } } };
-// @ts-expect-error 1.3 corpus chunking configuration is intentionally absent in 1.2
-export const noChunksYet: AstroAeoConfig = { corpus: { chunks: { enabled: true } } };
+// @ts-expect-error i18n.indexes is a closed topology union
+export const badI18nIndexes: AstroAeoConfig = { i18n: { indexes: 'everywhere' } };
+// @ts-expect-error chunking supports the section strategy only
+export const badChunkStrategy: AstroAeoConfig = { corpus: { chunks: { by: 'page' } } };
+// @ts-expect-error literal IndexNow keys are not accepted
+export const literalIndexNowKey: AstroAeoConfig = { discovery: { indexNow: { key: { source: 'literal', value: 'secret' } } } };
+// @ts-expect-error Content Signals require all three booleans
+export const incompleteSignals: AstroAeoConfig = { discovery: { robots: { contentSignals: { search: true, aiInput: false } } } };
 // @ts-expect-error 1.5 analytics configuration is intentionally absent in 1.2
 export const noAnalyticsYet: AstroAeoConfig = { analytics: { enabled: true } };
 // @ts-expect-error artifact replacements are exact pathname arrays, never globs as a scalar
