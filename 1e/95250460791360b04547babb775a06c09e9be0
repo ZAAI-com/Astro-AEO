@@ -1,0 +1,72 @@
+src/runtime/serve.test.js
+  s_f140af05ef6abf::t_c20a435818a941 787
+  s_f140af05ef6abf::t_33b1ac5a55d0b1 457-490
+  s_f140af05ef6abf::t_058e33a8c9e703 456,728-786,788
+  s_f140af05ef6abf::t_c096d6b8eca5c0 15,339-455
+src/runtime/serve.js
+  s_f140af05ef6abf::t_67b2c4bb72fb29 314-317,344-347,366-370,384-385,388,649-668
+  s_f140af05ef6abf::t_c9e6176f992b92 304-313,318,352,386-387
+  s_f140af05ef6abf::t_1a9cedd275f7a6 15,17,351,353-358,374
+  s_f140af05ef6abf::t_a09b0c8d9622db 615
+  s_f140af05ef6abf::t_88b0f9c891b5bb 124,149,236,251,266,397,430-432,445,629-648
+  s_f140af05ef6abf::t_46b3c8a6c22930 601-606
+  s_f140af05ef6abf::t_d7b60e1091650b 576-591
+  s_f140af05ef6abf::t_c43039c16ae7d5 359-365,371-373,669
+src/runtime/middleware-schema-corpus.test.js
+  s_f140af05ef6abf::t_7478840e82cc7c 389-420
+src/runtime/plugins.test.js
+  s_f140af05ef6abf::t_26edb179a3296e 53-92
+  s_f140af05ef6abf::t_d8ce9175dc8b65 188-203,218-234
+  s_f140af05ef6abf::t_46962a6a032d6b 204-217,235
+  s_f140af05ef6abf::t_542db72ef67265 236
+src/plugins/runtime-modules.js
+  s_f140af05ef6abf::t_0e6ed85af7d986 15,23-25
+src/plugins/runtime-modules.test.js
+  s_f140af05ef6abf::t_d8ce9175dc8b65 31-47
+src/plugins/dispatcher.js
+  s_f140af05ef6abf::t_0e6ed85af7d986 86-93
+src/virtual/plugin.test.js
+  s_f140af05ef6abf::t_50056f9f36dd0e 122-144
+src/runtime/middleware.js
+  s_f140af05ef6abf::t_afc61700b4ae63 40,127-128,151-152,170-174,180-186
+  s_f140af05ef6abf::t_33a5100ca5d737 340-349,402
+  s_f140af05ef6abf::t_46b3c8a6c22930 405,414
+  s_f140af05ef6abf::t_145ee42c4564ab 119-126,129-150,153-156,165,169,175-179,187,273-274
+src/runtime/plugins.js
+  s_f140af05ef6abf::t_0e6ed85af7d986 408-409,500
+  s_f140af05ef6abf::t_46962a6a032d6b 4,499,503
+  s_f140af05ef6abf::t_26edb179a3296e 417,422-423
+src/runtime/middleware-plugin.test.js
+  s_f140af05ef6abf::t_55c4f308d1af39 8-10,199-201,216-228,237-253,319
+  s_f140af05ef6abf::t_aa688eaff4f40a 315
+  s_f140af05ef6abf::t_33a5100ca5d737 38,317
+  s_f140af05ef6abf::t_c250ff3ca3a8ba 35,304-314
+  s_f140af05ef6abf::t_c68a5f76ac44a6 11,53-59,202-215,229-236
+  s_a565514fd3ffc8::t_8e742294d7abd0 254,316,318
+src/plugins/dispatcher.test.js
+  s_f140af05ef6abf::t_d8ce9175dc8b65 142-163
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "1e95250460791360b04547babb775a06c09e9be0",
+  "prompts": {},
+  "sessions": {
+    "s_a565514fd3ffc8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ff665-1e84-7982-b74b-9ce7893aea33",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_f140af05ef6abf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ff625-1250-79c0-9929-8cdf6d898d91",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
