@@ -97,4 +97,100 @@ describe('buildRobotsTxt', () => {
     expect(out).toContain('User-agent: *\nAllow: /');
     expect(out).toContain('User-agent: GPTBot\nDisallow: /');
   });
+
+  test('preserves custom bytes when no new content signal is configured', () => {
+    const config = resolveConfig({
+      discovery: {
+        robots: {
+          enabled: true,
+          allow: ['Googlebot'],
+          disallow: ['GPTBot'],
+          extraLines: ['# custom'],
+        },
+      },
+    });
+    expect(buildRobotsTxt(config, 'https://x.com')).toBe(
+      'User-agent: *\nAllow: /\n\n' +
+      'User-agent: Googlebot\nAllow: /\n\n' +
+      'User-agent: GPTBot\nDisallow: /\n\n' +
+      'Sitemap: https://x.com/sitemap-index.xml\n' +
+      '# llms.txt: https://x.com/llms.txt\n' +
+      '# custom\n',
+    );
+  });
+
+  test('renders frozen training blocks for search-open-training-closed', () => {
+    const config = resolveConfig({ discovery: { robots: {
+      enabled: true,
+      policy: 'search-open-training-closed',
+      includeSitemap: false,
+      includeLlmsTxt: false,
+    } } });
+    const out = buildRobotsTxt(config, 'https://x.com');
+    expect(out).toBe(
+      'User-agent: *\nAllow: /\n\n' +
+      'User-agent: GPTBot\nDisallow: /\n\n' +
+      'User-agent: ClaudeBot\nDisallow: /\n\n' +
+      'User-agent: Google-Extended\nDisallow: /\n\n',
+    );
+  });
+
+  test('allows only non-training retrieval registry entries in retrieval-only', () => {
+    const config = resolveConfig({ discovery: { robots: {
+      enabled: true,
+      policy: 'retrieval-only',
+      includeSitemap: false,
+      includeLlmsTxt: false,
+    } } });
+    const out = buildRobotsTxt(config, 'https://x.com');
+    expect(out).toContain('User-agent: *\nDisallow: /');
+    for (const token of [
+      'OAI-SearchBot', 'ChatGPT-User', 'Claude-SearchBot', 'Claude-User',
+      'PerplexityBot', 'Perplexity-User', 'Googlebot', 'bingbot',
+    ]) {
+      expect(out).toContain(`User-agent: ${token}\nAllow: /`);
+    }
+    expect(out).not.toContain('User-agent: Google-Extended');
+    expect(out).not.toContain('User-agent: GPTBot');
+  });
+
+  test('applies case-insensitive known overrides and sorted unknown overrides', () => {
+    const config = resolveConfig({ discovery: { robots: {
+      enabled: true,
+      policy: 'closed',
+      allow: ['gptbot', 'ZetaBot', 'AlphaBot'],
+      includeSitemap: false,
+      includeLlmsTxt: false,
+    } } });
+    const out = buildRobotsTxt(config, 'https://x.com');
+    expect(out).toContain('User-agent: GPTBot\nAllow: /');
+    expect(out.indexOf('User-agent: AlphaBot')).toBeLessThan(out.indexOf('User-agent: ZetaBot'));
+  });
+
+  test('appends explicit Content Signals without inferring them from a preset', () => {
+    const without = resolveConfig({ discovery: { robots: {
+      enabled: true,
+      policy: 'open',
+      includeSitemap: false,
+      includeLlmsTxt: false,
+    } } });
+    expect(buildRobotsTxt(without, 'https://x.com')).not.toContain('Content-Signal');
+
+    const withSignals = resolveConfig({ discovery: { robots: {
+      enabled: true,
+      policy: 'open',
+      includeSitemap: false,
+      includeLlmsTxt: false,
+      contentSignals: { search: true, aiInput: false, aiTrain: false },
+    } } });
+    expect(buildRobotsTxt(withSignals, 'https://x.com')).toContain(
+      '# Experimental Content Signals, not part of RFC 9309\n' +
+      'Content-Signal: search=yes, ai-input=no, ai-train=no\n',
+    );
+  });
+
+  test('uses accepted root llms claims rather than the raw config flag', () => {
+    const config = resolveConfig({ robotsTxt: { enabled: true } });
+    expect(buildRobotsTxt(config, 'https://x.com', '', true, false)).not.toContain('# llms.txt:');
+  });
 });
