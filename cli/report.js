@@ -16,7 +16,8 @@ export function formatReport(result, opts = {}) {
   const failed = !result.ok || (opts.strict === true && result.warnings.length > 0);
   const summary =
     `astro-aeo validate: ${result.errors.length} error(s), ${result.warnings.length} warning(s) ` +
-    `across ${result.pagesChecked} page(s)`;
+    `across ${result.pagesChecked} page(s), ${result.artifactsChecked ?? 0} artifact(s), ` +
+    `${result.sitemapsChecked ?? 0} sitemap document(s)`;
   lines.push('');
   lines.push(failed ? `${summary} - FAIL` : `${summary} - PASS`);
   return lines.join('\n');

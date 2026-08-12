@@ -7,6 +7,11 @@ import { createArtifactWriter } from '../build/artifacts.js';
 import { resolveConfig } from '../config.js';
 import { finalizeSitemapOutputs } from './sitemap-finalize.js';
 
+const VALID_SITEMAP =
+  '<?xml version="1.0" encoding="UTF-8"?>' +
+  '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' +
+  '<url><loc>https://example.com/</loc></url></urlset>';
+
 describe('finalizeSitemapOutputs', () => {
   /** @type {string} */
   let dir;
@@ -62,11 +67,11 @@ describe('finalizeSitemapOutputs', () => {
   }
 
   test('auto mode copies a generated index before advertising it', () => {
-    writeFileSync(join(dir, 'sitemap-index.xml'), '<index/>');
+    writeFileSync(join(dir, 'sitemap-index.xml'), VALID_SITEMAP);
     const result = finalize({}, { sitemapExpected: true });
 
     expect(result).toEqual({ aliasEmitted: true, sitemapAdvertised: true });
-    expect(readFileSync(join(dir, 'sitemap.xml'), 'utf8')).toBe('<index/>');
+    expect(readFileSync(join(dir, 'sitemap.xml'), 'utf8')).toBe(VALID_SITEMAP);
     expect(readFileSync(join(dir, 'robots.txt'), 'utf8')).toContain(
       'Sitemap: https://example.com/sitemap-index.xml',
     );
@@ -74,7 +79,7 @@ describe('finalizeSitemapOutputs', () => {
   });
 
   test('auto mode advertises an alias staged by the deferred writer', () => {
-    writeFileSync(join(dir, 'sitemap-index.xml'), '<index/>');
+    writeFileSync(join(dir, 'sitemap-index.xml'), VALID_SITEMAP);
     const writer = createArtifactWriter({
       distDir,
       logger,
@@ -93,9 +98,27 @@ describe('finalizeSitemapOutputs', () => {
     expect(existsSync(join(dir, 'robots.txt'))).toBe(false);
 
     writer.commit();
-    expect(readFileSync(join(dir, 'sitemap.xml'), 'utf8')).toBe('<index/>');
+    expect(readFileSync(join(dir, 'sitemap.xml'), 'utf8')).toBe(VALID_SITEMAP);
     expect(readFileSync(join(dir, 'robots.txt'), 'utf8')).toContain(
       'Sitemap: https://example.com/sitemap.xml',
+    );
+    expect(readFileSync(join(dir, 'robots.txt'), 'utf8')).not.toContain('# llms.txt:');
+  });
+
+  test('advertises llms.txt only when the deferred ownership preview accepts its claim', () => {
+    const writer = createArtifactWriter({
+      distDir,
+      logger,
+      deferred: true,
+      projectRoot: dir,
+      diagnostics: [],
+      failOn: 'error',
+    });
+    writer.write({ route: '/llms.txt', owner: 'llmsTxt', contents: '# Corpus\n' });
+    finalize({}, { writer });
+    writer.commit();
+    expect(readFileSync(join(dir, 'robots.txt'), 'utf8')).toContain(
+      '# llms.txt: https://example.com/llms.txt',
     );
   });
 
@@ -122,7 +145,7 @@ describe('finalizeSitemapOutputs', () => {
   });
 
   test('never policy suppresses an existing sitemap', () => {
-    writeFileSync(join(dir, 'sitemap-index.xml'), '<index/>');
+    writeFileSync(join(dir, 'sitemap-index.xml'), VALID_SITEMAP);
     const result = finalize(
       { robotsTxt: { enabled: true, includeSitemap: false } },
       { sitemapPolicy: 'never', sitemapExpected: true },
@@ -133,7 +156,7 @@ describe('finalizeSitemapOutputs', () => {
   });
 
   test('disabled mode neither aliases nor advertises an existing sitemap', () => {
-    writeFileSync(join(dir, 'sitemap-index.xml'), '<manual/>');
+    writeFileSync(join(dir, 'sitemap-index.xml'), VALID_SITEMAP);
     const result = finalize({
       discovery: {
         sitemap: { mode: 'disabled' },
@@ -147,16 +170,16 @@ describe('finalizeSitemapOutputs', () => {
   });
 
   test('manual sitemap sources are aliased without an official integration', () => {
-    writeFileSync(join(dir, 'sitemap-index.xml'), '<manual/>');
+    writeFileSync(join(dir, 'sitemap-index.xml'), VALID_SITEMAP);
     const result = finalize();
 
     expect(result.aliasEmitted).toBe(true);
     expect(result.sitemapAdvertised).toBe(true);
-    expect(readFileSync(join(dir, 'sitemap.xml'), 'utf8')).toBe('<manual/>');
+    expect(readFileSync(join(dir, 'sitemap.xml'), 'utf8')).toBe(VALID_SITEMAP);
   });
 
   test('a hand-authored sitemap is auto-detected without an official integration', () => {
-    writeFileSync(join(dir, 'sitemap.xml'), '<manual/>');
+    writeFileSync(join(dir, 'sitemap.xml'), VALID_SITEMAP);
     const result = finalize({
       sitemap: { enabled: false },
       robotsTxt: { enabled: true, sitemapPath: '/sitemap.xml' },
@@ -170,15 +193,15 @@ describe('finalizeSitemapOutputs', () => {
   });
 
   test('an existing alias target is preserved and can be advertised', () => {
-    writeFileSync(join(dir, 'sitemap-index.xml'), '<generated/>');
-    writeFileSync(join(dir, 'sitemap.xml'), '<owned/>');
+    writeFileSync(join(dir, 'sitemap-index.xml'), VALID_SITEMAP);
+    writeFileSync(join(dir, 'sitemap.xml'), VALID_SITEMAP);
     const result = finalize(
       { robotsTxt: { enabled: true, sitemapPath: '/sitemap.xml' } },
       { sitemapExpected: true },
     );
 
     expect(result).toEqual({ aliasEmitted: false, sitemapAdvertised: true });
-    expect(readFileSync(join(dir, 'sitemap.xml'), 'utf8')).toBe('<owned/>');
+    expect(readFileSync(join(dir, 'sitemap.xml'), 'utf8')).toBe(VALID_SITEMAP);
     expect(warnings.some((warning) => warning.includes('already exists'))).toBe(true);
     expect(readFileSync(join(dir, 'robots.txt'), 'utf8')).toContain(
       'Sitemap: https://example.com/sitemap.xml',
@@ -244,5 +267,30 @@ describe('finalizeSitemapOutputs', () => {
       'astro-aeo: overwriting an existing robots.txt in the build output',
     );
     expect(writer.count('robotsTxt')).toBe(1);
+  });
+
+  test('malformed sitemap output is untouched, not aliased, and not advertised', () => {
+    writeFileSync(join(dir, 'sitemap-index.xml'), '<sitemapindex>');
+
+    const result = finalize({}, { sitemapExpected: true });
+
+    expect(result).toEqual({ aliasEmitted: false, sitemapAdvertised: false });
+    expect(readFileSync(join(dir, 'sitemap-index.xml'), 'utf8')).toBe('<sitemapindex>');
+    expect(existsSync(join(dir, 'sitemap.xml'))).toBe(false);
+    expect(readFileSync(join(dir, 'robots.txt'), 'utf8')).not.toContain('Sitemap:');
+    expect(warnings.some((warning) => warning.includes('not closed'))).toBe(true);
+  });
+
+  test('an index with a missing local shard is not advertised', () => {
+    writeFileSync(
+      join(dir, 'sitemap-index.xml'),
+      '<?xml version="1.0"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' +
+        '<sitemap><loc>https://example.com/missing.xml</loc></sitemap></sitemapindex>',
+    );
+
+    const result = finalize({}, { sitemapExpected: true });
+
+    expect(result).toEqual({ aliasEmitted: false, sitemapAdvertised: false });
+    expect(warnings.some((warning) => warning.includes('missing or is not a regular'))).toBe(true);
   });
 });

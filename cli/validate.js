@@ -3,6 +3,8 @@ import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { matchMarkdownAlternateLinks } from '../src/generators/dotmd.js';
 import { extractMetaContent, extractTitle } from '../src/core/page-meta.js';
+import { validateLocalSitemap } from '../src/build/sitemap-validate.js';
+import { validateCorpusArtifacts } from './validate-corpus.js';
 
 /**
  * @typedef {object} Finding
@@ -18,6 +20,8 @@ import { extractMetaContent, extractTitle } from '../src/core/page-meta.js';
  * @property {Finding[]} errors
  * @property {Finding[]} warnings
  * @property {number} pagesChecked
+ * @property {number} artifactsChecked
+ * @property {number} sitemapsChecked
  */
 
 /**
@@ -32,17 +36,20 @@ export function validateDist(distDir, opts = {}) {
   const errors = [];
   /** @type {Finding[]} */
   const warnings = [];
-  const base = opts.base && opts.base !== '/' ? opts.base.replace(/\/$/, '') : '';
+  const requestedBase = opts.base && opts.base !== '/'
+    ? `/${opts.base.replace(/^\/+|\/+$/g, '')}`
+    : '';
 
   if (!existsSync(distDir) || !statSync(distDir).isDirectory()) {
     errors.push({ level: 'error', code: 'no-dist', message: `dist directory not found: ${distDir}` });
-    return { ok: false, errors, warnings, pagesChecked: 0 };
+    return { ok: false, errors, warnings, pagesChecked: 0, artifactsChecked: 0, sitemapsChecked: 0 };
   }
 
+  const corpus = validateCorpusArtifacts(distDir, requestedBase, { errors, warnings });
+  const base = corpus.base;
   const htmlFiles = walk(distDir, '.html');
   if (htmlFiles.length === 0) {
     errors.push({ level: 'error', code: 'no-html', message: 'no HTML files found in dist' });
-    return { ok: false, errors, warnings, pagesChecked: 0 };
   }
 
   const mdFiles = new Set(walk(distDir, '.md').map((f) => toHref(distDir, f)));
@@ -60,7 +67,7 @@ export function validateDist(distDir, opts = {}) {
         errors.push({ level: 'error', code: 'missing-md', message: `llms.txt references a missing file: ${href}`, file: 'llms.txt' });
       }
     }
-  } else {
+  } else if (!corpus.hasCorpus) {
     warnings.push({ level: 'warn', code: 'no-llms', message: 'no llms.txt found in dist' });
   }
 
@@ -111,8 +118,10 @@ export function validateDist(distDir, opts = {}) {
     }
   }
 
+  for (const href of corpus.referencedMarkdown) referenced.add(href);
+
   // --- orphan .md files ---
-  if (existsSync(llmsPath)) {
+  if (corpus.hasCorpus) {
     for (const md of mdFiles) {
       const withBase = `${base}${md}`;
       if (!referenced.has(md) && !referenced.has(withBase) && !optedOut.has(md)) {
@@ -123,13 +132,139 @@ export function validateDist(distDir, opts = {}) {
 
   // --- robots.txt ---
   const robotsPath = join(distDir, 'robots.txt');
-  if (existsSync(robotsPath)) validateRobots(readFileSync(robotsPath, 'utf8'), { warnings });
+  let sitemapsChecked = 0;
+  if (existsSync(robotsPath)) {
+    const robots = readFileSync(robotsPath, 'utf8');
+    validateRobots(robots, { warnings });
+    const localOrigin = corpus.origin ?? validationOrigin(distDir, robots);
+    sitemapsChecked = validateRobotsReferences(
+      robots,
+      distDir,
+      base,
+      corpus.corpusPaths,
+      localOrigin,
+      { errors, warnings },
+    );
+  }
 
   // --- domain-profile.json ---
   const dpPath = join(distDir, '.well-known', 'domain-profile.json');
   if (existsSync(dpPath)) validateDomainProfile(readFileSync(dpPath, 'utf8'), { errors, warnings });
 
-  return { ok: errors.length === 0, errors, warnings, pagesChecked };
+  const uniqueErrors = uniqueFindings(errors);
+  const uniqueWarnings = uniqueFindings(warnings);
+  return {
+    ok: uniqueErrors.length === 0,
+    errors: uniqueErrors,
+    warnings: uniqueWarnings,
+    pagesChecked,
+    artifactsChecked: corpus.artifactsChecked,
+    sitemapsChecked,
+  };
+}
+
+/**
+ * Validate local robots sitemap and corpus references without performing any
+ * network access. A different-origin reference is reported and left alone.
+ * @param {string} robots
+ * @param {string} distDir
+ * @param {string} base
+ * @param {Set<string>} corpusPaths
+ * @param {string | undefined} localOrigin
+ * @param {{ errors: Finding[]; warnings: Finding[] }} out
+ */
+function validateRobotsReferences(robots, distDir, base, corpusPaths, localOrigin, out) {
+  let checked = 0;
+  const seen = new Set();
+  for (const raw of robots.split('\n')) {
+    const line = raw.replace(/\s+#.*$/, '').trim();
+    const sitemap = line.match(/^Sitemap\s*:\s*(.+)$/i);
+    if (sitemap) {
+      let url;
+      try {
+        url = new URL(sitemap[1].trim());
+      } catch {
+        out.errors.push({ level: 'error', code: 'robots-sitemap-url-invalid', message: `robots.txt has an invalid Sitemap URL: ${sitemap[1].trim()}`, file: 'robots.txt' });
+        continue;
+      }
+      if (localOrigin && url.origin !== localOrigin) {
+        out.warnings.push({
+          level: 'warn',
+          code: 'sitemap-external-unchecked',
+          message: `external sitemap was not fetched or validated: ${url.origin}${url.pathname}`,
+          file: 'robots.txt',
+        });
+        continue;
+      }
+      if (seen.has(url.href)) {
+        out.warnings.push({ level: 'warn', code: 'robots-sitemap-duplicate', message: `robots.txt repeats Sitemap URL: ${url.href}`, file: 'robots.txt' });
+        continue;
+      }
+      seen.add(url.href);
+      const appPath = withoutBase(url.pathname, base);
+      if (!appPath) {
+        out.errors.push({ level: 'error', code: 'robots-sitemap-outside-base', message: `robots.txt Sitemap URL is outside the configured base: ${url.href}`, file: 'robots.txt' });
+        continue;
+      }
+      const result = validateLocalSitemap({
+        distDir,
+        entryPath: appPath,
+        siteUrl: url.origin,
+        base,
+      });
+      checked += result.documentsChecked;
+      for (const finding of result.findings) {
+        const target = finding.severity === 'error' ? out.errors : out.warnings;
+        target.push({
+          level: finding.severity === 'error' ? 'error' : 'warn',
+          code: finding.code,
+          message: finding.message,
+          file: finding.sourcePath ?? finding.pathname ?? appPath,
+        });
+      }
+      continue;
+    }
+
+    const corpus = raw.match(/^\s*#\s*llms(?:\.txt)?\s*:\s*(\S+)\s*$/i);
+    if (!corpus) continue;
+    let corpusUrl;
+    try {
+      corpusUrl = new URL(corpus[1]);
+    } catch {
+      out.errors.push({ level: 'error', code: 'robots-corpus-url-invalid', message: `robots.txt has an invalid corpus URL: ${corpus[1]}`, file: 'robots.txt' });
+      continue;
+    }
+    if (localOrigin && corpusUrl.origin !== localOrigin) {
+      out.warnings.push({ level: 'warn', code: 'robots-corpus-external', message: `external corpus reference was not fetched: ${corpusUrl.origin}${corpusUrl.pathname}`, file: 'robots.txt' });
+      continue;
+    }
+    const pathname = corpusUrl.pathname;
+    if (!corpusPaths.has(pathname)) {
+      out.errors.push({ level: 'error', code: 'robots-corpus-missing', message: `robots.txt references a missing corpus: ${pathname}`, file: 'robots.txt' });
+    }
+  }
+  return checked;
+}
+
+/** @param {string} distDir @param {string} robots */
+function validationOrigin(distDir, robots) {
+  const profile = join(distDir, '.well-known', 'domain-profile.json');
+  try {
+    const value = JSON.parse(readFileSync(profile, 'utf8'))?.url;
+    if (typeof value === 'string') return new URL(value).origin;
+  } catch {
+    // Fall through to the non-standard corpus hint.
+  }
+  for (const line of robots.split('\n')) {
+    const match = line.match(/^\s*#\s*llms(?:\.txt)?\s*:\s*(\S+)\s*$/i);
+    if (!match) continue;
+    try {
+      return new URL(match[1]).origin;
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -366,4 +501,22 @@ function extractMdLinks(llms) {
   let m;
   while ((m = re.exec(llms))) hrefs.push(m[1]);
   return hrefs;
+}
+
+/** @param {string} pathname @param {string} base */
+function withoutBase(pathname, base) {
+  if (!base) return pathname;
+  if (pathname === base) return '/';
+  return pathname.startsWith(`${base}/`) ? pathname.slice(base.length) : null;
+}
+
+/** @param {Finding[]} findings */
+function uniqueFindings(findings) {
+  const seen = new Set();
+  return findings.filter((finding) => {
+    const key = JSON.stringify([finding.level, finding.code, finding.message, finding.file ?? null]);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }

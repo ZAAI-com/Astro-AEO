@@ -1,9 +1,13 @@
 import { test, expect, describe, afterEach } from 'vitest';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
+import { gzipSync } from 'node:zlib';
 import { validateDist } from './validate.js';
+import { countApproximateTokens, normalizePublishedText } from '../src/core/corpus-tokenizer.js';
+import { normalizeCorpusManifest } from '../src/core/corpus-manifest.js';
 
 const DIR = dirname(fileURLToPath(import.meta.url));
 const FIX = join(DIR, '..', 'fixtures');
@@ -215,4 +219,141 @@ describe('validateDist', () => {
       expect(r.errors.map((e) => e.code)).not.toContain('img-missing-alt');
     });
   });
+
+  describe('locale corpus and manifest validation', () => {
+    /** @type {string[]} */
+    const tmps = [];
+
+    afterEach(() => {
+      while (tmps.length) rmSync(/** @type {string} */ (tmps.pop()), { recursive: true, force: true });
+    });
+
+    const hash = (value) => `sha256:${createHash('sha256').update(value).digest('hex')}`;
+
+    function manifestDist() {
+      const root = mkdtempSync(join(tmpdir(), 'aeo-manifest-validation-'));
+      tmps.push(root);
+      mkdirSync(join(root, 'llms'), { recursive: true });
+      const markdown = '# Home\r\n\r\nHome page.\r\n';
+      const index = '# Valid Site\n\n## Pages\n\n- [Home](/index.md): Home page.\n';
+      const chunk = '# Home\n\nURL: https://valid.example.com/\n\nHome page.\n\n---\n';
+      writeFileSync(join(root, 'index.html'), [
+        '<html><head><title>A Valid Manifest Validation Page</title>',
+        '<meta name="robots" content="index,follow">',
+        '<link rel="alternate" type="text/markdown" href="/index.md">',
+        '</head><body><p>Home</p></body></html>',
+      ].join(''));
+      writeFileSync(join(root, 'index.md'), markdown);
+      writeFileSync(join(root, 'llms.txt'), index);
+      writeFileSync(join(root, 'llms-en.txt'), index);
+      writeFileSync(join(root, 'llms.txt.gz'), gzipSync(Buffer.from(index), { level: 9, mtime: 0 }));
+      writeFileSync(join(root, 'llms', 'pages-0001.txt'), chunk);
+      const manifest = normalizeCorpusManifest({
+        version: 1,
+        origin: 'https://valid.example.com',
+        base: '/',
+        tokenizer: { name: 'astro-aeo-approx', version: '1', approximate: true },
+        locales: [{
+          origin: 'https://valid.example.com', locale: null, language: null, canonicalArtifact: '/llms.txt',
+        }],
+        pages: [{
+          origin: 'https://valid.example.com', id: '/', canonicalUrl: 'https://valid.example.com/',
+          markdownUrl: '/index.md', locale: null, language: null, section: 'Pages',
+          tokenCount: countApproximateTokens(markdown),
+          hash: hash(Buffer.from(normalizePublishedText(markdown))), sourceStrategy: 'rendered',
+          chunks: ['/llms/pages-0001.txt'],
+        }],
+        artifacts: [
+          {
+            origin: 'https://valid.example.com', pathname: '/llms.txt', kind: 'index', locale: null,
+            section: null, part: null, tokenCount: countApproximateTokens(index), hash: hash(index),
+            encoding: 'identity', sourcePathname: null,
+          },
+          {
+            origin: 'https://valid.example.com', pathname: '/llms-en.txt', kind: 'alias', locale: null,
+            section: null, part: null, tokenCount: countApproximateTokens(index), hash: hash(index),
+            encoding: 'identity', sourcePathname: '/llms.txt',
+          },
+          {
+            origin: 'https://valid.example.com', pathname: '/llms.txt.gz', kind: 'index', locale: null,
+            section: null, part: null, tokenCount: countApproximateTokens(index),
+            hash: hash(readBuffer(join(root, 'llms.txt.gz'))), encoding: 'gzip', sourcePathname: '/llms.txt',
+          },
+          {
+            origin: 'https://valid.example.com', pathname: '/llms/pages-0001.txt', kind: 'chunk', locale: null,
+            section: 'Pages', part: 1, tokenCount: countApproximateTokens(chunk), hash: hash(chunk),
+            encoding: 'identity', sourcePathname: null,
+          },
+        ],
+      });
+      writeFileSync(join(root, 'llms', 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+      return root;
+    }
+
+    test('validates exact manifest, page, chunk, alias, and gzip bytes', () => {
+      const result = validateDist(manifestDist());
+      expect(result.errors).toEqual([]);
+      expect(result.artifactsChecked).toBe(5);
+      expect(result.warnings.map((entry) => entry.code)).not.toContain('orphan-md');
+    });
+
+    test('reports manifest hashes, gzip bytes, aliases, and chunk references independently', () => {
+      const root = manifestDist();
+      writeFileSync(join(root, 'llms-en.txt'), 'changed alias');
+      writeFileSync(join(root, 'llms.txt.gz'), 'not gzip');
+      writeFileSync(join(root, 'llms', 'pages-0001.txt'), 'changed chunk');
+      const result = validateDist(root);
+      const codes = result.errors.map((entry) => entry.code);
+      expect(codes).toContain('corpus-artifact-hash');
+      expect(codes).toContain('corpus-alias-content');
+      expect(codes).toContain('corpus-gzip-invalid');
+      expect(codes).toContain('corpus-artifact-tokens');
+    });
+
+    test('discovers locale families and byte-copy aliases without a manifest', () => {
+      const root = mkdtempSync(join(tmpdir(), 'aeo-locale-validation-'));
+      tmps.push(root);
+      mkdirSync(join(root, 'en'), { recursive: true });
+      writeFileSync(join(root, 'index.html'), '<link rel="alternate" type="text/markdown" href="/en/page.md">');
+      writeFileSync(join(root, 'en', 'page.md'), '# Page\n');
+      const corpus = '# Site\n\n## Pages\n\n- [Page](/en/page.md)\n';
+      writeFileSync(join(root, 'en', 'llms.txt'), corpus);
+      writeFileSync(join(root, 'llms-en.txt'), corpus);
+
+      const result = validateDist(root);
+      expect(result.errors).toEqual([]);
+      expect(result.warnings.map((entry) => entry.code)).not.toContain('no-llms');
+      expect(result.warnings.map((entry) => entry.code)).not.toContain('orphan-md');
+      expect(result.artifactsChecked).toBe(2);
+    });
+
+    test('validates robots sitemap and corpus references without fetching', () => {
+      const root = manifestDist();
+      writeFileSync(
+        join(root, 'robots.txt'),
+        'User-agent: *\nAllow: /\n\nSitemap: https://valid.example.com/missing.xml\n' +
+          '# llms.txt: https://valid.example.com/missing-llms.txt\n',
+      );
+      const result = validateDist(root);
+      expect(result.errors.map((entry) => entry.code)).toContain('sitemap-reference-missing');
+      expect(result.errors.map((entry) => entry.code)).toContain('robots-corpus-missing');
+      expect(result.sitemapsChecked).toBe(0);
+    });
+
+    test('reports an external sitemap without fetching it', () => {
+      const root = manifestDist();
+      writeFileSync(
+        join(root, 'robots.txt'),
+        'User-agent: *\nAllow: /\n\nSitemap: https://sitemaps.example.net/index.xml\n',
+      );
+      const result = validateDist(root);
+      expect(result.errors.map((entry) => entry.code)).not.toContain('sitemap-reference-missing');
+      expect(result.warnings.map((entry) => entry.code)).toContain('sitemap-external-unchecked');
+      expect(result.sitemapsChecked).toBe(0);
+    });
+  });
 });
+
+function readBuffer(path) {
+  return readFileSync(path);
+}
