@@ -10,6 +10,25 @@ const string = (description, defaultValue) => ({
   ...(defaultValue === undefined ? {} : { default: defaultValue }),
 });
 
+const EXACT_PATHNAME_PATTERN =
+  "^(?!/$)(?!//)(?!.*//)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*%25[0-9A-Fa-f]{2})" +
+  "(?:/(?:[A-Za-z0-9!$&'()+,\\-.:;=@_~]|" +
+  '%(?:20|22|25|3C|3E|5B|5D|5E|60|7B|7C|7D)|' +
+  '%(?:C[2-F]|D[0-F])%[89AB][0-9A-F]|' +
+  '%E0%[AB][0-9A-F]%[89AB][0-9A-F]|' +
+  '%E[1-CEF]%[89AB][0-9A-F]%[89AB][0-9A-F]|' +
+  '%ED%[89][0-9A-F]%[89AB][0-9A-F]|' +
+  '%F0%[9AB][0-9A-F]%[89AB][0-9A-F]%[89AB][0-9A-F]|' +
+  '%F[1-3]%[89AB][0-9A-F]%[89AB][0-9A-F]%[89AB][0-9A-F]|' +
+  '%F4%8[0-9A-F]%[89AB][0-9A-F]%[89AB][0-9A-F])+)+$';
+
+const exactPathname = (description, defaultValue) => ({
+  type: 'string',
+  description,
+  pattern: EXACT_PATHNAME_PATTERN,
+  ...(defaultValue === undefined ? {} : { default: defaultValue }),
+});
+
 const stringArray = (description, defaultValue) => ({
   type: 'array',
   description,
@@ -289,10 +308,7 @@ const canonicalProperties = {
       replace: {
         type: 'array',
         description: 'Exact normalized served pathnames that core artifacts may replace.',
-        items: {
-          type: 'string',
-          pattern: '^(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*//)/(?!/)(?!.*[?#*{}\\[\\]\\\\]).*[^/]$',
-        },
+        items: exactPathname('One exact normalized served pathname.'),
         uniqueItems: true,
         default: [],
       },
@@ -334,8 +350,8 @@ const canonicalProperties = {
       corpus: object(
         {
           enabled: boolean('Emit the experimental semantic corpus pair.', false),
-          graphPath: string('App-relative graph corpus pathname.', '/schema/graph.jsonld'),
-          mapPath: string('App-relative schema-map pathname.', '/schema/schema-map.xml'),
+          graphPath: exactPathname('App-relative graph corpus pathname.', '/schema/graph.jsonld'),
+          mapPath: exactPathname('App-relative schema-map pathname.', '/schema/schema-map.xml'),
         },
         'Experimental non-standard semantic corpus output.',
       ),

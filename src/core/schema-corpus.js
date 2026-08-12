@@ -9,14 +9,13 @@ export const SCHEMA_MAP_NAMESPACE = 'https://zaai.com/astro-aeo/schema-map/1';
  * byte-identical representations.
  *
  * @param {{ page: import('../index.js').AeoPageRecord; graph: import('../schema.js').AeoGraph }[]} records
- * @param {{ graphUrl: string; strictReferences?: boolean }} options
+ * @param {{ graphUrl: string; siteUrl: string; strictReferences?: boolean }} options
  */
 export function renderSchemaCorpus(records, options) {
   const { orderedPages, graph, entities, knownEntityIds } = collectSiteGraph(records);
-  const siteUrl = new URL('/', options.graphUrl).href;
   const result = validateGraph(graph, {
     knownEntityIds,
-    siteUrl,
+    siteUrl: options.siteUrl,
     strictReferences: options.strictReferences ?? true,
   });
   const diagnostics = result.findings.map((finding) => ({
@@ -53,7 +52,7 @@ export function renderSchemaCorpus(records, options) {
     graph: {
       body: `${serializeGraph(graph, {
         knownEntityIds,
-        siteUrl,
+        siteUrl: options.siteUrl,
         strictReferences: options.strictReferences ?? true,
       })}\n`,
       contentType: 'application/ld+json; charset=utf-8',

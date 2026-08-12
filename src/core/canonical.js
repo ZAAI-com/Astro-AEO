@@ -34,12 +34,28 @@ export function authoredCanonical(html, base) {
     const href = attribute(tag, 'href');
     if (href) values.push(href);
   }
-  const valid = [...new Set(values.map((value) => stableCanonical(value, base)).filter(Boolean))];
+  const valid = [...new Set(values
+    .map((value) => stableCanonical(decodeAttributeReferences(value), base))
+    .filter(Boolean))];
   return {
     ...(valid.length === 1 ? { canonical: valid[0] } : {}),
     authored: values,
     conflict: valid.length > 1,
   };
+}
+
+/**
+ * Return the configured site validation scope, including Astro's base path.
+ *
+ * @param {string | URL | undefined} siteUrl
+ * @param {string} [base]
+ * @returns {string | undefined}
+ */
+export function siteScopeUrl(siteUrl, base = '') {
+  const stableSite = stableCanonical(siteUrl);
+  if (!stableSite) return undefined;
+  const prefix = base && base !== '/' ? `/${base.replace(/^\/+|\/+$/g, '')}` : '';
+  return stableCanonical(new URL(`${prefix}/`, stableSite));
 }
 
 /**
@@ -80,4 +96,22 @@ export function isLoopbackHostname(hostname) {
 /** @param {string} tag @param {string} name */
 function attribute(tag, name) {
   return htmlTagAttribute(tag, name);
+}
+
+/**
+ * Decode one HTML attribute-reference layer without interpreting references
+ * exposed by that decode. Canonical hrefs need only the five XML names plus
+ * numeric character references.
+ *
+ * @param {string} value
+ */
+function decodeAttributeReferences(value) {
+  const names = /** @type {const} */ ({ amp: '&', apos: "'", gt: '>', lt: '<', quot: '"' });
+  return value.replace(/&(?:#(\d+)|#x([\da-f]+)|([a-z]+));/gi, (match, decimal, hexadecimal, name) => {
+    if (name) return names[/** @type {keyof typeof names} */ (name.toLowerCase())] ?? match;
+    const codePoint = Number.parseInt(decimal ?? hexadecimal, decimal ? 10 : 16);
+    if (!Number.isInteger(codePoint) || codePoint <= 0 || codePoint > 0x10ffff ||
+      (codePoint >= 0xd800 && codePoint <= 0xdfff)) return match;
+    return String.fromCodePoint(codePoint);
+  });
 }

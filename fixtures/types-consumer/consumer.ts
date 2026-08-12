@@ -552,6 +552,10 @@ type WebPageEntity = Extract<WebPage, { '@type': 'WebPage' }>;
 export const schemaPersonId = createId<PersonEntity>('https://example.com/#ada');
 export const schemaPerson = createPerson({ '@id': schemaPersonId, name: 'Ada' });
 export const schemaPersonRef: EntityReference<PersonEntity> = ref(schemaPerson);
+export const relativeSchemaPerson = createPerson({ '@id': '#relative-person', name: 'Relative' });
+export const relativeSchemaPersonRef: EntityReference<PersonEntity> = ref('#relative-person');
+// @ts-expect-error Entity construction does not brand a relative or otherwise unvalidated ID.
+export const unvalidatedSchemaPersonId: EntityId<PersonEntity> = relativeSchemaPerson['@id'];
 export const schemaPageId = createId<WebPageEntity>('https://example.com/#page');
 export const schemaPage = connect(
   createWebPage({ '@id': schemaPageId, name: 'Page' }),

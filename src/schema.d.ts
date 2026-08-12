@@ -45,6 +45,8 @@ export type {
 } from 'schema-dts';
 
 declare const schemaIdBrand: unique symbol;
+declare const schemaEntityType: unique symbol;
+declare const schemaReferenceType: unique symbol;
 
 /** The object-valued members of schema-dts's `Thing` vocabulary union. */
 export type SchemaThing = Exclude<Thing, string>;
@@ -62,16 +64,17 @@ export type SchemaId<T extends JsonLdObject = JsonLdObject> = string & {
 /** Public roadmap spelling retained alongside the more vocabulary-specific alias. */
 export type EntityId<T extends JsonLdObject = JsonLdObject> = SchemaId<T>;
 
-/** An ID-only JSON-LD reference. */
+/** An ID-only JSON-LD reference. Relative IDs remain valid until graph validation. */
 export interface EntityReference<T extends JsonLdObject = JsonLdObject> {
-  readonly '@id': SchemaId<T>;
+  readonly '@id': string;
+  readonly [schemaReferenceType]?: T;
 }
 
-/** A schema-dts entity whose optional ID has been validated and branded. */
+/** A schema-dts entity whose optional ID is structurally safe but may be relative. */
 export type SchemaEntity<T extends JsonLdObject = never> = [T] extends [never]
-  ? GenericSchemaEntity & { readonly '@id'?: SchemaId }
+  ? GenericSchemaEntity & { readonly '@id'?: string }
   : T extends unknown
-    ? Omit<T, '@id'> & { readonly '@id'?: SchemaId<T> }
+    ? Omit<T, '@id'> & { readonly '@id'?: string; readonly [schemaEntityType]?: T }
     : never;
 
 /** Select the exact leaf from one of schema-dts's subtype unions. */
@@ -132,7 +135,7 @@ export type GraphConflictPolicy = 'error' | 'first' | 'last';
 
 /** A scalar conflict without either conflicting value. */
 export interface GraphConflict {
-  readonly entityId?: SchemaId;
+  readonly entityId?: string;
   readonly role?: GraphRole;
   readonly pointer: string;
   readonly policy: GraphConflictPolicy;
@@ -200,12 +203,12 @@ export declare function createId<T extends JsonLdObject = JsonLdObject>(
   base?: string | URL,
 ): SchemaId<T>;
 
-/** Clone and validate an arbitrary schema-dts entity. */
+/** Clone and structurally validate an entity. Relative IDs are resolved by validateGraph. */
 export declare function createEntity<const T extends JsonLdObject>(entity: T): SchemaEntity<T>;
 
 /** Create an ID-only reference. An entity without an ID throws at runtime. */
 export declare function ref<T extends JsonLdObject>(
-  target: SchemaId<T> | SchemaEntity<T>,
+  target: string | EntityReference<T> | SchemaEntity<T>,
 ): EntityReference<T>;
 
 export interface ConnectOptions {
@@ -217,7 +220,7 @@ export interface ConnectOptions {
 export declare function connect<Source extends JsonLdObject, Target extends JsonLdObject>(
   source: SchemaEntity<Source>,
   property: Exclude<Extract<keyof Source, string>, '@id' | '@type'>,
-  target: SchemaId<Target> | EntityReference<Target> | SchemaEntity<Target>,
+  target: string | EntityReference<Target> | SchemaEntity<Target>,
   options?: ConnectOptions,
 ): SchemaEntity<Source>;
 

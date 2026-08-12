@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 import { buildSchema, serializeSchema } from '../scripts/schema-definition.mjs';
+import { assertExactPathname } from './core/artifact-path.js';
 
 const published = JSON.parse(serializeSchema());
 
@@ -23,16 +24,61 @@ describe('published configuration schema', () => {
     expect(conforms({ pages: { catalogs: [{ module: '' }] } })).toBe(false);
   });
 
-  test('artifact replacement paths match the runtime pathname shape', () => {
-    for (const pathname of ['/x', '/docs/llms.txt']) {
-      expect(conforms({ artifacts: { replace: [pathname] } }), pathname).toBe(true);
+  test.each([
+    ['/x', true],
+    ['/docs/llms.txt', true],
+    ['/sale-100%25.txt', true],
+    ['/caf%C3%A9.json', true],
+    ['/%20space', true],
+    ['/%F0%9F%90%83.json', true],
+    ['/', false],
+    ['relative.json', false],
+    ['//x', false],
+    ['/a//b', false],
+    ['/.', false],
+    ['/..', false],
+    ['/a/.', false],
+    ['/a/..', false],
+    ['/a/./b', false],
+    ['/a/../b', false],
+    ['/a/', false],
+    ['/a?query', false],
+    ['/a#fragment', false],
+    ['/a*', false],
+    ['/a{x}', false],
+    ['/a[x]', false],
+    ['/a\\b', false],
+    ['/café.json', false],
+    ['/caf%c3%a9.json', false],
+    ['/%61.txt', false],
+    ['/literal%2520escape.txt', false],
+    ['/foo%2Fbar', false],
+    ['/foo%5Cbar', false],
+    ['/foo%zz', false],
+    ['/%FF', false],
+  ])('keeps exact-path runtime and schema validation aligned for %s', (pathname, accepted) => {
+    let runtimeAccepted = true;
+    try {
+      assertExactPathname(pathname);
+    } catch {
+      runtimeAccepted = false;
     }
-    for (const pathname of [
-      '/', '//x', '/a//b', '/.', '/..', '/a/.', '/a/..', '/a/./b', '/a/../b',
-      '/a/', '/a?query', '/a#fragment', '/a*', '/a{x}', '/a[x]', '/a\\b',
+    expect(runtimeAccepted).toBe(accepted);
+    for (const value of [
+      { artifacts: { replace: [pathname] } },
+      { schema: { corpus: { graphPath: pathname } } },
+      { schema: { corpus: { mapPath: pathname } } },
     ]) {
-      expect(conforms({ artifacts: { replace: [pathname] } }), pathname).toBe(false);
+      expect(conforms(value), JSON.stringify(value)).toBe(accepted);
     }
+  });
+
+  test('reuses one exact-path schema for replacement and corpus outputs', () => {
+    const schema = buildSchema();
+    const replace = schema.properties.artifacts.properties.replace.items;
+    const corpus = schema.properties.schema.properties.corpus.properties;
+    expect(replace.pattern).toBe(corpus.graphPath.pattern);
+    expect(replace.pattern).toBe(corpus.mapPath.pattern);
   });
 
   test('deprecated object aliases retain their value constraints', () => {

@@ -104,6 +104,15 @@ describe('defineAeoPage', () => {
       sourcePath: 'src/content/entry.mdx',
       sourceKind: 'mdx',
     });
+    expect(defineAeoPage({ sourcePath: 'src/pages/about.astro' })).toMatchObject({
+      sourceKind: 'astro',
+    });
+    expect(defineAeoPage({ sourcePath: 'cms:article-42' })).toMatchObject({
+      sourceKind: 'cms',
+    });
+    expect(defineAeoPage({ sourcePath: 'generated:article-42' })).toMatchObject({
+      sourceKind: 'custom',
+    });
   });
 
   test('explicit values win over the entry', () => {

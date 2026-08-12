@@ -7,6 +7,7 @@ import { parseDocument } from './html-document.js';
 import { readMarker, removeMarkers, stripMarkersFromHtml } from './extract/marker.js';
 import { authoredCanonical, configuredCanonical, stableCanonical } from './canonical.js';
 import { resolveMarkdownWithRenderers } from './markdown-renderers.js';
+import { sourceKindFor } from './source-kind.js';
 
 /**
  * @typedef {object} SiteFacts
@@ -309,19 +310,6 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
       ],
     },
   };
-}
-
-/**
- * @param {string | undefined} path
- * @param {boolean} authoredMarkdown
- * @returns {'markdown'|'mdx'|'astro'|'cms'|'rendered'|'custom'}
- */
-function sourceKindFor(path, authoredMarkdown) {
-  if (path && /\.mdx(?:$|[?#])/i.test(path)) return 'mdx';
-  if (path && /\.md(?:$|[?#])/i.test(path)) return 'markdown';
-  if (path && /\.astro(?:$|[?#])/i.test(path)) return 'astro';
-  if (authoredMarkdown) return 'custom';
-  return 'rendered';
 }
 
 /** @param {Document} document */

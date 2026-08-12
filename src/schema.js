@@ -279,8 +279,7 @@ export function createEntity(entity) {
     throw new TypeError('Schema entity must not contain @context; createGraph owns the context');
   }
   const cloned = /** @type {T} */ (cloneJson(entity, '', new Set()));
-  assertEntityType(cloned);
-  if (Object.hasOwn(cloned, '@id')) assertIdText(cloned['@id'], '/@id');
+  assertReservedKeywords(cloned, '', true);
   return cloned;
 }
 
@@ -401,7 +400,11 @@ export function validateGraph(input, options = {}) {
   const knownIds = normalizeKnownIds(options.knownEntityIds, documentCanonical, findings);
   const normalizedEntries = graph.entries.map((entry) => ({
     ...entry,
-    entity: normalizeEntityIds(entry.entity, documentCanonical, findings),
+    entity: normalizeEntityUrls(
+      normalizeEntityIds(entry.entity, documentCanonical, findings),
+      documentCanonical,
+      findings,
+    ),
   }));
   graph = mergeEntries(normalizedEntries, options.conflictPolicy ?? 'error', graph.conflicts);
 
@@ -426,7 +429,6 @@ export function validateGraph(input, options = {}) {
   }
 
   validateSingletonRoles(graph.entries, findings);
-  validateUrlProperties(graph.entries, documentCanonical, findings);
   validateReferences(
     graph.entries,
     documentCanonical,
@@ -827,7 +829,7 @@ function mergeValues(
   role,
 ) {
   if (deepEqual(first, incoming)) return cloneJson(first, pointer, new Set());
-  if (pointer === '/@type') return mergeTypes(first, incoming);
+  if (pointer === '/@type' || pointer.endsWith('/@type')) return mergeTypes(first, incoming);
 
   if (isPlainObject(first) && isPlainObject(incoming)) {
     /** @type {Record<string, any>} */
@@ -981,37 +983,16 @@ function validateSingletonRoles(entries, findings) {
 }
 
 /**
- * @param {Entry[]} entries
- * @param {string | undefined} documentCanonical
+ * Normalize recognized Schema URL values while retaining the rest of the
+ * vocabulary object byte-for-byte equivalent.
+ *
+ * @param {Record<string, any>} entity
+ * @param {string | undefined} base
  * @param {Finding[]} findings
+ * @returns {Record<string, any>}
  */
-function validateUrlProperties(entries, documentCanonical, findings) {
-  for (const entry of entries) walkUrls(entry.entity, '', documentCanonical, findings);
-}
-
-/**
- * @param {unknown} value
- * @param {string} pointer
- * @param {string | undefined} documentCanonical
- * @param {Finding[]} findings
- */
-function walkUrls(value, pointer, documentCanonical, findings) {
-  if (Array.isArray(value)) {
-    value.forEach((item, index) => walkUrls(item, `${pointer}/${index}`, documentCanonical, findings));
-    return;
-  }
-  if (!isPlainObject(value)) return;
-  if (normalizeTypes(value['@type']).includes('URL') && Object.hasOwn(value, '@value')) {
-    validateUrlValue(value['@value'], childPointer(pointer, '@value'), documentCanonical, findings);
-  }
-  for (const [key, item] of Object.entries(value)) {
-    const nextPointer = childPointer(pointer, key);
-    if (URL_PROPERTIES.has(key)) validateUrlValue(item, nextPointer, documentCanonical, findings);
-    if (URL_OR_TEXT_PROPERTIES.has(key)) {
-      validateUrlLikeValue(item, nextPointer, documentCanonical, findings);
-    }
-    walkUrls(item, nextPointer, documentCanonical, findings);
-  }
+function normalizeEntityUrls(entity, base, findings) {
+  return /** @type {Record<string, any>} */ (normalizeNestedUrls(entity, '', base, findings));
 }
 
 /**
@@ -1019,16 +1000,50 @@ function walkUrls(value, pointer, documentCanonical, findings) {
  * @param {string} pointer
  * @param {string | undefined} base
  * @param {Finding[]} findings
+ * @returns {unknown}
  */
-function validateUrlValue(value, pointer, base, findings) {
+function normalizeNestedUrls(value, pointer, base, findings) {
   if (Array.isArray(value)) {
-    value.forEach((item, index) => validateUrlValue(item, `${pointer}/${index}`, base, findings));
-    return;
+    return value.map((item, index) => normalizeNestedUrls(item, `${pointer}/${index}`, base, findings));
   }
-  if (typeof value !== 'string') return;
+  if (!isPlainObject(value)) return value;
+  const typedUrl = normalizeTypes(value['@type']).includes('URL');
+  /** @type {Record<string, unknown>} */
+  const result = {};
+  for (const [key, item] of Object.entries(value)) {
+    const nextPointer = childPointer(pointer, key);
+    if (typedUrl && key === '@value') {
+      result[key] = normalizeUrlValue(item, nextPointer, base, findings, false);
+    } else if (URL_PROPERTIES.has(key)) {
+      result[key] = normalizeUrlValue(item, nextPointer, base, findings, false);
+    } else if (URL_OR_TEXT_PROPERTIES.has(key)) {
+      result[key] = normalizeUrlValue(item, nextPointer, base, findings, true);
+    } else {
+      result[key] = normalizeNestedUrls(item, nextPointer, base, findings);
+    }
+  }
+  return result;
+}
+
+/**
+ * @param {unknown} value
+ * @param {string} pointer
+ * @param {string | undefined} base
+ * @param {Finding[]} findings
+ * @param {boolean} urlLikeOnly
+ * @returns {unknown}
+ */
+function normalizeUrlValue(value, pointer, base, findings, urlLikeOnly) {
+  if (Array.isArray(value)) {
+    return value.map((item, index) =>
+      normalizeUrlValue(item, `${pointer}/${index}`, base, findings, urlLikeOnly));
+  }
+  if (typeof value !== 'string') return normalizeNestedUrls(value, pointer, base, findings);
+  if (urlLikeOnly && !looksLikeUrl(value)) return value;
   try {
     const parsed = base === undefined ? new URL(value) : new URL(value, base);
     assertSafeUrl(parsed, 'Schema URL');
+    return parsed.href;
   } catch {
     const missingBase = base === undefined && isSafeRelativeUrl(value);
     findings.push(finding(
@@ -1039,6 +1054,7 @@ function validateUrlValue(value, pointer, base, findings) {
         : 'Schema URL is invalid or unsafe',
       { pointer },
     ));
+    return value;
   }
 }
 
@@ -1056,25 +1072,6 @@ function isSafeRelativeUrl(value) {
       return false;
     }
   }
-}
-
-/**
- * Validate URL-shaped values for Schema.org properties that also accept Text.
- * Plain text is deliberately ignored, including text containing whitespace
- * after a word that happens to end in a colon.
- *
- * @param {unknown} value
- * @param {string} pointer
- * @param {string | undefined} base
- * @param {Finding[]} findings
- */
-function validateUrlLikeValue(value, pointer, base, findings) {
-  if (Array.isArray(value)) {
-    value.forEach((item, index) => validateUrlLikeValue(item, `${pointer}/${index}`, base, findings));
-    return;
-  }
-  if (typeof value !== 'string' || !looksLikeUrl(value)) return;
-  validateUrlValue(value, pointer, base, findings);
 }
 
 /** @param {string} value */
@@ -1301,15 +1298,34 @@ function normalizeConflictPolicy(policy) {
   return value;
 }
 
-/** @param {unknown} value */
-function assertEntityType(value) {
-  const type = value?.['@type'];
-  const types = Array.isArray(type) ? type : [type];
-  if (
-    types.length === 0 ||
-    types.some((item) => typeof item !== 'string' || item.trim() === '')
-  ) {
-    throw new TypeError('Schema entity requires a non-empty @type');
+/**
+ * Validate package-owned JSON-LD keywords at every nested object. Nested
+ * objects may be ID-only references, but every present keyword must retain
+ * the same safe shape as a root entity.
+ *
+ * @param {unknown} value
+ * @param {string} pointer
+ * @param {boolean} root
+ */
+function assertReservedKeywords(value, pointer, root = false) {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertReservedKeywords(item, `${pointer}/${index}`));
+    return;
+  }
+  if (!isPlainObject(value)) return;
+  if (Object.hasOwn(value, '@context')) {
+    throw new TypeError(`Schema entity at ${pointer || '/'} must not contain @context; createGraph owns the context`);
+  }
+  if (root || Object.hasOwn(value, '@type')) {
+    const type = value['@type'];
+    const types = Array.isArray(type) ? type : [type];
+    if (types.length === 0 || types.some((item) => typeof item !== 'string' || item.trim() === '')) {
+      throw new TypeError(`Schema entity at ${pointer || '/'} requires a non-empty @type`);
+    }
+  }
+  if (Object.hasOwn(value, '@id')) assertIdText(value['@id'], childPointer(pointer, '@id'));
+  for (const [key, item] of Object.entries(value)) {
+    assertReservedKeywords(item, childPointer(pointer, key));
   }
 }
 

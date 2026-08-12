@@ -1,4 +1,5 @@
 // @ts-check
+import { isSourceKind, sourceKindFor } from './core/source-kind.js';
 
 /**
  * @typedef {object} AeoPageInput
@@ -53,10 +54,10 @@ export function defineAeoPage(input = {}) {
   if (typeof sourcePath === 'string' && sourcePath) {
     marker.sourcePath = sourcePath;
   }
-  const sourceKind = validSourceKind(input.sourceKind)
+  const sourceKind = isSourceKind(input.sourceKind)
     ? input.sourceKind
     : typeof sourcePath === 'string' && sourcePath
-      ? (/\.mdx(?:$|[?#])/i.test(sourcePath) ? 'mdx' : 'markdown')
+      ? sourceKindFor(sourcePath, typeof markdown === 'string')
       : undefined;
   if (sourceKind) marker.sourceKind = sourceKind;
 
@@ -69,19 +70,6 @@ export function defineAeoPage(input = {}) {
   }
 
   return marker;
-}
-
-/**
- * @param {unknown} value
- * @returns {value is NonNullable<AeoPageInput['sourceKind']>}
- */
-function validSourceKind(value) {
-  return value === 'markdown' ||
-    value === 'mdx' ||
-    value === 'astro' ||
-    value === 'cms' ||
-    value === 'rendered' ||
-    value === 'custom';
 }
 
 /** @param {unknown} value @returns {string | undefined} */

@@ -281,7 +281,7 @@ describe('buildPage', () => {
     });
     expect(result.page.markdown).toBe('\n# Exact source\n');
     expect(result.page.extraction).toEqual(extraction);
-    expect(result.page.source).toEqual({ kind: 'custom', strategy: 'catalog', path: 'cms:marker-only' });
+    expect(result.page.source).toEqual({ kind: 'cms', strategy: 'catalog', path: 'cms:marker-only' });
   });
 
   test('an explicit page marker wins over catalog or standalone source', async () => {

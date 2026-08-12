@@ -435,6 +435,46 @@ describe('managed page head', () => {
     expect(result.normalizedGraph?.entries).toHaveLength(1);
   });
 
+  test('matches equivalent relative authored and managed entity IDs', () => {
+    const authored = '<script type="application/ld+json">' +
+      '{"@context":"https://schema.org","@id":"#article","@type":"Article","headline":"Authored"}' +
+      '</script>';
+    const result = enrichHtmlHead({
+      html: document(`${authored}${marker({
+        infer: false,
+        graph: { '@id': '#article', '@type': 'Article', headline: 'Managed duplicate' },
+      })}`),
+      page: page(), config: resolveConfig(), site,
+    });
+
+    expect(result.graph?.entries).toEqual([]);
+    expect(result.normalizedGraph?.entries).toHaveLength(1);
+    expect(result.normalizedGraph?.entries[0].entity).toMatchObject({
+      '@id': 'https://example.com/about#article',
+      headline: 'Authored',
+    });
+  });
+
+  test('can retain an authored graph snapshot without enabling managed injection', () => {
+    const authored = '<script type="application/ld+json">' +
+      '{"@context":"https://schema.org","@id":"#person","@type":"Person","name":"Authored"}' +
+      '</script>';
+    const result = enrichHtmlHead({
+      html: document(authored),
+      page: page(),
+      config: resolveConfig({ schema: { autoInject: false, corpus: { enabled: false } } }),
+      site,
+      inspectAuthored: true,
+    });
+
+    expect(result.graph).toBeNull();
+    expect(result.authoredGraph?.entries).toHaveLength(1);
+    expect(result.normalizedGraph?.entries[0].entity['@id'])
+      .toBe('https://example.com/about#person');
+    expect(result.html).toContain(authored);
+    expect(result.html).not.toContain('data-astro-aeo-graph');
+  });
+
   test('malformed authored JSON-LD warns and is omitted from the normalized graph', () => {
     const malformed = '<script type="application/ld+json">{"@type":"Thing",}</script>';
     const result = enrichHtmlHead({ html: document(malformed), page: page(), config: resolveConfig(), site });

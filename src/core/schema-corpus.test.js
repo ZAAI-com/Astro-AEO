@@ -23,7 +23,7 @@ describe('schema corpus', () => {
     const output = renderSchemaCorpus([
       { page: page('/b', 'https://example.com/b'), graph: createGraph({ '@id': 'https://example.com/b#webpage', '@type': 'WebPage', name: 'B' }) },
       { page: page('/a', 'https://example.com/a'), graph: createGraph({ '@id': 'https://example.com/a#article', '@type': 'Article', headline: 'A' }) },
-    ], { graphUrl: 'https://example.com/schema/graph.jsonld' });
+    ], { graphUrl: 'https://example.com/schema/graph.jsonld', siteUrl: 'https://example.com/' });
     expect(output.map.body).toContain(`xmlns="${SCHEMA_MAP_NAMESPACE}"`);
     expect(output.map.body.indexOf('/a#article')).toBeLessThan(output.map.body.indexOf('/b#webpage'));
     expect(output.graph.body.indexOf('/a#article')).toBeLessThan(output.graph.body.indexOf('/b#webpage'));
@@ -47,7 +47,7 @@ describe('schema corpus', () => {
           provenance: { source: 'inference', pathname: '/b' },
         }),
       },
-    ], { graphUrl: 'https://example.com/schema/graph.jsonld' });
+    ], { graphUrl: 'https://example.com/schema/graph.jsonld', siteUrl: 'https://example.com/' });
 
     expect(output.graph.body).toContain('https://example.com/a#webpage');
     expect(output.graph.body).toContain('https://example.com/b#webpage');
@@ -56,7 +56,7 @@ describe('schema corpus', () => {
   test('keeps anonymous entities in JSON-LD and diagnoses their omission from XML', () => {
     const output = renderSchemaCorpus([
       { page: page('/a', 'https://example.com/a'), graph: createGraph({ '@type': 'Thing', name: 'Anonymous' }) },
-    ], { graphUrl: 'https://example.com/schema/graph.jsonld' });
+    ], { graphUrl: 'https://example.com/schema/graph.jsonld', siteUrl: 'https://example.com/' });
     expect(output.graph.body).toContain('Anonymous');
     expect(output.map.body).not.toContain('Anonymous');
     expect(output.diagnostics).toContainEqual(expect.objectContaining({ code: 'schema-map-anonymous-entity' }));
@@ -66,7 +66,7 @@ describe('schema corpus', () => {
     const output = renderSchemaCorpus([{
       page: page('/a', 'https://example.com/a\u0000\u000b\ud800\ufffe🧭'),
       graph: createGraph({ '@id': 'https://example.com/a#thing', '@type': 'Thing' }),
-    }], { graphUrl: 'https://example.com/schema/graph.jsonld' });
+    }], { graphUrl: 'https://example.com/schema/graph.jsonld', siteUrl: 'https://example.com/' });
 
     expect(output.map.body).not.toMatch(/[\u0000\u000b\ud800\ufffe]/u);
     expect(output.map.body).toContain('🧭');
@@ -86,7 +86,7 @@ describe('schema corpus', () => {
         page: page('/', 'https://example.com/'),
         graph: createGraph({ '@id': 'https://example.com/#website', '@type': 'WebSite' }),
       },
-    ], { graphUrl: 'https://example.com/schema/graph.jsonld' });
+    ], { graphUrl: 'https://example.com/schema/graph.jsonld', siteUrl: 'https://example.com/' });
     expect(resolved.diagnostics).not.toContainEqual(
       expect.objectContaining({ code: 'schema.unresolved-reference' }),
     );
@@ -100,7 +100,7 @@ describe('schema corpus', () => {
           isPartOf: { '@id': 'https://example.com/missing#website' },
         }),
       },
-    ], { graphUrl: 'https://example.com/schema/graph.jsonld' })).toThrow(/validation failed/);
+    ], { graphUrl: 'https://example.com/schema/graph.jsonld', siteUrl: 'https://example.com/' })).toThrow(/validation failed/);
   });
 
   test('cross-validates collected graphs without requiring corpus emission', () => {
@@ -126,6 +126,23 @@ describe('schema corpus', () => {
     }));
   });
 
+  test('limits same-site reference checks to the configured Astro base', () => {
+    const output = renderSchemaCorpus([{
+      page: page('/guide', 'https://example.com/docs/guide'),
+      graph: createGraph({
+        '@id': 'https://example.com/docs/guide#webpage',
+        '@type': 'WebPage',
+        isPartOf: { '@id': 'https://example.com/account#website' },
+      }),
+    }], {
+      graphUrl: 'https://example.com/docs/schema/graph.jsonld',
+      siteUrl: 'https://example.com/docs/',
+    });
+    expect(output.diagnostics).not.toContainEqual(
+      expect.objectContaining({ code: 'schema.unresolved-reference' }),
+    );
+  });
+
   test('includes anonymous authored entities in the normalized corpus graph', () => {
     const authored = '<script type="application/ld+json">{"@context":"https://schema.org","@type":"Thing","name":"Authored anonymous"}</script>';
     const a = page('/a', 'https://example.com/a');
@@ -139,7 +156,7 @@ describe('schema corpus', () => {
     expect(enriched.normalizedGraph).not.toBeNull();
     const output = renderSchemaCorpus([
       { page: a, graph: /** @type {import('../schema.js').AeoGraph} */ (enriched.normalizedGraph) },
-    ], { graphUrl: 'https://example.com/schema/graph.jsonld' });
+    ], { graphUrl: 'https://example.com/schema/graph.jsonld', siteUrl: 'https://example.com/' });
     expect(output.graph.body).toContain('Authored anonymous');
     expect(output.map.body).not.toContain('Authored anonymous');
     expect(output.diagnostics).toContainEqual(expect.objectContaining({ code: 'schema-map-anonymous-entity' }));
@@ -147,7 +164,7 @@ describe('schema corpus', () => {
 
   test('normalizes explicit fragment IDs before the page graph joins the corpus', () => {
     const a = page('/a', 'https://example.com/a');
-    const headMarker = '<script type="application/vnd.astro-aeo-head+json" data-astro-aeo-head>{"infer":false,"graph":{"@id":"#article","@type":"Article","headline":"A"}}</script>';
+    const headMarker = '<script type="application/vnd.astro-aeo-head+json" data-astro-aeo-head>{"infer":false,"graph":{"@id":"#article","@type":"Article","headline":"A","image":"cover.jpg"}}</script>';
     const enriched = enrichHtmlHead({
       html: `<!doctype html><html><head><title>A</title>${headMarker}</head><body>A</body></html>`,
       page: a,
@@ -155,10 +172,12 @@ describe('schema corpus', () => {
       site: { siteUrl: 'https://example.com', base: '', trailingSlash: 'never' },
     });
     expect(enriched.graph?.entries[0].entity['@id']).toBe('https://example.com/a#article');
+    expect(enriched.graph?.entries[0].entity.image).toBe('https://example.com/cover.jpg');
     const output = renderSchemaCorpus([
       { page: a, graph: /** @type {import('../schema.js').AeoGraph} */ (enriched.normalizedGraph) },
-    ], { graphUrl: 'https://example.com/schema/graph.jsonld' });
+    ], { graphUrl: 'https://example.com/schema/graph.jsonld', siteUrl: 'https://example.com/' });
     expect(output.graph.body).toContain('https://example.com/a#article');
+    expect(output.graph.body).toContain('https://example.com/cover.jpg');
   });
 
   test('makes malformed authored JSON-LD an error when the schema corpus depends on the page graph', () => {

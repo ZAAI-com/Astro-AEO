@@ -121,6 +121,28 @@ describe('schema entity builders', () => {
     expect(() => createEntity({ name: 'Missing type' })).toThrow(/requires a non-empty @type/);
     expect(() => createEntity({ '@type': 'Thing', score: Number.NaN })).toThrow(/Non-finite/);
   });
+
+  test('validates reserved JSON-LD keywords throughout nested values', () => {
+    expect(() => createEntity({
+      '@type': 'Article',
+      author: { '@type': 'Person', '@context': 'https://other.example', name: 'Ada' },
+    })).toThrow(/\/author.*must not contain @context/);
+    expect(() => createEntity({
+      '@type': 'Article',
+      author: { '@id': 42 },
+    })).toThrow(/\/author\/@id.*non-empty string/);
+    expect(() => createEntity({
+      '@type': 'Article',
+      author: { '@type': [] },
+    })).toThrow(/\/author.*non-empty @type/);
+    expect(validateGraph({
+      '@type': 'Article',
+      author: { '@type': 'Person', '@id': 'javascript:alert(1)' },
+    })).toMatchObject({
+      valid: false,
+      findings: [expect.objectContaining({ code: 'schema.invalid-graph' })],
+    });
+  });
 });
 
 describe('schema IDs and references', () => {
@@ -194,6 +216,32 @@ describe('graph merging and ownership', () => {
       },
     });
     expect(graph.conflicts).toEqual([]);
+  });
+
+  test('nested entity types merge as additive JSON-LD types', () => {
+    const graph = mergeGraph([
+      createWebPage({
+        '@id': createId(pageId),
+        publisher: {
+          '@type': 'Organization',
+          '@id': 'https://example.com/#org',
+        },
+      }),
+      createWebPage({
+        '@id': createId(pageId),
+        publisher: {
+          '@type': ['Organization', 'Corporation'],
+          '@id': 'https://example.com/#org',
+        },
+      }),
+    ]);
+
+    expect(graph.entries[0].entity.publisher['@type']).toEqual([
+      'Organization',
+      'Corporation',
+    ]);
+    expect(graph.conflicts).toEqual([]);
+    expect(validateGraph(graph).valid).toBe(true);
   });
 
   test('scalar conflicts error by default and support explicit first and last policies', () => {
@@ -417,9 +465,10 @@ describe('graph validation and serialization', () => {
       }),
     ]);
 
-    expect(
-      validateGraph(graph, { documentCanonical: 'https://example.com/docs/' }),
-    ).toMatchObject({ valid: true, findings: [] });
+    const normalized = validateGraph(graph, { documentCanonical: 'https://example.com/docs/' });
+    expect(normalized).toMatchObject({ valid: true, findings: [] });
+    expect(normalized.graph.entries[0].entity.itemListElement[0].item)
+      .toBe('https://example.com/docs/');
 
     const unsafeTypedUrl = validateGraph(
       createEntity({
@@ -442,6 +491,30 @@ describe('graph validation and serialization', () => {
     expect(unsafeUrlLikeText.findings).toContainEqual(
       expect.objectContaining({ code: 'schema.unsafe-url', pointer: '/category' }),
     );
+  });
+
+  test('normalizes relative URL scalars, arrays, and typed values without changing plain text', () => {
+    const result = validateGraph(createEntity({
+      '@type': 'Dataset',
+      image: [
+        'cover.jpg',
+        { '@type': 'ImageObject', contentUrl: './large.jpg' },
+      ],
+      identifier: { '@type': 'URL', '@value': '?download=1' },
+      category: 'JavaScript programming',
+      genre: 'data journalism',
+    }), { documentCanonical: 'https://example.com/articles/one' });
+
+    expect(result.valid).toBe(true);
+    expect(result.graph.entries[0].entity).toMatchObject({
+      image: [
+        'https://example.com/articles/cover.jpg',
+        { '@type': 'ImageObject', contentUrl: 'https://example.com/articles/large.jpg' },
+      ],
+      identifier: { '@type': 'URL', '@value': 'https://example.com/articles/one?download=1' },
+      category: 'JavaScript programming',
+      genre: 'data journalism',
+    });
   });
 
   test('serialization is deterministic, XSS-safe, and excludes graph metadata', () => {

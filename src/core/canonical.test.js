@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { authoredCanonical, configuredCanonical, stableCanonical } from './canonical.js';
+import { authoredCanonical, configuredCanonical, siteScopeUrl, stableCanonical } from './canonical.js';
 
 describe('stable canonicals', () => {
   test('accepts public HTTP URLs and removes fragments', () => {
@@ -27,10 +27,27 @@ describe('stable canonicals', () => {
     ).conflict).toBe(true);
   });
 
+  test('decodes exactly one character-reference layer in authored hrefs', () => {
+    expect(authoredCanonical(
+      '<html><head><link rel="canonical" href="/search?a=1&amp;b=2&#38;c=3&#x26;d=4"></head></html>',
+      'https://example.com',
+    ).canonical).toBe('https://example.com/search?a=1&b=2&c=3&d=4');
+    expect(authoredCanonical(
+      '<html><head><link rel="canonical" href="/search?a=1&amp;amp;b=2"></head></html>',
+      'https://example.com',
+    ).canonical).toBe('https://example.com/search?a=1&amp;b=2');
+  });
+
   test('builds configured canonicals with base and trailing slash policy', () => {
     expect(configuredCanonical(
       { siteUrl: 'https://example.com', base: '/docs', trailingSlash: 'always' },
       '/guide',
     )).toBe('https://example.com/docs/guide/');
+  });
+
+  test('builds a stable site validation scope that retains the Astro base', () => {
+    expect(siteScopeUrl('https://example.com', '/docs')).toBe('https://example.com/docs/');
+    expect(siteScopeUrl('https://example.com/site', '')).toBe('https://example.com/');
+    expect(siteScopeUrl('http://localhost', '/docs')).toBeUndefined();
   });
 });

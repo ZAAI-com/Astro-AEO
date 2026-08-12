@@ -1,7 +1,7 @@
 // @ts-check
 import { parseDocument } from './html-document.js';
-import { authoredCanonical, configuredCanonical, stableCanonical } from './canonical.js';
-import { createGraph, serializeGraph, validateGraph } from '../schema.js';
+import { authoredCanonical, configuredCanonical, siteScopeUrl, stableCanonical } from './canonical.js';
+import { createGraph, createId, serializeGraph, validateGraph } from '../schema.js';
 import {
   hasHtmlHead,
   headTagSources,
@@ -26,8 +26,9 @@ export const MANAGED_GRAPH_ATTRIBUTE = 'data-astro-aeo-graph';
  * @param {import('../index.js').ResolvedAstroAeoConfig} input.config
  * @param {{ siteUrl: string; base: string; trailingSlash: 'always'|'never'|'ignore' }} input.site
  * @param {boolean} [input.allowGlobal]
+ * @param {boolean} [input.inspectAuthored]
  * @param {ReadonlyArray<{ name: string; item: string }> | null} [input.breadcrumbTrail]
- * @returns {{ html: string; page: import('../index.js').AeoPageRecord; graph: import('../schema.js').AeoGraph | null; normalizedGraph: import('../schema.js').AeoGraph | null; canonicalUrl?: string; diagnostics: import('../index.js').Diagnostic[]; explicit: boolean }}
+ * @returns {{ html: string; page: import('../index.js').AeoPageRecord; graph: import('../schema.js').AeoGraph | null; authoredGraph: import('../schema.js').AeoGraph | null; normalizedGraph: import('../schema.js').AeoGraph | null; canonicalUrl?: string; diagnostics: import('../index.js').Diagnostic[]; explicit: boolean }}
  */
 export function enrichHtmlHead({
   html,
@@ -35,6 +36,7 @@ export function enrichHtmlHead({
   config,
   site,
   allowGlobal = true,
+  inspectAuthored = false,
   breadcrumbTrail = null,
 }) {
   const diagnostics = [];
@@ -55,7 +57,7 @@ export function enrichHtmlHead({
     if (explicit || (allowGlobal && config.schema.autoInject)) {
       diagnostics.push(diagnostic('managed-head-missing', 'warning', 'Managed metadata and graph output require a real <head> element.', page.pathname));
     }
-    return { html: output, page, graph: null, normalizedGraph: null, diagnostics, explicit };
+    return { html: output, page, graph: null, authoredGraph: null, normalizedGraph: null, diagnostics, explicit };
   }
 
   const configured = page.metadata.canonicalSource === 'inferred'
@@ -86,8 +88,8 @@ export function enrichHtmlHead({
   const globallyEligible = allowGlobal && config.schema.autoInject && page.directives.index;
   const graphRequested = explicit || globallyEligible;
   const corpusRequested = config.schema.corpus.enabled;
-  if (!graphRequested && !corpusRequested) {
-    return { html: output, page: effectivePage, graph: null, normalizedGraph: null, diagnostics, explicit, ...(canonicalUrl ? { canonicalUrl } : {}) };
+  if (!graphRequested && !corpusRequested && !inspectAuthored) {
+    return { html: output, page: effectivePage, graph: null, authoredGraph: null, normalizedGraph: null, diagnostics, explicit, ...(canonicalUrl ? { canonicalUrl } : {}) };
   }
   if (!canonicalUrl) {
     diagnostics.push(diagnostic(
@@ -96,15 +98,28 @@ export function enrichHtmlHead({
       'Astro-AEO skipped the managed graph because no stable canonical exists. Configure Astro site or pass AeoHead canonical.',
       page.pathname,
     ));
-    return { html: output, page: effectivePage, graph: null, normalizedGraph: null, diagnostics, explicit };
+    return { html: output, page: effectivePage, graph: null, authoredGraph: null, normalizedGraph: null, diagnostics, explicit };
   }
 
+  const validationSiteUrl = siteScopeUrl(site.siteUrl, site.base);
   const authoredGraph = inspectAuthoredJsonLd(output, page.pathname, {
     canonicalUrl,
-    siteUrl: stableCanonical(site.siteUrl),
+    siteUrl: validationSiteUrl,
     severity: corpusRequested ? 'error' : 'warning',
   });
   diagnostics.push(...authoredGraph.diagnostics);
+  if (!graphRequested && !corpusRequested) {
+    return {
+      html: output,
+      page: effectivePage,
+      graph: null,
+      authoredGraph: authoredGraph.graph,
+      normalizedGraph: authoredGraph.graph.entries.length > 0 ? authoredGraph.graph : null,
+      canonicalUrl,
+      diagnostics,
+      explicit,
+    };
+  }
   const infer = head?.infer === false
     ? []
     : Array.isArray(head?.infer)
@@ -139,7 +154,8 @@ export function enrichHtmlHead({
     .map((entry) => {
       const entity = entry.entity;
       const byId = typeof entity?.['@id'] === 'string'
-        ? /** @type {Map<string, Record<string, any>>} */ (authoredGraph.byId).get(String(entity['@id']))
+        ? /** @type {Map<string, Record<string, any>>} */ (authoredGraph.byId)
+          .get(normalizedCandidateId(entity['@id'], canonicalUrl))
         : undefined;
       const semanticPrior = isInferenceEntry(entry)
         ? matchingAuthoredEntity(entity, authoredGraph.graph.entries.map((item) => item.entity), canonicalUrl, site.siteUrl)
@@ -161,13 +177,13 @@ export function enrichHtmlHead({
       /** @type {import('../schema.js').GraphInput} */ (/** @type {unknown} */ (managed)),
       {
         documentCanonical: canonicalUrl,
-        siteUrl: stableCanonical(site.siteUrl),
+        siteUrl: validationSiteUrl,
         strictReferences: false,
       },
     );
     if (!managedResult.valid) {
       diagnostics.push(...graphFindings(managedResult.findings, page.pathname));
-      return { html: output, page: effectivePage, graph: null, normalizedGraph, canonicalUrl, diagnostics, explicit };
+      return { html: output, page: effectivePage, graph: null, authoredGraph: authoredGraph.graph, normalizedGraph, canonicalUrl, diagnostics, explicit };
     }
     const combinedResult = validateGraph([
       ...authoredGraph.graph.entries,
@@ -175,19 +191,19 @@ export function enrichHtmlHead({
     ], {
       conflictPolicy: 'first',
       documentCanonical: canonicalUrl,
-      siteUrl: stableCanonical(site.siteUrl),
+      siteUrl: validationSiteUrl,
       strictReferences: config.schema.strictReferences,
     });
     diagnostics.push(...graphFindings(combinedResult.findings, page.pathname));
     if (!combinedResult.valid) {
-      return { html: output, page: effectivePage, graph: null, normalizedGraph, canonicalUrl, diagnostics, explicit };
+      return { html: output, page: effectivePage, graph: null, authoredGraph: authoredGraph.graph, normalizedGraph, canonicalUrl, diagnostics, explicit };
     }
     const managedGraph = managedResult.graph;
     normalizedGraph = combinedResult.graph.entries.length > 0 ? combinedResult.graph : null;
     if (graphRequested) {
       const serialized = serializeGraph(managedGraph, {
         documentCanonical: canonicalUrl,
-        siteUrl: stableCanonical(site.siteUrl),
+        siteUrl: validationSiteUrl,
         // The validated combined graph above owns reference integrity. The
         // managed delta can reference unchanged authored nodes on this page.
         strictReferences: false,
@@ -206,11 +222,21 @@ export function enrichHtmlHead({
     html: output,
     page: effectivePage,
     graph,
+    authoredGraph: authoredGraph.graph,
     normalizedGraph,
     canonicalUrl,
     diagnostics,
     explicit,
   };
+}
+
+/** @param {string} value @param {string} canonical */
+function normalizedCandidateId(value, canonical) {
+  try {
+    return createId(value, canonical);
+  } catch {
+    return value;
+  }
 }
 
 /** @param {string} html */
