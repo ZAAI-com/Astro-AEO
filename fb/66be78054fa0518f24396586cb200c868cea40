@@ -1,0 +1,64 @@
+src/generators/sitemap-finalize.test.js
+  s_f140af05ef6abf::t_a12eff7fd2a76b 188-224
+src/hooks/build-done.js
+  s_f140af05ef6abf::t_89c36fd0a25aaa 206
+  s_f140af05ef6abf::t_26edb179a3296e 651,659
+  s_f140af05ef6abf::t_e38ace6b603bd4 270-274,276,291,305,415-417,631-649
+  s_f140af05ef6abf::t_a09b0c8d9622db 445,463
+  s_f140af05ef6abf::t_628daa757e29c5 24-26,28,375-378,380-393,399-400
+  s_f140af05ef6abf::t_442bca5b6056d2 699-704
+  s_f140af05ef6abf::t_1d22a7ca551c37 65,370,420-435,607-609,613-615,619-622,630
+  s_f140af05ef6abf::t_610f5ed5138cae 240,248-259,297,303-304,306-307,340,347,353-354,359,361-369,371-374,379,394-398,401-414,419,623-629
+  s_f140af05ef6abf::t_2e959d12db6e60 27,316-338,348-351,418
+  s_f140af05ef6abf::t_1a9cedd275f7a6 20,241-247,277-290,292,296,466
+  s_f140af05ef6abf::t_47c47e4e6f569e 23
+  s_f140af05ef6abf::t_52e4267c9e93e5 260
+  s_f140af05ef6abf::t_767ad0be4e274b 650
+src/build/markdown-renderers.test.js
+  s_f140af05ef6abf::t_1d5067ccb8191c 13,129-132
+  s_f140af05ef6abf::t_80a3b2de18c87f 133-134
+src/build/artifacts.test.js
+  s_f140af05ef6abf::t_89c36fd0a25aaa 902-926
+  s_f140af05ef6abf::t_9bfad355c5e9f4 764-784,825-836,928,1155
+  s_f140af05ef6abf::t_fe4d57b7365be0 785-824
+  s_f140af05ef6abf::t_b529e5684ec199 1127-1154
+  s_f140af05ef6abf::t_b9f4cfe547aaaf 927,929
+src/hooks/build-done.test.js
+  s_f140af05ef6abf::t_442bca5b6056d2 230,274
+  s_f140af05ef6abf::t_24a4dfa303e432 365-450
+  s_f140af05ef6abf::t_c096d6b8eca5c0 16,325-364,565-604,653-699
+  s_f140af05ef6abf::t_6f4b5ea1d487c8 491-564
+  s_f140af05ef6abf::t_89e2537195d4d3 605-652,700
+  s_f140af05ef6abf::t_876bd3944d05be 63-96
+  s_f140af05ef6abf::t_1d22a7ca551c37 702,704,708,734,736-739,741-755
+  s_f140af05ef6abf::t_cbbbb3f3a6f746 451-490
+  s_f140af05ef6abf::t_8e1206b30e71dc 701
+src/build/artifacts.js
+  s_f140af05ef6abf::t_a12eff7fd2a76b 1123-1141,1199
+  s_f140af05ef6abf::t_b529e5684ec199 952-954
+  s_f140af05ef6abf::t_f96508f25b5757 286-289
+  s_f140af05ef6abf::t_fe4d57b7365be0 742-755,906-909,1271-1274
+  s_f140af05ef6abf::t_9bfad355c5e9f4 602-608
+  s_f140af05ef6abf::t_89c36fd0a25aaa 78-79,467,609,866,869-874,880,894,1213-1228
+  s_f140af05ef6abf::t_428cedd5c3db38 1229-1230,1275-1280
+src/build/markdown-renderers.js
+  s_f140af05ef6abf::t_1d5067ccb8191c 2,216-224,235-247
+src/generators/sitemap-finalize.js
+  s_f140af05ef6abf::t_a12eff7fd2a76b 62-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "fb66be78054fa0518f24396586cb200c868cea40",
+  "prompts": {},
+  "sessions": {
+    "s_f140af05ef6abf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ff625-1250-79c0-9929-8cdf6d898d91",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
