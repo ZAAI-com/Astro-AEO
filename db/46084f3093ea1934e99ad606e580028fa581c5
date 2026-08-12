@@ -1,0 +1,19 @@
+src/build/processing-cache.test.js
+  s_f53d64c7cb70e2::t_3ebde5cbb8975e 98-138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "db46084f3093ea1934e99ad606e580028fa581c5",
+  "prompts": {},
+  "sessions": {
+    "s_f53d64c7cb70e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ff6aa-27ed-7770-b7c5-24919862bb2d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
