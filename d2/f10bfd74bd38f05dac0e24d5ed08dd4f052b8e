@@ -1,0 +1,102 @@
+src/schema.d.ts
+  s_f140af05ef6abf::t_8039e98ddce1b8 48-49,70,77
+  s_f140af05ef6abf::t_618992a0740a26 67,69,73,75,138,206,211,223
+src/schema.test.js
+  s_f140af05ef6abf::t_c4c6a6a8fc9c16 124-145,468-471,496-517
+  s_f140af05ef6abf::t_e4a9be04fbaf3b 221-246,518
+  s_e46d09ba04012b::t_6e82cbf7b74ca9 519
+src/core/extract/marker.test.js
+  s_f140af05ef6abf::t_c4c6a6a8fc9c16 107-115
+scripts/schema-definition.mjs
+  s_f140af05ef6abf::t_262f4d140a695c 13-31,311,353-354
+src/schema.js
+  s_f140af05ef6abf::t_8382d8dc609a2b 282,403-407,986-990,992,994-995,1001,1003,1005,1007,1009-1012,1015-1022,1025,1033-1034,1036,1038-1039,1041-1042,1046,1057,1301-1328
+  s_f140af05ef6abf::t_e4a9be04fbaf3b 832
+src/core/page-model.js
+  s_f140af05ef6abf::t_219c67795411a6 10
+src/core/head.js
+  s_f140af05ef6abf::t_3f3d4cfc8c9b90 3-4,31,60,92,101,104,107,157-158,180,186,194,199,206,225,233-239
+  s_f140af05ef6abf::t_0c9719ae74c6d4 117
+  s_f140af05ef6abf::t_2c8ebaf25ee245 29,39,91,111-116,118-122
+  s_f140af05ef6abf::t_56eb64f376486f 240-241
+schema/astro-aeo.schema.json
+  s_f140af05ef6abf::t_229cac4416a53a 1
+fixtures/types-consumer/consumer.ts
+  s_f140af05ef6abf::t_618992a0740a26 555-558
+src/schema-definition.test.js
+  s_f140af05ef6abf::t_262f4d140a695c 4,27-64,66-70,72,76-81
+  s_cc4cfd912cfc90::t_6f26edc995abf6 82-83
+src/core/canonical.js
+  s_f140af05ef6abf::t_1f3fb2688094a7 47-60,100-117
+  s_f140af05ef6abf::t_d84ebb71507e47 37-39
+src/core/schema-corpus.test.js
+  s_f140af05ef6abf::t_c5f1f63292b34f 26,50,59,69,89,103,159,178
+  s_f140af05ef6abf::t_c4c6a6a8fc9c16 129-145,167,175,180
+src/core/canonical.test.js
+  s_f140af05ef6abf::t_1f3fb2688094a7 2,30-40,47-52
+src/core/head.test.js
+  s_f140af05ef6abf::t_c4c6a6a8fc9c16 438-457
+  s_f140af05ef6abf::t_4207dfae9b9aa9 458-477
+src/core/semantic-envelope.test.js
+  s_f140af05ef6abf::t_41ce0e5183e31f 3,331-385
+  s_f140af05ef6abf::t_4207dfae9b9aa9 100-166,235-330,386
+  s_f140af05ef6abf::t_4b1f632f5ca13c 167-234
+  s_f140af05ef6abf::t_801e86f3eb89e5 1-2,4-33,35-99,387
+  s_f140af05ef6abf::t_0616a90aa6c7b8 34
+src/core/schema-corpus.js
+  s_f140af05ef6abf::t_c5f1f63292b34f 12,18,55
+src/core/semantic-envelope.js
+  s_f140af05ef6abf::t_9a85b56197227b 17
+  s_f140af05ef6abf::t_9bc5bdff30787c 559-562
+  s_f140af05ef6abf::t_2e959d12db6e60 654-661
+  s_f140af05ef6abf::t_c4466c2bb94db2 68,75,84-85,97
+  s_f140af05ef6abf::t_41ce0e5183e31f 277-287
+  s_f140af05ef6abf::t_5721c797f47426 545,555,557-558,563-564,569-597
+  s_f140af05ef6abf::t_5c892bdcb179e5 25-30,33,48-60,62-67,80-81,90-91,102-103,121,444-456,461-465,475-476,478-480,485-489,492-500,505-506,508-544,546-554,556,565,567-568,598-605,628,643-650,652-653,662-692,703-730
+  s_f140af05ef6abf::t_628daa757e29c5 22,43,122-130,136-276,288-419,421-432
+  s_f140af05ef6abf::t_a09b0c8d9622db 19,437,611
+  s_f140af05ef6abf::t_d12f0326fdc342 420
+  s_f140af05ef6abf::t_801e86f3eb89e5 1-3,10-16,18,20-21,23-24,31-32,46-47,61,71-74,76-79,82-83,86-89,93-96,98-101,105-120,131-135,433-436,438-443,457-460,466-474,477,481-484,491,501-504,507,566,606-610,612-627,629-639,641,651,693-694,696-697,701-702,731-745
+  s_f140af05ef6abf::t_e38ace6b603bd4 69-70,92,104,640
+  s_f140af05ef6abf::t_1a9cedd275f7a6 642,695,698-700
+  s_f140af05ef6abf::t_2c8ebaf25ee245 4-9,490
+  s_f140af05ef6abf::t_800c63b3f4230f 34-42,44-45
+src/core/page-model.test.js
+  s_f140af05ef6abf::t_c4c6a6a8fc9c16 284
+src/page.js
+  s_f140af05ef6abf::t_219c67795411a6 2,57,60
+src/core/source-kind.js
+  s_f140af05ef6abf::t_219c67795411a6 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "d2f10bfd74bd38f05dac0e24d5ed08dd4f052b8e",
+  "prompts": {},
+  "sessions": {
+    "s_cc4cfd912cfc90": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ff655-fa84-7091-ac98-386fd156f2fd",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_e46d09ba04012b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ff686-f02b-7773-a65b-638e4fceaf3b",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_f140af05ef6abf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ff625-1250-79c0-9929-8cdf6d898d91",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
