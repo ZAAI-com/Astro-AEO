@@ -2,11 +2,17 @@ import { describe, expect, test, vi } from 'vitest';
 import { resolveConfig } from '../config.js';
 import {
   collectConcurrently,
+  enrichRuntimePageGraph,
+  pageFromHtml,
   renderStandaloneArtifact,
   RuntimeCorpusLimitError,
+  RuntimeSchemaCorpusError,
   serveLlmsIndex,
   serveMarkdown,
+  serveSchemaCorpus,
 } from './serve.js';
+import mdxRenderer from '../adapters/mdx.js';
+import { createGraph } from '../schema.js';
 
 const html = (title = 'Page') =>
   `<!doctype html><html><head><title>${title}</title></head><body><main><h1>${title}</h1></main></body></html>`;
@@ -39,6 +45,448 @@ describe('standalone robots rendering', () => {
     robotsRuntime.config = resolveConfig({ discovery: { robots: { enabled: true } } });
     const { body } = renderStandaloneArtifact('robots', robotsRuntime, { sitemapAvailable });
     expect(body.includes('Sitemap: https://example.com/sitemap-index.xml')).toBe(advertised);
+  });
+});
+
+describe('request-time Markdown renderers', () => {
+  test('uses the same raw MDX renderer path at runtime and caches its literal import', async () => {
+    const mdxRuntime = runtime();
+    mdxRuntime.standaloneSources['/interactive'] = {
+      kind: 'mdx',
+      body: '# Runtime MDX\n\n<Callout>**Mapped**</Callout>',
+      path: 'src/pages/interactive.mdx',
+    };
+    const load = vi.fn(async () => mdxRenderer);
+    const rendererLoaders = [{
+      name: 'astro-aeo/mdx',
+      module: 'astro-aeo/mdx',
+      options: { components: { Callout: { action: 'unwrap' } } },
+      load,
+    }];
+
+    const first = await pageFromHtml('/interactive', html('Rendered'), mdxRuntime, {
+      rendererLoaders,
+    });
+    const second = await pageFromHtml('/interactive', html('Rendered'), mdxRuntime, {
+      rendererLoaders,
+    });
+    expect(first.markdown).toBe('# Runtime MDX\n\n**Mapped**');
+    expect(first.extraction).toMatchObject({ strategy: 'renderer:astro-aeo/mdx' });
+    expect(second.markdown).toBe(first.markdown);
+    expect(load).toHaveBeenCalledOnce();
+  });
+
+  test('preserves catalog source hashes in renderer input and page provenance', async () => {
+    const render = vi.fn(({ source }) => {
+      expect(source).toEqual({
+        kind: 'cms',
+        path: 'cms:guide',
+        body: '# CMS body',
+        hash: 'sha256:catalog-source',
+      });
+      return { status: 'rendered', markdown: '# Rendered CMS' };
+    });
+    const result = await pageFromHtml('/guide', html('Guide'), runtime(), {
+      descriptor: {
+        pathname: '/guide',
+        source: {
+          kind: 'cms',
+          path: 'cms:guide',
+          body: '# CMS body',
+          hash: 'sha256:catalog-source',
+        },
+      },
+      rendererLoaders: [{
+        name: 'cms-renderer',
+        module: './cms-renderer.js',
+        load: async () => ({ name: 'cms-renderer', apiVersion: 1, render }),
+      }],
+    });
+
+    expect(render).toHaveBeenCalledOnce();
+    expect(result.source).toMatchObject({
+      kind: 'cms',
+      path: 'cms:guide',
+      hash: 'sha256:catalog-source',
+    });
+  });
+});
+
+describe('request-time catalog breadcrumb ancestry', () => {
+  const catalog = {
+    listPages: () => [
+      { pathname: '/', title: 'Catalog home' },
+      { pathname: '/guides', title: 'Catalog guides' },
+      { pathname: '/guides/install', title: 'Catalog install' },
+    ],
+  };
+
+  test('enriches a direct runtime page from the complete configured catalog chain', async () => {
+    const pageRuntime = runtime();
+    const page = await pageFromHtml('/guides/install', html('Rendered install'), pageRuntime);
+    const enriched = await enrichRuntimePageGraph(html('Rendered install'), page, pageRuntime, {
+      catalogLoaders: [catalogLoader(catalog)],
+    });
+
+    expect(enriched.html).toContain('BreadcrumbList');
+    expect(enriched.html).toContain('"name":"Catalog home"');
+    expect(enriched.html).toContain('"name":"Catalog guides"');
+    expect(enriched.html).toContain('"name":"Catalog install"');
+  });
+
+  test('uses the same catalog ancestry while collecting the runtime schema corpus', async () => {
+    const corpusRuntime = runtime();
+    corpusRuntime.config = resolveConfig({ schema: { corpus: { enabled: true } } });
+    const result = await serveSchemaCorpus(
+      'schema-graph',
+      corpusRuntime,
+      async (pathname) => loaded(html(pathname)),
+      { catalogLoaders: [catalogLoader(catalog)] },
+    );
+
+    expect(result.body).toContain('BreadcrumbList');
+    expect(result.body).toContain('"name":"Catalog home"');
+    expect(result.body).toContain('"name":"Catalog guides"');
+    expect(result.body).toContain('"name":"Catalog install"');
+  });
+});
+
+describe('request-time plugin page lifecycle', () => {
+  test('keeps encoded catalog identity and ISO dates stable through discovery', async () => {
+    const observed = [];
+    const pluginLoaders = [{
+      name: 'encoded-catalog',
+      module: './encoded-catalog.js',
+      stages: ['page:discovered'],
+      claims: [],
+      load: async () => ({
+        name: 'encoded-catalog',
+        apiVersion: 1,
+        setup(api) {
+          api.on('page:discovered', ({ value, pathname }) => {
+            observed.push({ valuePathname: value.pathname, pathname });
+            return { action: 'replace', value: { ...value, title: 'Encoded catalog' } };
+          });
+        },
+      }),
+    }];
+    const page = await pageFromHtml('/café', html('Rendered'), runtime(), {
+      descriptor: {
+        pathname: '/caf%C3%A9',
+        dates: { published: '2026-08-11' },
+      },
+      publicPathname: '/caf%C3%A9',
+      pluginLoaders,
+    });
+
+    expect(observed).toEqual([{
+      valuePathname: '/caf%C3%A9',
+      pathname: '/caf%C3%A9',
+    }]);
+    expect(page).toMatchObject({
+      pathname: '/caf%C3%A9',
+      title: 'Encoded catalog',
+      dates: { published: '2026-08-11T00:00:00.000Z' },
+    });
+  });
+
+  test('runs page hooks in order with immutable validated replacements before the graph hook', async () => {
+    const stages = [];
+    const pluginLoaders = [{
+      name: 'runtime-pages',
+      module: './runtime-pages.js',
+      stages: ['page:discovered', 'page:extract', 'page:transform', 'page:metadata', 'graph:build'],
+      claims: [],
+      load: async () => ({
+        name: 'runtime-pages',
+        apiVersion: 1,
+        setup(api) {
+          expect(api.command).toBe('dev');
+          api.on('page:discovered', ({ value }) => {
+            stages.push('page:discovered');
+            expect(Object.isFrozen(value)).toBe(true);
+            return { action: 'replace', value: { ...value, title: 'Discovered' } };
+          });
+          api.on('page:extract', ({ value }) => {
+            stages.push('page:extract');
+            expect(Object.isFrozen(value.representations)).toBe(true);
+            return {
+              action: 'replace',
+              value: {
+                ...value,
+                representations: { ...value.representations, markdown: '# Extracted' },
+              },
+            };
+          });
+          api.on('page:transform', ({ value }) => {
+            stages.push('page:transform');
+            return {
+              action: 'replace',
+              value: {
+                ...value,
+                title: 'Transformed',
+                metadata: { ...value.metadata, title: 'Transformed' },
+              },
+            };
+          });
+          api.on('page:metadata', ({ value }) => {
+            stages.push('page:metadata');
+            return {
+              action: 'replace',
+              value: { ...value, title: 'Metadata' },
+              diagnostics: [{ code: 'RUNTIME NOTE', message: 'kept\non one line' }],
+            };
+          });
+          api.on('graph:build', ({ value }) => {
+            stages.push('graph:build');
+            expect(value.graph.entries.length).toBeGreaterThan(0);
+            return {
+              action: 'replace',
+              value: { ...value, html: value.html.replace('</head>', '<meta name="plugin" content="yes"></head>') },
+            };
+          });
+        },
+      }),
+    }];
+    const pageRuntime = runtime();
+    const page = await pageFromHtml('/plugin-page', html('Rendered'), pageRuntime, { pluginLoaders });
+
+    expect(page.title).toBe('Metadata');
+    expect(page.markdown).toBe('# Extracted');
+    expect(page.diagnostics).toContainEqual(expect.objectContaining({
+      code: 'runtime-note',
+      message: 'Plugin "runtime-pages" reported runtime-note during page:metadata.',
+      details: { plugin: 'runtime-pages', stage: 'page:metadata' },
+    }));
+
+    const enriched = await enrichRuntimePageGraph(html('Rendered'), page, pageRuntime, { pluginLoaders });
+    expect(enriched.isolated).toBe(false);
+    expect(enriched.html).toContain('<meta name="plugin" content="yes">');
+    expect(stages).toEqual([
+      'page:discovered',
+      'page:extract',
+      'page:transform',
+      'page:metadata',
+      'graph:build',
+    ]);
+  });
+
+  test('isolates invalid page replacements and graph failures without exposing thrown values', async () => {
+    const invalidPageLoaders = [{
+      name: 'invalid-page',
+      module: './invalid-page.js',
+      stages: ['page:transform'],
+      claims: [],
+      load: async () => ({
+        name: 'invalid-page', apiVersion: 1,
+        setup(api) {
+          api.on('page:transform', ({ value }) => ({
+            action: 'replace',
+            value: { ...value, id: '/different' },
+          }));
+        },
+      }),
+    }];
+    await expect(pageFromHtml('/page', html(), runtime(), { pluginLoaders: invalidPageLoaders }))
+      .resolves.toBeNull();
+
+    const invalidRepresentationsLoaders = [{
+      name: 'invalid-representations',
+      module: './invalid-representations.js',
+      stages: ['page:transform'],
+      claims: [],
+      load: async () => ({
+        name: 'invalid-representations', apiVersion: 1,
+        setup(api) {
+          api.on('page:transform', ({ value }) => ({
+            action: 'replace',
+            value: {
+              ...value,
+              markdown: 42,
+              representations: { ...value.representations, markdown: 42 },
+            },
+          }));
+        },
+      }),
+    }];
+    await expect(pageFromHtml('/page', html(), runtime(), {
+      pluginLoaders: invalidRepresentationsLoaders,
+    })).resolves.toBeNull();
+
+    const graphLoaders = [{
+      name: 'broken-graph',
+      module: './broken-graph.js',
+      stages: ['graph:build'],
+      claims: [],
+      load: async () => ({
+        name: 'broken-graph', apiVersion: 1,
+        setup(api) {
+          api.on('graph:build', () => { throw new Error('SECRET GRAPH PAYLOAD'); });
+        },
+      }),
+    }];
+    const graphRuntime = runtime();
+    const page = await pageFromHtml('/page', html(), graphRuntime, { pluginLoaders: graphLoaders });
+    const enriched = await enrichRuntimePageGraph(html(), page, graphRuntime, { pluginLoaders: graphLoaders });
+    expect(enriched.isolated).toBe(true);
+    expect(enriched.html).toBe(html());
+    expect(enriched.html).not.toContain('SECRET GRAPH PAYLOAD');
+    expect(enriched.diagnostics.at(-1)).toMatchObject({
+      code: 'plugin-hook-failed',
+      details: { plugin: 'broken-graph', stage: 'graph:build' },
+    });
+  });
+
+  test('reconciles graph-only runtime replacements and preserves authored JSON-LD', async () => {
+    const authoredScript = '<script type="application/ld+json">{"@context":"https://schema.org","@type":"Person","@id":"#author","name":"Authored"}</script>';
+    const source = `<!doctype html><html><head><title>Page</title>${authoredScript}</head><body><main>Page</main></body></html>`;
+    const pluginLoaders = [{
+      name: 'managed-runtime-replacement',
+      module: './managed-runtime-replacement.js',
+      stages: ['graph:build'],
+      claims: [],
+      load: async () => ({
+        name: 'managed-runtime-replacement',
+        apiVersion: 1,
+        setup(api) {
+          api.on('graph:build', ({ value }) => ({
+            action: 'replace',
+            value: {
+              ...value,
+              graph: createGraph([{
+                '@id': 'https://example.com/page#replacement',
+                '@type': 'Thing',
+                name: 'Runtime managed replacement',
+              }]),
+            },
+          }));
+        },
+      }),
+    }];
+    const pageRuntime = runtime();
+    const page = await pageFromHtml('/page', source, pageRuntime, { pluginLoaders });
+    const enriched = await enrichRuntimePageGraph(source, page, pageRuntime, { pluginLoaders });
+
+    expect(enriched.isolated).toBe(false);
+    expect(enriched.html).toContain(authoredScript);
+    expect(enriched.html).toContain('Runtime managed replacement');
+    expect(enriched.html.match(/"name":"Authored"/g)).toHaveLength(1);
+  });
+
+  test('derives runtime managed output from normalized-only replacements', async () => {
+    const pluginLoaders = [{
+      name: 'normalized-runtime-replacement',
+      module: './normalized-runtime-replacement.js',
+      stages: ['graph:build'],
+      claims: [],
+      load: async () => ({
+        name: 'normalized-runtime-replacement',
+        apiVersion: 1,
+        setup(api) {
+          api.on('graph:build', ({ value }) => ({
+            action: 'replace',
+            value: {
+              ...value,
+              normalizedGraph: createGraph([
+                ...value.normalizedGraph.entries,
+                {
+                  '@id': 'https://example.com/page#faq',
+                  '@type': 'FAQPage',
+                  name: 'Runtime normalized replacement',
+                },
+              ]),
+            },
+          }));
+        },
+      }),
+    }];
+    const pageRuntime = runtime();
+    const source = html();
+    const page = await pageFromHtml('/page', source, pageRuntime, { pluginLoaders });
+    const enriched = await enrichRuntimePageGraph(source, page, pageRuntime, { pluginLoaders });
+
+    expect(enriched.isolated).toBe(false);
+    expect(enriched.html).toContain('Runtime normalized replacement');
+    expect(enriched.graph.entries.some(({ entity }) => entity.name === 'Runtime normalized replacement'))
+      .toBe(true);
+  });
+
+  test('isolates inconsistent runtime graph replacements without exposing values', async () => {
+    const pluginLoaders = [{
+      name: 'inconsistent-runtime-graphs',
+      module: './inconsistent-runtime-graphs.js',
+      stages: ['graph:build'],
+      claims: [],
+      load: async () => ({
+        name: 'inconsistent-runtime-graphs',
+        apiVersion: 1,
+        setup(api) {
+          api.on('graph:build', ({ value }) => ({
+            action: 'replace',
+            value: {
+              ...value,
+              graph: createGraph([{
+                '@id': 'https://example.com/page#secret-managed',
+                '@type': 'Thing',
+                name: 'SECRET MANAGED VALUE',
+              }]),
+              normalizedGraph: createGraph([{
+                '@id': 'https://example.com/page#different',
+                '@type': 'Thing',
+                name: 'SECRET NORMALIZED VALUE',
+              }]),
+            },
+          }));
+        },
+      }),
+    }];
+    const pageRuntime = runtime();
+    const source = html();
+    const page = await pageFromHtml('/page', source, pageRuntime, { pluginLoaders });
+    const enriched = await enrichRuntimePageGraph(source, page, pageRuntime, { pluginLoaders });
+
+    expect(enriched.isolated).toBe(true);
+    expect(enriched.html).toBe(source);
+    expect(enriched.diagnostics).toContainEqual(expect.objectContaining({
+      code: 'plugin-graph-inconsistent',
+      severity: 'error',
+      pathname: '/page',
+    }));
+    expect(JSON.stringify(enriched)).not.toContain('SECRET');
+  });
+
+  test('retains inspect-only authored diagnostics once when graph hooks run', async () => {
+    const pluginLoaders = [{
+      name: 'inspect-authored',
+      module: './inspect-authored.js',
+      stages: ['graph:build'],
+      claims: [],
+      load: async () => ({
+        name: 'inspect-authored',
+        apiVersion: 1,
+        setup(api) {
+          api.on('graph:build', () => ({ action: 'keep' }));
+        },
+      }),
+    }];
+    const pageRuntime = runtime();
+    pageRuntime.config = resolveConfig({
+      schema: { autoInject: false, corpus: { enabled: false } },
+    });
+    const source = '<!doctype html><html><head>' +
+      '<title>Page</title><title>Page</title>' +
+      '<script type="application/ld+json">{"@type":"Thing",}</script>' +
+      '</head><body><main>Page</main></body></html>';
+    const page = await pageFromHtml('/page', source, pageRuntime, { pluginLoaders });
+
+    const enriched = await enrichRuntimePageGraph(source, page, pageRuntime, { pluginLoaders });
+
+    expect(enriched.isolated).toBe(false);
+    expect(enriched.graph).toBeNull();
+    expect(enriched.diagnostics.filter(({ code }) => code === 'authored-jsonld-malformed'))
+      .toHaveLength(1);
+    expect(enriched.diagnostics.filter(({ code }) => code === 'metadata-duplicate'))
+      .toHaveLength(1);
   });
 });
 
@@ -223,6 +671,123 @@ describe('request-time corpus limits', () => {
   );
 });
 
+describe('request-time schema corpus', () => {
+  test('renders a deterministic graph and XML map from anonymous serial rewrites', async () => {
+    const schemaRuntime = runtime(['/zeta', '/alpha']);
+    schemaRuntime.config = resolveConfig({ schema: { corpus: { enabled: true } } });
+    const fetcher = vi.fn(async (pathname) => loaded(html(pathname.slice(1))));
+
+    const graph = await serveSchemaCorpus('schema-graph', schemaRuntime, fetcher);
+    const map = await serveSchemaCorpus('schema-map', schemaRuntime, fetcher);
+
+    expect(fetcher).toHaveBeenCalledTimes(4);
+    expect(graph.contentType).toBe('application/ld+json; charset=utf-8');
+    expect(graph.body).toContain('"@id":"https://example.com/alpha/#webpage"');
+    expect(graph.body.indexOf('/alpha/#webpage')).toBeLessThan(graph.body.indexOf('/zeta/#webpage'));
+    expect(map.contentType).toBe('application/xml; charset=utf-8');
+    expect(map.body).toContain('xmlns="https://zaai.com/astro-aeo/schema-map/1"');
+    expect(map.body).toContain('graph="https://example.com/schema/graph.jsonld"');
+  });
+
+  test('requires a stable configured site rather than a request origin', async () => {
+    const schemaRuntime = runtime(['/page']);
+    schemaRuntime.site.siteUrl = '';
+    schemaRuntime.config = resolveConfig({ schema: { corpus: { enabled: true } } });
+
+    await expect(
+      serveSchemaCorpus('schema-graph', schemaRuntime, async () => loaded(), {
+        origin: 'https://request-host.example',
+      }),
+    ).rejects.toBeInstanceOf(RuntimeSchemaCorpusError);
+  });
+
+  test('does not recursively collect either owned schema corpus path', async () => {
+    const schemaRuntime = runtime(['/schema/graph.jsonld', '/schema/schema-map.xml'], 1);
+    schemaRuntime.config = resolveConfig({ schema: { corpus: { enabled: true } } });
+    const fetcher = vi.fn(async () => loaded());
+
+    const graph = await serveSchemaCorpus('schema-graph', schemaRuntime, fetcher);
+
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(graph.body).toContain('"@graph":[]');
+  });
+
+  test('fails closed when corpus-dependent authored JSON-LD is malformed', async () => {
+    const schemaRuntime = runtime(['/page']);
+    schemaRuntime.config = resolveConfig({ schema: { corpus: { enabled: true } } });
+
+    await expect(serveSchemaCorpus(
+      'schema-graph',
+      schemaRuntime,
+      async () => loaded(html('Page').replace(
+        '</head>',
+        '<script type="application/ld+json">{"@type":"Thing",}</script></head>',
+      )),
+    )).rejects.toBeInstanceOf(RuntimeSchemaCorpusError);
+  });
+
+  test('fails closed when a page lifecycle hook throws during collection', async () => {
+    const schemaRuntime = runtime(['/page']);
+    schemaRuntime.config = resolveConfig({ schema: { corpus: { enabled: true } } });
+    const pluginLoaders = [{
+      name: 'throwing-metadata',
+      module: './throwing-metadata.js',
+      stages: ['page:metadata'],
+      claims: [],
+      load: async () => ({
+        name: 'throwing-metadata',
+        apiVersion: 1,
+        setup(api) {
+          api.on('page:metadata', () => {
+            throw new Error('private lifecycle details');
+          });
+        },
+      }),
+    }];
+
+    await expect(serveSchemaCorpus(
+      'schema-graph',
+      schemaRuntime,
+      async () => loaded(),
+      { pluginLoaders },
+    )).rejects.toBeInstanceOf(RuntimeSchemaCorpusError);
+  });
+
+  test('keeps lifecycle warnings non-fatal during collection', async () => {
+    const schemaRuntime = runtime(['/page']);
+    schemaRuntime.config = resolveConfig({ schema: { corpus: { enabled: true } } });
+    const pluginLoaders = [{
+      name: 'warning-metadata',
+      module: './warning-metadata.js',
+      stages: ['page:metadata'],
+      claims: [],
+      load: async () => ({
+        name: 'warning-metadata',
+        apiVersion: 1,
+        setup(api) {
+          api.on('page:metadata', () => ({
+            action: 'keep',
+            diagnostics: [{
+              code: 'metadata-warning',
+              severity: 'warning',
+              message: 'private warning details',
+            }],
+          }));
+        },
+      }),
+    }];
+
+    const result = await serveSchemaCorpus(
+      'schema-graph',
+      schemaRuntime,
+      async () => loaded(),
+      { pluginLoaders },
+    );
+
+    expect(result.body).toContain('https://example.com/page/#webpage');
+  });
+});
+
 describe('serveMarkdown', () => {
 
   test('matches encoded catalog descriptors to a decoded percent request path', async () => {
@@ -366,6 +931,10 @@ describe('serveMarkdown', () => {
       catalogLoaders: loaders,
       origin: 'https://one.example',
     });
+    const repeatedFirst = await serveLlmsIndex('llms', requestRuntime, async () => loaded(), {
+      catalogLoaders: loaders,
+      origin: 'https://one.example',
+    });
     const second = await serveLlmsIndex('llms', requestRuntime, async () => loaded(), {
       catalogLoaders: loaders,
       origin: 'https://two.example',
@@ -376,6 +945,7 @@ describe('serveMarkdown', () => {
     });
 
     expect(first).toContain('one.example');
+    expect(repeatedFirst).toContain('one.example');
     expect(second).toContain('two.example');
     expect(third).toContain('one.example');
     expect(listPages).toHaveBeenCalledTimes(3);
@@ -431,7 +1001,7 @@ describe('serveMarkdown', () => {
   test('caches a rejected runtime catalog loader and warns once', async () => {
     const requestRuntime = runtime();
     const load = vi.fn(async () => {
-      throw new Error('runtime-only failure');
+      throw new Error('SECRET runtime-only failure');
     });
     const loaders = [{ module: './runtime-broken.js', load }];
     const warnings = [];
@@ -452,6 +1022,7 @@ describe('serveMarkdown', () => {
     expect(load).toHaveBeenCalledOnce();
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain('./runtime-broken.js');
+    expect(warnings[0]).not.toContain('SECRET');
   });
 });
 

@@ -30,4 +30,13 @@ describe('isOwnedArtifactPath', () => {
     expect(isOwnedArtifactPath('/llms.txt', config)).toBe(false);
     expect(isOwnedArtifactPath('/sitemap.xml', config)).toBe(false);
   });
+
+  test('recognizes encoded schema paths in public and request spellings', () => {
+    const config = resolveConfig({
+      schema: { corpus: { enabled: true, graphPath: '/schema/graph%20map.jsonld' } },
+    });
+
+    expect(isOwnedArtifactPath('/schema/graph%20map.jsonld', config)).toBe(true);
+    expect(isOwnedArtifactPath('/schema/graph map.jsonld', config)).toBe(true);
+  });
 });

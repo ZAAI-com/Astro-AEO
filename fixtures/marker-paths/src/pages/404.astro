@@ -1,6 +1,12 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import { AeoHead } from '../../../../components/index.js';
 ---
 <Layout title="Not found" markdown="# Authored 404\n\nPrivate error source.">
+  <AeoHead
+    slot="head"
+    infer={false}
+    graph={{ '@type': 'Thing', name: 'Explicit status graph' }}
+  />
   <h1>Not found</h1>
 </Layout>

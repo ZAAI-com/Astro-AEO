@@ -1,8 +1,11 @@
 # Astro-AEO
 
-Answer Engine Optimization for Astro. One integration, zero config, ten features.
+Answer Engine Optimization and semantic publishing for Astro. One integration, zero config, no
+client JavaScript.
 
-Astro-AEO makes your Astro site easy for AI search engines, assistants, and LLMs to discover, parse, and cite. It generates clean Markdown copies of every page, an `llms.txt` index, JSON-LD components, crawler policies, and domain identity metadata with no external services or client JavaScript.
+Astro-AEO makes your Astro site easy for AI search engines, assistants, and LLMs to discover, parse,
+and cite. It generates clean Markdown copies, `llms.txt` indexes, deterministic Schema.org graphs,
+crawler policies, and domain identity metadata with no external services or client JavaScript.
 
 It is the Astro sibling of [Jekyll-AEO](https://github.com/ZAAI-com/Jekyll-AEO).
 
@@ -18,6 +21,8 @@ A Markdown copy of a page is roughly 20 to 30 percent smaller in tokens than its
 - **llms.txt and llms-full.txt**: a site index and a full-content file following the [llmstxt.org](https://llmstxt.org/) spec.
 - **Alternate link tags**: `<link rel="alternate" type="text/markdown">` injected into every page so crawlers can find the Markdown.
 - **JSON-LD components**: `FaqJsonLd`, `HowToJsonLd`, `BreadcrumbJsonLd`, `OrganizationJsonLd`, `SpeakableJsonLd`, `ArticleJsonLd`.
+- **Semantic graph**: one deterministic, XSS-safe managed Schema.org graph on every eligible page, with typed builders and integrity validation.
+- **Complete head metadata**: `AeoHead` owns canonical, robots, Open Graph, Twitter/X, locale, alternate, feed, pagination, author, and graph output without replacing unrelated authored tags.
 - **robots.txt**: allow search and retrieval bots, block training crawlers, with automatic `Sitemap:` and `llms.txt` hints.
 - **Sitemap**: auto-wires the official [`@astrojs/sitemap`](https://docs.astro.build/en/guides/integrations-guide/sitemap/), verifies its build output before adding the `robots.txt` hint, and mirrors the index to a conventional `/sitemap.xml` when that target is free.
 - **domain-profile.json**: a `/.well-known/domain-profile.json` identity file for authoritative answers about your site.
@@ -66,7 +71,10 @@ export default defineConfig({
 astro build
 ```
 
-Out of the box you get: a `.md` companion beside every page, `llms.txt` and `llms-full.txt` at the site root, an alternate link tag on every page, and a sitemap (via the auto-wired `@astrojs/sitemap`). Enable `discovery.robots`, `site.profile`, and `corpus.urlMap` when you want them.
+Out of the box you get: a `.md` companion beside every page, `llms.txt` and `llms-full.txt` at the
+site root, an alternate link tag, a managed Schema.org graph on each eligible page with a stable
+canonical URL, and a sitemap (via the auto-wired `@astrojs/sitemap`). Enable `discovery.robots`,
+`site.profile`, `corpus.urlMap`, and the experimental `schema.corpus` outputs when you want them.
 
 ## Configuration
 
@@ -77,6 +85,8 @@ aeo({
   site: {
     name: '',                        // llms.txt heading; falls back to profile, <title>, hostname
     description: '',
+    defaultLocale: undefined,        // BCP 47 locale used when a page supplies none
+    organization: undefined,         // explicit Schema.org entity or { '@id': ... } reference
 
     profile: {                       // /.well-known/domain-profile.json
       enabled: false,
@@ -100,6 +110,8 @@ aeo({
 
   markdown: {                        // the .md companions
     enabled: true,
+    strategy: 'auto',
+    renderers: [],                   // importable modules; inline functions are prerender-only
     alternateLink: 'auto',           // 'auto' | 'always' | 'never'
     includeLastModified: true,
     frontmatter: false,              // prepend YAML frontmatter to .md files
@@ -161,6 +173,65 @@ aeo({
       extraLines: [],
     },
   },
+
+  artifacts: {
+    replace: [],                     // exact served pathnames only; no globs
+  },
+
+  metadata: {
+    fillMissing: false,              // never replaces authored metadata
+    defaults: {},                    // explicit fallback values only
+  },
+
+  schema: {
+    autoInject: true,
+    infer: ['website', 'webpage', 'breadcrumbs'],
+    strictReferences: true,
+    corpus: {
+      enabled: false,
+      graphPath: '/schema/graph.jsonld',
+      mapPath: '/schema/schema-map.xml',
+    },
+  },
+
+  validation: {
+    onBuild: 'artifacts',            // 'artifacts' | 'recommended' | 'off'
+    failOn: 'error',                 // 'error' | 'warning'
+  },
+
+  plugins: [],
+});
+```
+
+Only these 1.2 groups are active. Configuration for later roadmap releases, including i18n,
+chunking, caching, IndexNow, analytics, and audit output, is not accepted as a placeholder.
+
+### Migrating to 1.2
+
+Version 1.2 deliberately changes three defaults or public contracts:
+
+- `schema.autoInject` defaults to `true`. Upgrading adds one Astro-AEO-managed JSON-LD graph to
+  eligible HTML pages that have a stable canonical URL. Set `schema: { autoInject: false }` to
+  retain 1.1 HTML byte behavior. An explicitly rendered `AeoHead` still works when global
+  injection is disabled.
+- `AeoPageRecord` is now the shared rich page model. It adds route identity, nested metadata,
+  source and representation records, dates, authors, entities, directives, extraction details,
+  and diagnostics. The existing flat `url`, `mdHref`, `title`, `description`, `markdown`,
+  `lastModified`, and `aeoTokens` fields remain as deprecated runtime and type mirrors through
+  1.x. The smaller `AeoPage` used by section match predicates is unchanged.
+- Project routes and `public/` files now own their served path by default. Astro-AEO will not
+  overwrite them unless the exact normalized served pathname appears in `artifacts.replace`.
+  Globs are rejected. Duplicate generated claims emit neither claimant, and project-root URL-map
+  files are never replaced. This ownership flip is the other intentional 1.x compatibility
+  exception.
+
+For example, a project that deliberately replaces its own `/docs/llms.txt` under an Astro base of
+`/docs` must authorize that exact browser-visible pathname:
+
+```js
+aeo({
+  artifacts: { replace: ['/docs/llms.txt'] },
+  schema: { autoInject: false },
 });
 ```
 
@@ -169,7 +240,7 @@ aeo({
 Every 1.0 key still works and produces the same output as its canonical replacement. Using one emits a
 single deprecation warning per section; the 1.0 keys are removed in 2.0.
 
-| 1.0 | 1.1 |
+| 1.0 | Canonical 1.x |
 | --- | --- |
 | `include`, `exclude`, `respectNoindex`, `stripTitleSuffix` | `pages.*` |
 | `dotmd.enabled`, `dotmd.includeLastModified`, `dotmd.frontmatter` | `markdown.*` |
@@ -200,7 +271,7 @@ placeholders, so copy those callbacks by hand.
 Two rules are worth knowing:
 
 - You can mix eras as long as they address different settings. Setting a 1.0 key and
-  its 1.1 replacement to **different** values is a build-stopping error naming both
+  its canonical replacement to **different** values is a build-stopping error naming both
   paths, because silently picking one could publish the wrong `robots.txt` policy.
 - Values compare structurally, but callbacks compare by reference. Pasting the same
   `match` function into both `llmsTxt.sections` and `corpus.index.sections` is
@@ -277,9 +348,10 @@ const { Content } = await render(post);
 <Content />
 ```
 
-`defineAeoPage` reads `body`, `data.title`, `data.description` and the dates off a
-content-collection entry, or takes any of them directly. Every field is optional;
-supplying none is the same as not using it at all, and extraction runs as usual.
+`defineAeoPage` reads `body`, `data.title`, `data.description`, image, language, and dates from a
+content-collection entry, or accepts explicit authored Markdown/MDX, source kind/path, authors,
+Schema.org entities, and directive hints. Every field is optional; supplying none is the same as
+not using it at all, and extraction runs as usual.
 
 The marker the component emits is internal. It is written only when Astro-AEO is
 the one rendering the page (the build's prerender pass, or a request for the `.md`),
@@ -424,6 +496,42 @@ const { markdown, diagnostics } = await extractHtml(html, {
 }, { baseUrl: 'https://example.com/page/' });
 ```
 
+### Markdown renderers and optional adapters
+
+`markdown.renderers` extends source-aware Markdown generation. Importable modules default-export
+`{ name, apiVersion: 1, render }` and receive immutable page, source, and rendered-HTML input plus
+strict JSON options. A renderer can return Markdown, decline, continue with diagnostics, or request
+immediate rendered-HTML fallback. Errors diagnose and continue, so a renderer cannot break project
+HTML. Inline renderer functions are accepted only for fully prerendered builds.
+
+Astro-AEO also ships two opt-in adapters. Installing an optional peer alone changes nothing:
+
+```js
+aeo({
+  markdown: {
+    renderers: [
+      {
+        module: 'astro-aeo/mdx',
+        options: {
+          components: {
+            Callout: { action: 'element', name: 'aside' },
+            Wrapper: { action: 'unwrap' },
+            InteractiveDemo: { action: 'omit' },
+          },
+        },
+      },
+      { module: 'astro-aeo/defuddle' },
+    ],
+  },
+});
+```
+
+`astro-aeo/mdx` requires optional peer `@mdx-js/mdx`. It parses but never evaluates MDX, removes
+ESM, and accepts JSON-only component mappings. Expressions or unsupported semantic JSX fall back
+to the already-rendered HTML. `astro-aeo/defuddle` requires optional peer `defuddle`; it processes
+only local rendered HTML, forces synchronous mode, blocks fetching, and returns cleaned HTML to
+Astro-AEO's core Turndown converter. Missing optional peers warn and retain normal extraction.
+
 ### Sections
 
 `corpus.index.sections` groups pages in `llms.txt`. Each rule has a `title` and a `match` that is a glob string, an array of globs, a RegExp, or a predicate `(page) => boolean`. Rules are evaluated in order, first match wins. Empty sections are dropped. Pages matching no rule fall into `defaultSection`.
@@ -457,10 +565,18 @@ On a project with an adapter, `.md` requests are served by Astro-AEO's own middl
 which sets the content type itself and re-enters your routing, so your own middleware
 and its authentication apply to a `.md` request exactly as they do to the HTML.
 
+Configuring an adapter authorizes Astro-AEO to inject on-demand fallback routes for catch-all
+`.md` requests and every enabled runtime artifact. This can turn an otherwise static adapter
+build into server or hybrid output. The endpoints return `404` when pre-middleware declines and
+exist so provider routing reaches that middleware before a custom-404 fallback. Literal project
+`.md` routes retain ownership unless their exact served pathname is listed in
+`artifacts.replace`.
+
 Release gates build Node, Cloudflare, Deno, Vercel, and Netlify fixtures. Request
-contracts run locally for Node, Cloudflare in workerd, and Deno. Vercel and Netlify
-are build and provider-artifact checks only; no served behavior is claimed without
-provider accounts.
+contracts run locally for Node, Cloudflare in workerd, Deno, and the emitted Vercel and Netlify
+handlers. Separate assertions verify that Vercel routes runtime artifacts to `_render` before its
+status-404 fallback and that Netlify does not short-circuit `.md` through bundled custom-404
+content.
 
 On static hosting the companions are plain files, and many hosts serve unknown
 extensions as `text/plain`, `application/octet-stream`, or a download. To keep answer
@@ -519,6 +635,149 @@ Because Astro-AEO reads the rendered HTML, per-page control is a meta tag. Add o
 
 Pages with `<meta name="robots" content="noindex">` are skipped automatically unless you set `respectNoindex: false`.
 
+## AeoHead and managed metadata
+
+`AeoHead` is the primary interface for metadata and one managed graph script. Place it inside the
+page's `<head>`:
+
+```astro
+---
+import { AeoHead } from 'astro-aeo/components';
+import { createArticle, createGraph, createId } from 'astro-aeo/schema';
+
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const article = createArticle({
+  '@id': createId('#article', canonical),
+  headline: 'A stable semantic page',
+});
+const graph = createGraph([article]);
+---
+<head>
+  <AeoHead
+    title="A stable semantic page"
+    description="Metadata and JSON-LD from one component."
+    canonical={canonical}
+    openGraph={{ type: 'article' }}
+    twitter={{ card: 'summary' }}
+    graph={graph}
+  />
+</head>
+```
+
+Its typed props cover `title`, `description`, `canonical`, `robots`, `openGraph`, `twitter`,
+`locale`, `hreflang`, `feeds`, `pagination`, `markdownAlternate`, `themeColor`, `authors` (`author`
+remains a 1.x alias), `graph`,
+and `infer`.
+
+An explicit component works even when `schema.autoInject` is false. `infer={false}` disables
+inference for that page while retaining its explicit metadata and graph. Canonicals resolve in
+this order: explicit `AeoHead`, one valid authored canonical, then Astro `site` plus the normalized
+route. Astro-AEO never derives graph identity from localhost or an arbitrary request host. If no
+stable canonical exists, the page is preserved, managed graph output is skipped, and one warning
+explains how to fix it.
+
+Explicit property families replace only the tags they own. Omitted families leave authored bytes
+alone. `metadata.fillMissing: true` can add only absent canonical, `og:title`, `og:description`,
+`og:url`, and explicitly configured defaults. It does not invent images, authors, publishers, or
+robots policies. Supported defaults are `title`, `description`, `robots`, `openGraph`, `twitter`,
+`locale`, `themeColor`, and `author`; each value must be explicit JSON data. Existing JSON-LD
+scripts are inspected for graph assembly but never rewritten.
+
+## Schema graph API
+
+`astro-aeo/schema` provides pure graph helpers and full public vocabulary types from `schema-dts`:
+
+```js
+import {
+  connect,
+  createGraph,
+  createId,
+  createOrganization,
+  createWebSite,
+  ref,
+  serializeGraph,
+  validateGraph,
+} from 'astro-aeo/schema';
+
+const organization = createOrganization({
+  '@id': createId('https://example.com/#organization'),
+  name: 'Example',
+});
+const website = connect(
+  createWebSite({ '@id': createId('https://example.com/#website'), name: 'Example' }),
+  'publisher',
+  ref(organization),
+);
+const graph = createGraph([organization, website]);
+const result = validateGraph(graph, { siteUrl: 'https://example.com/' });
+const jsonLd = serializeGraph(result.graph, { siteUrl: 'https://example.com/' });
+```
+
+The package exports builders for `WebSite`, `WebPage`, `Person`, `Organization`, `Article`,
+`BlogPosting`, `BreadcrumbList`, `ImageObject`, `VideoObject`, `Product`,
+`SoftwareApplication`, `Service`, `Offer`, `FAQPage`, `HowTo`, `Event`, and `LocalBusiness`, plus
+`createEntity`, `createGraph`, `createId`, `ref`, `connect`, `mergeGraph`, `deduplicateGraph`,
+`validateGraph`, and `serializeGraph`.
+
+User-authored IDs win. Equal-ID objects merge recursively, arrays deduplicate in semantic order,
+and scalar conflicts error unless `first` or `last` is explicitly selected. Same-document
+references must resolve, known same-site references can resolve across collected pages, and
+external IDs remain valid without fetching. Provenance and conflict values remain outside emitted
+JSON-LD, and serialization is deterministic and safe for an inline script.
+
+`createId` is the boundary that returns a branded, absolute identifier. Entity builders and
+`createEntity` may retain relative IDs and URL properties while a graph is being assembled;
+`validateGraph` resolves them against its explicit `documentCanonical` and returns the normalized
+graph. No request host is used as an implicit base.
+
+### Experimental schema corpus
+
+Set `schema.corpus.enabled: true` to emit the atomic pair `/schema/graph.jsonld` and
+`/schema/schema-map.xml`, or choose other exact paths. These files are experimental,
+Astro-AEO-specific discovery aids, not Schema.org, Google, or other standards. Their presence does
+not imply search-feature eligibility. JSON-LD retains anonymous entities; the XML map omits them
+with a diagnostic because it can list only stable IDs.
+
+Both corpus paths must use one exact, normalized, app-relative URL spelling below `/`: no query,
+fragment, glob, dot segment, encoded separator, ambiguous encoding, duplicate slash, or trailing
+slash. Cross-page reference validation is scoped to the configured Astro site and `base` path.
+
+Runtime schema corpora use the same anonymous, serial, in-process renderer as the text corpora,
+including `GET`, `HEAD`, ETags, and conditional requests. Astro 5 and Astro 6.0 through 6.2 return
+`503` with `Cache-Control: no-store` for full request-time corpora. Astro 6.3 or newer is required
+for disposable per-page request state.
+
+## Plugin API
+
+Plugins use the stable API version 1 object at the package root:
+
+```js
+const plugin = {
+  name: 'example-metadata',
+  apiVersion: 1,
+  setup(api) {
+    api.on('page:metadata', ({ value }) => ({ action: 'keep' }));
+    api.claimArtifact({ id: 'feed', pathname: '/answer-feed.txt' });
+  },
+  runtime: {
+    entrypoint: new URL('./src/aeo-runtime-plugin.js', import.meta.url),
+    options: { label: 'Answers' },
+  },
+};
+
+aeo({ plugins: [plugin] });
+```
+
+Hooks run sequentially in configured order through `page:discovered`, `page:extract`,
+`page:transform`, `page:metadata`, `graph:build`, `artifact:generate`, `artifact:validate`, and
+`build:complete`. Inputs are immutable; a hook keeps, replaces, or isolates its current scope.
+Runtime modules use literal entrypoints and strict JSON options. Omitting runtime `options` leaves
+`api.options` undefined, while an explicit JSON `null` remains `null`. Graph replacements are
+reconciled with unchanged authored JSON-LD before Astro-AEO regenerates its one managed script, so
+build and runtime corpora use the same final graph. Artifact claims are exact
+app-relative pathnames, and runtime page access never exposes raw requests, cookies, credentials,
+or arbitrary rendering. The built-in semantic pipeline uses this same dispatcher.
+
 ## JSON-LD Components
 
 Import from `astro-aeo/components` and drop into any layout or page.
@@ -540,7 +799,9 @@ import { FaqJsonLd, BreadcrumbJsonLd, ArticleJsonLd } from 'astro-aeo/components
 | `SpeakableJsonLd` | `cssSelector?` (default `['main']`), `url?` | Drop-in with no props |
 | `ArticleJsonLd` | `headline`, `datePublished?`, `dateModified?`, `author?`, `image?`, `description?` | For posts and dated content |
 
-Each component renders a single, XSS-safe `<script type="application/ld+json">`.
+Each compatibility component renders a single, XSS-safe `<script type="application/ld+json">`.
+They use the graph builders internally while preserving their established props and serialized
+output. New semantic pages should prefer `AeoHead` and `astro-aeo/schema`.
 
 ## Validator CLI
 
@@ -555,7 +816,11 @@ Exit codes: `0` pass, `1` validation errors (or warnings with `--strict`), `2` u
 
 ## How It Works
 
-Astro-AEO hooks into Astro's standard integration lifecycle. On `astro build` it reads each rendered page once, converts the `<main>` region to Markdown with [Turndown](https://github.com/mixmark-io/turndown), and emits every output during `astro:build:done`. No separate build step, no external services, no post-processing scripts. Redirect stubs and non-HTML outputs are skipped automatically.
+Astro-AEO hooks into Astro's standard integration lifecycle. Build and runtime processing share the
+same staged discovery, extraction, normalization, metadata, graph, validation, and artifact logic.
+On `astro build`, generated files and targeted HTML enrichments are buffered until validation and
+ownership checks finish, then committed atomically. No separate package build step, external
+service, or network self-fetch is required. Redirect stubs and non-HTML outputs are skipped.
 
 In `astro dev`, a middleware serves `robots.txt`, `domain-profile.json`, and `.md` companions live, and builds `llms.txt` from your static routes. Dev is best-effort: dynamic and content-collection routes are only fully enumerated by a build, so the dev `llms.txt` carries a note to that effect and the build output remains the source of truth.
 
@@ -574,12 +839,14 @@ pnpm run demo:dev      # run the demo site in fixtures/demo
 pnpm run demo:build    # build the demo site
 pnpm run demo:validate # run the validator CLI on the demo build
 pnpm run test:ssr      # adapter e2e (builds and boots @astrojs/node)
+pnpm run test:trailing # always/never/ignore under a base path on the Node adapter
 pnpm run test:adapters # build five adapters; request-test Node, workerd, and Deno
 pnpm run release:check # schema, compatibility, tarball, adapters, and benchmarks
 ```
 
 Tag publication adds `--require-clean`, checks that the numeric tag equals the package and changelog
-version, and refuses a dirty checkout before the packed-tarball and provider gates run.
+version, and refuses a dirty checkout before the packed-tarball and provider gates run. Both pull
+requests and tagged publication also run real pinned Node servers on Astro 5.18, 6.2, 6.3, and 7.
 
 Tests are colocated next to the source they cover as `*.test.js`. The frozen
 `fixtures/golden-1.0` output proves static byte compatibility with the actual 1.0

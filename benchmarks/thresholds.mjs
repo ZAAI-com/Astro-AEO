@@ -1,6 +1,6 @@
 export const RELEASE_THRESHOLDS = Object.freeze({
-  packagePackedBytes: 90_000,
-  packageUnpackedBytes: 320_000,
+  packagePackedBytes: 190_000,
+  packageUnpackedBytes: 740_000,
   parse100KbP95Ms: 50,
   convert100KbP95Ms: 150,
   requestP95OverheadMs: 10,

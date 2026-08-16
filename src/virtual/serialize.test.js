@@ -99,4 +99,15 @@ describe('runtimeConfigProjection', () => {
     expect(config.discovery.sitemap.options.locales).toEqual({ 'pt-BR': 'pt' });
     expect(findNonSerializable(projected)).toEqual([]);
   });
+
+  test('removes build-only plugin definitions from the runtime projection', () => {
+    const config = resolveConfig({
+      plugins: [{ name: 'feed', apiVersion: 1, setup() {} }],
+    });
+
+    const projected = runtimeConfigProjection(config);
+
+    expect(projected).not.toHaveProperty('plugins');
+    expect(findNonSerializable(projected)).toEqual([]);
+  });
 });

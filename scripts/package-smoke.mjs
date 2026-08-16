@@ -68,6 +68,11 @@ try {
     'src/page.d.ts',
     'src/extract.js',
     'src/extract.d.ts',
+    'src/schema.js',
+    'src/schema.d.ts',
+    'src/adapters.d.ts',
+    'src/adapters/mdx.js',
+    'src/adapters/defuddle.js',
     'src/runtime/middleware.js',
     'src/runtime/middleware.d.ts',
     'components/index.js',
@@ -112,6 +117,7 @@ try {
       resolve(consumer, 'pnpm-workspace.yaml'),
       'allowBuilds:\n  esbuild: true\n  sharp: false\n',
     );
+    await writeFile(resolve(consumer, '.npmrc'), 'auto-install-peers=false\n');
     await writeFile(
       resolve(consumer, 'src/pages/index.astro'),
       `---\nimport { AeoPage, FaqJsonLd } from 'astro-aeo/components';\n---\n<html><head><title>Packed consumer</title><meta name="description" content="Tarball smoke test" /></head><body><main><AeoPage markdown="# Authored source" title="Packed consumer" /><h1>Packed consumer</h1><FaqJsonLd items={[{ question: 'Packed?', answer: 'Yes.' }]} /></main></body></html>\n`,
@@ -121,7 +127,7 @@ try {
     // while allowing pnpm to fill a missing optional tarball. This also avoids
     // npm independently re-resolving Astro's fast-moving prerelease graph.
     run('pnpm', ['install', '--prefer-offline'], { cwd: consumer });
-    const importTargets = ['astro-aeo', 'astro-aeo/page', 'astro-aeo/extract'];
+    const importTargets = ['astro-aeo', 'astro-aeo/page', 'astro-aeo/extract', 'astro-aeo/schema'];
     run(
       'node',
       [
@@ -148,6 +154,65 @@ if (schema.title !== 'Astro-AEO configuration' || pkg.name !== 'astro-aeo') proc
     if (installedSchema.title !== 'Astro-AEO configuration') {
       throw new Error('installed configuration schema is missing or invalid');
     }
+
+    run(
+      'node',
+      [
+        '--input-type=module',
+        '-e',
+        `const isExpectedMissingPeer = (error, peer) =>
+  error?.code === 'ERR_MODULE_NOT_FOUND' &&
+  String(error.message).startsWith("Cannot find package '" + peer + "' imported from ");
+for (const [specifier, peer] of [['astro-aeo/mdx', '@mdx-js/mdx'], ['astro-aeo/defuddle', 'defuddle']]) {
+  if (
+    isExpectedMissingPeer({ code: 'ERR_PACKAGE_PATH_NOT_EXPORTED', message: "Cannot find package '" + peer + "' imported from smoke" }, peer) ||
+    isExpectedMissingPeer({ code: 'ERR_MODULE_NOT_FOUND', message: "Cannot find module '/broken/adapter.js'" }, peer)
+  ) process.exit(1);
+  try { await import(specifier); process.exit(1); }
+  catch (error) {
+    if (!isExpectedMissingPeer(error, peer)) process.exit(1);
+  }
+}`,
+      ],
+      { cwd: consumer },
+    );
+
+    // Installing optional peers must be the only action that activates their
+    // importable adapter subpaths. Core imports and the ordinary Astro build
+    // above deliberately run before either peer is declared by the consumer.
+    const installedMdx = JSON.parse(
+      await readFile(resolve(root, 'node_modules/@mdx-js/mdx/package.json'), 'utf8'),
+    ).version;
+    const installedDefuddle = JSON.parse(
+      await readFile(resolve(root, 'node_modules/defuddle/package.json'), 'utf8'),
+    ).version;
+    const consumerPackage = JSON.parse(await readFile(resolve(consumer, 'package.json'), 'utf8'));
+    consumerPackage.dependencies['@mdx-js/mdx'] = installedMdx;
+    consumerPackage.dependencies.defuddle = installedDefuddle;
+    await writeFile(resolve(consumer, 'package.json'), `${JSON.stringify(consumerPackage, null, 2)}\n`);
+    run('pnpm', ['install', '--prefer-offline'], { cwd: consumer });
+    run(
+      'node',
+      [
+        '--input-type=module',
+        '-e',
+        `const [mdx, defuddle] = await Promise.all([import('astro-aeo/mdx'), import('astro-aeo/defuddle')]);
+if (mdx.default?.apiVersion !== 1 || defuddle.default?.apiVersion !== 1) process.exit(1);
+const mdxResult = await mdx.default.render({
+  pathname: '/packed-mdx',
+  html: '',
+  source: { kind: 'mdx', body: '# Packed MDX' },
+});
+const defuddleResult = await defuddle.default.render({
+  pathname: '/packed-defuddle',
+  html: '<html><head><title>Packed</title></head><body><main><h1>Packed Defuddle</h1><p>Local body text.</p></main></body></html>',
+  extraction: { selectors: ['main'], removeSelectors: [], keepSelectors: [] },
+});
+if (mdxResult.status !== 'rendered' || mdxResult.markdown !== '# Packed MDX') process.exit(1);
+if (defuddleResult.status !== 'rendered' || !defuddleResult.markdown.includes('Packed Defuddle')) process.exit(1);`,
+      ],
+      { cwd: consumer },
+    );
     console.log('Packed tarball imports and Astro fixture build passed.');
   }
 } finally {

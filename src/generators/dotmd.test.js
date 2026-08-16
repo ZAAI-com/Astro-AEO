@@ -86,4 +86,52 @@ describe('emitDotMd', () => {
     expect(warnings.some((message) => message.includes('produced by a route'))).toBe(true);
     expect(warnings.some((message) => message.includes('also exists in public/'))).toBe(true);
   });
+
+  test('does not claim Markdown when the normalized page directive disables it', () => {
+    const distDir = pathToFileURL(`${join(root, 'dist')}/`);
+    const writer = createArtifactWriter({
+      distDir,
+      logger: { info() {}, warn() {} },
+    });
+    const page = {
+      pathname: '/private-source',
+      url: 'https://example.test/private-source/',
+      mdHref: '/private-source.md',
+      title: 'Private source',
+      description: '',
+      markdown: '# Private source',
+      rendering: 'prerendered',
+      aeoTokens: [],
+      directives: { index: true, includeInLlms: true, includeInLlmsFull: true, generateMarkdown: false },
+      htmlPath: '',
+      mdPath: join(root, 'dist', 'private-source.md'),
+    };
+
+    expect(emitDotMd([page], resolveConfig({ markdown: { alternateLink: 'never' } }), writer)).toBe(0);
+  });
+
+  test('does not stage an HTML transform for a catalog-only page', () => {
+    let transforms = 0;
+    const writer = /** @type {any} */ ({
+      isDeferred: true,
+      write() { return true; },
+      stageTransform() { transforms++; },
+    });
+    const page = {
+      pathname: '/catalog-only',
+      url: 'https://example.test/catalog-only/',
+      mdHref: '/catalog-only.md',
+      title: 'Catalog only',
+      description: '',
+      markdown: '# Catalog only',
+      rendering: 'prerendered',
+      aeoTokens: [],
+      directives: { generateMarkdown: true },
+      htmlPath: '',
+      mdPath: join(root, 'dist', 'catalog-only.md'),
+    };
+
+    expect(emitDotMd([page], resolveConfig(), writer)).toBe(1);
+    expect(transforms).toBe(0);
+  });
 });

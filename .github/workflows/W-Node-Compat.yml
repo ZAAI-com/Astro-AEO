@@ -1,0 +1,49 @@
+name: Pinned Astro Node compatibility
+
+on:
+  workflow_call:
+
+jobs:
+  server:
+    name: Astro ${{ matrix.astro }} with Node adapter ${{ matrix.adapter }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - astro: 5.18.2
+            adapter: 9.5.5
+            node: 20.19.5
+          - astro: 6.2.2
+            adapter: 10.0.6
+            node: 22.13.1
+          # Pin the actual 6.3 boundary pair. Later 10.1 adapter patches use
+          # Node entrypoint exports introduced after Astro 6.3.x.
+          - astro: 6.3.0
+            adapter: 10.1.0
+            node: 22.13.1
+          - astro: 7.2.0
+            adapter: 11.1.0
+            node: 24
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Pin the compatible Astro and Node adapter pair
+        run: pnpm add -D astro@${{ matrix.astro }} @astrojs/node@${{ matrix.adapter }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Run the real Node-server compatibility contract
+        run: node scripts/test-node-server-compat.mjs
+        env:
+          ASTRO_AEO_EXPECT_ASTRO: ${{ matrix.astro }}
+          ASTRO_AEO_EXPECT_NODE_ADAPTER: ${{ matrix.adapter }}
+          ASTRO_AEO_EXPECT_NODE: ${{ matrix.node }}

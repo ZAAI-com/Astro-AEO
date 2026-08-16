@@ -1,4 +1,5 @@
 // @ts-check
+import { matchesExactPathname } from './artifact-path.js';
 
 /**
  * @param {string} pathname
@@ -10,6 +11,11 @@ export function isOwnedArtifactPath(pathname, config) {
   if (pathname === '/llms-full.txt' && config.corpus.full.enabled) return true;
   if (pathname === '/robots.txt' && config.discovery.robots.enabled) return true;
   if (pathname === '/.well-known/domain-profile.json' && config.site.profile.enabled) return true;
+  if (
+    config.schema.corpus.enabled &&
+    (matchesExactPathname(pathname, config.schema.corpus.graphPath) ||
+      matchesExactPathname(pathname, config.schema.corpus.mapPath))
+  ) return true;
   if (
     config.discovery.sitemap.mode !== 'disabled' &&
     config.discovery.sitemap.alias.enabled &&

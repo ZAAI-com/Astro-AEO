@@ -73,6 +73,32 @@ describe('finalizeSitemapOutputs', () => {
     expect(warnings).toEqual([]);
   });
 
+  test('auto mode advertises an alias staged by the deferred writer', () => {
+    writeFileSync(join(dir, 'sitemap-index.xml'), '<index/>');
+    const writer = createArtifactWriter({
+      distDir,
+      logger,
+      deferred: true,
+      projectRoot: dir,
+      diagnostics: [],
+      failOn: 'error',
+    });
+    const result = finalize(
+      { robotsTxt: { enabled: true, sitemapPath: '/sitemap.xml' } },
+      { sitemapExpected: true, writer },
+    );
+
+    expect(result).toEqual({ aliasEmitted: true, sitemapAdvertised: true });
+    expect(existsSync(join(dir, 'sitemap.xml'))).toBe(false);
+    expect(existsSync(join(dir, 'robots.txt'))).toBe(false);
+
+    writer.commit();
+    expect(readFileSync(join(dir, 'sitemap.xml'), 'utf8')).toBe('<index/>');
+    expect(readFileSync(join(dir, 'robots.txt'), 'utf8')).toContain(
+      'Sitemap: https://example.com/sitemap.xml',
+    );
+  });
+
   test('expected but missing output warns once and is not advertised', () => {
     const result = finalize({}, { sitemapExpected: true });
 
@@ -157,6 +183,43 @@ describe('finalizeSitemapOutputs', () => {
     expect(readFileSync(join(dir, 'robots.txt'), 'utf8')).toContain(
       'Sitemap: https://example.com/sitemap.xml',
     );
+  });
+
+  test('does not advertise a previously owned sitemap scheduled for stale cleanup', () => {
+    const first = createArtifactWriter({
+      distDir,
+      logger,
+      deferred: true,
+      projectRoot: dir,
+      diagnostics: [],
+      failOn: 'error',
+    });
+    first.write({
+      route: '/sitemap.xml',
+      owner: 'sitemapAlias',
+      contents: '<urlset/>',
+    });
+    first.commit();
+
+    const second = createArtifactWriter({
+      distDir,
+      logger,
+      deferred: true,
+      projectRoot: dir,
+      diagnostics: [],
+      failOn: 'error',
+    });
+    const result = finalize({
+      discovery: {
+        sitemap: { mode: 'external', alias: { enabled: false } },
+        robots: { enabled: true, sitemapPath: '/sitemap.xml' },
+      },
+    }, { writer: second });
+
+    expect(result).toEqual({ aliasEmitted: false, sitemapAdvertised: false });
+    second.commit();
+    expect(existsSync(join(dir, 'sitemap.xml'))).toBe(false);
+    expect(readFileSync(join(dir, 'robots.txt'), 'utf8')).not.toContain('Sitemap:');
   });
 
   test('retains main-phase claims while writing late outputs', () => {

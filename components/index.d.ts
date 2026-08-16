@@ -1,4 +1,66 @@
 import type { AstroComponentFactory } from 'astro/runtime/server/index.js';
+import type { GraphInput } from '../src/schema.js';
+
+type AstroComponentWithProps<Props> = AstroComponentFactory & ((props: Props) => any);
+
+export type AeoHeadUrl = string | URL;
+
+export interface AeoOpenGraphImage {
+  url: AeoHeadUrl;
+  secureUrl?: AeoHeadUrl;
+  type?: string;
+  width?: number;
+  height?: number;
+  alt?: string;
+}
+
+export interface AeoOpenGraphMetadata {
+  type?: string;
+  title?: string;
+  description?: string;
+  url?: AeoHeadUrl;
+  siteName?: string;
+  images?: AeoHeadUrl | AeoOpenGraphImage | readonly (AeoHeadUrl | AeoOpenGraphImage)[];
+  localeAlternates?: readonly string[];
+}
+
+export interface AeoTwitterMetadata {
+  card: 'summary' | 'summary_large_image' | 'player' | 'app';
+  site?: string;
+  siteId?: string;
+  creator?: string;
+  creatorId?: string;
+  title?: string;
+  description?: string;
+  image?: AeoHeadUrl;
+  imageAlt?: string;
+  player?: { url: AeoHeadUrl; width: number; height: number; stream?: AeoHeadUrl };
+  apps?: readonly { platform: 'iphone' | 'ipad' | 'googleplay'; name: string; id: string; url?: AeoHeadUrl }[];
+}
+
+export interface AeoHeadProps {
+  title?: string;
+  description?: string;
+  canonical?: AeoHeadUrl;
+  robots?: string | readonly string[];
+  openGraph?: AeoOpenGraphMetadata;
+  twitter?: AeoTwitterMetadata;
+  locale?: string;
+  hreflang?: readonly { lang: string; href: AeoHeadUrl }[];
+  feeds?: readonly { href: AeoHeadUrl; type: string; title?: string }[];
+  pagination?: { previous?: AeoHeadUrl; next?: AeoHeadUrl };
+  markdownAlternate?: AeoHeadUrl | { href: AeoHeadUrl; title?: string };
+  themeColor?: string | { color: string; media?: string } | readonly { color: string; media?: string }[];
+  /** Preferred plural spelling. */
+  authors?: string | { name: string; url?: AeoHeadUrl } | readonly (string | { name: string; url?: AeoHeadUrl })[];
+  /** @deprecated Use `authors`; retained through 1.x. */
+  author?: string | { name: string; url?: AeoHeadUrl } | readonly (string | { name: string; url?: AeoHeadUrl })[];
+  graph?: GraphInput;
+  /** Undefined inherits schema.infer; false disables inference for this page. */
+  infer?: false | readonly ('website' | 'webpage' | 'breadcrumbs')[];
+}
+
+export declare const AeoHead: AstroComponentWithProps<AeoHeadProps>;
 
 export interface FaqItem {
   question: string;
@@ -85,9 +147,22 @@ export interface AeoPageProps {
   markdown?: string;
   title?: string;
   description?: string;
+  image?: string;
+  language?: string;
+  /** ISO date. */
+  published?: string;
   /** ISO date. */
   lastModified?: string;
   /** Where the content came from, recorded in diagnostics. */
   sourcePath?: string;
+  sourceKind?: 'markdown' | 'mdx' | 'astro' | 'cms' | 'rendered' | 'custom';
+  authors?: import('../src/schema.js').EntityReference[];
+  entities?: import('../src/schema.js').SchemaEntity[];
+  directives?: Partial<{
+    index: boolean;
+    includeInLlms: boolean;
+    includeInLlmsFull: boolean;
+    generateMarkdown: boolean;
+  }>;
 }
 export declare const AeoPage: AstroComponentFactory;

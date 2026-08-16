@@ -1,5 +1,6 @@
 ---
 import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
+import { createWebPage } from '../src/schema.js';
 
 /**
  * Speakable JSON-LD for voice assistants. Drop-in with no props; defaults to
@@ -12,12 +13,13 @@ const canonical =
 
 const jsonLd = {
   '@context': 'https://schema.org',
-  '@type': 'WebPage',
-  url: canonical,
-  speakable: {
-    '@type': 'SpeakableSpecification',
-    cssSelector: Array.isArray(cssSelector) ? cssSelector : [cssSelector],
-  },
+  ...createWebPage({
+    url: canonical,
+    speakable: {
+      '@type': 'SpeakableSpecification',
+      cssSelector: Array.isArray(cssSelector) ? cssSelector : [cssSelector],
+    },
+  }),
 };
 ---
 

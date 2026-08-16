@@ -10,7 +10,11 @@ permissions:
   id-token: write
 
 jobs:
+  astro-node-runtime:
+    uses: ./.github/workflows/W-Node-Compat.yml
+
   publish:
+    needs: astro-node-runtime
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

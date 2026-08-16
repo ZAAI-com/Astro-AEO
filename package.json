@@ -1,6 +1,6 @@
 {
   "name": "astro-aeo",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Answer Engine Optimization for Astro: .md companion pages, llms.txt, llms-full.txt, robots.txt AI-bot policies, domain-profile.json, sitemap auto-wiring, JSON-LD components, and a validator CLI.",
   "type": "module",
   "license": "MIT",
@@ -30,9 +30,21 @@
       "types": "./src/extract.d.ts",
       "default": "./src/extract.js"
     },
+    "./mdx": {
+      "types": "./src/adapters.d.ts",
+      "default": "./src/adapters/mdx.js"
+    },
+    "./defuddle": {
+      "types": "./src/adapters.d.ts",
+      "default": "./src/adapters/defuddle.js"
+    },
     "./middleware": {
       "types": "./src/runtime/middleware.d.ts",
       "default": "./src/runtime/middleware.js"
+    },
+    "./schema": {
+      "types": "./src/schema.d.ts",
+      "default": "./src/schema.js"
     },
     "./schema.json": "./schema/astro-aeo.schema.json",
     "./package.json": "./package.json"
@@ -73,11 +85,22 @@
     "markdown"
   ],
   "peerDependencies": {
-    "astro": ">=5.0.0"
+    "@mdx-js/mdx": "^3.1.1",
+    "astro": ">=5.0.0",
+    "defuddle": "^0.19.2"
+  },
+  "peerDependenciesMeta": {
+    "@mdx-js/mdx": {
+      "optional": true
+    },
+    "defuddle": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.3",
     "linkedom": "^0.18.13",
+    "schema-dts": "^2.0.0",
     "turndown": "^7.2.0"
   },
   "devDependencies": {
@@ -87,10 +110,13 @@
     "@astrojs/vercel": "11.0.4",
     "@changesets/cli": "^2.29.8",
     "@deno/astro-adapter": "0.6.0",
+    "@mdx-js/mdx": "^3.1.1",
     "@types/node": "^26.1.1",
     "@types/turndown": "^5.0.6",
     "astro": "^7.1.3",
     "astro-aeo": "link:.",
+    "defuddle": "^0.19.2",
+    "tslib": "^2.8.1",
     "typescript": "^7.0.2",
     "typescript-floor": "npm:typescript@5.5.4",
     "vitest": "^4.1.10",
@@ -101,8 +127,10 @@
     "test:adapters": "pnpm run test:adapters:build && pnpm run test:adapters:runtime",
     "test:adapters:build": "vitest run --config vitest.adapters-build.config.js",
     "test:adapters:runtime": "vitest run --config vitest.adapters-runtime.config.js",
+    "test:compat:node": "node scripts/test-node-server-compat.mjs",
     "test:dev": "vitest run --config vitest.dev.config.js",
     "test:ssr": "vitest run --config vitest.ssr.config.js",
+    "test:trailing": "node scripts/test-node-server-compat.mjs --trailing-matrix",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "test:types": "node node_modules/typescript-floor/bin/tsc --noEmit -p fixtures/types-consumer/tsconfig.json",

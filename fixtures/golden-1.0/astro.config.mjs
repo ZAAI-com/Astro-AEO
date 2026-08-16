@@ -7,6 +7,8 @@ export default defineConfig({
   outDir: './dist',
   integrations: [
     aeo({
+      // 1.2 enables managed JSON-LD by default. Keep this frozen fixture on 1.0 HTML behavior.
+      schema: { autoInject: false },
       stripTitleSuffix: 'Golden Site',
       exclude: ['/private/**'],
       respectNoindex: true,

@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 vi.mock('./config.js', async () => {
   const { resolveConfig } = await import('../config.js');
@@ -15,10 +15,18 @@ vi.mock('./config.js', async () => {
       standaloneSources: {},
     },
     RUNTIME_CATALOG_LOADERS: [],
+    RUNTIME_MARKDOWN_RENDERER_LOADERS: [],
+    RUNTIME_PLUGIN_LOADERS: [],
   };
 });
 
 const { onRequest } = await import('./middleware.js');
+const { RUNTIME } = await import('./config.js');
+const { resolveConfig } = await import('../config.js');
+
+beforeEach(() => {
+  RUNTIME.config = resolveConfig({ markdown: { negotiation: 'redirect' } });
+});
 
 function context(pathname, accept = 'text/markdown') {
   const url = new URL(pathname, 'https://example.test');
@@ -32,6 +40,45 @@ function context(pathname, accept = 'text/markdown') {
 }
 
 describe('redirect negotiation', () => {
+  test('redacts AeoHead transport from HTML outside the configured base', async () => {
+    const marker =
+      '<script type="application/vnd.astro-aeo-head+json" data-astro-aeo-head>{"title":"Private"}</script>';
+    const source = new Response(
+      `<!doctype html><html><head><title>Outside</title>${marker}</head><body>Outside</body></html>`,
+      {
+        status: 202,
+        headers: { 'content-type': 'text/html', 'x-owner': 'application' },
+      },
+    );
+    const ctx = context('/outside-base', 'text/html');
+    const next = vi.fn(async () => source);
+
+    const response = await onRequest(ctx, next);
+
+    expect(response.status).toBe(202);
+    expect(response.headers.get('x-owner')).toBe('application');
+    expect(response.headers.get('etag')).toMatch(/^"[a-f0-9]{64}"$/);
+    expect(await response.text()).toBe(
+      '<!doctype html><html><head><title>Outside</title></head><body>Outside</body></html>',
+    );
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  test.each([
+    ['non-HTML', { 'content-type': 'application/octet-stream' }],
+    ['encoded HTML', { 'content-type': 'text/html', 'content-encoding': 'gzip' }],
+  ])('preserves opaque %s bytes outside the configured base', async (_label, headers) => {
+    const bytes = new Uint8Array([0, 255, 60, 115, 99, 114, 105, 112, 116, 62]);
+    const source = new Response(bytes, { status: 202, headers });
+    const ctx = context('/outside-base', 'text/html');
+
+    const response = await onRequest(ctx, vi.fn(async () => source));
+
+    expect(response).toBe(source);
+    expect(response.status).toBe(202);
+    expect([...new Uint8Array(await response.arrayBuffer())]).toEqual([...bytes]);
+  });
+
   test('renders first, then redirects with base, query, cache, and Vary intact', async () => {
     const ctx = context('/docs/about?view=full');
     const next = vi.fn(async () => new Response('<html><main>About</main></html>', {
@@ -123,6 +170,10 @@ describe('redirect negotiation', () => {
   });
 
   test('keeps byte metadata when negotiation changes only Vary', async () => {
+    RUNTIME.config = resolveConfig({
+      markdown: { negotiation: 'redirect' },
+      schema: { autoInject: false },
+    });
     const ctx = context('/docs/about', 'text/html, text/markdown;q=0.5');
     const html = '<html><head><link rel="alternate" type="text/markdown" href="/docs/about.md"></head><body><main>About</main></body></html>';
     const response = await onRequest(
@@ -164,7 +215,7 @@ describe('redirect negotiation', () => {
     expect([...new Uint8Array(await response.arrayBuffer())]).toEqual([...bytes]);
   });
 
-  test('marker removal clears stale representation headers on an opted-out page', async () => {
+  test('marker removal clears stale representation headers and rehashes an opted-out page', async () => {
     const ctx = context('/docs/about');
     const marker = '<script data-astro-aeo-marker type="application/vnd.astro-aeo+json">{}</script>';
     const html = `<html><head><meta name="aeo" content="no-dotmd"></head><body>${marker}<main>About</main></body></html>`;
@@ -185,9 +236,11 @@ describe('redirect negotiation', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8');
     expect(response.headers.get('vary')).toBe('Origin, Accept');
-    for (const name of ['content-length', 'content-encoding', 'content-digest', 'content-range', 'etag']) {
+    for (const name of ['content-length', 'content-encoding', 'content-digest', 'content-range']) {
       expect(response.headers.get(name), name).toBeNull();
     }
+    expect(response.headers.get('etag')).toMatch(/^"[a-f0-9]{64}"$/);
+    expect(response.headers.get('etag')).not.toBe('"stale"');
     expect(await response.text()).not.toContain('astro-aeo-marker');
   });
 

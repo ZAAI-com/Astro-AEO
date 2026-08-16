@@ -1,5 +1,6 @@
 ---
 import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
+import { createBreadcrumbList } from '../src/schema.js';
 
 /**
  * BreadcrumbList JSON-LD.
@@ -39,13 +40,14 @@ if (Array.isArray(items)) {
 
 const jsonLd = {
   '@context': 'https://schema.org',
-  '@type': 'BreadcrumbList',
-  itemListElement: crumbs.map((c, i) => ({
-    '@type': 'ListItem',
-    position: i + 1,
-    name: c.name,
-    item: c.url,
-  })),
+  ...createBreadcrumbList({
+    itemListElement: crumbs.map((c, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: c.name,
+      item: c.url,
+    })),
+  }),
 };
 ---
 

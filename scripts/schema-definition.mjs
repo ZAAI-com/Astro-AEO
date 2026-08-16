@@ -10,6 +10,25 @@ const string = (description, defaultValue) => ({
   ...(defaultValue === undefined ? {} : { default: defaultValue }),
 });
 
+const EXACT_PATHNAME_PATTERN =
+  "^(?!/$)(?!//)(?!.*//)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*%25[0-9A-Fa-f]{2})" +
+  "(?:/(?:[A-Za-z0-9!$&'()+,\\-.:;=@_~]|" +
+  '%(?:20|22|25|3C|3E|5B|5D|5E|60|7B|7C|7D)|' +
+  '%(?:C[2-F]|D[0-F])%[89AB][0-9A-F]|' +
+  '%E0%[AB][0-9A-F]%[89AB][0-9A-F]|' +
+  '%E[1-CEF]%[89AB][0-9A-F]%[89AB][0-9A-F]|' +
+  '%ED%[89][0-9A-F]%[89AB][0-9A-F]|' +
+  '%F0%[9AB][0-9A-F]%[89AB][0-9A-F]%[89AB][0-9A-F]|' +
+  '%F[1-3]%[89AB][0-9A-F]%[89AB][0-9A-F]%[89AB][0-9A-F]|' +
+  '%F4%8[0-9A-F]%[89AB][0-9A-F]%[89AB][0-9A-F])+)+$';
+
+const exactPathname = (description, defaultValue) => ({
+  type: 'string',
+  description,
+  pattern: EXACT_PATHNAME_PATTERN,
+  ...(defaultValue === undefined ? {} : { default: defaultValue }),
+});
+
 const stringArray = (description, defaultValue) => ({
   type: 'array',
   description,
@@ -135,6 +154,27 @@ const extractionProperties = {
 
 const markdownProperties = {
   enabled: boolean('Generate .md companion pages.', true),
+  strategy: {
+    type: 'string',
+    description: 'Shared Markdown source resolution strategy.',
+    enum: ['auto'],
+    default: 'auto',
+  },
+  renderers: {
+    type: 'array',
+    description: 'Importable Markdown renderer descriptors. Inline functions are available in JavaScript config for prerendered builds.',
+    items: {
+      ...object(
+        {
+          module: { type: 'string', minLength: 1 },
+          options: { description: 'Strict JSON renderer options.' },
+        },
+        'One importable renderer.',
+      ),
+      required: ['module'],
+    },
+    default: [],
+  },
   alternateLink: {
     type: 'string',
     description: 'How Markdown alternate links are injected.',
@@ -187,6 +227,12 @@ const canonicalProperties = {
     {
       name: string('Site name used in corpus headings.', ''),
       description: string('Site description used in corpora.', ''),
+      defaultLocale: string('Default BCP 47 locale for pages that supply none.'),
+      organization: {
+        type: 'object',
+        description: 'Explicit Schema.org organization entity or ID reference.',
+        additionalProperties: true,
+      },
       profile: object(profileProperties, 'Published site identity profile.'),
     },
     'Site identity and profile output.',
@@ -257,6 +303,90 @@ const canonicalProperties = {
     },
     'Discovery artifact settings.',
   ),
+  artifacts: object(
+    {
+      replace: {
+        type: 'array',
+        description: 'Exact normalized served pathnames that core artifacts may replace.',
+        items: exactPathname('One exact normalized served pathname.'),
+        uniqueItems: true,
+        default: [],
+      },
+    },
+    'Generated artifact ownership settings.',
+  ),
+  metadata: object(
+    {
+      fillMissing: boolean('Fill the supported set of absent metadata tags.', false),
+      defaults: {
+        ...object(
+          {
+            title: { type: 'string' },
+            description: { type: 'string' },
+            robots: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+            openGraph: { type: 'object', additionalProperties: true },
+            twitter: { type: 'object', additionalProperties: true },
+            locale: { type: 'string' },
+            themeColor: {},
+            author: {},
+          },
+          'Explicit non-route-specific metadata defaults.',
+        ),
+        default: {},
+      },
+    },
+    'Non-destructive metadata completion.',
+  ),
+  schema: object(
+    {
+      autoInject: boolean('Inject one Astro-AEO-managed graph on eligible pages.', true),
+      infer: {
+        type: 'array',
+        items: { type: 'string', enum: ['website', 'webpage', 'breadcrumbs'] },
+        uniqueItems: true,
+        default: ['website', 'webpage', 'breadcrumbs'],
+      },
+      strictReferences: boolean('Treat unresolved same-document references as errors.', true),
+      corpus: object(
+        {
+          enabled: boolean('Emit the experimental semantic corpus pair.', false),
+          graphPath: exactPathname('App-relative graph corpus pathname.', '/schema/graph.jsonld'),
+          mapPath: exactPathname('App-relative schema-map pathname.', '/schema/schema-map.xml'),
+        },
+        'Experimental non-standard semantic corpus output.',
+      ),
+    },
+    'Schema.org graph generation and validation.',
+  ),
+  validation: object(
+    {
+      onBuild: {
+        type: 'string', enum: ['artifacts', 'recommended', 'off'], default: 'artifacts',
+      },
+      failOn: { type: 'string', enum: ['error', 'warning'], default: 'error' },
+    },
+    'Build validation threshold.',
+  ),
+  plugins: {
+    type: 'array',
+    description: 'AstroAeoPlugin objects. setup is supplied as a function in JavaScript configuration.',
+    items: {
+      type: 'object',
+      required: ['name', 'apiVersion'],
+      properties: {
+        name: { type: 'string', minLength: 1 },
+        apiVersion: { const: 1 },
+        runtime: {
+          type: 'object',
+          required: ['entrypoint'],
+          properties: { entrypoint: { type: 'string', minLength: 1 }, options: {} },
+          additionalProperties: false,
+        },
+      },
+      additionalProperties: true,
+    },
+    default: [],
+  },
 };
 
 const legacyProperties = {
@@ -321,7 +451,7 @@ export function buildSchema() {
     $id: 'https://raw.githubusercontent.com/ZAAI-com/Astro-AEO/main/schema/astro-aeo.schema.json',
     title: 'Astro-AEO configuration',
     description:
-      'Configuration passed to the astro-aeo integration. Canonical 1.1 settings and deprecated 1.0 aliases are accepted.',
+      'Configuration passed to the astro-aeo integration. Canonical 1.2 settings and deprecated 1.0 aliases are accepted.',
     type: 'object',
     properties: { ...canonicalProperties, ...legacyProperties },
     additionalProperties: false,
@@ -339,7 +469,10 @@ export function serializeSchema() {
 
 function buildPublishedSchema() {
   const source = buildSchema();
-  const canonicalNames = ['site', 'pages', 'markdown', 'corpus', 'discovery'];
+  const canonicalNames = [
+    'site', 'pages', 'markdown', 'corpus', 'discovery', 'artifacts', 'metadata',
+    'schema', 'validation', 'plugins',
+  ];
   const legacyNames = [
     'include',
     'exclude',

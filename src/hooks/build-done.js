@@ -16,6 +16,23 @@ import { emitDomainProfile } from '../generators/domain-profile.js';
 import { emitUrlMap } from '../generators/url-map.js';
 import { writeDiagnosticsManifest } from '../build/diagnostics.js';
 import { isOwnedArtifactPath } from '../core/owned-artifacts.js';
+import { renderSchemaCorpus, validateCollectedSchemaGraphs } from '../core/schema-corpus.js';
+import { siteScopeUrl, stableCanonical } from '../core/canonical.js';
+import { enrichHtmlHead, stripAeoHeadMarkers } from '../core/head.js';
+import { catalogBreadcrumbTrail } from '../core/catalog-breadcrumbs.js';
+import {
+  applySemanticGraphPatch,
+  reconcileSemanticEnvelope,
+  removeManagedGraph,
+  sameSemanticEntities,
+} from '../core/semantic-envelope.js';
+import {
+  isExtractionEnvelope,
+  isGraphEnvelope,
+  isPageDescriptor,
+  isPageMetadata,
+  isPageRecord,
+} from './plugin-validation.js';
 
 /**
  * @typedef {object} BuildEnv
@@ -32,6 +49,8 @@ import { isOwnedArtifactPath } from '../core/owned-artifacts.js';
  * @property {import('../index.js').Diagnostic[]} [diagnostics]
  * @property {boolean} [runtimeCorpora]            Leave corpus paths to middleware.
  * @property {{ module: string; specifier: string; namespace: any }[]} [catalogModules]
+ * @property {import('../core/markdown-renderers.js').MarkdownRendererEntry[]} [markdownRenderers]
+ * @property {Awaited<ReturnType<typeof import('../plugins/dispatcher.js').createPluginDispatcher>>} [pluginDispatcher]
  */
 
 /**
@@ -43,6 +62,7 @@ import { isOwnedArtifactPath } from '../core/owned-artifacts.js';
  */
 export async function onBuildDone(config, options, env) {
   const { dir, pages: rawPages, logger } = options;
+  const buildDiagnostics = env.diagnostics ?? (env.diagnostics = []);
 
   // Routes generated from data are invisible to Astro's own page list, so a
   // catalog is the only way they can appear in the corpus.
@@ -85,8 +105,25 @@ export async function onBuildDone(config, options, env) {
     logger.info(`astro-aeo: ${catalogPages.length} page(s) contributed by catalogs`);
   }
 
-  const pageDescriptors = mergeCatalogPages(rawPages, catalogPages);
-  const pages = await collectPages(pageDescriptors, config, {
+  let pageDescriptors = mergeCatalogPages(rawPages, catalogPages);
+  // Marker removal covers every concrete page Astro reported, including a page
+  // a discovered hook later isolates before collection. The marker payload is
+  // private transport and must never depend on lifecycle eligibility.
+  const markerDescriptors = [...pageDescriptors];
+  if (env.pluginDispatcher) {
+    const discovered = [];
+    for (const descriptor of pageDescriptors) {
+      const result = await env.pluginDispatcher.run('page:discovered', descriptor, {
+        pathname: descriptor.pathname,
+        mode: 'build',
+        validate: (value) => isPageDescriptor(value) && value.pathname === descriptor.pathname,
+      });
+      env.diagnostics?.push(...result.diagnostics);
+      if (!result.isolated) discovered.push(result.value);
+    }
+    pageDescriptors = discovered;
+  }
+  let pages = await collectPages(pageDescriptors, config, {
     distDir: dir,
     siteUrl: env.siteUrl,
     base: env.base,
@@ -95,7 +132,54 @@ export async function onBuildDone(config, options, env) {
     projectRoot: env.projectRoot,
     routeEntrypoints: env.routeEntrypoints,
     logger,
+    renderers: env.markdownRenderers,
   });
+
+  if (env.pluginDispatcher) {
+    const processed = [];
+    for (const original of pages) {
+      const extracted = await env.pluginDispatcher.run('page:extract', {
+        representations: original.representations,
+        extraction: original.extraction ?? null,
+        source: original.source,
+      }, {
+        pathname: original.pathname,
+        mode: 'build',
+        validate: isExtractionEnvelope,
+      });
+      env.diagnostics?.push(...extracted.diagnostics);
+      if (extracted.isolated) continue;
+      let page = {
+        ...original,
+        ...('representations' in extracted.value ? { representations: extracted.value.representations } : {}),
+        ...('extraction' in extracted.value ? { extraction: extracted.value.extraction ?? undefined } : {}),
+        ...('source' in extracted.value ? { source: extracted.value.source ?? undefined } : {}),
+      };
+      page.markdown = page.representations.markdown ?? '';
+      const { htmlPath: _htmlPath, mdPath: _mdPath, ...publicPage } = page;
+      const transformed = await env.pluginDispatcher.run('page:transform', publicPage, {
+        pathname: page.pathname,
+        mode: 'build',
+        validate: (value) => isPageRecord(value) && value.id === page.id && value.pathname === page.pathname,
+      });
+      env.diagnostics?.push(...transformed.diagnostics);
+      if (transformed.isolated) continue;
+      page = {
+        ...original,
+        ...transformed.value,
+        markdown: transformed.value.representations.markdown ?? '',
+      };
+      const metadata = await env.pluginDispatcher.run('page:metadata', page.metadata, {
+        pathname: page.pathname,
+        mode: 'build',
+        validate: isPageMetadata,
+      });
+      env.diagnostics?.push(...metadata.diagnostics);
+      if (metadata.isolated) continue;
+      processed.push({ ...page, metadata: metadata.value, title: metadata.value.title, description: metadata.value.description ?? '' });
+    }
+    pages = processed;
+  }
 
   const home = pages.find((p) => p.pathname === '/');
   const { name: siteName, description: siteDescription } = resolveSiteMeta(
@@ -112,7 +196,336 @@ export async function onBuildDone(config, options, env) {
     routePaths: env.resolvedRoutePaths,
     routeMatchers: env.resolvedRouteMatchers,
     publicDir: env.publicDir,
+    deferred: true,
+    projectRoot: env.projectRoot,
+    base: env.base,
+    replacePaths: config.artifacts?.replace ?? [],
+    diagnostics: env.diagnostics ?? [],
+    failOn: config.validation?.failOn ?? 'error',
+    validationOnBuild: config.validation?.onBuild ?? 'artifacts',
+    diagnosticsProvider: () => pages.flatMap((page) => page.diagnostics),
+    onDiagnostics: () =>
+      writeDiagnosticsManifest(env.projectRoot, pages, env.diagnostics ?? []),
   });
+
+  /** @type {{ page: import('../index.js').AeoPageRecord; graph: import('../schema.js').AeoGraph }[]} */
+  const semanticPages = [];
+  if (env.pluginDispatcher) {
+    for (let index = 0; index < pages.length; index++) {
+      const page = pages[index];
+      const { htmlPath: _htmlPath, mdPath: _mdPath, ...publicPage } = page;
+      // Astro exposes prerendered status pages as ordinary build pages. They
+      // remain eligible for an explicit AeoHead decision, but must never gain
+      // the default graph merely because they contain successful HTML bytes.
+      const allowGlobal = page.pathname !== '/404' && page.pathname !== '/500';
+      const semanticSite = {
+        siteUrl: env.siteUrl,
+        base: env.base,
+        trailingSlash: env.trailingSlash,
+      };
+      const breadcrumbTrail = catalogBreadcrumbTrail(
+        page.pathname,
+        catalogPages,
+        semanticSite,
+      );
+      const initial = {
+        html: page.representations.html ?? '',
+        page: publicPage,
+        site: semanticSite,
+        allowGlobal,
+        breadcrumbTrail,
+        graph: null,
+        explicit: false,
+      };
+      const internalBaseline = enrichHtmlHead({
+        html: initial.html,
+        page: publicPage,
+        config,
+        site: semanticSite,
+        allowGlobal,
+        breadcrumbTrail,
+      });
+      const authoredBaseline = enrichHtmlHead({
+        html: initial.html,
+        page: publicPage,
+        config,
+        site: semanticSite,
+        allowGlobal,
+        inspectAuthored: true,
+        breadcrumbTrail,
+      });
+      const baseline = {
+        ...internalBaseline,
+        authoredGraph: authoredBaseline.authoredGraph,
+      };
+      const semantic = await env.pluginDispatcher.run('graph:build', initial, {
+        pathname: page.pathname,
+        mode: 'build',
+        validate: (value) => isGraphEnvelope(value, {
+          id: page.id,
+          pathname: page.pathname,
+          site: semanticSite,
+        }),
+      });
+      const semanticDiagnostics = uniqueBuildDiagnostics([
+        ...semantic.diagnostics,
+        ...authoredBaseline.diagnostics,
+      ]);
+      env.diagnostics?.push(...semanticDiagnostics);
+      if (semantic.isolated) {
+        pages[index] = { ...page, diagnostics: [...page.diagnostics, ...semanticDiagnostics] };
+        if (page.htmlPath) writer.stageTransform(page.htmlPath, 'head-marker-redaction', stripAeoHeadMarkers);
+        continue;
+      }
+      const reconciled = reconcileSemanticEnvelope({
+        baseline,
+        value: /** @type {any} */ (semantic.value),
+        siteUrl: siteScopeUrl(env.siteUrl, env.base),
+        strictReferences: config.schema.strictReferences,
+        pathname: page.pathname,
+      });
+      if (!reconciled.valid) {
+        buildDiagnostics.push(...reconciled.diagnostics);
+        pages[index] = {
+          ...page,
+          diagnostics: [...page.diagnostics, ...semanticDiagnostics, ...reconciled.diagnostics],
+        };
+        if (page.htmlPath) writer.stageTransform(page.htmlPath, 'head-marker-redaction', stripAeoHeadMarkers);
+        continue;
+      }
+      const value = reconciled.value;
+      buildDiagnostics.push(...reconciled.diagnostics);
+      const candidate = isPageRecord(value.page) ? value.page : page;
+      const enrichedHtml = typeof value.html === 'string' ? value.html : stripAeoHeadMarkers(initial.html);
+      const enrichedPage = {
+        ...candidate,
+        representations: { ...candidate.representations, html: enrichedHtml },
+        diagnostics: [
+          ...candidate.diagnostics,
+          ...semanticDiagnostics,
+          ...reconciled.diagnostics,
+        ],
+      };
+      const corpusGraph = value.normalizedGraph?.entries ? value.normalizedGraph : value.graph;
+      if (corpusGraph?.entries) {
+        enrichedPage.entities = corpusGraph.entries.map((/** @type {any} */ entry) => entry.entity);
+        semanticPages.push({ page: enrichedPage, graph: corpusGraph });
+      }
+      pages[index] = /** @type {typeof page} */ ({ ...page, ...enrichedPage });
+      if (page.htmlPath) {
+        /** @param {import('../schema.js').AeoGraph | null | undefined} refreshedGraph */
+        const assertStaticCorpusStable = (refreshedGraph) => {
+          if (
+            !config.schema.corpus.enabled ||
+            env.runtimeCorpora ||
+            sameSemanticEntities(
+              refreshedGraph?.entries ? refreshedGraph : null,
+              corpusGraph?.entries ? corpusGraph : null,
+            )
+          ) return;
+          if (!buildDiagnostics.some((diagnostic) =>
+            diagnostic.code === 'schema-corpus-late-semantic-change' &&
+            diagnostic.pathname === page.pathname)) {
+            buildDiagnostics.push({
+              version: 1,
+              code: 'schema-corpus-late-semantic-change',
+              severity: 'error',
+              message: 'A page semantic graph changed after the static schema corpus was collected; the artifact transaction was aborted.',
+              pathname: page.pathname,
+            });
+          }
+          throw new SemanticTransformConflictError();
+        };
+        writer.stageTransform(page.htmlPath, 'semantic-head', (html) => {
+          const refreshedInternal = enrichHtmlHead({
+            html,
+            page: publicPage,
+            config,
+            site: semanticSite,
+            allowGlobal,
+            breadcrumbTrail,
+          });
+          if (!env.pluginDispatcher?.hasUserHooks('graph:build')) {
+            assertStaticCorpusStable(refreshedInternal.normalizedGraph ?? refreshedInternal.graph);
+            return refreshedInternal.html;
+          }
+
+          const refreshedAuthored = enrichHtmlHead({
+            html,
+            page: publicPage,
+            config,
+            site: semanticSite,
+            allowGlobal,
+            inspectAuthored: true,
+            breadcrumbTrail,
+          });
+          const refreshedBaseline = {
+            ...refreshedInternal,
+            authoredGraph: refreshedAuthored.authoredGraph,
+          };
+
+          // User graph hooks already ran once at the public lifecycle boundary.
+          // Reapply only their non-managed HTML delta, then regenerate managed
+          // JSON-LD against the latest authored graph and HTML bytes.
+          try {
+            const pluginHtml = applyHtmlDelta(
+              removeManagedGraph(refreshedInternal.html),
+              removeManagedGraph(baseline.html),
+              removeManagedGraph(enrichedHtml),
+            );
+            const replayed = applySemanticGraphPatch(
+              refreshedInternal.graph,
+              reconciled.changes.managedPatch,
+            );
+            if (!replayed.valid) {
+              if (!buildDiagnostics.some((diagnostic) =>
+                diagnostic.code === 'plugin-graph-inconsistent' &&
+                diagnostic.pathname === page.pathname)) {
+                buildDiagnostics.push({
+                  version: 1,
+                  code: 'plugin-graph-inconsistent',
+                  severity: 'error',
+                  message: 'A graph plugin change conflicted with semantic facts added later in the build.',
+                  pathname: page.pathname,
+                });
+              }
+              throw new SemanticTransformConflictError();
+            }
+            const finalized = reconcileSemanticEnvelope({
+              baseline: refreshedBaseline,
+              value: {
+                ...value,
+                html: pluginHtml,
+                graph: replayed.graph,
+                normalizedGraph: refreshedInternal.normalizedGraph,
+              },
+              siteUrl: siteScopeUrl(env.siteUrl, env.base),
+              strictReferences: config.schema.strictReferences,
+              pathname: page.pathname,
+            });
+            if (!finalized.valid) {
+              for (const diagnostic of finalized.diagnostics) {
+                if (!buildDiagnostics.some((current) =>
+                  current.code === diagnostic.code && current.pathname === diagnostic.pathname)) {
+                  buildDiagnostics.push(diagnostic);
+                }
+              }
+              throw new SemanticTransformConflictError();
+            }
+            const refreshedCorpusGraph = finalized.value.normalizedGraph?.entries
+              ? finalized.value.normalizedGraph
+              : finalized.value.graph;
+            assertStaticCorpusStable(refreshedCorpusGraph);
+            return finalized.value.html;
+          } catch (error) {
+            if (error instanceof HtmlDeltaConflictError && !buildDiagnostics.some(
+              (diagnostic) =>
+                diagnostic.code === 'plugin-html-delta-conflict' &&
+                diagnostic.pathname === page.pathname,
+            )) {
+              buildDiagnostics.push({
+                version: 1,
+                code: 'plugin-html-delta-conflict',
+                severity: 'error',
+                message: 'A plugin HTML replacement could not be reapplied safely after the page changed; the artifact transaction was aborted.',
+                pathname: page.pathname,
+              });
+            }
+            throw error;
+          }
+        });
+      }
+    }
+  }
+
+  if (!config.schema.corpus.enabled && semanticPages.length > 0) {
+    const stableSite = stableCanonical(env.siteUrl);
+    if (stableSite) {
+      env.diagnostics?.push(...validateCollectedSchemaGraphs(semanticPages, {
+        siteUrl: siteScopeUrl(stableSite, env.base) ?? stableSite,
+        strictReferences: config.schema.strictReferences,
+      }));
+    }
+  }
+
+  if (config.schema.corpus.enabled && !env.runtimeCorpora) {
+    const stableSite = stableCanonical(env.siteUrl);
+    if (!stableSite) {
+      env.diagnostics?.push({
+        version: 1,
+        code: 'schema-corpus-canonical-missing',
+        severity: 'error',
+        message: 'The schema corpus requires a configured stable Astro site URL.',
+      });
+    } else {
+      try {
+        const graphPath = `${env.base || ''}${config.schema.corpus.graphPath}`;
+        const scopeUrl = siteScopeUrl(stableSite, env.base) ?? stableSite;
+        const corpus = renderSchemaCorpus(semanticPages, {
+          graphUrl: new URL(graphPath, stableSite).href,
+          siteUrl: scopeUrl,
+          strictReferences: config.schema.strictReferences,
+        });
+        env.diagnostics?.push(...corpus.diagnostics);
+        writer.write({
+          route: config.schema.corpus.graphPath,
+          owner: { kind: 'core', name: 'schemaGraph' },
+          representation: corpus.graph,
+          group: 'astro-aeo/schema-corpus',
+        });
+        writer.write({
+          route: config.schema.corpus.mapPath,
+          owner: { kind: 'core', name: 'schemaMap' },
+          representation: corpus.map,
+          group: 'astro-aeo/schema-corpus',
+        });
+      } catch (error) {
+        const findings = /** @type {any} */ (error)?.result?.findings;
+        if (Array.isArray(findings) && findings.length > 0) {
+          env.diagnostics?.push(...findings.map((finding) => ({
+            version: /** @type {const} */ (1),
+            code: typeof finding.code === 'string' ? finding.code : 'schema-corpus-invalid',
+            severity: finding.severity === 'warning' || finding.severity === 'info'
+              ? finding.severity
+              : /** @type {const} */ ('error'),
+            message: typeof finding.message === 'string'
+              ? finding.message
+              : 'The semantic corpus pair failed cross-page validation and was omitted.',
+          })));
+        } else {
+          env.diagnostics?.push({
+            version: 1,
+            code: 'schema-corpus-invalid',
+            severity: 'error',
+            message: 'The semantic corpus pair failed cross-page validation and was omitted.',
+          });
+        }
+      }
+    }
+  } else if (config.schema.corpus.enabled) {
+    writer.write({
+      route: config.schema.corpus.graphPath,
+      owner: { kind: 'core', name: 'schemaGraph' },
+      runtime: true,
+      group: 'astro-aeo/schema-corpus',
+    });
+    writer.write({
+      route: config.schema.corpus.mapPath,
+      owner: { kind: 'core', name: 'schemaMap' },
+      runtime: true,
+      group: 'astro-aeo/schema-corpus',
+    });
+  }
+
+  if (env.pluginDispatcher) {
+    await emitPluginArtifacts(
+      env.pluginDispatcher,
+      pages,
+      writer,
+      env.diagnostics ?? [],
+      Boolean(env.runtimeCorpora),
+    );
+  }
 
   const written = emitDotMd(pages, config, writer);
   if (config.markdown.enabled) logger.info(`astro-aeo: emitted ${written} .md companion files`);
@@ -123,6 +536,12 @@ export async function onBuildDone(config, options, env) {
     if (config.corpus.index.enabled) logger.info('astro-aeo: emitted /llms.txt');
     if (config.corpus.full.enabled) logger.info('astro-aeo: emitted /llms-full.txt');
   } else if (config.corpus.index.enabled || config.corpus.full.enabled) {
+    if (config.corpus.index.enabled) {
+      writer.write({ route: '/llms.txt', owner: { kind: 'core', name: 'llmsTxt' }, runtime: true });
+    }
+    if (config.corpus.full.enabled) {
+      writer.write({ route: '/llms-full.txt', owner: { kind: 'core', name: 'llmsFullTxt' }, runtime: true });
+    }
     logger.info('astro-aeo: request-time middleware owns the corpus paths for on-demand routes');
   }
 
@@ -131,8 +550,9 @@ export async function onBuildDone(config, options, env) {
 
   // Unconditional, and last, so it also covers pages every generator skipped.
   const stripped = stripSourceMarkers(
-    pageDescriptors,
+    markerDescriptors,
     createDistHtmlSource({ distDir: dir, buildFormat: env.buildFormat }),
+    writer,
   );
   if (stripped) logger.info(`astro-aeo: removed the source marker from ${stripped} page(s)`);
 
@@ -145,7 +565,191 @@ export async function onBuildDone(config, options, env) {
     }
   }
 
+  // Persist the collection attempt even if a later integration prevents the
+  // finalizer from running. Ownership resolution refreshes this same sanitized
+  // manifest with its complete findings before applying the threshold.
   writeDiagnosticsManifest(env.projectRoot, pages, env.diagnostics ?? []);
 
+  if (env.pluginDispatcher) {
+    await runBuildComplete(env.pluginDispatcher, pages, env.diagnostics ?? []);
+  }
+
   return writer;
+}
+
+/**
+ * Reapply one already-validated plugin replacement as its smallest contiguous
+ * delta. Internal head enrichment is rerun against current bytes first, so the
+ * ordinary path remains fully targeted and byte-stable.
+ * @param {string} current
+ * @param {string} before
+ * @param {string} after
+ */
+function applyHtmlDelta(current, before, after) {
+  if (before === after) return current;
+  let prefix = 0;
+  const prefixLimit = Math.min(before.length, after.length);
+  while (prefix < prefixLimit && before.charCodeAt(prefix) === after.charCodeAt(prefix)) prefix++;
+
+  let suffix = 0;
+  const suffixLimit = Math.min(before.length - prefix, after.length - prefix);
+  while (
+    suffix < suffixLimit &&
+    before.charCodeAt(before.length - suffix - 1) === after.charCodeAt(after.length - suffix - 1)
+  ) suffix++;
+
+  const removed = before.slice(prefix, before.length - suffix);
+  const inserted = after.slice(prefix, after.length - suffix);
+  if (!removed) {
+    const right = before.slice(prefix, prefix + 80);
+    if (!right) return `${current}${inserted}`;
+    const at = current.indexOf(right);
+    if (at === -1 || current.indexOf(right, at + right.length) !== -1) {
+      throw new HtmlDeltaConflictError();
+    }
+    return `${current.slice(0, at)}${inserted}${current.slice(at)}`;
+  }
+  const first = current.indexOf(removed);
+  if (first === -1 || current.indexOf(removed, first + removed.length) !== -1) {
+    throw new HtmlDeltaConflictError();
+  }
+  return `${current.slice(0, first)}${inserted}${current.slice(first + removed.length)}`;
+}
+
+class HtmlDeltaConflictError extends Error {
+  constructor() {
+    super('astro-aeo: a plugin HTML replacement could not be reapplied safely after the page changed.');
+    this.name = 'HtmlDeltaConflictError';
+  }
+}
+
+class SemanticTransformConflictError extends Error {
+  constructor() {
+    super('astro-aeo: a plugin semantic replacement could not be reconciled safely after the page changed.');
+    this.name = 'SemanticTransformConflictError';
+  }
+}
+
+/** @param {import('../index.js').Diagnostic[]} diagnostics */
+function uniqueBuildDiagnostics(diagnostics) {
+  const seen = new Set();
+  return diagnostics.filter((diagnostic) => {
+    const key = JSON.stringify([
+      diagnostic.version,
+      diagnostic.code,
+      diagnostic.severity,
+      diagnostic.message,
+      diagnostic.pathname ?? null,
+      diagnostic.sourcePath ?? null,
+    ]);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** @param {unknown} value @param {{ id: string; pathname: string; replace?: boolean }} expected */
+function isArtifactEnvelope(value, expected) {
+  const candidate = /** @type {any} */ (value);
+  return Boolean(
+    candidate &&
+    typeof candidate === 'object' &&
+    candidate.claim?.id === expected.id &&
+    candidate.claim?.pathname === expected.pathname &&
+    candidate.claim?.replace === expected.replace &&
+    candidate.representation &&
+    typeof candidate.representation.body === 'string' &&
+    typeof candidate.representation.contentType === 'string'
+  );
+}
+
+/**
+ * @param {Awaited<ReturnType<typeof import('../plugins/dispatcher.js').createPluginDispatcher>>} dispatcher
+ * @param {import('../index.js').AeoPageRecord[]} pages
+ * @param {ReturnType<typeof createArtifactWriter>} writer
+ * @param {import('../index.js').Diagnostic[]} diagnostics
+ * @param {boolean} runtimeOutput
+ */
+async function emitPluginArtifacts(dispatcher, pages, writer, diagnostics, runtimeOutput) {
+  const safePages = pages.map((page) => ({ id: page.id, pathname: page.pathname }));
+  for (const claim of dispatcher.claims) {
+    const generated = await dispatcher.run('artifact:generate', {
+      claim: { id: claim.id, pathname: claim.pathname, ...(claim.replace ? { replace: true } : {}) },
+      pages: safePages,
+      representation: null,
+    }, {
+      mode: 'build',
+      pathname: claim.pathname,
+      validate: (value) => isArtifactEnvelope(value, claim),
+    });
+    diagnostics.push(...generated.diagnostics);
+    if (generated.isolated) continue;
+    const representation = /** @type {any} */ (generated.value).representation;
+    if (!representation || typeof representation.body !== 'string' || typeof representation.contentType !== 'string') {
+      diagnostics.push({
+        version: 1,
+        code: 'plugin-artifact-missing',
+        severity: 'error',
+        message: `Plugin "${claim.plugin}" did not produce a valid representation for its declared artifact.`,
+        pathname: claim.pathname,
+      });
+      continue;
+    }
+    const validated = await dispatcher.run('artifact:validate', {
+      claim: {
+        id: claim.id,
+        pathname: claim.pathname,
+        ...(claim.replace ? { replace: true } : {}),
+      },
+      representation,
+    }, {
+      mode: 'build',
+      pathname: claim.pathname,
+      validate: (value) => isArtifactEnvelope(value, claim),
+    });
+    diagnostics.push(...validated.diagnostics);
+    if (validated.isolated) continue;
+    const validatedRepresentation = /** @type {any} */ (validated.value).representation;
+    const runtimeClaim = runtimeOutput && dispatcher.runtimeManifest.plugins.some((plugin) =>
+      plugin.name === claim.plugin && plugin.claims.some((candidate) =>
+        candidate.id === claim.id && candidate.pathname === claim.pathname,
+      ),
+    );
+    writer.write({
+      route: claim.pathname,
+      owner: { kind: 'plugin', name: claim.plugin, claimId: claim.id },
+      replace: claim.replace,
+      representation: validatedRepresentation,
+      ...(runtimeClaim ? { runtime: true } : {}),
+    });
+  }
+}
+
+/**
+ * Run the final public lifecycle stage after every ordinary artifact candidate
+ * and HTML transform has been staged, but before the ownership writer applies
+ * the validation threshold and commits any enrichment.
+ * @param {Awaited<ReturnType<typeof import('../plugins/dispatcher.js').createPluginDispatcher>>} dispatcher
+ * @param {import('../index.js').AeoPageRecord[]} pages
+ * @param {import('../index.js').Diagnostic[]} diagnostics
+ */
+async function runBuildComplete(dispatcher, pages, diagnostics) {
+  const summary = await dispatcher.run('build:complete', {
+    pages: pages.length,
+    artifactPaths: dispatcher.claims.map((claim) => claim.pathname).sort(),
+    diagnostics: {
+      error: diagnostics.filter((item) => item.severity === 'error').length,
+      warning: diagnostics.filter((item) => item.severity === 'warning').length,
+      info: diagnostics.filter((item) => item.severity === 'info').length,
+    },
+  }, { mode: 'build' });
+  diagnostics.push(...summary.diagnostics);
+  if (summary.isolated) {
+    diagnostics.push({
+      version: 1,
+      code: 'plugin-build-complete-isolated',
+      severity: 'error',
+      message: 'A plugin isolated the pending build during build:complete.',
+    });
+  }
 }

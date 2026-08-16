@@ -5,3 +5,4 @@ export { default as OrganizationJsonLd } from './OrganizationJsonLd.astro';
 export { default as SpeakableJsonLd } from './SpeakableJsonLd.astro';
 export { default as ArticleJsonLd } from './ArticleJsonLd.astro';
 export { default as AeoPage } from './AeoPage.astro';
+export { default as AeoHead } from './AeoHead.astro';

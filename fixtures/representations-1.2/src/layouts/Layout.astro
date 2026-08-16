@@ -1,0 +1,17 @@
+---
+const { title, description } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>{title}</title>
+    {description && <meta name="description" content={description} />}
+  </head>
+  <body>
+    <nav>Navigation must not enter Markdown.</nav>
+    <main><slot /></main>
+    <footer>Footer must not enter Markdown.</footer>
+  </body>
+</html>

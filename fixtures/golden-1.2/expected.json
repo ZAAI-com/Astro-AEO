@@ -1,0 +1,11 @@
+{
+  "authoredScripts": [
+    "{\"@context\":\"https://schema.org\",\"@type\":\"Article\",\"headline\":\"Release Notes\",\"description\":\"A semantic release.\",\"datePublished\":\"2026-08-11\",\"dateModified\":\"2026-08-12\",\"image\":\"https://semantic.example.com/release.png\",\"mainEntityOfPage\":\"https://semantic.example.com/release\",\"author\":{\"@type\":\"Person\",\"name\":\"Ada\",\"url\":\"https://example.com/ada\"}}",
+    "{\"@context\":\"https://schema.org\",\"@type\":\"BreadcrumbList\",\"itemListElement\":[{\"@type\":\"ListItem\",\"position\":1,\"name\":\"Home\",\"item\":\"https://semantic.example.com/\"},{\"@type\":\"ListItem\",\"position\":2,\"name\":\"Release\",\"item\":\"https://semantic.example.com/release\"}]}",
+    "{\"@context\":\"https://schema.org\",\"@type\":\"FAQPage\",\"mainEntity\":[{\"@type\":\"Question\",\"name\":\"Is output safe?\",\"acceptedAnswer\":{\"@type\":\"Answer\",\"text\":\"Yes, including \\u003cscript> text.\"}}]}",
+    "{\"@context\":\"https://schema.org\",\"@type\":\"HowTo\",\"name\":\"Publish semantics\",\"description\":\"Build one stable graph.\",\"totalTime\":\"PT5M\",\"step\":[{\"@type\":\"HowToStep\",\"position\":1,\"name\":\"Build\",\"text\":\"Run Astro.\",\"url\":\"https://semantic.example.com/build\",\"image\":\"https://semantic.example.com/build.png\"}]}",
+    "{\"@context\":\"https://schema.org\",\"@type\":\"Organization\",\"name\":\"Example Org\",\"url\":\"https://semantic.example.com/\",\"logo\":\"https://semantic.example.com/logo.png\",\"sameAs\":[\"https://example.com/example-org\"],\"contactPoint\":{\"@type\":\"ContactPoint\",\"email\":\"hello@example.com\",\"contactType\":\"customer support\"}}",
+    "{\"@context\":\"https://schema.org\",\"@type\":\"WebPage\",\"url\":\"https://semantic.example.com/\",\"speakable\":{\"@type\":\"SpeakableSpecification\",\"cssSelector\":[\"main\",\".summary\"]}}"
+  ],
+  "managedScript": "{\"@context\":\"https://schema.org\",\"@graph\":[{\"@id\":\"https://semantic.example.com/#website\",\"@type\":\"WebSite\",\"inLanguage\":\"en\",\"name\":\"Semantic Fixture\",\"url\":\"https://semantic.example.com/\"},{\"@id\":\"https://semantic.example.com/#webpage\",\"@type\":\"WebPage\",\"description\":\"The Astro-AEO 1.2 semantic fixture.\",\"inLanguage\":\"en\",\"name\":\"Semantic Publishing\"}]}"
+}

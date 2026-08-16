@@ -1,0 +1,28 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Rich extraction">
+  <h1>Rich extraction</h1>
+  <table>
+    <caption>Quarterly totals</caption>
+    <thead><tr><th>Quarter</th><th>Total</th></tr></thead>
+    <tbody><tr><td>Q1</td><td>42</td></tr></tbody>
+  </table>
+  <figure>
+    <picture>
+      <source srcset="../media/chart.webp" type="image/webp" />
+      <img src="../media/chart.png" alt="Quarterly chart" />
+    </picture>
+    <video controls poster="../media/poster.jpg">
+      <source src="../media/demo.mp4" type="video/mp4" />
+    </video>
+    <audio controls src="../media/narration.mp3"></audio>
+    <figcaption>Accessible media caption</figcaption>
+  </figure>
+  <pre><code class="language-typescript">const total: number = 42;</code></pre>
+  <aside class="callout">
+    <strong>Callout</strong>
+    <a href="../docs/evidence.pdf">Read the evidence</a>
+  </aside>
+</Layout>

@@ -27,13 +27,26 @@ describe('marker path and dynamic collision build', () => {
     for (const file of ['about.html', '404.html', '500.html']) {
       const html = readFileSync(join(DIST, file), 'utf8');
       expect(html).not.toContain('data-astro-aeo-marker');
+      expect(html).not.toContain('data-astro-aeo-head');
       expect(html).not.toContain('Private source');
       expect(html).not.toContain('fixture:');
     }
   });
 
-  test('reports a generated dynamic endpoint collision', () => {
-    expect(output).toContain('/about.md is also produced by a route in this project');
-    expect(readFileSync(join(DIST, 'about.md'), 'utf8')).toContain('# Authored about');
+  test('status pages skip global graphs while an explicit AeoHead still owns its graph', () => {
+    const notFound = readFileSync(join(DIST, '404.html'), 'utf8');
+    expect(notFound.match(/data-astro-aeo-graph/g)).toHaveLength(1);
+    expect(notFound).toContain('Explicit status graph');
+    expect(notFound).not.toMatch(/"@type":"Web(?:Page|Site)"/);
+
+    const serverError = readFileSync(join(DIST, '500.html'), 'utf8');
+    expect(serverError).not.toContain('data-astro-aeo-graph');
+  });
+
+  test('preserves a generated dynamic endpoint on an artifact collision', () => {
+    expect(output).toContain('/about.md is owned by a project route');
+    expect(readFileSync(join(DIST, 'about.md'), 'utf8')).toBe(
+      'project-owned dynamic endpoint\n',
+    );
   });
 });

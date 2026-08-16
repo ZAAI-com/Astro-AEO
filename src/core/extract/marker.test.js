@@ -46,6 +46,16 @@ describe('removal', () => {
     expect(stripMarkersFromHtml(html)).toBe(html);
   });
 
+  test('tag-like marker text inside a script is untouched', () => {
+    const html = '<html><body><script>const example = "<script data-astro-aeo-marker>";</script><p>Safe</p></body></html>';
+    expect(stripMarkersFromHtml(html)).toBe(html);
+  });
+
+  test('a marker name inside another attribute value is untouched', () => {
+    const html = '<script data-example=" data-astro-aeo-marker ">console.log(1)</script>';
+    expect(stripMarkersFromHtml(html)).toBe(html);
+  });
+
   test('a payload containing a closing tag cannot break out of the element', () => {
     // The component serializes through the same escaper as the JSON-LD blocks,
     // which escapes "<", so this shape cannot occur; assert the reader survives it.
@@ -77,6 +87,34 @@ describe('defineAeoPage', () => {
     expect(marker.sourcePath).toBe('src/content/blog/a.md');
   });
 
+  test('preserves an explicit source kind without requiring a source path', () => {
+    expect(defineAeoPage({ markdown: '# MDX source', sourceKind: 'mdx' })).toEqual({
+      markdown: '# MDX source',
+      sourceKind: 'mdx',
+    });
+    expect(defineAeoPage({ sourceKind: 'cms' })).toEqual({ sourceKind: 'cms' });
+  });
+
+  test('validates source kinds while retaining path-based inference', () => {
+    expect(defineAeoPage({ sourceKind: /** @type {any} */ ('invalid') })).toEqual({});
+    expect(defineAeoPage({
+      sourcePath: 'src/content/entry.mdx',
+      sourceKind: /** @type {any} */ ('invalid'),
+    })).toEqual({
+      sourcePath: 'src/content/entry.mdx',
+      sourceKind: 'mdx',
+    });
+    expect(defineAeoPage({ sourcePath: 'src/pages/about.astro' })).toMatchObject({
+      sourceKind: 'astro',
+    });
+    expect(defineAeoPage({ sourcePath: 'cms:article-42' })).toMatchObject({
+      sourceKind: 'cms',
+    });
+    expect(defineAeoPage({ sourcePath: 'generated:article-42' })).toMatchObject({
+      sourceKind: 'custom',
+    });
+  });
+
   test('explicit values win over the entry', () => {
     const marker = defineAeoPage({ source: { data: { title: 'From entry' } }, title: 'Explicit' });
     expect(marker.title).toBe('Explicit');
@@ -89,6 +127,10 @@ describe('defineAeoPage', () => {
 
   test('preserves explicitly empty authored Markdown as a source decision', () => {
     expect(defineAeoPage({ markdown: '' })).toEqual({ markdown: '' });
+    expect(defineAeoPage({ markdown: '', sourceKind: 'custom' })).toEqual({
+      markdown: '',
+      sourceKind: 'custom',
+    });
   });
 
   test('an unparseable date is dropped rather than emitted as Invalid Date', () => {

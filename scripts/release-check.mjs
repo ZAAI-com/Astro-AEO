@@ -42,7 +42,13 @@ const steps = [
 ];
 
 if (!quick) {
-  for (const script of ['test:dev', 'test:ssr', 'test:adapters:build', 'test:adapters:runtime']) {
+  for (const script of [
+    'test:dev',
+    'test:ssr',
+    'test:trailing',
+    'test:adapters:build',
+    'test:adapters:runtime',
+  ]) {
     if (!pkg.scripts?.[script]) {
       throw new Error(`package.json must define ${JSON.stringify(script)} before release:check can pass`);
     }
@@ -50,6 +56,7 @@ if (!quick) {
   steps.push(
     ['Development-server contract', 'pnpm', ['run', 'test:dev']],
     ['Node adapter contract', 'pnpm', ['run', 'test:ssr']],
+    ['Base-path trailing-slash matrix', 'pnpm', ['run', 'test:trailing']],
     ['Adapter build matrix', 'pnpm', ['run', 'test:adapters:build']],
     ['Adapter local-runtime matrix', 'pnpm', ['run', 'test:adapters:runtime']],
     ['Adapter bundle baselines', 'node', ['scripts/build-benchmark-baselines.mjs']],

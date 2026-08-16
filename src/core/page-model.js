@@ -1,31 +1,46 @@
 // @ts-check
 import { createTurndown } from './html-to-md.js';
 import { extractMarkdown } from './extract/index.js';
-import { extractPageMeta, makeTitleStripper } from './page-meta.js';
+import { extractMetaContent, extractPageMeta, makeTitleStripper } from './page-meta.js';
 import { isIncluded, normalizePath } from './match.js';
 import { parseDocument } from './html-document.js';
-import { readMarker, removeMarkers } from './extract/marker.js';
+import { readMarker, removeMarkers, stripMarkersFromHtml } from './extract/marker.js';
+import { authoredCanonical, configuredCanonical, stableCanonical } from './canonical.js';
+import { resolveMarkdownWithRenderers } from './markdown-renderers.js';
+import { sourceKindFor } from './source-kind.js';
 
 /**
  * @typedef {object} SiteFacts
  * @property {string} siteUrl                          Origin without a trailing slash.
+ * @property {string} [stableSiteUrl]                  Configured Astro site only.
  * @property {string} base                             Astro base path ("" or "/docs").
  * @property {'always'|'never'|'ignore'} trailingSlash
  */
 
 /**
  * @typedef {object} AeoPageRecord
+ * @property {string} id
  * @property {string} pathname       Normalized: leading slash, no trailing slash except root.
+ * @property {string} [routePattern]
  * @property {string} url            Absolute URL, honouring base and trailingSlash.
+ * @property {string} [canonicalUrl]
+ * @property {string} [markdownUrl]
+ * @property {string} [language]
+ * @property {{ title: string; description?: string; image?: string; canonicalSource?: 'authored'|'inferred' }} metadata
+ * @property {{ html?: string; markdown?: string; plainText?: string }} representations
+ * @property {{ published?: string; modified?: string }} [dates]
+ * @property {import('../schema.js').EntityReference[]} authors
+ * @property {import('../schema.js').SchemaEntity[]} entities
+ * @property {{ index: boolean; includeInLlms: boolean; includeInLlmsFull: boolean; generateMarkdown: boolean }} directives
  * @property {string} mdHref         Root-relative, base-prefixed href to the .md companion.
  * @property {string} title
  * @property {string} description
  * @property {string} markdown
  * @property {'prerendered'|'on-demand'} rendering
- * @property {string | undefined} lastModified  ISO timestamp when known.
+ * @property {string} [lastModified]  ISO timestamp when known.
  * @property {string[]} aeoTokens
  * @property {import('./extract/index.js').ExtractionDiagnostics} [extraction]
- * @property {{ strategy: 'marker'|'markdown-route'|'rendered'|'catalog'; path?: string }} source
+ * @property {{ kind: 'markdown'|'mdx'|'astro'|'cms'|'rendered'|'custom'; strategy?: 'marker'|'markdown-route'|'rendered'|'catalog'; path?: string; body?: string; hash?: string }} source
  * @property {import('../index.js').Diagnostic[]} diagnostics
  */
 
@@ -103,14 +118,16 @@ export function basePrefix(base) {
  * @param {SiteFacts} input.site
  * @param {import('turndown')} [input.td]
  * @param {() => Promise<import('turndown')>} [input.getTurndown]
- * @param {{ markdown?: string; title?: string; description?: string; lastModified?: string; path?: string; strategy?: 'markdown-route'|'catalog'; extraction?: import('./extract/index.js').ExtractionDiagnostics }} [input.authored]
+ * @param {{ markdown?: string; body?: string; title?: string; description?: string; image?: string; language?: string; published?: string; lastModified?: string; authors?: unknown[]; entities?: unknown[]; directives?: Partial<Record<'index'|'includeInLlms'|'includeInLlmsFull'|'generateMarkdown', boolean>>; kind?: 'markdown'|'mdx'|'astro'|'cms'|'rendered'|'custom'; path?: string; hash?: string; strategy?: 'markdown-route'|'catalog'; extraction?: import('./extract/index.js').ExtractionDiagnostics }} [input.authored]
+ * @param {import('./markdown-renderers.js').MarkdownRendererEntry[]} [input.renderers]
  * @param {boolean} [input.allowMarker]
  * @param {'prerendered'|'on-demand'} [input.rendering]
  * @param {string} [input.publicPathname] URL-encoded pathname used for emitted links.
+ * @param {string} [input.routePattern]
  * @param {(title: string) => string} [input.strip]  Reused instance; derived from config when absent.
  * @returns {Promise<{ page: AeoPage } | { skip: SkipReason }>}
  */
-export async function buildPage({ pathname: rawPathname, html, config, site, td, getTurndown, authored, allowMarker = true, rendering = 'on-demand', publicPathname, strip }) {
+export async function buildPage({ pathname: rawPathname, html, config, site, td, getTurndown, authored, renderers = [], allowMarker = true, rendering = 'on-demand', publicPathname, routePattern, strip }) {
   const pathname = normalizePath(rawPathname || '/');
   const emittedPathname = normalizePath(publicPathname ?? pathname);
 
@@ -128,62 +145,186 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
   const document = parseDocument(html);
   const marker = allowMarker ? readMarker(document) : null;
   removeMarkers(document);
+  const cleanHtml = stripMarkersFromHtml(html);
+  const stableSiteFacts = { ...site, siteUrl: site.stableSiteUrl ?? site.siteUrl };
+  const configured = configuredCanonical(stableSiteFacts, emittedPathname);
+  const stableSite = stableCanonical(site.stableSiteUrl ?? site.siteUrl);
+  const authoredLink = authoredCanonical(cleanHtml, configured ?? stableSite);
+  const canonicalUrl = authoredLink.canonical ?? configured;
 
   const authoredMarkdown = typeof authored?.markdown === 'string' ? authored.markdown : undefined;
   const markerMarkdown = typeof marker?.markdown === 'string' ? marker.markdown : undefined;
   const markerWins = markerMarkdown !== undefined;
   const authoredWins = !markerWins && authoredMarkdown !== undefined;
   const sourceMarkdown = markerMarkdown ?? authoredMarkdown;
-  let markdown;
+  let markdown = '';
   /** @type {import('./extract/index.js').ExtractionDiagnostics | undefined} */
   let extraction = authoredWins ? authored?.extraction : undefined;
+  /** @type {import('../index.js').Diagnostic[]} */
+  const rendererDiagnostics = [];
+  let rendererWins = false;
   if (sourceMarkdown !== undefined) {
     markdown = sourceMarkdown;
   } else {
-    const extracted = extractMarkdown(
-      document,
-      config.markdown.extraction,
-      td ?? (await (getTurndown ?? createTurndown)()),
-      { baseUrl: url },
-    );
-    markdown = extracted.markdown;
-    extraction = extracted.diagnostics;
+    if (renderers.length > 0) {
+      const rendered = await resolveMarkdownWithRenderers(renderers, {
+        pathname,
+        html: document.toString(),
+        ...(canonicalUrl ? { canonicalUrl } : {}),
+        ...(routePattern ? { routePattern } : {}),
+        rendering,
+        ...(authored?.kind
+          ? {
+              source: {
+                kind: authored.kind,
+                ...(authored.path ? { path: authored.path } : {}),
+                ...(typeof authored.body === 'string' ? { body: authored.body } : {}),
+                ...(typeof authored.hash === 'string' ? { hash: authored.hash } : {}),
+              },
+            }
+          : {}),
+        extraction: config.markdown.extraction,
+      });
+      rendererDiagnostics.push(...rendered.diagnostics);
+      if (rendered.status === 'rendered') {
+        markdown = rendered.markdown ?? '';
+        extraction = rendered.extraction;
+        rendererWins = true;
+      }
+    }
+    if (!rendererWins) {
+      const extracted = extractMarkdown(
+        document,
+        config.markdown.extraction,
+        td ?? (await (getTurndown ?? createTurndown)()),
+        { baseUrl: url },
+      );
+      markdown = extracted.markdown;
+      extraction = extracted.diagnostics;
+    }
   }
+
+  const title = marker?.title || authored?.title || meta.title;
+  const description = marker?.description || authored?.description || meta.description;
+  const image = marker?.image || authored?.image || extractMetaContent(cleanHtml, { property: 'og:image' });
+  const language = marker?.language || authored?.language ||
+    document.documentElement?.getAttribute('lang') || config.site.defaultLocale;
+  const published = toIsoTimestamp(marker?.published) ?? toIsoTimestamp(authored?.published);
+  const modified =
+    toIsoTimestamp(marker?.lastModified) ??
+    toIsoTimestamp(authored?.lastModified) ??
+    toIsoTimestamp(meta.modifiedTime);
+  const markerDirectives = marker?.directives ?? {};
+  const authoredDirectives = authored?.directives ?? {};
+  /**
+   * @param {'index'|'includeInLlms'|'includeInLlmsFull'|'generateMarkdown'} key
+   * @param {boolean} fallback
+   */
+  const directive = (key, fallback) =>
+    typeof markerDirectives[key] === 'boolean'
+      ? markerDirectives[key]
+      : typeof authoredDirectives[key] === 'boolean'
+        ? authoredDirectives[key]
+        : fallback;
+  const sourcePath = typeof marker?.sourcePath === 'string' && marker.sourcePath
+    ? marker.sourcePath
+    : authored?.path;
+  const kind = marker?.sourceKind ?? authored?.kind ?? sourceKindFor(sourcePath, sourceMarkdown !== undefined);
+  const mdHref = mdHrefFor(emittedPathname, site.base);
+  const markdownUrl = stableSite ? new URL(mdHref, stableSite).href : undefined;
+  const authors = Array.isArray(marker?.authors)
+    ? marker.authors
+    : Array.isArray(authored?.authors)
+      ? authored.authors
+      : [];
+  const entities = Array.isArray(marker?.entities)
+    ? marker.entities
+    : Array.isArray(authored?.entities)
+      ? authored.entities
+      : [];
 
   return {
     page: {
+      id: pathname,
       pathname,
+      ...(routePattern ? { routePattern } : {}),
       url,
-      mdHref: mdHrefFor(emittedPathname, site.base),
-      title: marker?.title || authored?.title || meta.title,
-      description: marker?.description || authored?.description || meta.description,
+      ...(canonicalUrl ? { canonicalUrl } : {}),
+      ...(markdownUrl ? { markdownUrl } : {}),
+      ...(language ? { language } : {}),
+      metadata: {
+        title,
+        ...(description ? { description } : {}),
+        ...(image ? { image } : {}),
+        ...(canonicalUrl
+          ? { canonicalSource: authoredLink.canonical ? /** @type {const} */ ('authored') : /** @type {const} */ ('inferred') }
+          : {}),
+      },
+      representations: {
+        html: cleanHtml,
+        markdown,
+        plainText: documentPlainText(document),
+      },
+      ...(published || modified
+        ? { dates: { ...(published ? { published } : {}), ...(modified ? { modified } : {}) } }
+        : {}),
+      authors: /** @type {import('../schema.js').EntityReference[]} */ (authors),
+      entities: /** @type {import('../schema.js').SchemaEntity[]} */ (entities),
+      directives: {
+        index: directive('index', !meta.noindex),
+        includeInLlms: directive('includeInLlms', !meta.aeoTokens.has('no-llms')),
+        includeInLlmsFull: directive('includeInLlmsFull', !meta.aeoTokens.has('no-llms-full')),
+        generateMarkdown: directive('generateMarkdown', !meta.aeoTokens.has('no-dotmd')),
+      },
+      mdHref,
+      title,
+      description,
       markdown,
       rendering,
-      lastModified:
-        toIsoTimestamp(marker?.lastModified) ??
-        toIsoTimestamp(authored?.lastModified) ??
-        toIsoTimestamp(meta.modifiedTime),
+      ...(modified ? { lastModified: modified } : {}),
       aeoTokens: [...meta.aeoTokens],
-      extraction,
+      ...(extraction ? { extraction } : {}),
       source: {
+        kind,
         strategy: markerWins
           ? 'marker'
           : authoredWins
             ? authored?.strategy ?? 'markdown-route'
-            : 'rendered',
-        ...(markerWins
-          ? typeof marker?.sourcePath === 'string' && marker.sourcePath
-            ? { path: marker.sourcePath }
-            : {}
-          : typeof marker?.sourcePath === 'string' && marker.sourcePath
-              ? { path: marker.sourcePath }
-            : authored?.path
-              ? { path: authored.path }
-              : {}),
+            : rendererWins && authored?.strategy
+              ? authored.strategy
+              : 'rendered',
+        ...(sourcePath ? { path: sourcePath } : {}),
+        ...(typeof authored?.hash === 'string' ? { hash: authored.hash } : {}),
       },
-      diagnostics: [],
+      diagnostics: [
+        ...rendererDiagnostics,
+        ...(authoredLink.conflict
+          ? [{
+            version: /** @type {const} */ (1),
+            code: 'canonical-conflict',
+            severity: /** @type {const} */ ('warning'),
+            message: 'Multiple valid authored canonical URLs were found; the configured site canonical was used when available.',
+            pathname,
+          }]
+          : []),
+      ],
     },
   };
+}
+
+/** @param {Document} document */
+function documentPlainText(document) {
+  if (!document.body) return '';
+  const body = /** @type {HTMLElement} */ (document.body.cloneNode(true));
+  for (const element of body.querySelectorAll('script,style,noscript,template,iframe')) {
+    element.remove();
+  }
+  for (const element of body.querySelectorAll(
+    'address,article,aside,blockquote,br,dd,div,dl,dt,figcaption,figure,footer,h1,h2,h3,h4,h5,h6,header,hr,li,main,nav,ol,p,pre,section,table,tr,ul',
+  )) {
+    element.appendChild(document.createTextNode(' '));
+  }
+  return (body.textContent ?? '').replace(/\s+/g, ' ').trim();
 }
 
 /**

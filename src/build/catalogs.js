@@ -93,12 +93,10 @@ export async function preloadCatalogModules(
         specifier,
         namespace: await load(specifier),
       });
-    } catch (error) {
+    } catch {
       reportCatalogDiagnostic(diagnostics, logger, {
         code: 'catalog-load-failed',
-        message: `astro-aeo: the page catalog "${catalog.module}" failed to load, so it contributed nothing: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        message: `astro-aeo: the page catalog "${catalog.module}" failed to load, so it contributed nothing.`,
         sourcePath: catalog.module,
       });
     }
@@ -173,6 +171,8 @@ export async function loadCatalogPages(catalogs, load, logger, context, diagnost
           }
           seen.add(pathname);
           const lastModified = toIsoTimestamp(entry.lastModified);
+          const published = toIsoTimestamp(entry.dates?.published);
+          const modified = toIsoTimestamp(entry.dates?.modified);
           if (entry.lastModified && !lastModified) {
             reportCatalogDiagnostic(diagnostics, logger, {
               code: 'catalog-invalid-last-modified',
@@ -181,11 +181,44 @@ export async function loadCatalogPages(catalogs, load, logger, context, diagnost
               sourcePath: catalog.module,
             });
           }
+          for (const [field, input, normalized] of [
+            ['published', entry.dates?.published, published],
+            ['modified', entry.dates?.modified, modified],
+          ]) {
+            if (input && !normalized) {
+              reportCatalogDiagnostic(diagnostics, logger, {
+                code: 'catalog-invalid-date',
+                message: `astro-aeo: catalog page ${pathname} has an invalid dates.${field} value and it was ignored.`,
+                pathname,
+                sourcePath: catalog.module,
+              });
+            }
+          }
+          const directives = entry.directives && typeof entry.directives === 'object' && !Array.isArray(entry.directives)
+            ? Object.fromEntries(
+                ['index', 'includeInLlms', 'includeInLlmsFull', 'generateMarkdown']
+                  .filter((key) => typeof entry.directives[key] === 'boolean')
+                  .map((key) => [key, entry.directives[key]]),
+              )
+            : undefined;
           pages.push({
             pathname,
             ...(typeof entry.title === 'string' ? { title: entry.title } : {}),
             ...(typeof entry.description === 'string' ? { description: entry.description } : {}),
+            ...(typeof entry.image === 'string' ? { image: entry.image } : {}),
+            ...(typeof entry.language === 'string' ? { language: entry.language } : {}),
             ...(typeof entry.markdown === 'string' ? { markdown: entry.markdown } : {}),
+            ...(entry.dates && typeof entry.dates === 'object' && !Array.isArray(entry.dates)
+              ? {
+                  dates: {
+                    ...(published ? { published } : {}),
+                    ...(modified ? { modified } : {}),
+                  },
+                }
+              : {}),
+            ...(Array.isArray(entry.authors) ? { authors: entry.authors } : {}),
+            ...(Array.isArray(entry.entities) ? { entities: entry.entities } : {}),
+            ...(directives ? { directives } : {}),
             ...(lastModified ? { lastModified } : {}),
             ...(typeof entry.sourcePath === 'string' ? { sourcePath: entry.sourcePath } : {}),
             ...(entry.source && typeof entry.source === 'object' ? { source: entry.source } : {}),
