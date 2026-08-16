@@ -69,6 +69,11 @@ publishing through one shared build/runtime pipeline.
 - Secure live corpora continue to require Astro 6.3 or newer. Astro 5 and Astro 6.0 through 6.2
   return `503` with `Cache-Control: no-store`; direct Markdown, negotiation, static corpora, and
   non-corpus behavior remain supported.
+- Benchmark regression explanation: The Node integration bundle grows by about 17 percent raw and
+  15 percent gzip because runtime-safe semantic graph reconciliation and fail-closed plugin
+  pathname validation now ship in the consumer server bundle. This is the accepted cost of
+  preserving authored JSON-LD and matching build/runtime ownership behavior; all absolute bundle,
+  startup, memory, and request ceilings remain enforced.
 
 ## 1.1.0
 
