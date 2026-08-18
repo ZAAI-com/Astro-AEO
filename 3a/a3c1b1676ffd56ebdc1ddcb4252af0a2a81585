@@ -1,0 +1,27 @@
+src/core/render/robots-txt.js
+  s_f53d64c7cb70e2::t_21456a301a5dcd 2,17,20-47,65,74-193
+src/generators/robots-txt.js
+  s_f53d64c7cb70e2::t_1a4d6a38c158ff 20,22-31,38
+src/core/crawler-registry.test.js
+  s_f53d64c7cb70e2::t_1ad5de250d8090 1-24
+src/generators/robots-txt.test.js
+  s_f53d64c7cb70e2::t_1ad5de250d8090 100-195
+src/core/crawler-registry.js
+  s_f53d64c7cb70e2::t_21456a301a5dcd 1-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "3aa3c1b1676ffd56ebdc1ddcb4252af0a2a81585",
+  "prompts": {},
+  "sessions": {
+    "s_f53d64c7cb70e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ff6aa-27ed-7770-b7c5-24919862bb2d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
