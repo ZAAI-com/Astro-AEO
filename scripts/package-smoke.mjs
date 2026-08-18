@@ -190,7 +190,10 @@ for (const [specifier, peer] of [['astro-aeo/mdx', '@mdx-js/mdx'], ['astro-aeo/d
     consumerPackage.dependencies['@mdx-js/mdx'] = installedMdx;
     consumerPackage.dependencies.defuddle = installedDefuddle;
     await writeFile(resolve(consumer, 'package.json'), `${JSON.stringify(consumerPackage, null, 2)}\n`);
-    run('pnpm', ['install', '--prefer-offline'], { cwd: consumer });
+    // This install must not be frozen. The consumer's manifest was just edited to
+    // declare both optional peers, so its lockfile is intentionally stale here, and
+    // pnpm defaults frozen-lockfile to true whenever CI is set.
+    run('pnpm', ['install', '--prefer-offline', '--no-frozen-lockfile'], { cwd: consumer });
     run(
       'node',
       [
