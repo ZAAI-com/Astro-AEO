@@ -1,0 +1,21 @@
+scripts/package-smoke.mjs
+  s_2e1bd39798fbd6::t_69a14de6c4f149 193-196
+docs/release-evidence/1.2.0-semantic-validation.md
+  s_2e1bd39798fbd6::t_446ebe2e0c9c15 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "125fc27990c09a9f9fd60e56c78fd2078a574816",
+  "prompts": {},
+  "sessions": {
+    "s_2e1bd39798fbd6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "794056f3-6bb0-4d69-ae6f-9e8d3c32bbe7",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
