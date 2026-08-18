@@ -1,0 +1,30 @@
+src/build/indexnow.js
+  s_f53d64c7cb70e2::t_824efbba25154e 2-14,38,46-47,52-106,117-125,131,136,142,260-286
+  s_f53d64c7cb70e2::t_6eb5d118a76700 287
+cli/indexnow-submit.js
+  s_f53d64c7cb70e2::t_7fe3be98281b7b 20,56-59
+  s_f53d64c7cb70e2::t_1316eee7141a95 60-67
+src/hooks/build-done.js
+  s_f53d64c7cb70e2::t_824efbba25154e 241-244
+src/build/indexnow.test.js
+  s_f53d64c7cb70e2::t_6a46baebb9183d 101-116
+cli/indexnow-prepare.js
+  s_f53d64c7cb70e2::t_7fe3be98281b7b 21,46-49
+  s_f53d64c7cb70e2::t_1316eee7141a95 50-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "1b31024a16434d409abd4540f22360332eff3869",
+  "prompts": {},
+  "sessions": {
+    "s_f53d64c7cb70e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ff6aa-27ed-7770-b7c5-24919862bb2d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
