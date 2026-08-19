@@ -1,0 +1,28 @@
+README.md
+  s_0186c547661ceb::t_d35a183f60acac 270-271
+  s_0186c547661ceb::t_4513ace4d7fb44 151,272-273
+CHANGELOG.md
+  s_0186c547661ceb::t_4513ace4d7fb44 40-42
+src/build/artifacts.js
+  s_0186c547661ceb::t_d35a183f60acac 727-730
+src/build/artifacts.test.js
+  s_0186c547661ceb::t_d35a183f60acac 706-720,727
+src/generators/url-map.test.js
+  s_0186c547661ceb::t_d35a183f60acac 79-126,139,150-153,163-164,166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "0fe0afb6d5c85b2eede322d91df1972cf7eb0f49",
+  "prompts": {},
+  "sessions": {
+    "s_0186c547661ceb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a01671-3132-7e43-a5e5-f2e5ac3fa4a1",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
