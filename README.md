@@ -750,6 +750,8 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
 const article = createArticle({
   '@id': createId('#article', canonical),
   headline: 'A stable semantic page',
+  datePublished: '2026-08-11T09:30:00+02:00',
+  dateModified: '2026-08-18T12:00:00Z',
 });
 const graph = createGraph([article]);
 ---
@@ -764,6 +766,13 @@ const graph = createGraph([article]);
   />
 </head>
 ```
+
+For Article rich results, [Google prefers](https://developers.google.com/search/docs/appearance/structured-data/article)
+ISO 8601 datetimes with timezone information for `datePublished` and `dateModified`, such as an
+explicit offset or a `Z` suffix. A bare ISO date such as `2026-08-11` remains a valid
+[Schema.org `Date`](https://schema.org/datePublished), but Google's Rich Results Test may report
+non-critical date warnings. These warnings do not affect eligibility. Astro-AEO passes each
+authored value through unchanged without normalizing it or adding a timezone.
 
 Its typed props cover `title`, `description`, `canonical`, `robots`, `openGraph`, `twitter`,
 `locale`, `hreflang`, `feeds`, `pagination`, `markdownAlternate`, `themeColor`, `authors` (`author`
@@ -898,7 +907,7 @@ import { FaqJsonLd, BreadcrumbJsonLd, ArticleJsonLd } from 'astro-aeo/components
 | `BreadcrumbJsonLd` | `items?`, `labels?`, `includeHome?` | Auto-derives the trail from the URL when `items` is omitted |
 | `OrganizationJsonLd` | `name`, `url?`, `logo?`, `sameAs?`, `contactEmail?` | `url` defaults to `site`. Place once, e.g. the homepage |
 | `SpeakableJsonLd` | `cssSelector?` (default `['main']`), `url?` | Drop-in with no props |
-| `ArticleJsonLd` | `headline`, `datePublished?`, `dateModified?`, `author?`, `image?`, `description?` | For posts and dated content |
+| `ArticleJsonLd` | `headline`, `datePublished?`, `dateModified?`, `author?`, `image?`, `description?` | For posts and dated content. Google prefers ISO 8601 datetimes with an offset or `Z`; values pass through unchanged |
 
 Each compatibility component renders a single, XSS-safe `<script type="application/ld+json">`.
 They use the graph builders internally while preserving their established props and serialized
