@@ -37,6 +37,9 @@ startup, memory, and request ceilings remain enforced.
 - New corpus files, gzip, crawler presets, Content Signals, and IndexNow are opt-in. One implicit
   locale keeps the legacy root corpus bytes. Multilingual `auto` moves canonical locale families
   under `/<locale>/`; use `global`, `locale`, or `both` for another published topology.
+- Enabled project-root URL maps once again replace their configured output on every successful
+  build, restoring the behavior from before 1.2.0. The replacement remains part of the atomic
+  artifact transaction.
 - `.astro/aeo-cache` may contain derived page content and must remain uncommitted and protected as
   sensitive build state. CI deployments using IndexNow must transfer the pending and
   acknowledgment directory between prepare and submit jobs.

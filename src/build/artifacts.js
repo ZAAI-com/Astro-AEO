@@ -724,7 +724,10 @@ function createDeferredArtifactWriter(deps) {
     for (const claim of claims) {
       if (decisions.has(claim.id)) continue;
       if (!claim.served) {
-        if (pathEntryExists(claim.artifact.path)) {
+        if (
+          pathEntryExists(claim.artifact.path) &&
+          claim.artifact.onConflict !== 'overwrite'
+        ) {
           decisions.set(claim.id, { status: 'preserved', blockers: [{ kind: 'existing-output' }] });
           reportDiagnostic(
             'url-map-existing-output',

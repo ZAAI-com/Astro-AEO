@@ -148,7 +148,7 @@ aeo({
 
     urlMap: {
       enabled: false,
-      outputFilepath: 'docs/Url-Map.md',
+      outputFilepath: 'docs/Url-Map.md', // replaced on each enabled, successful build
     },
 
     runtime: {
@@ -267,9 +267,10 @@ Version 1.2 deliberately changes three defaults or public contracts:
   1.x. The smaller `AeoPage` used by section match predicates is unchanged.
 - Project routes and `public/` files now own their served path by default. Astro-AEO will not
   overwrite them unless the exact normalized served pathname appears in `artifacts.replace`.
-  Globs are rejected. Duplicate generated claims emit neither claimant, and project-root URL-map
-  files are never replaced. This ownership flip is the other intentional 1.x compatibility
-  exception.
+  Globs are rejected, and duplicate generated claims emit neither claimant. Version 1.2.0 also
+  preserved existing project-root URL-map files; 1.3 restores the pre-1.2 behavior and regenerates
+  the configured URL map on every successful build when enabled. The served-path ownership flip
+  is the other intentional 1.x compatibility exception.
 
 For example, a project that deliberately replaces its own `/docs/llms.txt` under an Astro base of
 `/docs` must authorize that exact browser-visible pathname:
