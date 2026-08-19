@@ -1,0 +1,26 @@
+README.md
+  s_a4dd1ec2a80276::t_d7062742272652 770-775
+  s_a4dd1ec2a80276::t_a3714458ec44ef 753-754,776,910
+components/index.d.ts
+  s_a4dd1ec2a80276::t_a3714458ec44ef 127-128,131,133-134,137
+  s_a4dd1ec2a80276::t_0acad051a009b1 129-130,135-136
+.changeset/quiet-articles-explain.md
+  s_a4dd1ec2a80276::t_a3714458ec44ef 1-4
+  s_a4dd1ec2a80276::t_d7062742272652 5-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "21fb909822673017b6e4fce788f281601712a1b7",
+  "prompts": {},
+  "sessions": {
+    "s_a4dd1ec2a80276": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a014da-0d36-7d71-9748-f720403e44ed",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
