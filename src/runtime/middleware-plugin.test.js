@@ -39,6 +39,7 @@ vi.mock('./config.js', async () => {
         }],
       }),
     }],
+    RUNTIME_DYNAMIC_ROUTE_SOURCE: null,
     RUNTIME_MARKDOWN_RENDERER_LOADERS: [],
     RUNTIME_PLUGIN_LOADERS: [{
       name: 'feed',

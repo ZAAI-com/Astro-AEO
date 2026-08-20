@@ -307,6 +307,8 @@ export const rSections: SectionRule[] = resolvedCanonical.corpus.index.sections;
 export const rDefaultSection: string | false = resolvedCanonical.corpus.index.defaultSection;
 export const rStrip: string | string[] | RegExp | false = resolvedCanonical.pages.stripTitleSuffix;
 export const rInclude: string[] = resolvedCanonical.pages.include;
+export const rDevDynamicDiscovery: 'startup' | 'hot' | false =
+  resolvedCanonical.pages.devDynamicDiscovery;
 // A free-form passthrough must stay assignable to Record<string, unknown>. The
 // derived type this replaced collapsed it to Record<string, {}>, which forced a
 // cast at the one place that builds it.
@@ -342,6 +344,9 @@ export const siteOpts: SiteOptions = {
   organization: { '@type': 'Organization', name: 'Example' },
 };
 export const pageOpts: PagesOptions = { include: ['**'], exclude: ['/private/**'], respectNoindex: true };
+export const startupDynamicDiscovery: PagesOptions = { devDynamicDiscovery: 'startup' };
+export const hotDynamicDiscovery: PagesOptions = { devDynamicDiscovery: 'hot' };
+export const disabledDynamicDiscovery: PagesOptions = { devDynamicDiscovery: false };
 export const mdOpts: MarkdownOptions = {
   enabled: true,
   strategy: 'auto',
@@ -776,6 +781,8 @@ export const badProfileEntity: AstroAeoConfig = { site: { profile: { entityType:
 export const noProfileContact: AstroAeoConfig = { site: { profile: { contact: 'hi@x.com' } } };
 // @ts-expect-error pages.include is a string array, not a single glob
 export const badInclude: AstroAeoConfig = { pages: { include: '/blog/**' } };
+// @ts-expect-error pages.devDynamicDiscovery is a closed union
+export const badDynamicDiscovery: AstroAeoConfig = { pages: { devDynamicDiscovery: 'reload' } };
 // @ts-expect-error markdown.alternateLink is a closed union
 export const badAlternate: AstroAeoConfig = { markdown: { alternateLink: 'sometimes' } };
 // @ts-expect-error markdown.negotiation is a closed union

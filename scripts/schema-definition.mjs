@@ -336,6 +336,15 @@ const canonicalProperties = {
       exclude: stringArray('Path globs to exclude.', []),
       respectNoindex: boolean('Exclude pages marked noindex.', true),
       stripTitleSuffix,
+      devDynamicDiscovery: {
+        description:
+          'Prerendered dynamic-route discovery for development corpora. Hot mode is experimental.',
+        anyOf: [
+          { type: 'string', enum: ['startup', 'hot'] },
+          { const: false },
+        ],
+        default: 'startup',
+      },
       catalogs: {
         type: 'array',
         description: 'Importable page-catalog modules.',

@@ -68,6 +68,7 @@ export function resolveConfig(rawConfig = {}, logger) {
   const alias = sitemap.alias ?? {};
   const profile = userConfig.site?.profile ?? {};
   const pages = userConfig.pages ?? {};
+  const devDynamicDiscovery = resolveDevDynamicDiscovery(pages.devDynamicDiscovery);
 
   const sitemapFilenameBase = sitemap.options?.filenameBase ?? 'sitemap';
   const sitemapMode = sitemap.mode ?? 'auto';
@@ -110,6 +111,7 @@ export function resolveConfig(rawConfig = {}, logger) {
       exclude: pages.exclude ?? [],
       respectNoindex: pages.respectNoindex ?? true,
       stripTitleSuffix: pages.stripTitleSuffix ?? false,
+      devDynamicDiscovery,
       catalogs: pages.catalogs ?? [],
     },
     markdown: {
@@ -547,6 +549,18 @@ function assertOnlyKeys(value, keys, label) {
   }
 }
 
+/**
+ * @param {unknown} value
+ * @returns {'startup'|'hot'|false}
+ */
+function resolveDevDynamicDiscovery(value) {
+  if (value === undefined) return 'startup';
+  if (value === 'startup' || value === 'hot' || value === false) return value;
+  throw new AeoConfigError(
+    'astro-aeo: pages.devDynamicDiscovery must be "startup", "hot", or false.',
+  );
+}
+
 /** @param {{ module: string }[] | undefined} catalogs */
 function validateCatalogs(catalogs) {
   if (catalogs === undefined) return;
@@ -582,7 +596,14 @@ const CONFIG_SHAPE = {
   exclude: null,
   respectNoindex: null,
   stripTitleSuffix: null,
-  pages: { include: null, exclude: null, respectNoindex: null, stripTitleSuffix: null, catalogs: null },
+  pages: {
+    include: null,
+    exclude: null,
+    respectNoindex: null,
+    stripTitleSuffix: null,
+    devDynamicDiscovery: null,
+    catalogs: null,
+  },
   markdown: {
     enabled: null,
     strategy: null,

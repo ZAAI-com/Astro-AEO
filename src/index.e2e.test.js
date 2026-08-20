@@ -1,5 +1,5 @@
 import { test, expect, describe, beforeAll } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DEMO = join(REPO, 'fixtures', 'demo');
 const DIST = join(DEMO, 'dist');
+let buildOutput = '';
 
 /** @param {string} p */
 const read = (p) => readFileSync(join(DIST, p), 'utf8');
@@ -19,10 +20,12 @@ const astroBin = join(astroDir, typeof astroBinField === 'string' ? astroBinFiel
 
 beforeAll(() => {
   // Build under Node (the runtime real consumers use), not the Bun test runner.
-  execFileSync('node', [astroBin, 'build', '--root', DEMO], {
+  const result = spawnSync('node', [astroBin, 'build', '--root', DEMO], {
     cwd: REPO,
-    stdio: 'ignore',
+    encoding: 'utf8',
   });
+  buildOutput = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+  if (result.status !== 0) throw new Error(buildOutput || `astro build exited ${result.status}`);
 });
 
 describe('demo build outputs', () => {
@@ -60,6 +63,40 @@ describe('demo build outputs', () => {
     expect(full).toContain('# First Post');
     expect(full).toContain('Body of the first post');
     expect(full).toContain('\n---');
+  });
+
+  test('prerendered getStaticPaths routes require no catalog', () => {
+    for (const pathname of [
+      'dynamic/alpha',
+      'dynamic/beta',
+      'archive/2026/launch',
+      'paged',
+      'paged/2',
+    ]) {
+      expect(existsSync(join(DIST, `${pathname}.md`))).toBe(true);
+      expect(existsSync(join(DIST, pathname, 'index.html'))).toBe(true);
+    }
+    expect(existsSync(join(DIST, 'empty'))).toBe(false);
+
+    const llms = read('llms.txt');
+    expect(llms).toContain('/dynamic/alpha.md');
+    expect(llms).toContain('/archive/2026/launch.md');
+    expect(llms).toContain('/paged/2.md');
+    const full = read('llms-full.txt');
+    expect(full).toContain('Body for the alpha dynamic route.');
+    expect(full).toContain('Nested archive route body.');
+    expect(full).toContain('Items: three.');
+
+    const urlMap = readFileSync(join(DEMO, '.astro', 'test-url-map.md'), 'utf8');
+    expect(urlMap).toContain('| /dynamic/alpha | /dynamic/alpha.md |');
+    expect(urlMap).toContain('| /archive/2026/launch | /archive/2026/launch.md |');
+
+    const diagnostics = JSON.parse(
+      readFileSync(join(DEMO, '.astro', 'aeo-cache', 'diagnostics-v1.json'), 'utf8'),
+    );
+    expect(diagnostics.diagnostics.some(({ code }) => code === 'dynamic-routes-unindexed'))
+      .toBe(false);
+    expect(buildOutput).not.toContain('dynamic page routes');
   });
 
   test('every included page has exactly one markdown alternate link', () => {

@@ -96,8 +96,9 @@ export async function onBuildDone(config, options, env) {
     : undefined;
   if (indexNowPrivate) buildDiagnostics.push(...indexNowPrivate.diagnostics);
 
-  // Routes generated from data are invisible to Astro's own page list, so a
-  // catalog is the only way they can appear in the corpus.
+  // Astro includes concrete prerendered `getStaticPaths()` results in this build
+  // page list. Catalogs add request-time or external inventory and may enrich a
+  // matching concrete descriptor with exact source and metadata.
   const catalogModules = env.catalogModules;
   const buildCatalogs = catalogModules
     ? catalogModules.map(({ module }) => ({ module }))

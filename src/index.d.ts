@@ -796,11 +796,26 @@ export interface PagesOptions {
   /** Strip a trailing " | {suffix}" (or matching RegExp) from page titles. Default: false. */
   stripTitleSuffix?: string | string[] | RegExp | false;
   /**
-   * Modules listing pages the build cannot discover for itself, which is every
-   * route generated from data rather than from a file. Each module default-exports
-   * a `PageCatalog` (see `astro-aeo/page`). Without one, such a route is simply
-   * absent from the corpus; astro-aeo does not crawl to find them. Entrypoints must
-   * be Node-loadable JavaScript (`.js`, `.mjs`, or `.cjs`); compile TypeScript catalog
+   * Enumerate prerendered dynamic routes in development corpora.
+   * - `'startup'` (default): discover route files known when `astro dev` starts.
+   *   Existing modules and their content dependencies remain hot, but adding or deleting
+   *   a route file requires a restart.
+   * - `'hot'`: also track route-file additions and removals. This mode is experimental
+   *   because it relies on Astro private route APIs.
+   * - `false`: use only concrete routes and configured catalogs in development.
+   *
+   * Discovery lazily invokes each page's own `getStaticPaths()` only for aggregate live
+   * corpora. Astro-AEO never crawls or parses content directories. Returned props are
+   * discarded. Keep `getStaticPaths()` deterministic and safe to evaluate during a corpus
+   * request. Catalogs take precedence when they describe an automatically discovered path.
+   */
+  devDynamicDiscovery?: 'startup' | 'hot' | false;
+  /**
+   * Modules listing pages that cannot be enumerated from static build output or from
+   * prerendered development `getStaticPaths()` calls. Catalogs remain necessary for
+   * on-demand or SSR, CMS-only, and synthetic routes. They can also overlay concrete or
+   * automatically discovered paths with exact authored source and metadata. Entrypoints
+   * must be Node-loadable JavaScript (`.js`, `.mjs`, or `.cjs`); compile TypeScript catalog
    * sources before configuring them here. Default: [].
    */
   catalogs?: { module: string }[];

@@ -10,8 +10,23 @@ import {
   readJson,
   unresolvedRelativeImports,
 } from './helpers.js';
+import { DEVELOPMENT_DYNAMIC_ROUTE_LOADER_SENTINEL } from '../../src/virtual/plugin.js';
 
 const serverEntryAdapters = ['node', 'cloudflare', 'deno'];
+
+const productionBundleRoots = {
+  node: join(fixture('node'), 'dist/server'),
+  cloudflare: join(fixture('cloudflare'), 'dist/server'),
+  deno: join(fixture('deno'), 'dist/server'),
+  vercel: join(fixture('vercel'), '.vercel/output'),
+  netlify: join(fixture('netlify'), '.netlify'),
+};
+
+const developmentDynamicRouteLoaderSentinels = [
+  DEVELOPMENT_DYNAMIC_ROUTE_LOADER_SENTINEL,
+  'astro-aeo:dynamic-routes',
+  'astro-aeo-hot-routes-unavailable',
+];
 
 const providerRuntimeArtifacts = [
   {
@@ -59,6 +74,17 @@ describe('adapter build gates', () => {
       expect(existsSync(join(client, path)), path).toBe(false);
     }
   });
+
+  test.each(Object.entries(productionBundleRoots))(
+    '%s production bundle excludes development dynamic-route loaders',
+    (name, root) => {
+      const output = emittedJavaScript(root);
+      expect(output.length, `${name} emitted JavaScript`).toBeGreaterThan(0);
+      for (const sentinel of developmentDynamicRouteLoaderSentinels) {
+        expect(output, `${name} bundle contains ${sentinel}`).not.toContain(sentinel);
+      }
+    },
+  );
 
   test('Cloudflare emits a workerd configuration and an edge-safe bundle', () => {
     const server = join(fixture('cloudflare'), 'dist/server');

@@ -28,6 +28,7 @@ import {
 import { loadRuntimeMarkdownRenderers } from './markdown-renderers.js';
 import { loadRuntimePlugins } from './plugins.js';
 import { loadRuntimeCorpusTokenizer } from './corpus-tokenizer.js';
+import { discoverRuntimeDynamicPaths } from './dynamic-routes.js';
 import { parseDocument } from '../core/html-document.js';
 import { readMarker } from '../core/extract/marker.js';
 import {
@@ -56,6 +57,8 @@ import {
 /** @typedef {import('./markdown-renderers.js').RuntimeMarkdownRendererLoader} RuntimeMarkdownRendererLoader */
 /** @typedef {import('./plugins.js').RuntimePluginLoader} RuntimePluginLoader */
 /** @typedef {import('./corpus-tokenizer.js').RuntimeCorpusTokenizerLoader} RuntimeCorpusTokenizerLoader */
+/** @typedef {import('./dynamic-routes.js').RuntimeDynamicRouteSource} RuntimeDynamicRouteSource */
+/** @typedef {{ pathname: string; publicPathname: string; descriptor?: import('../page.js').PageDescriptor }} RuntimePageTarget */
 
 export class RuntimeCorpusLimitError extends Error {
   /** @param {number} pages @param {number} limit */
@@ -478,43 +481,16 @@ export async function serveMarkdown(mdPathname, runtime, fetchHtml, opts = {}) {
  * @param {string} pathname
  * @param {Runtime} runtime
  * @param {HtmlFetcher} fetchHtml
- * @param {{ note?: string; concurrency?: number; catalogLoaders?: RuntimeCatalogLoader[]; rendererLoaders?: RuntimeMarkdownRendererLoader[]; pluginLoaders?: RuntimePluginLoader[]; tokenizerLoader?: RuntimeCorpusTokenizerLoader; origin?: string }} [opts]
+ * @param {{ note?: string; concurrency?: number; catalogLoaders?: RuntimeCatalogLoader[]; dynamicRouteSource?: RuntimeDynamicRouteSource | null; rendererLoaders?: RuntimeMarkdownRendererLoader[]; pluginLoaders?: RuntimePluginLoader[]; tokenizerLoader?: RuntimeCorpusTokenizerLoader; origin?: string }} [opts]
  * @returns {Promise<{ body: string; contentType: string } | null>}
  */
 export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {}) {
   const activeOrigin = effectiveSiteUrl(runtime, opts.origin);
-  const descriptors = await runtimeCatalogPagesFor(
-    opts.catalogLoaders ?? [],
-    runtime,
-    activeOrigin,
-  );
-  /** @type {Map<string, { pathname: string; publicPathname: string; descriptor?: import('../page.js').PageDescriptor }>} */
-  const pagesByPath = new Map();
-  for (const value of runtime.staticPaths) {
-    const path = canonicalRuntimePath(value);
-    if (isOwnedArtifactPath(path.canonical, runtime.config)) continue;
-    if (!pagesByPath.has(path.canonical)) {
-      pagesByPath.set(path.canonical, {
-        pathname: path.canonical,
-        publicPathname: path.publicPathname,
-      });
-    }
-  }
-  for (const descriptor of descriptors) {
-    const path = catalogRuntimePath(descriptor.pathname);
-    if (isOwnedArtifactPath(path.canonical, runtime.config)) continue;
-    const current = pagesByPath.get(path.canonical);
-    pagesByPath.set(path.canonical, {
-      pathname: current?.pathname ?? path.canonical,
-      publicPathname: path.publicPathname,
-      descriptor,
-    });
-  }
-  const paths = [...pagesByPath.values()];
-  const maxPages = runtime.config.corpus.runtime.maxPages;
-  if (maxPages !== 'unlimited' && paths.length > maxPages) {
-    throw new RuntimeCorpusLimitError(paths.length, maxPages);
-  }
+  const { targets: paths, descriptors } = await buildRuntimePageInventory(runtime, {
+    catalogLoaders: opts.catalogLoaders,
+    dynamicRouteSource: opts.dynamicRouteSource,
+    origin: activeOrigin,
+  });
 
   const pages = await collectConcurrently(
     paths,
@@ -651,7 +627,7 @@ export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {
  * @param {'llms'|'llms-full'} kind
  * @param {Runtime} runtime
  * @param {HtmlFetcher} fetchHtml
- * @param {{ note?: string; concurrency?: number; catalogLoaders?: RuntimeCatalogLoader[]; rendererLoaders?: RuntimeMarkdownRendererLoader[]; pluginLoaders?: RuntimePluginLoader[]; tokenizerLoader?: RuntimeCorpusTokenizerLoader; origin?: string }} [opts]
+ * @param {{ note?: string; concurrency?: number; catalogLoaders?: RuntimeCatalogLoader[]; dynamicRouteSource?: RuntimeDynamicRouteSource | null; rendererLoaders?: RuntimeMarkdownRendererLoader[]; pluginLoaders?: RuntimePluginLoader[]; tokenizerLoader?: RuntimeCorpusTokenizerLoader; origin?: string }} [opts]
  * @returns {Promise<string>}
  */
 export async function serveLlmsIndex(kind, runtime, fetchHtml, opts = {}) {
@@ -675,35 +651,17 @@ export class RuntimeCorpusPlanError extends Error {
  * @param {'schema-graph'|'schema-map'} kind
  * @param {Runtime} runtime
  * @param {HtmlFetcher} fetchHtml
- * @param {{ catalogLoaders?: RuntimeCatalogLoader[]; rendererLoaders?: RuntimeMarkdownRendererLoader[]; pluginLoaders?: RuntimePluginLoader[]; origin?: string }} [opts]
+ * @param {{ catalogLoaders?: RuntimeCatalogLoader[]; dynamicRouteSource?: RuntimeDynamicRouteSource | null; rendererLoaders?: RuntimeMarkdownRendererLoader[]; pluginLoaders?: RuntimePluginLoader[]; origin?: string }} [opts]
  * @returns {Promise<{ body: string; contentType: string }>}
  */
 export async function serveSchemaCorpus(kind, runtime, fetchHtml, opts = {}) {
   const siteUrl = stableCanonical(runtime.site.siteUrl);
   if (!siteUrl) throw new RuntimeSchemaCorpusError('A stable configured Astro site is required.');
-  const descriptors = await runtimeCatalogPagesFor(opts.catalogLoaders ?? [], runtime, opts.origin);
-  /** @type {Map<string, { pathname: string; publicPathname: string; descriptor?: import('../page.js').PageDescriptor }>} */
-  const pagesByPath = new Map();
-  for (const value of runtime.staticPaths) {
-    const path = canonicalRuntimePath(value);
-    if (!isOwnedArtifactPath(path.canonical, runtime.config)) {
-      pagesByPath.set(path.canonical, { pathname: path.canonical, publicPathname: path.publicPathname });
-    }
-  }
-  for (const descriptor of descriptors) {
-    const path = catalogRuntimePath(descriptor.pathname);
-    if (isOwnedArtifactPath(path.canonical, runtime.config)) continue;
-    pagesByPath.set(path.canonical, {
-      pathname: path.canonical,
-      publicPathname: path.publicPathname,
-      descriptor,
-    });
-  }
-  const targets = [...pagesByPath.values()];
-  const maxPages = runtime.config.corpus.runtime.maxPages;
-  if (maxPages !== 'unlimited' && targets.length > maxPages) {
-    throw new RuntimeCorpusLimitError(targets.length, maxPages);
-  }
+  const { targets, descriptors } = await buildRuntimePageInventory(runtime, {
+    catalogLoaders: opts.catalogLoaders,
+    dynamicRouteSource: opts.dynamicRouteSource,
+    origin: opts.origin,
+  });
 
   const records = await collectConcurrently(targets, 1, async (target) => {
     const loaded = await fetchHtml(target.publicPathname);
@@ -820,6 +778,7 @@ function isMinimalPageDescriptor(value, pathname) {
  */
 export function runtimeCatalogPagesFor(loaders, runtime, origin) {
   const siteUrl = effectiveSiteUrl(runtime, origin);
+  if (runtime.command === 'dev') return loadRuntimeCatalogPages(loaders, runtime, siteUrl);
   const cached = runtimeCatalogPages.get(runtime);
   if (cached && cached.loaders === loaders && cached.siteUrl === siteUrl) {
     return cached.pages;
@@ -831,6 +790,60 @@ export function runtimeCatalogPagesFor(loaders, runtime, origin) {
     pages,
   });
   return pages;
+}
+
+/**
+ * Build the one authoritative request-time page inventory used by aggregate
+ * corpora and runtime plugin page handles.
+ *
+ * @param {Runtime} runtime
+ * @param {{ catalogLoaders?: RuntimeCatalogLoader[]; dynamicRouteSource?: RuntimeDynamicRouteSource | null; origin?: string; excludedPaths?: Iterable<string> }} [opts]
+ * @returns {Promise<{ targets: RuntimePageTarget[]; descriptors: import('../page.js').PageDescriptor[] }>}
+ */
+export async function buildRuntimePageInventory(runtime, opts = {}) {
+  const automaticPaths = await discoverRuntimeDynamicPaths(runtime, opts.dynamicRouteSource);
+  const descriptors = await runtimeCatalogPagesFor(
+    opts.catalogLoaders ?? [],
+    runtime,
+    opts.origin,
+  );
+  const excluded = new Set(opts.excludedPaths ?? []);
+  /** @type {Map<string, RuntimePageTarget>} */
+  const pagesByPath = new Map();
+  for (const value of runtime.staticPaths) {
+    const path = canonicalRuntimePath(value);
+    if (isOwnedArtifactPath(path.canonical, runtime.config) || excluded.has(path.canonical)) continue;
+    if (!pagesByPath.has(path.canonical)) {
+      pagesByPath.set(path.canonical, {
+        pathname: path.canonical,
+        publicPathname: path.publicPathname,
+      });
+    }
+  }
+  for (const value of automaticPaths) {
+    const path = generatedRuntimePath(value);
+    if (isOwnedArtifactPath(path.canonical, runtime.config) || excluded.has(path.canonical)) continue;
+    pagesByPath.set(path.canonical, {
+      pathname: path.canonical,
+      publicPathname: path.publicPathname,
+    });
+  }
+  for (const descriptor of descriptors) {
+    const path = catalogRuntimePath(descriptor.pathname);
+    if (isOwnedArtifactPath(path.canonical, runtime.config) || excluded.has(path.canonical)) continue;
+    const current = pagesByPath.get(path.canonical);
+    pagesByPath.set(path.canonical, {
+      pathname: current?.pathname ?? path.canonical,
+      publicPathname: path.publicPathname,
+      descriptor,
+    });
+  }
+  const targets = [...pagesByPath.values()];
+  const maxPages = runtime.config.corpus.runtime.maxPages;
+  if (maxPages !== 'unlimited' && targets.length > maxPages) {
+    throw new RuntimeCorpusLimitError(targets.length, maxPages);
+  }
+  return { targets, descriptors };
 }
 
 /**
@@ -1035,6 +1048,21 @@ function normalizeRuntimePath(pathname) {
 function canonicalRuntimePath(pathname) {
   const normalized = normalizeRuntimePath(pathname);
   return { canonical: normalized, publicPathname: encodeURI(normalized) };
+}
+
+/**
+ * Dynamic route generation already applies Astro's reserved-character escaping.
+ * Preserve that public spelling while deriving the decoded route identity used
+ * by middleware and inventory overlays.
+ * @param {string} pathname
+ * @returns {{ canonical: string; publicPathname: string }}
+ */
+function generatedRuntimePath(pathname) {
+  const publicPathname = new URL(pathname, 'https://astro-aeo.invalid').pathname;
+  return {
+    canonical: normalizeRuntimePath(decodeURI(publicPathname)),
+    publicPathname,
+  };
 }
 
 /**

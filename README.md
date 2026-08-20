@@ -105,7 +105,8 @@ aeo({
     exclude: [],                     // path globs to exclude, e.g. ['/drafts/**']
     respectNoindex: true,            // skip pages with <meta name="robots" content="noindex">
     stripTitleSuffix: false,         // strip " | Your Brand" from titles: string | string[] | RegExp
-    catalogs: [],                    // modules listing data-generated routes
+    devDynamicDiscovery: 'startup',  // 'startup' | 'hot' (experimental) | false
+    catalogs: [],                    // request-time inventory and exact descriptor modules
   },
 
   markdown: {                        // the .md companions
@@ -409,10 +410,40 @@ Standalone `.md` page routes need no marker: Astro-AEO reads their source direct
 removes only leading YAML frontmatter, and embeds on-demand sources through a Vite
 `?raw` registry in the server bundle. The release bundle-size gate measures this cost.
 
-### Pages the build cannot see
+### Dynamic routes and catalogs
 
-Routes generated from data rather than from a file are invisible to Astro's page
-list, so they are absent from `llms.txt` and get no `.md`. A catalog lists them:
+Static builds already give Astro-AEO every concrete pathname returned by a prerendered
+route's `getStaticPaths()`. Those pages receive the same `.md`, `llms.txt`,
+`llms-full.txt`, schema corpus, and URL-map treatment as file-based pages without a
+catalog.
+
+In `astro dev`, `pages.devDynamicDiscovery` controls how aggregate live corpora find
+prerendered dynamic paths:
+
+- `'startup'` (default) uses Astro's public route hook to remember the dynamic route
+  modules present when the server starts. Astro-AEO imports those modules lazily only
+  when an aggregate corpus is requested, then calls their `getStaticPaths()` functions.
+  Changes to an existing route module or its content dependencies appear on the next
+  corpus request. Adding or deleting an entire dynamic route file requires a restart.
+- `'hot'` also tracks dynamic route-file additions and deletions. This mode is
+  experimental because it relies on Astro's private `virtual:astro:routes` module,
+  whose shape may change between Astro releases. If it becomes incompatible, switch
+  back to `'startup'`.
+- `false` preserves catalog-only development enumeration. Astro-AEO warns when a
+  dynamic page is consequently missing from the development corpus.
+
+Discovery loads only page modules that Astro has resolved as project-owned,
+prerendered dynamic routes. Astro-AEO never crawls the site and never parses project
+content directories. Props returned with `getStaticPaths()` entries are discarded
+immediately and are never placed in a virtual module or corpus. Keep
+`getStaticPaths()` deterministic and safe to evaluate during an aggregate corpus
+request.
+
+Catalogs remain necessary for on-demand or SSR routes, external CMS-only inventory,
+synthetic pages, and any other request-time path that Astro cannot enumerate. They are
+also useful when an automatic pathname needs exact authored Markdown or metadata. A
+catalog descriptor overlays a matching concrete or automatically discovered path, so
+its authored source and metadata win:
 
 ```js
 // astro.config.mjs
@@ -441,8 +472,7 @@ A catalog that cannot resolve, import, evaluate, or run `listPages()` warns and
 contributes nothing rather than failing the build or server startup. Catalogs run in
 configured order in both builds and server bundles; the first descriptor wins when
 two catalogs name the same normalized path. `context` contains the command, site URL,
-base path, and trailing-slash policy. Astro-AEO does not crawl your site to discover
-routes.
+base path, and trailing-slash policy.
 
 Catalog entrypoints must be JavaScript that Node's native module loader can execute:
 `.js`, `.mjs`, or `.cjs`. This keeps build preflight identical on every supported Node
@@ -465,7 +495,9 @@ versions do not expose a disposable request state. Their closure-held client add
 cookies, and session cannot be replaced securely for an anonymous corpus render.
 Build-time corpus artifacts and authenticated direct `.md` requests are unaffected.
 Astro 6.3 and newer use a separate disposable request state for every serialized
-corpus render, including streams whose cancellation never settles.
+corpus render, including streams whose cancellation never settles. This requirement
+also applies when a live corpus uses automatic dynamic-route discovery. Ordinary HTML
+and direct `.md` requests remain independent of aggregate discovery.
 
 ### Content negotiation
 

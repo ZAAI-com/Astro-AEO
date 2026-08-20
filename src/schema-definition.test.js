@@ -24,6 +24,23 @@ describe('published configuration schema', () => {
     expect(conforms({ pages: { catalogs: [{ module: '' }] } })).toBe(false);
   });
 
+  test('publishes development dynamic-route discovery modes', () => {
+    const source = buildSchema().properties.pages.properties.devDynamicDiscovery;
+    const publishedOption = published.properties.pages.properties.devDynamicDiscovery;
+    expect(source.default).toBe('startup');
+    expect(source.anyOf).toEqual([
+      { type: 'string', enum: ['startup', 'hot'] },
+      { const: false },
+    ]);
+    expect(publishedOption.anyOf).toEqual(source.anyOf);
+    for (const mode of ['startup', 'hot', false]) {
+      expect(conforms({ pages: { devDynamicDiscovery: mode } })).toBe(true);
+    }
+    for (const mode of ['reload', true, null]) {
+      expect(conforms({ pages: { devDynamicDiscovery: mode } })).toBe(false);
+    }
+  });
+
   test.each([
     ['/x', true],
     ['/docs/llms.txt', true],

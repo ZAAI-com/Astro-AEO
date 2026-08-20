@@ -51,6 +51,18 @@ describe('inspectRootPathname', () => {
     expect(inspectRootPathname('/sale-%25beef')).toEqual({ decoded: '/sale-%beef' });
   });
 
+  test('optionally preserves encoded question marks and fragments as path text', () => {
+    expect(inspectRootPathname('/why%3Fnow%23yes')).toBeNull();
+    expect(inspectRootPathname('/why%3Fnow%23yes', { allowEncodedReserved: true }))
+      .toEqual({ decoded: '/why?now#yes' });
+    expect(inspectRootPathname('/literal%253F', { allowEncodedReserved: true }))
+      .toEqual({ decoded: '/literal%3F' });
+    expect(inspectRootPathname('/raw?query', { allowEncodedReserved: true })).toBeNull();
+    expect(inspectRootPathname('/safe%2Fsecret', { allowEncodedReserved: true })).toBeNull();
+    expect(inspectRootPathname('/%2E%2E/secret', { allowEncodedReserved: true })).toBeNull();
+    expect(inspectRootPathname('/bad%5Cpath', { allowEncodedReserved: true })).toBeNull();
+  });
+
   test('rejects separators and traversal hidden behind repeated encoding', () => {
     expect(inspectRootPathname('/safe%252f..%252fsecret')).toBeNull();
     expect(inspectRootPathname('/%25252e%25252e/secret')).toBeNull();

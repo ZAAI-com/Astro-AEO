@@ -1,6 +1,6 @@
 // @ts-check
 import { fileURLToPath } from 'node:url';
-import { isAbsolute, resolve } from 'node:path';
+import { isAbsolute, relative, resolve } from 'node:path';
 import { lstatSync, readFileSync, readdirSync } from 'node:fs';
 import sitemap from '@astrojs/sitemap';
 import { resolveConfig } from './config.js';
@@ -56,11 +56,16 @@ export default function aeo(userConfig = {}) {
   /** @type {'directory'|'file'} */
   let buildFormat = 'directory';
   let projectRoot = '';
+  let pagesDir = '';
   let localeSnapshot = createLocaleSnapshot(undefined);
   /** @type {URL | undefined} */
   let publicDir;
   /** @type {'dev'|'build'|'preview'} */
   let command = 'build';
+  /** @type {'dev'|'build'|'preview'|'sync'} */
+  let astroLifecycleCommand = 'build';
+  /** @type {'static'|'server'|undefined} */
+  let exactBuildOutput;
   const sitemapState = {
     expected: false,
     siteUrl: '',
@@ -83,6 +88,13 @@ export default function aeo(userConfig = {}) {
   let serverOutput = false;
   let adapterFallbacks = false;
   let hasOnDemandProjectPage = false;
+  let hasDynamicProjectPage = false;
+  let hasOnDemandDynamicProjectPage = false;
+  let hasPrerenderedCustom404 = false;
+  let developmentDynamicWarningEmitted = false;
+  let initialDynamicRoutesCaptured = false;
+  /** @type {{ entrypoint: string; pattern: string; params: string[]; segments: Array<Array<{ content: string; dynamic: boolean; spread: boolean }>> }[]} */
+  let initialDynamicRoutes = [];
   /** @type {import('./index.js').Diagnostic[]} */
   const buildDiagnostics = [];
   /** @type {import('./index.js').Diagnostic[]} */
@@ -123,12 +135,52 @@ export default function aeo(userConfig = {}) {
     };
   }
 
+  /** @returns {import('./virtual/plugin.js').DynamicRouteModuleConfig | null} */
+  function dynamicRouteModuleConfig() {
+    if (
+      astroLifecycleCommand !== 'dev' ||
+      !config ||
+      config.pages.devDynamicDiscovery === false
+    ) {
+      return null;
+    }
+    if (config.pages.devDynamicDiscovery === 'hot') {
+      const relativePagesDir = projectRoot && pagesDir ? relative(projectRoot, pagesDir) : '..';
+      const safeRelative = relativePagesDir &&
+        !isAbsolute(relativePagesDir) &&
+        relativePagesDir !== '..' &&
+        !/^\.\.(?:[\\/]|$)/.test(relativePagesDir);
+      return {
+        mode: 'hot',
+        routes: [],
+        projectRoot,
+        warnOnDemand:
+          config.pages.catalogs.length === 0 && !developmentDynamicWarningEmitted,
+        ...(safeRelative
+          ? { pagesGlob: `/${escapeViteGlobPath(relativePagesDir)}/**/*` }
+          : {}),
+      };
+    }
+    return {
+      mode: 'startup',
+      routes: initialDynamicRoutes.map((route) => ({
+        ...route,
+        specifier: resolveRouteEntrypoint(route.entrypoint, projectRoot),
+      })),
+    };
+  }
+
   const integration = {
     name: 'astro-aeo',
     hooks: {
       'astro:config:setup': async ({ config: astroConfig, command: astroCommand, addMiddleware, injectRoute, updateConfig, logger }) => {
         config = resolveConfig(userConfig, logger);
         integrationLogger = logger;
+        astroLifecycleCommand = astroCommand;
+        exactBuildOutput = undefined;
+        developmentDynamicWarningEmitted = false;
+        initialDynamicRoutesCaptured = false;
+        initialDynamicRoutes = [];
         if (astroConfig.root) projectRoot = fileURLToPath(astroConfig.root);
         const nonSerializable = findNonSerializable(runtimeConfigProjection(config));
         if (nonSerializable.length > 0) logger.warn(nonSerializableWarning(nonSerializable));
@@ -184,6 +236,7 @@ export default function aeo(userConfig = {}) {
                   projectRoot,
                 ),
                 () => runtimeCorpusTokenizerModule(corpusTokenizer),
+                dynamicRouteModuleConfig,
               ),
             ],
           },
@@ -199,8 +252,12 @@ export default function aeo(userConfig = {}) {
         trailingSlash = astroConfig.trailingSlash ?? 'ignore';
         buildFormat = astroConfig.build?.format === 'file' ? 'file' : 'directory';
         localeSnapshot = createLocaleSnapshot(astroConfig.i18n, siteUrl);
+        exactBuildOutput = buildOutput;
         serverOutput = buildOutput === 'server' || astroConfig.output === 'server' || adapterFallbacks;
         projectRoot = fileURLToPath(astroConfig.root);
+        pagesDir = astroConfig.srcDir
+          ? fileURLToPath(new URL('pages/', astroConfig.srcDir))
+          : resolve(projectRoot, 'src/pages');
         publicDir = astroConfig.publicDir;
         runtimePublicPaths.clear();
         if (publicDir) {
@@ -263,10 +320,13 @@ export default function aeo(userConfig = {}) {
         runtimeProjectPatterns.length = 0;
         runtimePagePaths.clear();
         hasOnDemandProjectPage = false;
+        hasDynamicProjectPage = false;
+        hasOnDemandDynamicProjectPage = false;
+        hasPrerenderedCustom404 = false;
         artifactWriter = undefined;
         buildDiagnostics.length = 0;
-        let hasUncatalogedDynamicPage = false;
-        let hasPrerenderedCustom404 = false;
+        /** @type {typeof initialDynamicRoutes} */
+        const currentDynamicRoutes = [];
         for (const route of routes) {
           const pathname = /** @type {string | undefined} */ (route.pathname);
           const normalizedPathname = pathname ? normalize(pathname) : undefined;
@@ -323,8 +383,30 @@ export default function aeo(userConfig = {}) {
           if (projectRoute && type === 'page' && prerendered === false) {
             hasOnDemandProjectPage = true;
           }
-          if (projectRoute && !pathname && type !== 'endpoint' && type !== 'redirect') {
-            hasUncatalogedDynamicPage = true;
+          const dynamicProjectPage = projectRoute && type === 'page' && pathname == null;
+          if (dynamicProjectPage) {
+            hasDynamicProjectPage = true;
+            if (prerendered === false) hasOnDemandDynamicProjectPage = true;
+            if (
+              prerendered === true &&
+              typeof entrypoint === 'string' &&
+              typeof routePattern === 'string' &&
+              Array.isArray(route.params) &&
+              Array.isArray(route.segments)
+            ) {
+              currentDynamicRoutes.push({
+                entrypoint,
+                pattern: routePattern,
+                params: route.params.filter((value) => typeof value === 'string'),
+                segments: route.segments.map((segment) => Array.isArray(segment)
+                  ? segment.map((part) => ({
+                    content: typeof part?.content === 'string' ? part.content : '',
+                    dynamic: part?.dynamic === true,
+                    spread: part?.spread === true,
+                  }))
+                  : []),
+              });
+            }
           }
           if (projectRoute && normalizedPathname === '/404' && prerendered === true) {
             hasPrerenderedCustom404 = true;
@@ -335,32 +417,26 @@ export default function aeo(userConfig = {}) {
           serverOutput,
           hasOnDemandPage: hasOnDemandProjectPage,
         });
-        if (hasUncatalogedDynamicPage && config.pages.catalogs.length === 0) {
-          const diagnostic = {
-            version: /** @type {const} */ (1),
-            code: 'dynamic-routes-unindexed',
-            severity: /** @type {const} */ ('warning'),
-            message:
-              'Dynamic page routes cannot be enumerated for corpus indexes without pages.catalogs.',
-          };
-          buildDiagnostics.push(diagnostic);
-          integrationLogger?.warn(
-            'astro-aeo: dynamic page routes are not included in llms.txt because no pages.catalogs module is configured.',
-          );
+        if (astroLifecycleCommand === 'dev' && !initialDynamicRoutesCaptured) {
+          initialDynamicRoutes = currentDynamicRoutes;
+          initialDynamicRoutesCaptured = true;
         }
-        if (hasPrerenderedCustom404 && config.markdown.negotiation !== 'off') {
-          const diagnostic = {
-            version: /** @type {const} */ (1),
-            code: 'prerendered-custom-404-negotiation',
-            severity: /** @type {const} */ ('warning'),
-            pathname: '/404',
-            message:
-              'A prerendered custom 404 cannot inspect Accept headers; direct .md requests remain available.',
-          };
-          buildDiagnostics.push(diagnostic);
-          integrationLogger?.warn(
-            'astro-aeo: the custom /404 route is prerendered and cannot negotiate Markdown. Keep direct .md companions, or render the 404 on demand.',
-          );
+        if (
+          astroLifecycleCommand === 'dev' &&
+          !developmentDynamicWarningEmitted &&
+          config.pages.catalogs.length === 0
+        ) {
+          if (hasOnDemandDynamicProjectPage) {
+            developmentDynamicWarningEmitted = true;
+            integrationLogger?.warn(
+              'astro-aeo: on-demand dynamic page routes require pages.catalogs for development corpus enumeration.',
+            );
+          } else if (config.pages.devDynamicDiscovery === false && hasDynamicProjectPage) {
+            developmentDynamicWarningEmitted = true;
+            integrationLogger?.warn(
+              'astro-aeo: the development corpus is incomplete because pages.devDynamicDiscovery is false and no pages.catalogs module is configured.',
+            );
+          }
         }
       },
 
@@ -369,10 +445,42 @@ export default function aeo(userConfig = {}) {
         // these hooks in the opposite order. Merge here, after catalog preflight
         // is guaranteed to have completed, and keep the route array catalog-free
         // so the newer hook order cannot add the same diagnostics twice.
+        /** @type {import('./index.js').Diagnostic[]} */
+        const routeDiagnostics = [];
+        if (
+          exactBuildOutput === 'server' &&
+          hasDynamicProjectPage &&
+          config.pages.catalogs.length === 0
+        ) {
+          routeDiagnostics.push({
+            version: 1,
+            code: 'dynamic-routes-unindexed',
+            severity: 'warning',
+            message:
+              'Request-time corpus enumeration is incomplete for dynamic page routes because no pages.catalogs module is configured.',
+          });
+          integrationLogger?.warn(
+            'astro-aeo: dynamic page routes require pages.catalogs for request-time corpus enumeration in server output.',
+          );
+        }
+        if (hasPrerenderedCustom404 && config.markdown.negotiation !== 'off') {
+          routeDiagnostics.push({
+            version: 1,
+            code: 'prerendered-custom-404-negotiation',
+            severity: 'warning',
+            pathname: '/404',
+            message:
+              'A prerendered custom 404 cannot inspect Accept headers; direct .md requests remain available.',
+          });
+          integrationLogger?.warn(
+            'astro-aeo: the custom /404 route is prerendered and cannot negotiate Markdown. Keep direct .md companions, or render the 404 on demand.',
+          );
+        }
         const diagnostics = [
           ...catalogDiagnostics,
           ...rendererDiagnostics,
           ...buildDiagnostics,
+          ...routeDiagnostics,
         ];
         artifactWriter = await onBuildDone(config, /** @type {any} */ (options), {
           siteUrl,
@@ -465,6 +573,30 @@ function runtimeMarkdownSourceEntries(routeEntrypoints, projectRoot) {
     });
   }
   return sources;
+}
+
+/**
+ * @param {string} entrypoint
+ * @param {string} projectRoot
+ * @returns {string}
+ */
+function resolveRouteEntrypoint(entrypoint, projectRoot) {
+  const cleaned = entrypoint.replace(/[?#].*$/, '');
+  if (cleaned.startsWith('file:')) return fileURLToPath(cleaned);
+  return isAbsolute(cleaned) ? cleaned : resolve(projectRoot, cleaned);
+}
+
+/**
+ * Escape the literal directory portion of a root-relative Vite glob. The
+ * appended globstar remains active so every page extension stays eligible.
+ *
+ * @param {string} value
+ * @returns {string}
+ */
+function escapeViteGlobPath(value) {
+  return value
+    .replaceAll('\\', '/')
+    .replace(/(?<!\\)([()[\]{}*?|]|^!|[!+@](?=\())/g, '\\$&');
 }
 
 /**

@@ -6,6 +6,7 @@ describe('resolveConfig', () => {
   test('zero-config produces sensible defaults', () => {
     const c = resolveConfig();
     expect(c.pages.include).toEqual(['**']);
+    expect(c.pages.devDynamicDiscovery).toBe('startup');
     expect(c.markdown.enabled).toBe(true);
     expect(c.markdown.alternateLink).toBe('auto');
     expect(c.corpus.index.enabled).toBe(true);
@@ -307,6 +308,21 @@ describe('resolveConfig', () => {
     expect(() => resolveConfig({ pages: { catalogs: [{}] } })).toThrow(/pages\.catalogs\[0\]\.module/);
     expect(() => resolveConfig({ pages: { catalogs: [{ module: '  ' }] } })).toThrow(AeoConfigError);
     expect(() => resolveConfig({ pages: { catalogs: /** @type {any} */ ({}) } })).toThrow(AeoConfigError);
+  });
+
+  test('resolves and validates development dynamic-route discovery', () => {
+    /** @type {string[]} */
+    const warnings = [];
+    for (const mode of /** @type {const} */ (['startup', 'hot', false])) {
+      expect(resolveConfig(
+        { pages: { devDynamicDiscovery: mode } },
+        { warn: (message) => warnings.push(message) },
+      ).pages.devDynamicDiscovery).toBe(mode);
+    }
+    expect(warnings).toEqual([]);
+    expect(() => resolveConfig({
+      pages: { devDynamicDiscovery: /** @type {any} */ ('reload') },
+    })).toThrow(/pages\.devDynamicDiscovery/);
   });
 
   test('extraction selector properties must be arrays when supplied', () => {

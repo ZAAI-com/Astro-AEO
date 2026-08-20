@@ -89,11 +89,13 @@ export interface CatalogContext {
 }
 
 /**
- * Lists pages the build cannot discover for itself, which is every route
- * generated from data rather than from a file. Without a catalog such a route is
- * simply absent from the corpus; astro-aeo does not crawl to find them. A module
- * exporting this contract must be compiled to Node-loadable `.js`, `.mjs`, or
- * `.cjs` before it is configured as a catalog entrypoint.
+ * Lists pages that Astro-AEO cannot enumerate from static build output or from a
+ * prerendered development `getStaticPaths()` call. Catalogs remain necessary for
+ * on-demand or SSR, CMS-only, and synthetic routes. A catalog may also overlay a
+ * concrete or automatically discovered path with exact authored source and metadata.
+ * Astro-AEO never crawls to find routes. A module exporting this contract must be
+ * compiled to Node-loadable `.js`, `.mjs`, or `.cjs` before it is configured as a
+ * catalog entrypoint.
  */
 export interface PageCatalog {
   name?: string;

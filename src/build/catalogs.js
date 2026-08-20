@@ -129,9 +129,10 @@ function localCatalogExtension(module, specifier) {
 /**
  * Load the configured page catalogs.
  *
- * A catalog lists pages the build cannot see for itself, which is every route
- * generated from data rather than from a file. Without one, a dynamic route is
- * simply absent from the corpus; astro-aeo does not crawl to find them.
+ * Astro supplies concrete `getStaticPaths()` results to static builds, and the
+ * development runtime can enumerate prerendered dynamic routes. Catalogs cover
+ * on-demand, CMS-only, synthetic, and otherwise external inventory, or overlay
+ * concrete paths with exact authored source and metadata. Astro-AEO never crawls.
  *
  * @param {{ module: string }[]} catalogs
  * @param {(specifier: string) => Promise<any>} load

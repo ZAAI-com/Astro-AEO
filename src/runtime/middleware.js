@@ -3,6 +3,7 @@ import {
   RUNTIME,
   RUNTIME_CATALOG_LOADERS,
   RUNTIME_CORPUS_TOKENIZER_LOADER,
+  RUNTIME_DYNAMIC_ROUTE_SOURCE,
   RUNTIME_MARKDOWN_RENDERER_LOADERS,
   RUNTIME_PLUGIN_LOADERS,
 } from './config.js';
@@ -10,7 +11,6 @@ import { mdPathnameFor, pagePathForMdPath, basePrefix } from '../core/page-model
 import { inspectRootPathname, isIncluded, normalizePath } from '../core/match.js';
 import { exactPathnameIdentity, matchesExactPathname } from '../core/artifact-path.js';
 import { extractPageMeta } from '../core/page-meta.js';
-import { isOwnedArtifactPath } from '../core/owned-artifacts.js';
 import { COLLECT_FLAG, stripMarkersFromHtml } from '../core/extract/marker.js';
 import { stripAeoHeadMarkers } from '../core/head.js';
 import { withMarkdownAlternateLink } from '../core/alternate-link.js';
@@ -32,6 +32,7 @@ import {
 } from './respond.js';
 import {
   artifactFor,
+  buildRuntimePageInventory,
   catalogRuntimePath,
   enrichRuntimePageGraph,
   pageFromHtml,
@@ -46,14 +47,14 @@ import {
   serveSchemaCorpus,
   stripBase,
 } from './serve.js';
+import { RuntimeDynamicRouteDiscoveryError } from './dynamic-routes.js';
 import {
   createRuntimePluginPageHandles,
   runtimePluginArtifactFor,
   serveRuntimePluginArtifact,
 } from './plugins.js';
 
-const DEV_NOTE =
-  '<!-- astro-aeo dev preview: dynamic routes are omitted; run `astro build` for the full file -->';
+const DEV_NOTE = '<!-- astro-aeo development preview -->';
 const INTERNAL_REQUEST_HEADER = 'x-astro-aeo-internal';
 const INTERNAL_PURPOSE_HEADER = 'x-astro-aeo-internal-purpose';
 const CORPUS_PURPOSE = 'corpus';
@@ -113,7 +114,7 @@ export const onRequest = async (context, next) => {
     return redactAeoHeadMarkers(await next(), context.request);
   }
   const pathname = stripBase(decoded, RUNTIME.site.base);
-  const encodedPathname = encodeURI(pathname);
+  const encodedPathname = encodePathname(pathname);
 
   const servedRequestPath = normalizePath(decoded);
   const coreReplacementAuthorized = RUNTIME.config.artifacts.replace.some((configured) =>
@@ -193,14 +194,36 @@ export const onRequest = async (context, next) => {
     cancelResponseBody(companion?.source);
   }
   if (pluginTarget) {
-    const response = await serveRuntimePluginArtifact(
-      pluginTarget,
-      context.request,
-      RUNTIME_PLUGIN_LOADERS,
-      pluginTarget.conflict ? [] : await runtimePluginPageHandles(context, next),
-      RUNTIME.command,
-    );
-    if (response) return response;
+    try {
+      const response = await serveRuntimePluginArtifact(
+        pluginTarget,
+        context.request,
+        RUNTIME_PLUGIN_LOADERS,
+        pluginTarget.conflict
+          ? []
+          : await runtimePluginPageHandles(
+            context,
+            next,
+            disposableCorpusStateFor(context) ? RUNTIME_DYNAMIC_ROUTE_SOURCE : null,
+          ),
+        RUNTIME.command,
+      );
+      if (response) return response;
+    } catch (error) {
+      if (
+        !(error instanceof RuntimeDynamicRouteDiscoveryError) &&
+        !(error instanceof RuntimeCorpusLimitError)
+      ) {
+        throw error;
+      }
+      return textResponse({
+        body: `${error.message}\n`,
+        contentType: 'text/plain; charset=utf-8',
+        request: context.request,
+        status: error instanceof RuntimeCorpusLimitError ? 503 : 500,
+        headers: { 'cache-control': 'no-store' },
+      });
+    }
   }
   if (artifact === 'robots' || artifact === 'domain-profile') {
     const { body, contentType } = renderStandaloneArtifact(artifact, RUNTIME, {
@@ -226,6 +249,7 @@ export const onRequest = async (context, next) => {
         htmlFetcher(context, next, { sanitizeCredentials: true }),
         {
           catalogLoaders: RUNTIME_CATALOG_LOADERS,
+          dynamicRouteSource: RUNTIME_DYNAMIC_ROUTE_SOURCE,
           rendererLoaders: RUNTIME_MARKDOWN_RENDERER_LOADERS,
           pluginLoaders: RUNTIME_PLUGIN_LOADERS,
           origin: context.url.origin,
@@ -234,8 +258,11 @@ export const onRequest = async (context, next) => {
       return textResponse({ body, contentType, request: context.request });
     } catch (error) {
       const limited = error instanceof RuntimeCorpusLimitError;
+      const discovery = error instanceof RuntimeDynamicRouteDiscoveryError;
       return textResponse({
-        body: limited
+        body: discovery
+          ? `${error.message}\n`
+          : limited
           ? `${error.message}\n`
           : 'astro-aeo: the semantic corpus is temporarily unavailable.\n',
         contentType: 'text/plain; charset=utf-8',
@@ -260,6 +287,7 @@ export const onRequest = async (context, next) => {
         note: RUNTIME.command === 'dev' ? DEV_NOTE : undefined,
         concurrency: 1,
         catalogLoaders: RUNTIME_CATALOG_LOADERS,
+        dynamicRouteSource: RUNTIME_DYNAMIC_ROUTE_SOURCE,
         rendererLoaders: RUNTIME_MARKDOWN_RENDERER_LOADERS,
         pluginLoaders: RUNTIME_PLUGIN_LOADERS,
         tokenizerLoader: RUNTIME_CORPUS_TOKENIZER_LOADER,
@@ -270,9 +298,12 @@ export const onRequest = async (context, next) => {
     } catch (error) {
       const limited = error instanceof RuntimeCorpusLimitError;
       const invalid = error instanceof RuntimeCorpusPlanError;
-      if (!limited && !invalid) throw error;
+      const discovery = error instanceof RuntimeDynamicRouteDiscoveryError;
+      if (!limited && !invalid && !discovery) throw error;
       return textResponse({
-        body: limited ? `${error.message}\n` : 'astro-aeo: the corpus is temporarily unavailable.\n',
+        body: limited || discovery
+          ? `${error.message}\n`
+          : 'astro-aeo: the corpus is temporarily unavailable.\n',
         contentType: 'text/plain; charset=utf-8',
         request: context.request,
         status: limited ? 503 : 500,
@@ -453,43 +484,21 @@ export const onRequest = async (context, next) => {
  * @param {import('astro').APIContext} context
  * @param {import('astro').MiddlewareNext} next
  */
-async function runtimePluginPageHandles(context, next) {
+async function runtimePluginPageHandles(context, next, dynamicRouteSource) {
   const fetch = htmlFetcher(context, next, { sanitizeCredentials: true });
-  const descriptors = await runtimeCatalogPagesFor(
-    RUNTIME_CATALOG_LOADERS,
-    RUNTIME,
-    context.url.origin,
-  );
   const artifactPaths = new Set(
     RUNTIME_PLUGIN_LOADERS.flatMap((loader) =>
       loader.claims.map((claim) => configuredPathKey(claim.pathname)).filter(Boolean),
     ),
   );
-  /** @type {Map<string, { id: string; pathname: string; publicPathname: string; descriptor?: import('../page.js').PageDescriptor }>} */
-  const targets = new Map();
-  for (const pathname of RUNTIME.staticPaths) {
-    const canonical = normalizePath(pathname);
-    if (isOwnedArtifactPath(canonical, RUNTIME.config) || artifactPaths.has(canonical)) continue;
-    targets.set(canonical, {
-      id: canonical,
-      pathname: canonical,
-      publicPathname: encodeURI(canonical),
-    });
-  }
-  for (const descriptor of descriptors) {
-    const path = catalogRuntimePath(descriptor.pathname);
-    if (isOwnedArtifactPath(path.canonical, RUNTIME.config) || artifactPaths.has(path.canonical)) {
-      continue;
-    }
-    targets.set(path.canonical, {
-      id: path.canonical,
-      pathname: path.canonical,
-      publicPathname: path.publicPathname,
-      descriptor,
-    });
-  }
+  const { targets } = await buildRuntimePageInventory(RUNTIME, {
+    catalogLoaders: RUNTIME_CATALOG_LOADERS,
+    dynamicRouteSource,
+    origin: context.url.origin,
+    excludedPaths: artifactPaths,
+  });
   return createRuntimePluginPageHandles(
-    [...targets.values()],
+    targets.map((target) => ({ ...target, id: target.pathname })),
     async ({ pathname, publicPathname, descriptor }) => {
       const loaded = await fetch(publicPathname);
       if (
@@ -1030,7 +1039,8 @@ function supportsRequestCacheOption() {
  */
 function withTrailingSlash(pathname) {
   if (pathname === '/') return '/';
-  return RUNTIME.site.trailingSlash === 'never' ? pathname : `${pathname}/`;
+  if (RUNTIME.site.trailingSlash === 'never' || pathname.endsWith('/')) return pathname;
+  return `${pathname}/`;
 }
 
 /**
@@ -1104,7 +1114,7 @@ function forwardSourceResponse(source, original, sourcePagePath) {
           const insideBase = !prefix || decoded === prefix || decoded.startsWith(`${prefix}/`);
           if (insideBase) {
             const pagePath = normalizePath(stripBase(decoded, RUNTIME.site.base));
-            const encoded = encodeURI(pagePath);
+            const encoded = encodePathname(pagePath);
             if (pagePathForMdPath(pagePath) === null) {
               target.pathname = `${encodedPrefix}${mdPathnameFor(normalizePath(encoded))}`;
             }
@@ -1272,7 +1282,12 @@ function stripInternalHeaders(headers) {
  * @returns {string | null} null when the path is not decodable.
  */
 function decodePathname(pathname) {
-  return inspectRootPathname(pathname)?.decoded ?? null;
+  return inspectRootPathname(pathname, { allowEncodedReserved: true })?.decoded ?? null;
+}
+
+/** @param {string} pathname */
+function encodePathname(pathname) {
+  return encodeURI(pathname).replace(/\?/g, '%3F').replace(/#/g, '%23');
 }
 
 /** @param {ReturnType<typeof artifactFor>} artifact */

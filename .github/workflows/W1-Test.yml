@@ -42,11 +42,11 @@ jobs:
         run: pnpm run test:types
       - name: Unit, CLI and build e2e tests
         run: pnpm test
-      - name: Dev-server e2e (astro 7 leg only)
-        if: matrix.astro == '7'
+      - name: Dev-server e2e (astro 6 and 7 legs)
+        if: matrix.astro != '5'
         run: pnpm run test:dev
       # The on-demand contract needs a real adapter, so it cannot run against a
-      # static build or the dev server. Newest Astro only, matching test:dev.
+      # static build or the dev server. Keep this adapter-backed suite on newest Astro.
       - name: Adapter e2e (astro 7 leg only)
         if: matrix.astro == '7'
         run: pnpm run test:ssr

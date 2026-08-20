@@ -19,6 +19,10 @@ startup, memory, and request ceilings remain enforced.
 
 ### Highlights
 
+- Added automatic enumeration of prerendered `getStaticPaths()` routes in development corpora.
+  Stable `startup` discovery uses Astro's public route hooks, while opt-in experimental `hot`
+  discovery also tracks dynamic route-file additions and deletions through Astro's private route
+  module.
 - Added one shared build/runtime corpus planner with `auto`, `global`, `locale`, and `both`
   multilingual topologies, normalized BCP 47 languages and alternates, small token-budgeted
   corpora, section chunks, versioned manifests, custom tokenizer fallback, and deterministic
@@ -34,6 +38,12 @@ startup, memory, and request ceilings remain enforced.
 
 ### Upgrade notes
 
+- `pages.devDynamicDiscovery` defaults to `'startup'`; select experimental `'hot'` for route-file
+  HMR or `false` to retain catalog-only development enumeration. Catalogs remain necessary for
+  on-demand and external inventories and can overlay automatic paths with authored metadata.
+- Article documentation now recommends Google-preferred ISO 8601 datetimes with timezone
+  information while clarifying that bare Schema.org dates remain valid and authored values pass
+  through unchanged.
 - New corpus files, gzip, crawler presets, Content Signals, and IndexNow are opt-in. One implicit
   locale keeps the legacy root corpus bytes. Multilingual `auto` moves canonical locale families
   under `/<locale>/`; use `global`, `locale`, or `both` for another published topology.
@@ -137,7 +147,7 @@ secure request-time behavior to development and adapter deployments.
 - Pages built from Markdown can preserve their authored source with
   [`AeoPage` and `defineAeoPage`](README.md#giving-a-page-its-own-source). Standalone Markdown
   routes also carry their original source into server bundles.
-- [Page catalogs](README.md#pages-the-build-cannot-see) can add data-generated routes that Astro's
+- [Page catalogs](README.md#dynamic-routes-and-catalogs) can add data-generated routes that Astro's
   route list cannot discover, so eligible routes receive companions and appear in corpora.
 - [Content negotiation](README.md#content-negotiation) can return Markdown at a page URL or redirect
   to its `.md` companion when Markdown is explicitly preferred on an on-demand route.

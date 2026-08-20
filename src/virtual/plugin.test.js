@@ -1,11 +1,43 @@
-import { test, expect, describe } from 'vitest';
-import { aeoRuntimeConfigPlugin, RUNTIME_CONFIG_ID } from './plugin.js';
+import { test, expect, describe, vi } from 'vitest';
+import {
+  aeoRuntimeConfigPlugin,
+  DEVELOPMENT_DYNAMIC_ROUTE_LOADER_SENTINEL,
+  DYNAMIC_ROUTES_ID,
+  RUNTIME_CONFIG_ID,
+} from './plugin.js';
 import { resolveConfig } from '../config.js';
+
+let evaluatedHotModule = 0;
+
+async function loadGeneratedHotModule(source, routes, modules) {
+  const key = `__astroAeoHotModule${evaluatedHotModule++}`;
+  globalThis[key] = { routes, modules };
+  const transformed = source
+    .replace(
+      'const __astroAeoLoadRoutes = async () => {',
+      `const __astroAeoTestRoutes = globalThis[${JSON.stringify(key)}].routes;\n` +
+      'const __astroAeoLoadRoutes = async () => {',
+    )
+    .replace(
+      '    const value = await import("virtual:astro:routes");',
+      '    const value = { routes: __astroAeoTestRoutes };',
+    )
+    .replace(
+      /import\.meta\.glob\([^\n]+\)/,
+      `globalThis[${JSON.stringify(key)}].modules`,
+    );
+  try {
+    return await import(`data:text/javascript,${encodeURIComponent(transformed)}#${key}`);
+  } finally {
+    delete globalThis[key];
+  }
+}
 
 describe('aeoRuntimeConfigPlugin', () => {
   test('claims only its own module id', () => {
     const plugin = aeoRuntimeConfigPlugin(() => ({}));
     expect(plugin.resolveId(RUNTIME_CONFIG_ID)).toBe(`\0${RUNTIME_CONFIG_ID}`);
+    expect(plugin.resolveId(DYNAMIC_ROUTES_ID)).toBe(`\0${DYNAMIC_ROUTES_ID}`);
     expect(plugin.resolveId('some-other-module')).toBeUndefined();
     expect(plugin.load('some-other-module')).toBeUndefined();
   });
@@ -17,6 +49,7 @@ describe('aeoRuntimeConfigPlugin', () => {
     expect(code).toContain('export const CATALOG_LOADERS = []');
     expect(code).toContain('export const MARKDOWN_RENDERER_LOADERS = []');
     expect(code).toContain('export const RUNTIME_PLUGIN_LOADERS = []');
+    expect(code).toContain('export const DYNAMIC_ROUTE_SOURCE = null');
     expect(code).toContain('export default RUNTIME;');
 
     const { RUNTIME, CATALOG_LOADERS } = new Function(
@@ -150,5 +183,220 @@ describe('aeoRuntimeConfigPlugin', () => {
     const plugin = aeoRuntimeConfigPlugin(() => ({ siteUrl }));
     siteUrl = 'https://x.com';
     expect(plugin.load(`\0${RUNTIME_CONFIG_ID}`)).toContain('https://x.com');
+  });
+
+  test('emits startup discovery as a lazy source with literal route imports', () => {
+    const plugin = aeoRuntimeConfigPlugin(
+      () => ({ command: 'dev' }),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      () => ({
+        mode: 'startup',
+        routes: [{
+          entrypoint: 'src/pages/products/[slug].astro',
+          specifier: '/project/src/pages/products/[slug].astro',
+          pattern: '/products/[slug]',
+          params: ['slug'],
+          segments: [
+            [{ content: 'products', dynamic: false, spread: false }],
+            [{ content: 'slug', dynamic: true, spread: false }],
+          ],
+        }],
+      }),
+    );
+
+    const runtime = plugin.load(`\0${RUNTIME_CONFIG_ID}`);
+    expect(runtime).toContain(
+      'export const DYNAMIC_ROUTE_SOURCE = { mode: "startup", load: () => import("astro-aeo:dynamic-routes") }',
+    );
+    expect(runtime).not.toContain('/project/src/pages/products/[slug].astro');
+
+    const routes = plugin.load(`\0${DYNAMIC_ROUTES_ID}`);
+    expect(routes).toContain(DEVELOPMENT_DYNAMIC_ROUTE_LOADER_SENTINEL);
+    expect(routes).toContain('entrypoint: "src/pages/products/[slug].astro"');
+    expect(routes).toContain('load: () => import("/project/src/pages/products/[slug].astro")');
+    expect(routes).not.toContain('getStaticPaths');
+  });
+
+  test('emits hot discovery through the private route module and an exhaustive page glob', () => {
+    const plugin = aeoRuntimeConfigPlugin(
+      () => ({ command: 'dev' }),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      () => ({
+        mode: 'hot',
+        routes: [],
+        projectRoot: '/project',
+        pagesGlob: '/src/pages/**/*',
+      }),
+    );
+
+    const routes = plugin.load(`\0${DYNAMIC_ROUTES_ID}`);
+    expect(routes).toContain(DEVELOPMENT_DYNAMIC_ROUTE_LOADER_SENTINEL);
+    expect(routes).toContain('await import("virtual:astro:routes")');
+    expect(routes).toContain('import.meta.glob("/src/pages/**/*", { exhaustive: true })');
+    expect(routes).toContain('value.routeData');
+    expect(routes).toContain('route.entrypoint ?? route.component');
+    expect(routes).toContain('typeof route.pattern === "string" ? route.pattern : route.route');
+  });
+
+  test('normalizes wrapper and direct hot route shapes into lazy loaders', async () => {
+    const plugin = aeoRuntimeConfigPlugin(
+      () => ({ command: 'dev' }),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      () => ({
+        mode: 'hot',
+        routes: [],
+        projectRoot: '/project',
+        pagesGlob: '/src/pages/**/*',
+      }),
+    );
+    const wrappedLoad = async () => ({ getStaticPaths() {} });
+    const directLoad = async () => ({ getStaticPaths() {} });
+    const wrapped = {
+      type: 'page', origin: 'project', pathname: undefined, prerender: true,
+      component: '/src/pages/wrapped/[slug].astro', route: '/wrapped/[slug]',
+      params: ['slug'], segments: [[{ content: 'slug', dynamic: true, spread: false }]],
+    };
+    const direct = {
+      type: 'page', origin: undefined, pathname: undefined, isPrerendered: true,
+      entrypoint: '/project/src/pages/direct/[slug].astro', route: '/direct/[slug]',
+      params: ['slug'], segments: [[{ content: 'slug', dynamic: true, spread: false }]],
+    };
+    const generated = await loadGeneratedHotModule(
+      plugin.load(`\0${DYNAMIC_ROUTES_ID}`),
+      [{ routeData: wrapped }, direct],
+      {
+        '/src/pages/wrapped/[slug].astro': wrappedLoad,
+        '/src/pages/direct/[slug].astro': directLoad,
+      },
+    );
+
+    expect(generated.list[DEVELOPMENT_DYNAMIC_ROUTE_LOADER_SENTINEL]).toBe(true);
+    expect(await generated.list()).toEqual([
+      expect.objectContaining({
+        entrypoint: '/src/pages/wrapped/[slug].astro',
+        pattern: '/wrapped/[slug]',
+        load: wrappedLoad,
+      }),
+      expect.objectContaining({
+        entrypoint: '/src/pages/direct/[slug].astro',
+        pattern: '/direct/[slug]',
+        load: directLoad,
+      }),
+    ]);
+  });
+
+  test('fails closed when the private hot route shape drifts', async () => {
+    const plugin = aeoRuntimeConfigPlugin(
+      () => ({ command: 'dev' }),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      () => ({
+        mode: 'hot',
+        routes: [],
+        projectRoot: '/project',
+        pagesGlob: '/src/pages/**/*',
+      }),
+    );
+    const source = plugin.load(`\0${DYNAMIC_ROUTES_ID}`);
+    const missingWrapper = await loadGeneratedHotModule(source, [{ candidateRoute: {} }], {});
+    await expect(missingWrapper.list()).rejects.toThrow('astro-aeo-hot-routes-unavailable');
+
+    const missingPrerender = await loadGeneratedHotModule(source, [{
+      type: 'page', origin: 'project', pathname: undefined,
+      component: '/src/pages/drift/[slug].astro', route: '/drift/[slug]',
+      params: ['slug'], segments: [[{ content: 'slug', dynamic: true, spread: false }]],
+    }], { '/src/pages/drift/[slug].astro': async () => ({}) });
+    await expect(missingPrerender.list()).rejects.toThrow('astro-aeo-hot-routes-unavailable');
+
+    const missingModule = await loadGeneratedHotModule(source, [{
+      type: 'page', origin: 'project', pathname: undefined, prerender: true,
+      component: '/src/pages/unmapped/[slug].astro', route: '/unmapped/[slug]',
+      params: ['slug'], segments: [[{ content: 'slug', dynamic: true, spread: false }]],
+    }], {});
+    await expect(missingModule.list()).rejects.toThrow('astro-aeo-hot-routes-unavailable');
+  });
+
+  test('warns once when hot discovery encounters an uncataloged on-demand route', async () => {
+    const plugin = aeoRuntimeConfigPlugin(
+      () => ({ command: 'dev' }),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      () => ({
+        mode: 'hot',
+        routes: [],
+        projectRoot: '/project',
+        pagesGlob: '/src/pages/**/*',
+        warnOnDemand: true,
+      }),
+    );
+    const generated = await loadGeneratedHotModule(
+      plugin.load(`\0${DYNAMIC_ROUTES_ID}`),
+      [{
+        type: 'page', origin: 'project', pathname: undefined, prerender: false,
+        component: '/src/pages/live/[slug].astro', route: '/live/[slug]',
+        params: ['slug'], segments: [[{ content: 'slug', dynamic: true, spread: false }]],
+      }],
+      { '/src/pages/live/[slug].astro': async () => ({}) },
+    );
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await generated.list()).toEqual([]);
+      expect(await generated.list()).toEqual([]);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('on-demand dynamic page routes'));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('escapes startup route mechanics as generated JavaScript data', () => {
+    const plugin = aeoRuntimeConfigPlugin(
+      () => ({}),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      () => ({
+        mode: 'startup',
+        routes: [{
+          entrypoint: 'src/pages/a"b/[slug].astro',
+          specifier: '/project/src/pages/a"b/[slug].astro',
+          pattern: '/a"b/[slug]',
+          params: ['slug'],
+          segments: [[{ content: 'a"b', dynamic: false, spread: false }]],
+        }],
+      }),
+    );
+    const routes = plugin.load(`\0${DYNAMIC_ROUTES_ID}`);
+    expect(routes).toContain('a\\"b');
+    expect(() => new Function(routes.replace('export { list };', ''))).not.toThrow();
+  });
+
+  test('keeps the dynamic module unreachable when discovery is disabled', () => {
+    const plugin = aeoRuntimeConfigPlugin(() => ({ command: 'build' }));
+    const runtime = plugin.load(`\0${RUNTIME_CONFIG_ID}`);
+    const routes = plugin.load(`\0${DYNAMIC_ROUTES_ID}`);
+    expect(runtime).toContain('export const DYNAMIC_ROUTE_SOURCE = null');
+    expect(runtime).not.toContain('import("astro-aeo:dynamic-routes")');
+    expect(routes).not.toContain(DEVELOPMENT_DYNAMIC_ROUTE_LOADER_SENTINEL);
   });
 });

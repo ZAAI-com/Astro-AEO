@@ -84,7 +84,25 @@ describe('dev server AEO endpoints', () => {
     expect(r.status).toBe(200);
     const body = await r.text();
     expect(body).toContain('## Home');
-    expect(body).toContain('dev preview');
+    expect(body).toContain('development preview');
+  });
+
+  test('automatically enumerates prerendered dynamic routes in aggregate corpora', async () => {
+    const llms = await (await fetch(`${BASE}/llms.txt`)).text();
+    expect(llms).toContain('/dynamic/alpha.md');
+    expect(llms).toContain('/archive/2026/launch.md');
+    expect(llms).toContain('/paged/2.md');
+    const full = await (await fetch(`${BASE}/llms-full.txt`)).text();
+    expect(full).toContain('Body for the alpha dynamic route.');
+    expect(full).toContain('Nested archive route body.');
+    expect(full).toContain('Items: three.');
+  });
+
+  test('serves a direct dynamic Markdown companion without building the inventory', async () => {
+    const response = await fetch(`${BASE}/dynamic/alpha.md`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/markdown');
+    expect(await response.text()).toContain('# Alpha Dynamic');
   });
 
   test('excluded pages are not served as .md nor listed in llms.txt', async () => {

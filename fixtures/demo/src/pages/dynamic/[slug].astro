@@ -1,0 +1,17 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+export function getStaticPaths() {
+  return [
+    { params: { slug: 'alpha' }, props: { label: 'Alpha' } },
+    { params: { slug: 'beta' }, props: { label: 'Beta' } },
+  ];
+}
+
+const { label } = Astro.props;
+---
+
+<Layout title={`${label} Dynamic | Demo Site`} description={`${label} dynamic fixture page.`}>
+  <h1>{label} Dynamic</h1>
+  <p>Body for the {label.toLowerCase()} dynamic route.</p>
+</Layout>

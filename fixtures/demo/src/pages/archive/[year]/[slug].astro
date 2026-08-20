@@ -1,0 +1,17 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+
+export function getStaticPaths() {
+  return [{
+    params: { year: '2026', slug: 'launch' },
+    props: { title: 'Archive Launch' },
+  }];
+}
+
+const { title } = Astro.props;
+---
+
+<Layout title={`${title} | Demo Site`} description="Nested dynamic fixture page.">
+  <h1>{title}</h1>
+  <p>Nested archive route body.</p>
+</Layout>

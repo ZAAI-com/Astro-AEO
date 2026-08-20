@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
 import { resolveConfig } from '../config.js';
 import {
+  buildRuntimePageInventory,
   collectConcurrently,
   enrichRuntimePageGraph,
   pageFromHtml,
@@ -993,6 +994,7 @@ describe('serveMarkdown', () => {
 
   test('passes the effective request site to catalogs with a bounded last-origin cache', async () => {
     const requestRuntime = runtime([], 50);
+    requestRuntime.command = 'preview';
     requestRuntime.site.siteUrl = '';
     const listPages = vi.fn(({ siteUrl }) => [{
       pathname: '/dynamic',
@@ -1027,6 +1029,7 @@ describe('serveMarkdown', () => {
 
   test('uses one stable catalog cache entry when the site is configured', async () => {
     const requestRuntime = runtime([], 50);
+    requestRuntime.command = 'preview';
     const listPages = vi.fn(() => [{ pathname: '/dynamic', markdown: '# Dynamic' }]);
     const loaders = [catalogLoader({ listPages })];
 
@@ -1074,6 +1077,7 @@ describe('serveMarkdown', () => {
 
   test('caches a rejected runtime catalog loader and warns once', async () => {
     const requestRuntime = runtime();
+    requestRuntime.command = 'preview';
     const load = vi.fn(async () => {
       throw new Error('SECRET runtime-only failure');
     });
@@ -1097,6 +1101,95 @@ describe('serveMarkdown', () => {
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain('./runtime-broken.js');
     expect(warnings[0]).not.toContain('SECRET');
+  });
+
+  test('re-evaluates runtime catalogs during development', async () => {
+    const requestRuntime = runtime();
+    let revision = 0;
+    const listPages = vi.fn(() => [{
+      pathname: '/dynamic',
+      markdown: `# Revision ${++revision}`,
+    }]);
+    const loaders = [catalogLoader({ listPages })];
+
+    const first = await serveLlmsIndex('llms-full', requestRuntime, async () => loaded(), {
+      catalogLoaders: loaders,
+    });
+    const second = await serveLlmsIndex('llms-full', requestRuntime, async () => loaded(), {
+      catalogLoaders: loaders,
+    });
+
+    expect(first).toContain('Revision 1');
+    expect(second).toContain('Revision 2');
+    expect(listPages).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('runtime page inventory', () => {
+  test('merges static, automatic, and catalog pages with catalog precedence', async () => {
+    const requestRuntime = runtime(['/static', '/products/catalog'], 10);
+    const dynamicRouteSource = {
+      mode: 'startup',
+      load: async () => ({
+        list: () => [{
+          entrypoint: 'src/pages/products/[slug].astro',
+          pattern: '/products/[slug]',
+          params: ['slug'],
+          segments: [
+            [{ content: 'products', dynamic: false, spread: false }],
+            [{ content: 'slug', dynamic: true, spread: false }],
+          ],
+          load: async () => ({
+            getStaticPaths: () => [
+              { params: { slug: 'automatic' } },
+              { params: { slug: 'catalog' } },
+              { params: { slug: 'why?' } },
+            ],
+          }),
+        }],
+      }),
+    };
+    const catalogLoaders = [catalogLoader({
+      listPages: () => [
+        { pathname: '/products/catalog', title: 'Catalog title', markdown: '# Catalog' },
+        { pathname: '/catalog-only', markdown: '# Only' },
+      ],
+    })];
+
+    const inventory = await buildRuntimePageInventory(requestRuntime, {
+      catalogLoaders,
+      dynamicRouteSource,
+    });
+
+    expect(inventory.targets.map((target) => target.pathname)).toEqual([
+      '/static',
+      '/products/catalog',
+      '/products/automatic',
+      '/products/why%3F',
+      '/catalog-only',
+    ]);
+    expect(inventory.targets[1].descriptor).toMatchObject({ title: 'Catalog title' });
+    expect(inventory.targets[3].publicPathname).toBe('/products/why%3F');
+  });
+
+  test('enforces the page limit after cross-source deduplication', async () => {
+    const requestRuntime = runtime(['/same'], 1);
+    const dynamicRouteSource = {
+      mode: 'startup',
+      load: async () => ({
+        list: () => [{
+          entrypoint: 'src/pages/[slug].astro',
+          pattern: '/[slug]',
+          params: ['slug'],
+          segments: [[{ content: 'slug', dynamic: true, spread: false }]],
+          load: async () => ({
+            getStaticPaths: () => [{ params: { slug: 'same' } }],
+          }),
+        }],
+      }),
+    };
+    const result = await buildRuntimePageInventory(requestRuntime, { dynamicRouteSource });
+    expect(result.targets).toHaveLength(1);
   });
 });
 
