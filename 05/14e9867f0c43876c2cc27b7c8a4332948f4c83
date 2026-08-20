@@ -1,0 +1,178 @@
+AGENTS.md
+  s_f32b528cf2c601::t_a33f3dfc65ab11 32-36,46-49,58-60,81-84
+src/core/match.test.js
+  s_f32b528cf2c601::t_12aaed1e1e909f 60-63
+  s_f32b528cf2c601::t_1ddfd593aab81e 54-59,64-65
+src/runtime/middleware-redirect.test.js
+  s_f32b528cf2c601::t_298f05e40c1e70 18
+src/integration-hooks.test.js
+  s_f32b528cf2c601::t_eeb712e3e51ebc 643-645
+  s_f32b528cf2c601::t_69b863d8574580 61,113,594-607
+  s_f32b528cf2c601::t_662de455f7c82e 64,73-76,133-135
+  s_f32b528cf2c601::t_9eb808336610a6 688-693
+  s_f32b528cf2c601::t_6ccfe29fdeeca2 521-528,531,533,537-539,542-544
+  s_f32b528cf2c601::t_4b84ff471cd6c5 546,548-582,586-593,608-642,646-687
+  s_f32b528cf2c601::t_531183b72c77e9 53-60,62-63,65-72,77-112,114-132,136-173
+  s_f32b528cf2c601::t_c7cc5ef9b5ddea 583-585
+  s_375525ae2a696f::t_35cf7bdbb5ce12 545,547
+src/index.js
+  s_f32b528cf2c601::t_2d3798f9077299 3,59,65-68,91-97,138-151,153-156,159,161-172,179-183,239,255,323-325,328-329,387-409,420-456,458,460-461,463,467-468,470,474,483
+  s_f32b528cf2c601::t_9eb808336610a6 386
+  s_f32b528cf2c601::t_bae1b23d8cc668 157-158
+  s_f32b528cf2c601::t_69b863d8574580 160,587-600
+  s_f32b528cf2c601::t_f1a4d071de2a10 152,578-586
+  s_f32b528cf2c601::t_8a0aa9da0f71f8 258-260
+  s_375525ae2a696f::t_9c405b0269b53f 601
+src/config.js
+  s_f32b528cf2c601::t_c87c4f1b6bbc3e 71,114,552-563,599-606
+src/runtime/middleware-plugin.test.js
+  s_f32b528cf2c601::t_298f05e40c1e70 42
+fixtures/demo/astro.config.mjs
+  s_f32b528cf2c601::t_16e7fc680251a9 20-25
+test/adapters/build.test.js
+  s_f32b528cf2c601::t_8199da11065f00 13,26
+  s_f32b528cf2c601::t_c0eb7b1e8ce009 17-25,27-30,78-87
+  s_f32b528cf2c601::t_83d32f0b714057 88
+src/virtual/plugin.js
+  s_f32b528cf2c601::t_e4831f66e3100d 5,8-25,27,36,46,53,55,60-62,95-98,120,129-141,143-147,149-150,152-153,155-159,161-162,174,189-199,204,210-212,216,219-221,224-226,245-252
+  s_f32b528cf2c601::t_721955d5f06d81 54,59
+  s_f32b528cf2c601::t_bae1b23d8cc668 26,154,160,163,173,176-188,203,206-209,213-215,217-218
+  s_f32b528cf2c601::t_4ce18551c69b3d 165-172,201
+  s_f32b528cf2c601::t_dd2f633671824d 202,205
+  s_f32b528cf2c601::t_e4c48d93a3d28b 175,223
+  s_f32b528cf2c601::t_8199da11065f00 6-7,142,148,151,164,200,227-244
+  s_f32b528cf2c601::t_5d59745d94a3b9 222
+src/runtime/middleware-project-routes.test.js
+  s_f32b528cf2c601::t_298f05e40c1e70 16
+scripts/schema-definition.mjs
+  s_f32b528cf2c601::t_c87c4f1b6bbc3e 339-347
+src/runtime/middleware-schema-corpus.test.js
+  s_f32b528cf2c601::t_298f05e40c1e70 25
+fixtures/types-consumer/consumer.ts
+  s_f32b528cf2c601::t_f633314adfc33f 310-311,347-349,784-785
+.github/workflows/W1-Test.yml
+  s_f32b528cf2c601::t_6283bec60e8bbf 45-46
+  s_f32b528cf2c601::t_5a8fe70b5a2726 49
+src/page.d.ts
+  s_f32b528cf2c601::t_a33f3dfc65ab11 92-98
+fixtures/demo/src/pages/empty/[slug].astro
+  s_f32b528cf2c601::t_16e7fc680251a9 2-6,9-11
+src/runtime/middleware-limit.test.js
+  s_f32b528cf2c601::t_298f05e40c1e70 17
+src/runtime/middleware.js
+  s_f32b528cf2c601::t_75ac84269fcdf8 6,35,50,57,197-226,252,261,263-265,290,301-302,304-306,487,494-499,501
+  s_f32b528cf2c601::t_1ddfd593aab81e 117,1117,1285-1290
+  s_f32b528cf2c601::t_d7731a9edfea03 1042-1043
+src/schema-definition.test.js
+  s_f32b528cf2c601::t_f633314adfc33f 27-43
+src/index.e2e.test.js
+  s_f32b528cf2c601::t_45b1e98f0c15c6 91-92
+  s_f32b528cf2c601::t_bdd5146504bc8e 2,23,27-28
+  s_f32b528cf2c601::t_16e7fc680251a9 10,25,68-90,93-99
+  s_f32b528cf2c601::t_9b1e19d9d32179 100-101
+README.md
+  s_f32b528cf2c601::t_e2c638fd9bbcf9 437-438
+  s_f32b528cf2c601::t_a33f3dfc65ab11 108-109,413-436,439-446,475,498-500
+fixtures/demo/src/pages/archive/[year]/[slug].astro
+  s_f32b528cf2c601::t_16e7fc680251a9 1-17
+fixtures/demo/src/pages/paged/[...page].astro
+  s_f32b528cf2c601::t_16e7fc680251a9 1-14
+src/build/catalogs.js
+  s_f32b528cf2c601::t_a33f3dfc65ab11 132-135
+src/index.d.ts
+  s_f32b528cf2c601::t_c87c4f1b6bbc3e 799-800,803-806,811-813,815
+  s_f32b528cf2c601::t_a33f3dfc65ab11 801-802,807-810,814,816-818
+src/runtime/serve.test.js
+  s_f32b528cf2c601::t_be0b223638b1d1 4,997,1032,1080,1105-1193
+src/virtual/plugin.test.js
+  s_f32b528cf2c601::t_8199da11065f00 4,218,241,397,400
+  s_f32b528cf2c601::t_9711baed93a40e 1,10-16,20-21,26-35,247-284,287-316,318-323,332-360,363-367
+  s_f32b528cf2c601::t_5d59745d94a3b9 325-331
+  s_f32b528cf2c601::t_4118911fffc51a 2-3,5-7,40,52,187-217,219-240,243-246,368-390,392-396,398-399,401
+  s_f32b528cf2c601::t_4ce18551c69b3d 17-19,22-25,242,286,317,324,361-362
+  s_f32b528cf2c601::t_8ef72f4ee67531 285,391
+schema/astro-aeo.schema.json
+  s_f32b528cf2c601::t_ab2a7352a4602b 1
+fixtures/demo/src/pages/dynamic/[slug].astro
+  s_f32b528cf2c601::t_16e7fc680251a9 1-17
+src/runtime/middleware-corpus-auth.test.js
+  s_f32b528cf2c601::t_298f05e40c1e70 14
+src/runtime/config.js
+  s_f32b528cf2c601::t_0b1515c632f3e2 31-33
+  s_f32b528cf2c601::t_4e0551a225b24a 15
+CHANGELOG.md
+  s_f32b528cf2c601::t_e20f659cb456d4 22-25,41-46
+  s_f32b528cf2c601::t_e2c638fd9bbcf9 150
+vitest.dev.config.js
+  s_f32b528cf2c601::t_6283bec60e8bbf 7-8
+src/runtime/serve.js
+  s_f32b528cf2c601::t_7e1edbe651bd97 31,60-61,484,489-493,630,654,660-664,781,795-846,1053
+  s_f32b528cf2c601::t_1a2770757881e8 847,1054-1067
+  s_f32b528cf2c601::t_63ca08073d9a5a 848
+src/config.test.js
+  s_f32b528cf2c601::t_f633314adfc33f 9,313-325
+  s_be6b0014efe892::t_aff0fb934ad9cc 326-327
+src/runtime/dynamic-routes.test.js
+  s_f32b528cf2c601::t_e9b3423022dc47 275-299
+  s_f32b528cf2c601::t_354d1f41fe74fe 1-89,91-95,102-226,229-274,300-306
+  s_f32b528cf2c601::t_9ca2677cc1754c 90,96-101,227-228
+src/runtime/dynamic-routes.js
+  s_f32b528cf2c601::t_75293d319a5819 251-254,284
+  s_f32b528cf2c601::t_68df6030dc0b22 1-73,81-83,85-117,123-125,127-250,255-283,285-342,349-364,368-383,399-420,422-477
+  s_f32b528cf2c601::t_e9b3423022dc47 74-80,84,118-122,126
+  s_f32b528cf2c601::t_77838ecd2a84a0 392
+  s_f32b528cf2c601::t_9ca2677cc1754c 343-348,365-367,384-391,393-398,421
+src/runtime/middleware-head.test.js
+  s_f32b528cf2c601::t_298f05e40c1e70 21
+src/runtime/middleware.dev.test.js
+  s_f32b528cf2c601::t_cff8f232101ccd 87-105
+src/hooks/build-done.js
+  s_f32b528cf2c601::t_e2c638fd9bbcf9 99-101
+src/runtime/dynamic-routes.dev.test.js
+  s_f32b528cf2c601::t_7fccf924293af2 267-269,272
+  s_f32b528cf2c601::t_6d68ee2e958961 36,273
+  s_f32b528cf2c601::t_1ddfd593aab81e 216-218
+  s_f32b528cf2c601::t_4c09c7a7037f85 108-114,174,280-289
+  s_f32b528cf2c601::t_ac14e43e9f66fa 172-173,179
+  s_f32b528cf2c601::t_5c6ea5adf0a965 91-95
+  s_f32b528cf2c601::t_6283bec60e8bbf 1-35,37-52,54-90,96-107,115-129,131-171,175-178,180-203,205-208,210-215,219-223,225-230,232-266,274,279,290-292
+  s_f32b528cf2c601::t_15b249700c2af4 53,204,209,224
+  s_f32b528cf2c601::t_c39f81cf35c335 130
+  s_f32b528cf2c601::t_f39db1d822b440 231,270-271,275-278
+src/runtime/middleware-dynamic-routes.test.js
+  s_f32b528cf2c601::t_74a6a9eba9be01 1-124
+src/core/match.js
+  s_f32b528cf2c601::t_1ddfd593aab81e 52,55,57,61-63,66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "0514e9867f0c43876c2cc27b7c8a4332948f4c83",
+  "prompts": {},
+  "sessions": {
+    "s_375525ae2a696f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a01968-90b3-7c63-94f0-74969aa23c20",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_be6b0014efe892": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a01bbf-88ef-7f61-9ef8-133b99b22724",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_f32b528cf2c601": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a01b97-9a57-7632-b96a-4b8f61390022",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
