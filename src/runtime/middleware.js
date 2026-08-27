@@ -94,9 +94,10 @@ export const onRequest = async (context, next) => {
     });
   }
 
+  const requestHeadersAvailable = !context.isPrerendered;
   const method = context.request.method;
   if (method !== 'GET' && method !== 'HEAD') {
-    return redactAeoHeadMarkers(await next(), context.request);
+    return redactAeoHeadMarkers(await next(), context.request, requestHeadersAvailable);
   }
   const originalRequest = context.request;
   const originalOrigin = context.url.origin;
@@ -111,7 +112,7 @@ export const onRequest = async (context, next) => {
     decoded !== configuredBase &&
     !decoded.startsWith(`${configuredBase}/`)
   ) {
-    return redactAeoHeadMarkers(await next(), context.request);
+    return redactAeoHeadMarkers(await next(), context.request, requestHeadersAvailable);
   }
   const pathname = stripBase(decoded, RUNTIME.site.base);
   const encodedPathname = encodePathname(pathname);
@@ -293,7 +294,9 @@ export const onRequest = async (context, next) => {
         tokenizerLoader: RUNTIME_CORPUS_TOKENIZER_LOADER,
         origin: activeArtifactOrigin ?? context.url.origin,
       });
-      if (!planned) return redactAeoHeadMarkers(await next(), context.request);
+      if (!planned) {
+        return redactAeoHeadMarkers(await next(), context.request, requestHeadersAvailable);
+      }
       return textResponse({ body: planned.body, contentType: planned.contentType, request: context.request });
     } catch (error) {
       const limited = error instanceof RuntimeCorpusLimitError;
@@ -343,12 +346,13 @@ export const onRequest = async (context, next) => {
   const negotiation = RUNTIME.config.markdown.enabled
     ? RUNTIME.config.markdown.negotiation
     : 'off';
-  const wantsMarkdown =
-    negotiation !== 'off' && prefersMarkdown(context.request.headers.get('accept'));
+  const wantsMarkdown = requestHeadersAvailable &&
+    negotiation !== 'off' &&
+    prefersMarkdown(context.request.headers.get('accept'));
   const pagePath = normalizePath(pathname);
   const encodedPagePath = normalizePath(encodedPathname);
   const response = await next();
-  const conditionalRetry = response.status === 304;
+  const conditionalRetry = requestHeadersAvailable && response.status === 304;
   if (isNullBodyStatus(response.status) && !conditionalRetry) return response;
   if (!conditionalRetry) {
     if (!isHtmlResponse(response)) return response;
@@ -356,9 +360,11 @@ export const onRequest = async (context, next) => {
       return response;
     }
     if (response.status >= 300 && response.status < 400) {
-      return redactAeoHeadMarkers(response, context.request);
+      return redactAeoHeadMarkers(response, context.request, requestHeadersAvailable);
     }
-    if (!response.ok) return redactAeoHeadMarkers(response, context.request);
+    if (!response.ok) {
+      return redactAeoHeadMarkers(response, context.request, requestHeadersAvailable);
+    }
   }
 
   let decisionResponse = response;
@@ -368,6 +374,7 @@ export const onRequest = async (context, next) => {
       preserveQuery: true,
       rewritePathname: encodedPagePath,
       collect: false,
+      requestHeadersAvailable,
     })(encodedPagePath);
     if (probe === null || probe.html === null || !probe.response.ok) {
       cancelResponseBody(probe?.response);
@@ -389,7 +396,7 @@ export const onRequest = async (context, next) => {
   const eligible = RUNTIME.config.markdown.enabled &&
     isMarkdownEligible(pagePath, cleanHtml) &&
     descriptor?.directives?.generateMarkdown !== false;
-  const vary = negotiation !== 'off';
+  const vary = requestHeadersAvailable && negotiation !== 'off';
 
   if (wantsMarkdown && eligible && negotiation === 'redirect') {
     const headers = representationHeaders(decisionResponse, encodedPagePath, context, true);
@@ -474,6 +481,7 @@ export const onRequest = async (context, next) => {
   return htmlResponse(output, conditionalRetry ? decisionResponse : response, context.request, {
     vary,
     changed,
+    requestHeadersAvailable,
   });
 };
 
@@ -547,7 +555,7 @@ function isSemanticEligible(pathname, html) {
  * @param {string} html
  * @param {Response} source
  * @param {Request} request
- * @param {{ vary: boolean; changed: boolean }} options
+ * @param {{ vary: boolean; changed: boolean; requestHeadersAvailable: boolean }} options
  */
 async function htmlResponse(html, source, request, options) {
   const headers = new Headers(source.headers);
@@ -557,6 +565,7 @@ async function htmlResponse(html, source, request, options) {
     const etag = await etagFor(html);
     headers.set('etag', etag);
     if (
+      options.requestHeadersAvailable &&
       source.ok &&
       (request.method === 'GET' || request.method === 'HEAD') &&
       isNotModified(request, etag)
@@ -586,8 +595,9 @@ async function htmlResponse(html, source, request, options) {
  * not eligible for semantic enrichment. Opaque or encoded bytes stay intact.
  * @param {Response} response
  * @param {Request} request
+ * @param {boolean} requestHeadersAvailable
  */
-async function redactAeoHeadMarkers(response, request) {
+async function redactAeoHeadMarkers(response, request, requestHeadersAvailable) {
   if (
     responseBodyForbidden(request, response.status) ||
     !isUtf8HtmlResponse(response) ||
@@ -604,7 +614,11 @@ async function redactAeoHeadMarkers(response, request) {
   }
   const output = stripAeoHeadMarkers(html);
   if (output === html) return response;
-  return htmlResponse(output, response, request, { vary: false, changed: true });
+  return htmlResponse(output, response, request, {
+    vary: false,
+    changed: true,
+    requestHeadersAvailable,
+  });
 }
 
 /**
@@ -697,7 +711,7 @@ function configuredPathKey(pathname) {
 /**
  * @param {import('astro').APIContext} context
  * @param {import('astro').MiddlewareNext} next
- * @param {{ preserveQuery?: boolean; sanitizeCredentials?: boolean; rewritePathname?: string; collect?: boolean }} [opts]
+ * @param {{ preserveQuery?: boolean; sanitizeCredentials?: boolean; rewritePathname?: string; collect?: boolean; requestHeadersAvailable?: boolean }} [opts]
  * @returns {import('./serve.js').HtmlFetcher}
  */
 function htmlFetcher(context, next, opts = {}) {
@@ -713,7 +727,7 @@ function htmlFetcher(context, next, opts = {}) {
     const target = `${basePrefix(RUNTIME.site.base)}${withTrailingSlash(sourcePathname)}${opts.preserveQuery ? search : ''}`;
     try {
       const targetUrl = new URL(target, origin);
-      const headers = opts.sanitizeCredentials
+      const headers = opts.sanitizeCredentials || opts.requestHeadersAvailable === false
         ? new Headers()
         : new Headers(sourceRequest.headers);
       sanitizeSourceHeaders(headers);
@@ -821,7 +835,8 @@ function htmlFetcher(context, next, opts = {}) {
  */
 async function renderFreshCorpusState(outerState, request, collect) {
   const pipeline = outerState.pipeline;
-  if (!pipeline || typeof outerState.constructor !== 'function') return null;
+  const manifest = outerState.manifest;
+  if ((!pipeline && !manifest) || typeof outerState.constructor !== 'function') return null;
   const renderOptions = {
     addCookieHeader: false,
     clientAddress: undefined,
@@ -832,7 +847,13 @@ async function renderFreshCorpusState(outerState, request, collect) {
   };
   let state;
   try {
-    state = new outerState.constructor(pipeline, request, renderOptions);
+    state = pipeline
+      ? new outerState.constructor(pipeline, request, renderOptions)
+      : new outerState.constructor(manifest, request, renderOptions, {
+          streaming: outerState.streaming,
+          renderError: outerState.renderError,
+          logRequest: outerState.logRequest,
+        });
     await provideFreshSession(outerState, state);
     await provideFreshCache(outerState, state);
   } catch {
@@ -870,9 +891,20 @@ async function provideFreshCache(outerState, freshState) {
   const outerCache = outerState.resolve('cache');
   const Cache = outerCache?.constructor;
   if (typeof Cache !== 'function') return;
-  const provider = outerCache.enabled
-    ? await outerState.pipeline.getCacheProvider?.()
-    : outerState.pipeline.logger;
+  let provider;
+  if (outerCache.enabled) {
+    if (outerState.pipeline) {
+      provider = await outerState.pipeline.getCacheProvider?.();
+    } else {
+      const providerModule = await outerState.manifest?.cacheProvider?.();
+      const createProvider = providerModule?.default;
+      provider = typeof createProvider === 'function'
+        ? await createProvider(outerState.manifest.cacheConfig?.options)
+        : undefined;
+    }
+  } else {
+    provider = outerState.pipeline?.logger ?? outerState.logger;
+  }
   freshState.provide('cache', { create: () => new Cache(provider) });
 }
 
@@ -884,14 +916,18 @@ async function provideFreshCache(outerState, freshState) {
  * @param {any} freshState
  */
 async function provideFreshSession(outerState, freshState) {
-  const config = outerState.pipeline?.manifest?.sessionConfig;
+  const pipeline = outerState.pipeline;
+  const manifest = outerState.manifest;
+  const config = pipeline?.manifest?.sessionConfig ?? manifest?.sessionConfig;
   if (!config) return;
   if (typeof outerState.resolve !== 'function' || typeof freshState.provide !== 'function') {
     throw new Error('Astro session isolation is unavailable');
   }
   const outerSession = outerState.resolve('session');
   const Session = outerSession?.constructor;
-  const driverFactory = await outerState.pipeline.getSessionDriver?.();
+  const driverFactory = pipeline
+    ? await pipeline.getSessionDriver?.()
+    : (await manifest.sessionDriver?.())?.default;
   if (typeof Session !== 'function' || !driverFactory) {
     throw new Error('Astro session isolation is unavailable');
   }
@@ -899,9 +935,10 @@ async function provideFreshSession(outerState, freshState) {
     create: () => new Session({
       cookies: freshState.cookies,
       config,
-      runtimeMode: outerState.pipeline.runtimeMode,
+      runtimeMode: pipeline?.runtimeMode ?? 'production',
       driverFactory,
       mockStorage: null,
+      logger: freshState.logger ?? outerState.logger ?? pipeline?.logger,
     }),
   });
 }
@@ -981,7 +1018,7 @@ function legacyPipelineFor(context) {
  */
 function disposableCorpusStateFor(context) {
   const state = /** @type {any} */ (context)[ASTRO_FETCH_STATE];
-  return state?.pipeline &&
+  return (state?.pipeline || state?.manifest) &&
     typeof state.constructor === 'function' &&
     typeof state.constructor.prototype?.rewrite === 'function'
     ? state

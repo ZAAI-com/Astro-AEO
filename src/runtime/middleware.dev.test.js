@@ -19,19 +19,84 @@ const BASE = `http://127.0.0.1:${PORT}`;
 
 /** @type {import('node:child_process').ChildProcess} */
 let server;
+let serverOutput = '';
+let serverOutputRevision = 0;
+/** @type {Error | undefined} */
+let serverStartError;
+
+/** @param {string | Buffer} chunk */
+function captureServerOutput(chunk) {
+  serverOutput += chunk.toString();
+  serverOutputRevision += 1;
+}
+
+function serverDiagnostics() {
+  const output = serverOutput.trimEnd();
+  return output
+    ? `\nDev server output:\n${output}`
+    : '\nThe dev server produced no output.';
+}
+
+function assertServerRunning(label) {
+  if (serverStartError) {
+    throw new Error(`${label}: ${serverStartError.message}${serverDiagnostics()}`);
+  }
+  if (server.exitCode !== null || server.signalCode !== null) {
+    throw new Error(
+      `${label}: dev server exited with code ${server.exitCode ?? 'null'} and signal ${server.signalCode ?? 'null'}.${serverDiagnostics()}`,
+    );
+  }
+}
 
 async function waitForReady(timeoutMs = 30000) {
   const start = Date.now();
+  let lastFailure = 'no HTTP response received';
   while (Date.now() - start < timeoutMs) {
+    assertServerRunning('Dev server failed before becoming ready');
     try {
       const r = await fetch(`${BASE}/`);
+      await r.body?.cancel();
       if (r.ok) return;
-    } catch {
-      // not up yet
+      lastFailure = `last readiness response was HTTP ${r.status}`;
+    } catch (error) {
+      lastFailure = error instanceof Error ? error.message : String(error);
     }
     await new Promise((res) => setTimeout(res, 300));
   }
-  throw new Error('dev server did not become ready in time');
+  throw new Error(
+    `Dev server did not become ready in ${timeoutMs}ms: ${lastFailure}.${serverDiagnostics()}`,
+  );
+}
+
+/** @param {RegExp} pattern @param {number} startAt @param {number} [timeoutMs] */
+async function waitForServerOutput(pattern, startAt, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    assertServerRunning(`Dev server stopped while waiting for output matching ${pattern}`);
+    const output = serverOutput.slice(startAt);
+    if (pattern.test(output)) return output;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(
+    `Timed out waiting for dev server output matching ${pattern}.${serverDiagnostics()}`,
+  );
+}
+
+async function waitForServerOutputToDrain(quietMs = 200, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  let revision = serverOutputRevision;
+  let quietSince = Date.now();
+  while (Date.now() < deadline) {
+    assertServerRunning('Dev server stopped while its output was draining');
+    if (serverOutputRevision !== revision) {
+      revision = serverOutputRevision;
+      quietSince = Date.now();
+    } else if (Date.now() - quietSince >= quietMs) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(`Dev server output did not drain in ${timeoutMs}ms.${serverDiagnostics()}`);
 }
 
 beforeAll(async () => {
@@ -47,8 +112,15 @@ beforeAll(async () => {
     'node',
     // --host 127.0.0.1 pins the dev server to IPv4 loopback so it matches BASE.
     [astroBin, 'dev', '--root', DEMO, '--host', '127.0.0.1', '--port', String(PORT)],
-    { cwd: REPO, stdio: 'ignore', env: childEnv },
+    { cwd: REPO, stdio: ['ignore', 'pipe', 'pipe'], env: childEnv },
   );
+  server.stdout?.setEncoding('utf8');
+  server.stderr?.setEncoding('utf8');
+  server.stdout?.on('data', captureServerOutput);
+  server.stderr?.on('data', captureServerOutput);
+  server.on('error', (error) => {
+    serverStartError = error;
+  });
   await waitForReady();
 });
 
@@ -147,14 +219,28 @@ describe('dev server AEO endpoints', () => {
 });
 
 describe('request-time contract', () => {
-  test('a prerendered route always serves HTML, whatever the client asks for', async () => {
+  test('a prerendered route enriches HTML without reading request headers', async () => {
     // Astro blanks request headers for prerendered routes (core/request.js), on
     // purpose: those pages are static files in production, so honouring an Accept
     // header would work in dev and silently stop working once deployed. Content
     // negotiation is therefore an on-demand-route feature, and the demo is static.
     // The negotiation predicate itself is unit-tested in runtime/negotiate.test.js.
+    const outputStart = serverOutput.length;
     const r = await fetch(`${BASE}/about/`, { headers: { accept: 'text/markdown' } });
+    const body = await r.text();
+    await waitForServerOutput(/\[200\]\s+\/about\//, outputStart);
+    await waitForServerOutputToDrain();
+
+    expect(r.status).toBe(200);
     expect(r.headers.get('content-type')).toContain('text/html');
+    const vary = r.headers.get('vary')
+      ?.split(',')
+      .map((value) => value.trim().toLowerCase()) ?? [];
+    expect(vary).not.toContain('accept');
+    expect(body).toContain('<link rel="alternate" type="text/markdown" href="/about.md">');
+    expect(body).toContain('data-astro-aeo-graph');
+    expect(body).toContain('"@type":"BreadcrumbList"');
+    expect(serverOutput.slice(outputStart)).not.toContain('Astro.request.headers');
   });
 
   test('a .md response carries an ETag that satisfies a conditional request', async () => {

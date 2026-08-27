@@ -279,20 +279,24 @@ describe('runtime corpus subrequests', () => {
     expect(await response.text()).toContain('# Page');
   });
 
-  test('uses a fresh Astro request state for every corpus page', async () => {
+  test.each([
+    ['Astro 6.3-7.1 pipeline', 'pipeline'],
+    ['Astro 7.2 manifest', 'manifest'],
+  ])('uses a fresh %s request state for every corpus page', async (_label, ownerKey) => {
     const fetchStateSymbol = Symbol.for('astro.fetchState');
     const instances = [];
-    const pipeline = { manifest: {} };
+    const owner = {};
     class FakeCookies {
       constructor(request) { this.request = request; }
     }
     class FakeState {
-      constructor(statePipeline, request, options = {}) {
-        this.pipeline = statePipeline;
+      constructor(stateOwner, request, options = {}, hooks = {}) {
+        this[ownerKey] = stateOwner;
         this.request = request;
         this.renderOptions = options;
         this.locals = options.locals ?? {};
         this.cookies = new FakeCookies(request);
+        this.hooks = hooks;
         instances.push(this);
       }
       async rewrite(request) {
@@ -317,9 +321,12 @@ describe('runtime corpus subrequests', () => {
     }
 
     const url = new URL('https://example.test/llms-full.txt');
-    const outer = new FakeState(pipeline, new Request(url), {
+    const outer = new FakeState(owner, new Request(url), {
       locals: { callerUser: 'private' },
     });
+    outer.streaming = false;
+    outer.renderError = vi.fn();
+    outer.logRequest = vi.fn();
     const context = {
       request: outer.request,
       url,
@@ -336,6 +343,14 @@ describe('runtime corpus subrequests', () => {
     expect(instances).toHaveLength(3);
     expect(instances[1]).not.toBe(instances[2]);
     expect(outer.locals).toEqual({ callerUser: 'private' });
+    expect(instances[1][ownerKey]).toBe(owner);
+    expect(instances[1].hooks).toEqual(ownerKey === 'manifest'
+      ? {
+          streaming: false,
+          renderError: outer.renderError,
+          logRequest: outer.logRequest,
+        }
+      : {});
   });
 
   test.each([

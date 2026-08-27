@@ -91,6 +91,8 @@ const runtimes = [
     base: 'http://127.0.0.1:4572/docs',
     available: executableAvailable(process.execPath),
     start() {
+      // Keep Astro 7.2's agent-aware preview command in the foreground so the
+      // test owns the server process and can stop it during teardown.
       return startProcess(process.execPath, [
         ASTRO_BIN,
         'preview',
@@ -100,7 +102,7 @@ const runtimes = [
         '127.0.0.1',
         '--port',
         '4572',
-      ]);
+      ], { env: { ASTRO_PREVIEW_BACKGROUND: '1' } });
     },
   },
   {
