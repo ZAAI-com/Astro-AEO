@@ -1,0 +1,19 @@
+.gitignore
+  s_6b7494a811aa94::t_f560f56493c668 27-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "e2fa1a076e2981964d44702d9b2b0021916dea1e",
+  "prompts": {},
+  "sessions": {
+    "s_6b7494a811aa94": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "01521f05-112e-488f-8fea-df7335dfe716",
+        "model": "unknown"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
