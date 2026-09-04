@@ -9,8 +9,10 @@ export function compareCodeUnits(/** @type {string} */ left, /** @type {string} 
 }
 
 /**
- * Produce compact canonical JSON with sorted object keys and semantically
- * ordered arrays left untouched.
+ * Produce compact canonical JSON with recursively sorted object keys.
+ * Array order is left untouched. Integer-like object keys follow
+ * `JSON.stringify` ordering (spec-deterministic across runtimes), which keeps
+ * IndexNow digests stable; do not replace this with a pure lexicographic sort.
  * @param {unknown} value
  */
 export function canonicalJson(value) {
@@ -52,15 +54,15 @@ export function normalizeCorpusManifest(manifest) {
     origin: entry.origin,
     id: entry.id,
     canonicalUrl: entry.canonicalUrl,
-    markdownUrl: entry.markdownUrl,
+    markdownUrl: entry.markdownUrl ?? null,
     locale: entry.locale ?? null,
     language: entry.language ?? null,
     section: entry.section,
-    tokenCount: entry.tokenCount,
-    hash: entry.hash,
+    tokenCount: entry.tokenCount ?? null,
+    hash: entry.hash ?? null,
     sourceStrategy: entry.sourceStrategy,
     ...(entry.modified === undefined ? {} : { modified: entry.modified }),
-    chunks: [...entry.chunks].sort(compareCodeUnits),
+    chunks: [...entry.chunks].sort(compareChunkReferences),
   })).sort(comparePageRecords);
 
   const artifacts = manifest.artifacts.map((/** @type {any} */ entry) => ({
@@ -99,20 +101,22 @@ export function serializeCorpusManifest(manifest) {
 /**
  * Build a public manifest from records that still carry their source bytes.
  * `markdown` and `contents` are consumed for hashes and never returned.
+ * Pages without a published companion pass `markdown: null` and receive a
+ * null hash / tokenCount / markdownUrl.
  *
  * @param {{
  *   origin: string;
  *   base: string;
  *   tokenizer: { name: string; version: string; approximate: boolean };
  *   locales: any[];
- *   pages: Array<any & { markdown: string }>;
+ *   pages: Array<any & { markdown: string | null }>;
  *   artifacts: Array<any & { contents: string | Uint8Array }>;
  * }} input
  */
 export async function createCorpusManifest(input) {
   const pages = await Promise.all(input.pages.map(async ({ markdown, ...entry }) => ({
     ...entry,
-    hash: await sha256Digest(normalizePublishedText(markdown)),
+    hash: markdown == null ? null : await sha256Digest(normalizePublishedText(markdown)),
   })));
   const artifacts = await Promise.all(input.artifacts.map(async ({ contents, ...entry }) => ({
     ...entry,
@@ -151,6 +155,17 @@ function compareArtifactRecords(left, right) {
     [left.origin, left.pathname, left.encoding, left.kind, left.locale ?? '', left.section ?? '', String(left.part ?? '')],
     [right.origin, right.pathname, right.encoding, right.kind, right.locale ?? '', right.section ?? '', String(right.part ?? '')],
   );
+}
+
+/** Sort chunk pathnames by path prefix, then by numeric part, then by spelling. */
+function compareChunkReferences(/** @type {string} */ left, /** @type {string} */ right) {
+  const leftMatch = /^(.*-)(\d+)(\.txt)$/u.exec(left);
+  const rightMatch = /^(.*-)(\d+)(\.txt)$/u.exec(right);
+  if (leftMatch && rightMatch && leftMatch[1] === rightMatch[1] && leftMatch[3] === rightMatch[3]) {
+    const byPart = Number(leftMatch[2]) - Number(rightMatch[2]);
+    if (byPart !== 0) return byPart < 0 ? -1 : 1;
+  }
+  return compareCodeUnits(left, right);
 }
 
 /** @param {string[]} left @param {string[]} right */

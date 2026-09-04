@@ -28,6 +28,8 @@ import { createPluginDispatcher } from './plugins/dispatcher.js';
 import { runtimePluginModules } from './plugins/runtime-modules.js';
 import { createSemanticPlugin } from './semantic/plugin.js';
 import { exactPathnameIdentity } from './core/artifact-path.js';
+import { absoluteUrl } from './core/page-model.js';
+import { chunkTopology } from './core/corpus-artifacts.js';
 import { createLocaleSnapshot } from './core/locale.js';
 import {
   preloadCorpusTokenizer,
@@ -101,6 +103,12 @@ export default function aeo(userConfig = {}) {
   const catalogDiagnostics = [];
   /** @type {import('./index.js').Diagnostic[]} */
   const rendererDiagnostics = [];
+  /** Live diagnostics bag passed to the artifact writer and sitemap finalizer. */
+  /** @type {import('./index.js').Diagnostic[]} */
+  let activeDiagnostics = [];
+  /** Absolute canonical URLs accepted by sitemap validation for runtime pages. */
+  /** @type {Set<string>} */
+  const runtimeCanonicalUrls = new Set();
   /** @type {{ module: string; specifier: string; namespace: any }[]} */
   let catalogModules = [];
   /** @type {import('./build/markdown-renderers.js').LoadedMarkdownRenderer[]} */
@@ -217,9 +225,14 @@ export default function aeo(userConfig = {}) {
           sitemapFinalizerIntegration(
             config,
             sitemapState,
-            () => ({ routePaths: resolvedRoutePaths, routeMatchers: resolvedRouteMatchers, publicDir }),
+            () => ({
+              routePaths: resolvedRoutePaths,
+              routeMatchers: resolvedRouteMatchers,
+              publicDir,
+              runtimeUrls: runtimeCanonicalUrls,
+            }),
             () => artifactWriter,
-            (diagnostic) => buildDiagnostics.push(diagnostic),
+            (diagnostic) => activeDiagnostics.push(diagnostic),
           ),
         );
         updateConfig({
@@ -325,6 +338,8 @@ export default function aeo(userConfig = {}) {
         hasPrerenderedCustom404 = false;
         artifactWriter = undefined;
         buildDiagnostics.length = 0;
+        activeDiagnostics = [];
+        runtimeCanonicalUrls.clear();
         /** @type {typeof initialDynamicRoutes} */
         const currentDynamicRoutes = [];
         for (const route of routes) {
@@ -482,6 +497,26 @@ export default function aeo(userConfig = {}) {
           ...buildDiagnostics,
           ...routeDiagnostics,
         ];
+        activeDiagnostics = diagnostics;
+        runtimeCanonicalUrls.clear();
+        if (siteUrl) {
+          for (const pathname of runtimePagePaths) {
+            try {
+              runtimeCanonicalUrls.add(absoluteUrl(siteUrl, base, pathname, trailingSlash));
+            } catch {
+              // Skip paths that cannot form a canonical absolute URL.
+            }
+          }
+          for (const page of options.pages ?? []) {
+            const pathname = typeof page?.pathname === 'string' ? page.pathname : null;
+            if (!pathname) continue;
+            try {
+              runtimeCanonicalUrls.add(absoluteUrl(siteUrl, base, pathname, trailingSlash));
+            } catch {
+              // Skip paths that cannot form a canonical absolute URL.
+            }
+          }
+        }
         artifactWriter = await onBuildDone(config, /** @type {any} */ (options), {
           siteUrl,
           base,
@@ -616,26 +651,53 @@ function injectRuntimeFallbackRoutes(config, injectRoute, pluginClaims = []) {
     });
   }
 
+  const mode = config.i18n.indexes;
+  const topology = chunkTopology(mode);
   const artifacts = new Set();
   if (config.discovery.robots.enabled) artifacts.add('/robots.txt');
   if (config.site.profile.enabled) artifacts.add('/.well-known/domain-profile.json');
-  if (config.corpus.index.enabled) artifacts.add('/llms.txt');
-  if (config.corpus.full.enabled) artifacts.add('/llms-full.txt');
+  if (config.corpus.index.enabled && mode !== 'locale') artifacts.add('/llms.txt');
+  if (config.corpus.full.enabled && mode !== 'locale') artifacts.add('/llms-full.txt');
+  if (config.corpus.small.enabled && mode !== 'locale') artifacts.add('/llms-small.txt');
+  if (config.corpus.manifest.enabled) artifacts.add('/llms/manifest.json');
   if (config.schema?.corpus.enabled) {
     artifacts.add(config.schema.corpus.graphPath);
     artifacts.add(config.schema.corpus.mapPath);
   }
   for (const claim of pluginClaims) artifacts.add(claim.pathname);
+
+  /** @type {string[]} */
+  const patterns = [];
   for (const pathname of artifacts) {
     // Astro decodes concrete request pathnames before applying its generated
     // route regex. Inject the decoded identity while retaining the canonical
     // encoded spelling everywhere that is public or persisted.
-    const pattern = exactPathnameIdentity(pathname, 'runtime artifact pathname').key
-      // Brackets are Astro's dynamic-route syntax. Its parser recognizes their
-      // encoded spelling as literal brackets while still decoding ordinary URL
-      // bytes before matching the generated regex.
-      .replace(/\[/g, '%5B')
-      .replace(/\]/g, '%5D');
+    patterns.push(
+      exactPathnameIdentity(pathname, 'runtime artifact pathname').key
+        // Brackets are Astro's dynamic-route syntax. Its parser recognizes their
+        // encoded spelling as literal brackets while still decoding ordinary URL
+        // bytes before matching the generated regex.
+        .replace(/\[/g, '%5B')
+        .replace(/\]/g, '%5D'),
+    );
+  }
+
+  if (mode === 'locale' || mode === 'both' || mode === 'auto') {
+    if (config.corpus.index.enabled) patterns.push('/[astroAeoLocale]/llms.txt');
+    if (config.corpus.full.enabled) patterns.push('/[astroAeoLocale]/llms-full.txt');
+    if (config.corpus.small.enabled) patterns.push('/[astroAeoLocale]/llms-small.txt');
+  }
+  if (config.corpus.chunks.enabled) {
+    if (topology.root) patterns.push('/llms/[astroAeoChunk].txt');
+    if (topology.locale) patterns.push('/[astroAeoLocale]/llms/[astroAeoChunk].txt');
+  }
+  if (mode === 'both') {
+    if (config.corpus.index.enabled) patterns.push('/llms-[astroAeoAlias].txt');
+    if (config.corpus.full.enabled) patterns.push('/llms-full-[astroAeoAlias].txt');
+    if (config.corpus.small.enabled) patterns.push('/llms-small-[astroAeoAlias].txt');
+  }
+
+  for (const pattern of patterns) {
     injectRoute({ pattern, entrypoint: FALLBACK_ENTRYPOINT, prerender: false });
   }
 }
@@ -692,7 +754,7 @@ function isRuntimeFallbackEntrypoint(entrypoint, projectRoot) {
 /**
  * @param {ReturnType<typeof resolveConfig>} config
  * @param {{ expected: boolean; siteUrl: string; base: string }} state
- * @param {() => { routePaths: Set<string>; routeMatchers: { pattern: RegExp; prerendered: boolean }[]; publicDir: URL | undefined }} collisionInputs
+ * @param {() => { routePaths: Set<string>; routeMatchers: { pattern: RegExp; prerendered: boolean }[]; publicDir: URL | undefined; runtimeUrls?: Iterable<string> }} collisionInputs
  * @param {() => ReturnType<typeof createArtifactWriter> | undefined} retainedWriter
  * @param {(diagnostic: import('./index.js').Diagnostic) => void} [onDiagnostic]
  * @returns {import('astro').AstroIntegration}

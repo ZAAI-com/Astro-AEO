@@ -43,12 +43,28 @@ export function scanMarkdownBlocks(markdown) {
       continue;
     }
 
+    if (
+      index + 1 < lines.length &&
+      lines[index].trim() !== '' &&
+      !isListItem(lines[index]) &&
+      isSetextUnderline(lines[index + 1])
+    ) {
+      index += 2;
+      blocks.push(block('heading', lines, start, index));
+      continue;
+    }
+
     index++;
     while (
       index < lines.length &&
       lines[index].trim() !== '' &&
       !isHeading(lines[index]) &&
-      !openingFence(lines[index])
+      !openingFence(lines[index]) &&
+      !(
+        index + 1 < lines.length &&
+        !isListItem(lines[index]) &&
+        isSetextUnderline(lines[index + 1])
+      )
     ) {
       index++;
     }
@@ -126,7 +142,9 @@ export function formatChunkPart(part) {
  * @param {{ locale?: string | null; sectionSlug: string; part: number }} input
  */
 export function chunkPathname(input) {
-  const prefix = input.locale ? `/${input.locale}/llms` : '/llms';
+  const prefix = input.locale
+    ? `/${encodeURIComponent(input.locale)}/llms`
+    : '/llms';
   return `${prefix}/${input.sectionSlug}-${formatChunkPart(input.part)}.txt`;
 }
 
@@ -143,6 +161,16 @@ function block(kind, lines, start, end) {
 /** @param {string} line */
 function isHeading(line) {
   return /^ {0,3}#{1,6}(?:[ \t]+|$)/.test(line);
+}
+
+/** @param {string} line */
+function isSetextUnderline(line) {
+  return /^ {0,3}(?:=+|-+)[ \t]*$/.test(line);
+}
+
+/** @param {string} line */
+function isListItem(line) {
+  return /^ {0,3}(?:[-+*]|\d{1,9}[.)])(?:[ \t]+|$)/.test(line);
 }
 
 /** @param {string} line */

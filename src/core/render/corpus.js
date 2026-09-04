@@ -76,7 +76,7 @@ export function renderGroupedLlmsFullTxt(locales, config, siteMeta) {
           canonicalUrl: /** @type {any} */ (page).canonicalUrl ?? page.url,
           description: page.description,
         },
-        blocks: page.markdown === '' ? [] : [page.markdown],
+        blocks: [page.markdown],
         includeDescription: true,
       }));
     }
@@ -127,14 +127,6 @@ export function renderChunkFragments(fragments) {
   const lines = [];
   for (const fragment of fragments) lines.push(...pageRecordLines(fragment));
   return lines.join('\n');
-}
-
-/**
- * Render one page wrapper and its contiguous Markdown prefix.
- * @param {{ page: CorpusFragmentPage; blocks: readonly string[]; includeDescription: boolean }} fragment
- */
-export function renderCorpusPageFragment(fragment) {
-  return pageRecordLines(fragment).join('\n');
 }
 
 /**

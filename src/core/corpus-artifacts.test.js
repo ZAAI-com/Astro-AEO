@@ -152,4 +152,44 @@ describe('logical corpus artifact planner', () => {
     expect(plan.manifest.pages).toHaveLength(1);
     expect(plan.manifest.pages[0].origin).toBe('https://fr.example.test');
   });
+
+  test('hashes published companion Markdown and nulls companion-less pages', async () => {
+    const { renderMarkdownDocument } = await import('./render/markdown-doc.js');
+    const { sha256Digest } = await import('./corpus-manifest.js');
+    const { normalizePublishedText, countApproximateTokens } = await import('./corpus-tokenizer.js');
+    const config = resolveConfig({
+      corpus: { manifest: { enabled: true }, index: { includeHtmlOnly: true } },
+      markdown: { includeLastModified: true },
+    });
+    const withCompanion = {
+      ...page('/about', 'en', 'en'),
+      lastModified: '2024-01-15T00:00:00.000Z',
+    };
+    const withoutCompanion = {
+      ...page('/secret', 'en', 'en'),
+      directives: {
+        index: true,
+        includeInLlms: true,
+        includeInLlmsFull: true,
+        generateMarkdown: false,
+      },
+    };
+    const plan = await planCorpusArtifacts({
+      pages: [withCompanion, withoutCompanion],
+      config,
+      siteMeta,
+      origin: 'https://example.test',
+      base: '',
+    });
+    const about = plan.manifest.pages.find((entry) => entry.id === '/about');
+    const secret = plan.manifest.pages.find((entry) => entry.id === '/secret');
+    const published = renderMarkdownDocument(withCompanion, config);
+    expect(about.hash).toBe(await sha256Digest(normalizePublishedText(published)));
+    expect(about.tokenCount).toBe(countApproximateTokens(published));
+    expect(secret).toMatchObject({
+      markdownUrl: null,
+      tokenCount: null,
+      hash: null,
+    });
+  });
 });

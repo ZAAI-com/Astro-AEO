@@ -197,31 +197,37 @@ function validateManifestRecords(distDir, manifest, base, referencedMarkdown, ou
       continue;
     }
     pageLocales.push({ origin: page.origin, locale: page.locale, id: page.id });
-    const markdownPathname = sameOriginPath(page.markdownUrl, page.origin);
-    if (!markdownPathname) {
-      error(out, 'corpus-page-markdown-url', `page Markdown URL is invalid or cross-origin: ${page.markdownUrl}`, '/llms/manifest.json');
-      continue;
-    }
-    referencedMarkdown.add(markdownPathname);
-    const path = deployedPathToFile(distDir, markdownPathname, base);
-    if (!path || !regularNonSymlink(path)) {
-      error(out, 'corpus-page-markdown-missing', `page Markdown is missing: ${page.markdownUrl}`, markdownPathname);
+    if (page.markdownUrl == null) {
+      if (page.hash != null || page.tokenCount != null) {
+        error(out, 'corpus-page-shape', `companion-less page must omit hash and tokenCount: ${page.id}`, '/llms/manifest.json');
+      }
     } else {
-      const bytes = readFileSafely(path);
-      if (bytes) {
-        checked++;
-        let markdown;
-        try {
-          markdown = decoder.decode(bytes);
-        } catch {
-          error(out, 'corpus-page-markdown-utf8', `page Markdown is not valid UTF-8: ${page.markdownUrl}`, markdownPathname);
-        }
-        if (markdown !== undefined) {
-          if (digest(Buffer.from(normalizePublishedText(markdown), 'utf8')) !== page.hash) {
-            error(out, 'corpus-page-hash', `page Markdown hash mismatch: ${page.markdownUrl}`, markdownPathname);
-          }
-          if (builtin && countApproximateTokens(markdown) !== page.tokenCount) {
-            error(out, 'corpus-page-tokens', `page token count mismatch: ${page.markdownUrl}`, markdownPathname);
+      const markdownPathname = sameOriginPath(page.markdownUrl, page.origin);
+      if (!markdownPathname) {
+        error(out, 'corpus-page-markdown-url', `page Markdown URL is invalid or cross-origin: ${page.markdownUrl}`, '/llms/manifest.json');
+      } else {
+        referencedMarkdown.add(markdownPathname);
+        const path = deployedPathToFile(distDir, markdownPathname, base);
+        if (!path || !regularNonSymlink(path)) {
+          error(out, 'corpus-page-markdown-missing', `page Markdown is missing: ${page.markdownUrl}`, markdownPathname);
+        } else {
+          const bytes = readFileSafely(path);
+          if (bytes) {
+            checked++;
+            let markdown;
+            try {
+              markdown = decoder.decode(bytes);
+            } catch {
+              error(out, 'corpus-page-markdown-utf8', `page Markdown is not valid UTF-8: ${page.markdownUrl}`, markdownPathname);
+            }
+            if (markdown !== undefined) {
+              if (digest(Buffer.from(normalizePublishedText(markdown), 'utf8')) !== page.hash) {
+                error(out, 'corpus-page-hash', `page Markdown hash mismatch: ${page.markdownUrl}`, markdownPathname);
+              }
+              if (builtin && countApproximateTokens(markdown) !== page.tokenCount) {
+                error(out, 'corpus-page-tokens', `page token count mismatch: ${page.markdownUrl}`, markdownPathname);
+              }
+            }
           }
         }
       }
@@ -370,11 +376,18 @@ function validArtifactRecord(value, manifestOrigin) {
 
 /** @param {any} value @param {string} manifestOrigin */
 function validPageRecord(value, manifestOrigin) {
-  return record(value) && value.origin === manifestOrigin && safeAppId(value.id) && sameOriginPath(value.canonicalUrl, value.origin) !== null &&
-    typeof value.markdownUrl === 'string' && value.markdownUrl.endsWith('.md') && (typeof value.locale === 'string' && value.locale.length > 0 || value.locale === null) &&
-    (typeof value.language === 'string' && canonicalLanguage(value.language) === value.language || value.language === null) && typeof value.section === 'string' && value.section.length > 0 && nonnegativeInteger(value.tokenCount) &&
-    HASH.test(value.hash) && typeof value.sourceStrategy === 'string' && value.sourceStrategy.length > 0 &&
-    (value.modified === undefined || typeof value.modified === 'string' && !Number.isNaN(Date.parse(value.modified))) && Array.isArray(value.chunks) && value.chunks.every(safePathname);
+  if (!(record(value) && value.origin === manifestOrigin && safeAppId(value.id) && sameOriginPath(value.canonicalUrl, value.origin) !== null &&
+    (typeof value.locale === 'string' && value.locale.length > 0 || value.locale === null) &&
+    (typeof value.language === 'string' && canonicalLanguage(value.language) === value.language || value.language === null) &&
+    typeof value.section === 'string' && value.section.length > 0 &&
+    typeof value.sourceStrategy === 'string' && value.sourceStrategy.length > 0 &&
+    (value.modified === undefined || typeof value.modified === 'string' && !Number.isNaN(Date.parse(value.modified))) &&
+    Array.isArray(value.chunks) && value.chunks.every(safePathname))) return false;
+  if (value.markdownUrl == null) {
+    return value.tokenCount == null && value.hash == null;
+  }
+  return typeof value.markdownUrl === 'string' && value.markdownUrl.endsWith('.md') &&
+    nonnegativeInteger(value.tokenCount) && HASH.test(value.hash);
 }
 
 /** @param {any} value @param {string} manifestOrigin */

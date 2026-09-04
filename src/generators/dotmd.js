@@ -1,6 +1,7 @@
 // @ts-check
 import { writeFileSync, readFileSync } from 'node:fs';
 import { renderMarkdownDocument } from '../core/render/markdown-doc.js';
+import { hasMarkdownCompanion } from '../core/render/llms-txt.js';
 import { mdPathnameFor } from '../core/page-model.js';
 import {
   hasMarkdownAlternateLink,
@@ -25,8 +26,7 @@ export function emitDotMd(pages, config, writer) {
   let written = 0;
 
   for (const page of pages) {
-    if (page.rendering === 'on-demand') continue;
-    if (page.aeoTokens.includes('no-dotmd') || page.directives?.generateMarkdown === false) continue;
+    if (!hasMarkdownCompanion(page, config)) continue;
 
     const wrote = writer.write({
       path: page.mdPath,

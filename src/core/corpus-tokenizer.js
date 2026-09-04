@@ -21,7 +21,8 @@ export const CORPUS_TOKENIZER_PROBES = Object.freeze([
   '## Heading\n\n```js\nconst answer = 42;\n```',
 ]);
 
-const LATIN_RUN_CODE_POINT = /[\p{Script=Latin}\p{Mark}0-9_]/u;
+const LATIN_RUN_START = /[\p{Script=Latin}0-9_]/u;
+const LATIN_RUN_MARK = /\p{Mark}/u;
 const COUNTED_NON_LATIN_CODE_POINT = /[\p{Letter}\p{Number}\p{Punctuation}\p{Symbol}]/u;
 
 /** A failure attributable specifically to a tokenizer load, probe, or count. */
@@ -58,7 +59,7 @@ export function countApproximateTokens(text) {
   };
 
   for (const codePoint of normalizePublishedText(text)) {
-    if (LATIN_RUN_CODE_POINT.test(codePoint)) {
+    if (LATIN_RUN_START.test(codePoint) || (latinRun > 0 && LATIN_RUN_MARK.test(codePoint))) {
       latinRun++;
       continue;
     }
@@ -169,19 +170,24 @@ export async function probeCorpusTokenizer(tokenizer, options) {
  * probe or count failure discards the result and repeats the entire callback
  * with the built-in tokenizer. Non-tokenizer exceptions remain visible.
  *
+ * Pass `{ skipProbe: true }` when the caller already probed the module (build
+ * preflight or the memoized runtime loader) so each request does not re-run
+ * the contract probes. Plan-time count failures still fall back.
+ *
  * @template T
  * @param {unknown} customModule validated module value, raw module value, or undefined
  * @param {unknown} rawOptions
  * @param {(context: { tokenizer: { name: string; version: string; approximate: boolean }; count: (text: string) => Promise<number> }) => Promise<T>} plan
+ * @param {{ skipProbe?: boolean }} [runOptions]
  * @returns {Promise<{ result: T; tokenizer: { name: string; version: string; approximate: boolean }; fallback?: { name?: string; message: string } }>}
  */
-export async function runCorpusPlanWithTokenizer(customModule, rawOptions, plan) {
+export async function runCorpusPlanWithTokenizer(customModule, rawOptions, plan, runOptions = {}) {
   const options = corpusTokenizerOptions(rawOptions);
   let custom;
   if (customModule !== undefined) {
     try {
       custom = validateCorpusTokenizerModule(customModule, 'configured module');
-      await probeCorpusTokenizer(custom, options);
+      if (!runOptions.skipProbe) await probeCorpusTokenizer(custom, options);
     } catch (error) {
       if (!(error instanceof CorpusTokenizerError)) throw error;
       const result = await executePlan(BUILTIN_CORPUS_TOKENIZER, undefined, plan);

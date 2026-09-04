@@ -230,6 +230,8 @@ describe('integration diagnostics and declarations', () => {
       '/semantic/café-map.xml',
       '/sale-100%.txt',
       '/literal%5Bfeed%5D.txt',
+      '/[astroAeoLocale]/llms.txt',
+      '/[astroAeoLocale]/llms-full.txt',
     ]);
     expect(injected.map(({ pattern }) => pattern)).not.toContain('/build-only.txt');
     expect(injected).toEqual(injected.map((route) => ({ ...route, prerender: false })));

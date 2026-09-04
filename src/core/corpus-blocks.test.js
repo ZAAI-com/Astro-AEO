@@ -23,6 +23,25 @@ describe('scanMarkdownBlocks', () => {
       { kind: 'fence', text: '~~~ts\nconst x = 1;\n\nStill code.', startLine: 1, endLine: 4 },
     ]);
   });
+
+  test('recognizes setext headings without swallowing thematic breaks or list items', () => {
+    expect(scanMarkdownBlocks('Title\n=====\n\nBody.')).toEqual([
+      { kind: 'heading', text: 'Title\n=====', startLine: 1, endLine: 2 },
+      { kind: 'paragraph', text: 'Body.', startLine: 4, endLine: 4 },
+    ]);
+    expect(scanMarkdownBlocks('Subtitle\n-----\n\nMore.')).toEqual([
+      { kind: 'heading', text: 'Subtitle\n-----', startLine: 1, endLine: 2 },
+      { kind: 'paragraph', text: 'More.', startLine: 4, endLine: 4 },
+    ]);
+    expect(scanMarkdownBlocks('---\n\nAfter break.')).toEqual([
+      { kind: 'paragraph', text: '---', startLine: 1, endLine: 1 },
+      { kind: 'paragraph', text: 'After break.', startLine: 3, endLine: 3 },
+    ]);
+    expect(scanMarkdownBlocks('- item\n-----\n\nNext.')).toEqual([
+      { kind: 'paragraph', text: '- item\n-----', startLine: 1, endLine: 2 },
+      { kind: 'paragraph', text: 'Next.', startLine: 4, endLine: 4 },
+    ]);
+  });
 });
 
 describe('section slugs and chunk paths', () => {
@@ -44,6 +63,8 @@ describe('section slugs and chunk paths', () => {
     expect(formatChunkPart(10_000)).toBe('10000');
     expect(chunkPathname({ sectionSlug: 'guides', part: 2 })).toBe('/llms/guides-0002.txt');
     expect(chunkPathname({ locale: 'en', sectionSlug: 'guides', part: 2 })).toBe('/en/llms/guides-0002.txt');
+    expect(chunkPathname({ locale: 'français', sectionSlug: 'guides', part: 2 }))
+      .toBe('/fran%C3%A7ais/llms/guides-0002.txt');
     expect(() => formatChunkPart(0)).toThrow(/positive safe integer/);
   });
 });

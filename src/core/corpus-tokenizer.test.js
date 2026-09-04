@@ -28,6 +28,12 @@ describe('astro-aeo-approx@1', () => {
     expect(countApproximateTokens('🌍!')).toBe(2);
     expect(countApproximateTokens('a 東京 b')).toBe(4);
   });
+
+  test('extends a Latin run with marks only after a Latin start', () => {
+    expect(countApproximateTokens('Cafe\u0301')).toBe(2);
+    // Arabic shadda/fatha must not open a bogus Latin run.
+    expect(countApproximateTokens('مرحبًا')).toBe(countApproximateTokens('مرحبا'));
+  });
 });
 
 describe('custom corpus tokenizers', () => {

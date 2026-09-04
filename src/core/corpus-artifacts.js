@@ -2,8 +2,10 @@
 import { allocateSmallCorpus, planSectionChunks } from './corpus-plan.js';
 import { chunkPathname, resolveSectionSlugs } from './corpus-blocks.js';
 import { createCorpusManifest, serializeCorpusManifest } from './corpus-manifest.js';
+import { corpusPageIdentity } from './page-identity.js';
 import { normalizePublishedText, runCorpusPlanWithTokenizer } from './corpus-tokenizer.js';
 import { normalizeOrigin } from './locale.js';
+import { renderMarkdownDocument } from './render/markdown-doc.js';
 import {
   renderGroupedLlmsFullTxt,
   renderGroupedLlmsTxt,
@@ -11,6 +13,7 @@ import {
 } from './render/corpus.js';
 import {
   groupSections,
+  hasMarkdownCompanion,
   isLlmsEligible,
   renderLlmsFullTxt,
   renderLlmsTxt,
@@ -31,6 +34,28 @@ import {
  */
 
 /**
+ * Where chunk files live for a given indexes mode and locale count.
+ * Pass `undefined` localeCount for ownership preflight: `auto` and `global`
+ * stay permissive for both spellings because the count is not yet known, while
+ * `locale`/`both` only accept locale-prefixed chunks.
+ *
+ * @param {'auto'|'global'|'locale'|'both'} mode
+ * @param {number} [localeCount]
+ * @returns {{ root: boolean; locale: boolean }}
+ */
+export function chunkTopology(mode, localeCount) {
+  if (localeCount === undefined) {
+    if (mode === 'locale' || mode === 'both') return { root: false, locale: true };
+    return { root: true, locale: true };
+  }
+  const oneLocale = localeCount <= 1;
+  if (mode === 'auto' || mode === 'global') {
+    return { root: oneLocale, locale: !oneLocale };
+  }
+  return { root: false, locale: true };
+}
+
+/**
  * Plan every logical (uncompressed) corpus artifact with no filesystem or Node
  * dependencies. Build output may add gzip siblings after this step; middleware
  * serves these exact strings and relies on transport compression.
@@ -44,6 +69,7 @@ import {
  *   i18n?: import('./locale.js').LocaleSnapshot;
  *   tokenizer?: unknown;
  *   tokenizerOptions?: unknown;
+ *   tokenizerProbed?: boolean;
  *   note?: string;
  * }} input
  * @returns {Promise<{ artifacts: CorpusTextArtifact[]; manifest?: any; manifestText?: string; diagnostics: Array<{ code: string; severity: 'warning'|'error'; message: string; pathname?: string; details?: unknown }>; tokenizer?: { name: string; version: string; approximate: boolean } }>}
@@ -289,11 +315,11 @@ export async function planCorpusArtifacts(input) {
               count,
             });
             addPlannerDiagnostics(diagnostics, result.diagnostics, locale.locale, section.title);
-            const rootChunks = legacyRoot || (mode === 'global' && oneLocale);
+            const topology = chunkTopology(mode, allLocales.length);
             for (const chunk of result.chunks) {
               await addText(
                 chunkPathname({
-                  locale: rootChunks ? null : locale.locale,
+                  locale: topology.root ? null : locale.locale,
                   sectionSlug: slugs[index],
                   part: chunk.part,
                 }),
@@ -334,10 +360,13 @@ export async function planCorpusArtifacts(input) {
       /** @type {Map<string, number>} */
       const pageTokenCounts = new Map();
       for (const page of participatingPages) {
-        pageTokenCounts.set(pageIdentity(page), await count(page.markdown));
+        if (!hasMarkdownCompanion(page, input.config)) continue;
+        const published = renderMarkdownDocument(page, input.config);
+        pageTokenCounts.set(corpusPageIdentity(page), await count(published));
       }
       return { artifacts, tokenizer, pageTokenCounts };
     },
+    { skipProbe: input.tokenizerProbed === true },
   );
 
   if (planned.fallback) {
@@ -390,9 +419,10 @@ export async function planCorpusArtifacts(input) {
         const chunksByPage = new Map();
         for (const artifact of planned.result.artifacts.filter((item) => item.kind === 'chunk')) {
           for (const id of artifact.pageIds ?? []) {
-            const paths = chunksByPage.get(id) ?? [];
+            const key = corpusPageIdentity({ origin, id });
+            const paths = chunksByPage.get(key) ?? [];
             paths.push(withBase(artifact.pathname, input.base));
-            chunksByPage.set(id, paths);
+            chunksByPage.set(key, paths);
           }
         }
         /** @type {any[]} */
@@ -400,19 +430,26 @@ export async function planCorpusArtifacts(input) {
         for (const locale of locales) {
           for (const section of manifestSections(locale.pages, input.config)) {
             for (const page of section.pages) {
+              const companion = hasMarkdownCompanion(page, input.config);
+              const identity = corpusPageIdentity(page);
+              const published = companion ? renderMarkdownDocument(page, input.config) : null;
               pageRecords.push({
                 origin,
                 id: page.id,
                 canonicalUrl: page.canonicalUrl ?? page.url,
-                markdownUrl: page.markdownUrl ?? new URL(page.mdHref, origin).href,
+                markdownUrl: companion
+                  ? (page.markdownUrl ?? new URL(page.mdHref, origin).href)
+                  : null,
                 locale: locale.locale,
                 language: locale.language,
                 section: section.title,
-                tokenCount: planned.result.pageTokenCounts.get(pageIdentity(page)) ?? 0,
+                tokenCount: companion
+                  ? (planned.result.pageTokenCounts.get(identity) ?? 0)
+                  : null,
                 sourceStrategy: page.source?.strategy ?? 'rendered',
                 ...(page.lastModified ? { modified: page.lastModified } : {}),
-                chunks: chunksByPage.get(page.id) ?? [],
-                markdown: page.markdown,
+                chunks: chunksByPage.get(identity) ?? [],
+                markdown: published,
               });
             }
           }
@@ -463,7 +500,12 @@ export function isPotentialCorpusArtifactPath(pathname, config) {
   if (pathname === '/llms-full.txt') return config.corpus.full.enabled && mode !== 'locale';
   if (pathname === '/llms-small.txt') return config.corpus.small.enabled && mode !== 'locale';
   if (pathname === '/llms/manifest.json') return config.corpus.manifest.enabled;
-  if (config.corpus.chunks.enabled && /^\/llms\/[^/]+-\d{4,}\.txt$/u.test(pathname)) return true;
+  const topology = chunkTopology(mode);
+  if (
+    config.corpus.chunks.enabled &&
+    topology.root &&
+    /^\/llms\/[^/]+-\d{4,}\.txt$/u.test(pathname)
+  ) return true;
   if (
     (mode === 'locale' || mode === 'both' || mode === 'auto') &&
     /^\/[^/]+\/llms(?:-full|-small)?\.txt$/u.test(pathname)
@@ -474,7 +516,7 @@ export function isPotentialCorpusArtifactPath(pathname, config) {
   }
   if (
     config.corpus.chunks.enabled &&
-    mode !== 'global' &&
+    topology.locale &&
     /^\/[^/]+\/llms\/[^/]+-\d{4,}\.txt$/u.test(pathname)
   ) return true;
   if (mode === 'both' && /^\/llms(?:-full|-small)?-[^/]+\.txt$/u.test(pathname)) {
@@ -621,11 +663,6 @@ function addPlannerDiagnostics(target, source, locale, section) {
 /** @param {string} code @param {'warning'|'error'} severity @param {string} message */
 function finding(code, severity, message) {
   return { code, severity, message };
-}
-
-/** @param {any} page */
-function pageIdentity(page) {
-  return `${page.origin ?? ''}\0${page.id}`;
 }
 
 /** @param {any} page */

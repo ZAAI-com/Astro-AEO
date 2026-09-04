@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import {
   canonicalJson,
   createCorpusManifest,
+  normalizeCorpusManifest,
   serializeCorpusManifest,
   sha256Digest,
   sha256Hex,
@@ -53,5 +54,27 @@ describe('CorpusManifestV1', () => {
     expect(serializeCorpusManifest(manifest).endsWith('\n')).toBe(true);
     expect(serializeCorpusManifest(manifest)).not.toContain('"markdown":');
     expect(serializeCorpusManifest(manifest)).not.toContain('"contents":');
+  });
+
+  test('sorts chunk references by numeric part rather than lexicographically', () => {
+    const manifest = normalizeCorpusManifest({
+      version: 1,
+      origin: 'https://example.com',
+      base: '/',
+      tokenizer: { name: 'astro-aeo-approx', version: '1', approximate: true },
+      locales: [],
+      pages: [{
+        origin: 'https://example.com', id: '/z', canonicalUrl: 'https://example.com/z',
+        markdownUrl: null, locale: null, language: null, section: 'Pages',
+        tokenCount: null, hash: null, sourceStrategy: 'rendered',
+        chunks: ['/llms/pages-10000.txt', '/llms/pages-9999.txt', '/llms/pages-0002.txt'],
+      }],
+      artifacts: [],
+    });
+    expect(manifest.pages[0].chunks).toEqual([
+      '/llms/pages-0002.txt',
+      '/llms/pages-9999.txt',
+      '/llms/pages-10000.txt',
+    ]);
   });
 });
