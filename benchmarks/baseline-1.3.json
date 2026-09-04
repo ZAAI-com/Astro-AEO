@@ -1,39 +1,48 @@
 {
   "version": 1,
-  "recordedAt": "2026-08-12",
+  "recordedAt": "2026-09-04",
   "environment": {
     "node": "v24.15.0",
     "platform": "darwin",
     "architecture": "arm64",
+    "cpus": 10,
     "ci": false,
     "runnerClass": "portable-size-only"
   },
   "package": {
-    "packedBytes": 256269,
-    "unpackedBytes": 1043119,
-    "files": 111
+    "packedBytes": 272099,
+    "unpackedBytes": 1105574,
+    "files": 113
   },
   "bundles": {
     "node": {
       "files": 33,
-      "rawBytes": 1638840,
-      "gzipBytes": 383338,
-      "deltaRawBytes": 392423,
-      "deltaGzipBytes": 92986,
-      "baseline": { "files": 31, "rawBytes": 1246417, "gzipBytes": 290352 }
+      "rawBytes": 1697845,
+      "gzipBytes": 394177,
+      "deltaRawBytes": 420869,
+      "deltaGzipBytes": 99822,
+      "baseline": {
+        "files": 31,
+        "rawBytes": 1276976,
+        "gzipBytes": 294355
+      }
     },
     "cloudflare": {
       "files": 36,
-      "rawBytes": 1819872,
-      "gzipBytes": 437820,
-      "deltaRawBytes": 1166800,
-      "deltaGzipBytes": 268856,
-      "baseline": { "files": 33, "rawBytes": 653072, "gzipBytes": 168964 }
+      "rawBytes": 1849233,
+      "gzipBytes": 443725,
+      "deltaRawBytes": 1195246,
+      "deltaGzipBytes": 275592,
+      "baseline": {
+        "files": 33,
+        "rawBytes": 653987,
+        "gzipBytes": 168133
+      }
     }
   },
   "notes": [
-    "The 1.3 package byte counts were measured after the complete discovery implementation.",
-    "Adapter bundle measurements were refreshed by the complete 1.3 release gate.",
-    "Timing and memory values are omitted because this shared machine is not a controlled runner."
+    "The package and bundle byte counts are deterministic build outputs measured by a complete release run.",
+    "Timing, memory, corpus, and Worker-startup samples are omitted because this machine is not a controlled runner.",
+    "Portable regressions over 10 percent always require an explanation; the absolute ceilings stay enforced by every complete release run."
   ]
 }

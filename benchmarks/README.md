@@ -45,7 +45,7 @@ framework code that both builds share.
 `--enforce` applies the 1.3 safety ceilings embedded in the report:
 
 - Packed package at most 280,000 bytes and unpacked package at most 1,150,000 bytes. The measured
-  1.3 package is 256,269 packed and 1,043,119 unpacked bytes.
+  1.3 package is 272,099 packed and 1,105,574 unpacked bytes.
 - 100 KB parse p95 below 50 ms and conversion p95 below 150 ms.
 - Retained heap after 100 conversions at most 10 MB.
 - Paired Markdown-minus-HTML p95 request overhead at most 10 ms. Direct and negotiated modes each
@@ -92,6 +92,21 @@ pnpm run benchmark:baseline
 
 The updater refuses reports without a runner class or with a failed safety ceiling. Raw request
 samples remain in the private report and are intentionally omitted from the committed summary.
+
+A shared machine can measure the deterministic sizes but not the timings. Pass `--sizes-only` to
+record just the package and bundle byte counts:
+
+```bash
+ASTRO_AEO_BENCHMARK_RUNNER=portable-size-only \
+  node scripts/run-release-benchmark.mjs \
+  --baseline none \
+  --output .astro/aeo-benchmarks/1.3-reference.json
+node scripts/update-benchmark-baseline.mjs --sizes-only
+```
+
+The complete run still has to pass every absolute ceiling, so a size-only reference is a full
+measurement with the environment-sensitive samples withheld rather than a partial one. Keep the
+machine idle: unrelated builds or test runs inflate the conversion p95 enough to fail the run.
 
 Conditional requests currently avoid response bytes but still calculate the Markdown
 representation. The request report records this explicitly and must not describe a `304` as a

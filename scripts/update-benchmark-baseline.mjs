@@ -4,7 +4,12 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const input = resolve(root, process.argv[2] ?? '.astro/aeo-benchmarks/1.3-reference.json');
+const argv = process.argv.slice(2);
+// A shared developer machine can measure deterministic sizes but not timings.
+// Recording its noisy samples under a runner class would let a later run on the
+// same laptop compare against them, so size-only references omit them instead.
+const sizesOnly = argv.includes('--sizes-only');
+const input = resolve(root, argv.find((value) => !value.startsWith('--')) ?? '.astro/aeo-benchmarks/1.3-reference.json');
 const output = resolve(root, 'benchmarks/baseline-1.3.json');
 const report = JSON.parse(await readFile(input, 'utf8'));
 
@@ -16,28 +21,42 @@ if (report.failures?.length) {
 }
 
 const { rawSamplesMs: _rawSamples, ...requests } = report.requests ?? {};
-const baseline = {
-  version: 1,
-  recordedAt: String(report.generatedAt).slice(0, 10),
-  environment: report.environment,
-  package: report.package,
-  extraction: report.extraction,
-  memory: report.memory,
-  corpus: report.corpus,
-  requests,
-  bundles: {
-    node: compactBundle(report.bundles?.node),
-    cloudflare: compactBundle(report.bundles?.cloudflare),
-  },
-  cloudflareStartupMs: report.cloudflareStartupMs,
-  notes: [
-    'This is a reproducible reference measurement, not a portable performance promise.',
-    'Package and bundle byte regressions are compared across release runners; timing and memory comparisons require an equivalent environment.',
-    'Request overhead uses 200 paired, interleaved samples per Markdown mode after 20 warm-up cycles.',
-    'Portable regressions over 10 percent always require an explanation; environment-sensitive regressions do so on an equivalent runner.',
-    "Cloudflare startup is Wrangler's local active CPU time for Worker module initialization; production hardware can differ.",
-  ],
+const bundles = {
+  node: compactBundle(report.bundles?.node),
+  cloudflare: compactBundle(report.bundles?.cloudflare),
 };
+const baseline = sizesOnly
+  ? {
+    version: 1,
+    recordedAt: String(report.generatedAt).slice(0, 10),
+    environment: report.environment,
+    package: report.package,
+    bundles,
+    notes: [
+      'The package and bundle byte counts are deterministic build outputs measured by a complete release run.',
+      'Timing, memory, corpus, and Worker-startup samples are omitted because this machine is not a controlled runner.',
+      'Portable regressions over 10 percent always require an explanation; the absolute ceilings stay enforced by every complete release run.',
+    ],
+  }
+  : {
+    version: 1,
+    recordedAt: String(report.generatedAt).slice(0, 10),
+    environment: report.environment,
+    package: report.package,
+    extraction: report.extraction,
+    memory: report.memory,
+    corpus: report.corpus,
+    requests,
+    bundles,
+    cloudflareStartupMs: report.cloudflareStartupMs,
+    notes: [
+      'This is a reproducible reference measurement, not a portable performance promise.',
+      'Package and bundle byte regressions are compared across release runners; timing and memory comparisons require an equivalent environment.',
+      'Request overhead uses 200 paired, interleaved samples per Markdown mode after 20 warm-up cycles.',
+      'Portable regressions over 10 percent always require an explanation; environment-sensitive regressions do so on an equivalent runner.',
+      "Cloudflare startup is Wrangler's local active CPU time for Worker module initialization; production hardware can differ.",
+    ],
+  };
 
 await writeFile(output, `${JSON.stringify(baseline, null, 2)}\n`);
 console.log(`Benchmark baseline updated from ${input}`);
