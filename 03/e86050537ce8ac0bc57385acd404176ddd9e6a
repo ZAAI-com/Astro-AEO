@@ -1,0 +1,41 @@
+fixtures/dist-valid/sitemap-0.xml
+  s_6b7494a811aa94::t_1b3c3f62f38775 1
+src/build/sitemap-validate.js
+  s_6b7494a811aa94::t_1d1d878ac12c3f 155,171-173
+src/build/sitemap-validate.test.js
+  s_6b7494a811aa94::t_a608e06c273e2b 103-131
+src/core/locale.js
+  s_6b7494a811aa94::t_7dedbce972991d 134-148
+src/core/locale.test.js
+  s_6b7494a811aa94::t_2d94d036a51579 2,59-102
+src/core/render/robots-txt.js
+  s_6b7494a811aa94::t_5850bd529ae5e8 8-17,35,40,45-48,146,183-184,188,197-227
+src/core/sitemap-xml.js
+  s_6b7494a811aa94::t_cff99d8638e2db 5,47-48,54,60-64,86-90,103-104,156-157,164,184,202-219,246,344-351,385-398
+src/core/sitemap-xml.test.js
+  s_6b7494a811aa94::t_57fb2ab3c9752a 5,10,25-68,95
+src/generators/robots-txt.js
+  s_6b7494a811aa94::t_9055ded85bd553 3,7-8,30
+src/generators/robots-txt.test.js
+  s_6b7494a811aa94::t_efbb2d277527f2 186-187,189-227,235-242
+src/generators/sitemap-finalize.js
+  s_6b7494a811aa94::t_3217d4453cfdc7 7,85
+src/generators/sitemap-finalize.test.js
+  s_6b7494a811aa94::t_4d6faf2c44ad30 296-331
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "03e86050537ce8ac0bc57385acd404176ddd9e6a",
+  "prompts": {},
+  "sessions": {
+    "s_6b7494a811aa94": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "01521f05-112e-488f-8fea-df7335dfe716",
+        "model": "unknown"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
