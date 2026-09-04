@@ -1,0 +1,49 @@
+cli/validate-corpus.js
+  s_0ed6b0ab6884fe::t_0537ce693a0f9d 200-203,205-230,379-390
+src/core/corpus-artifacts.js
+  s_0ed6b0ab6884fe::t_63d9e2dc809e6e 5,8,16,36-57,72,318,322,363-365,369,422-423,425,433-435,440-442,446-448,451-452,503-508,519
+src/core/corpus-artifacts.test.js
+  s_0ed6b0ab6884fe::t_49a5106b7d038b 155-194
+src/core/corpus-blocks.js
+  s_0ed6b0ab6884fe::t_3521077910a628 46-56,62-67,145-147,166-175
+src/core/corpus-blocks.test.js
+  s_0ed6b0ab6884fe::t_cff49d3b8040dc 26-44,66-67
+src/core/corpus-manifest.js
+  s_0ed6b0ab6884fe::t_0c923c8b96f9be 12-15,57,61-62,65,104-105,112,119,160-170
+src/core/corpus-manifest.test.js
+  s_0ed6b0ab6884fe::t_941d37d0c5cc98 5,58-79
+src/core/corpus-tokenizer.js
+  s_0ed6b0ab6884fe::t_70dd0246c8da05 24-25,62,173-176,181,184,190
+src/core/corpus-tokenizer.test.js
+  s_0ed6b0ab6884fe::t_949290bd984cb3 31-36
+src/core/owned-artifacts.test.js
+  s_0ed6b0ab6884fe::t_1f2a20fdda3a13 37-59
+src/core/page-identity.js
+  s_0ed6b0ab6884fe::t_767e48dc76ce3b 1-25
+src/core/render/corpus.js
+  s_0ed6b0ab6884fe::t_4b8c0678684be0 79
+src/core/render/llms-txt.js
+  s_0ed6b0ab6884fe::t_df94183a5a799d 77-96,99-103,109-112,117-119,124-127
+src/generators/dotmd.js
+  s_0ed6b0ab6884fe::t_8ca8475999fd0a 4,29
+src/index.js
+  s_0ed6b0ab6884fe::t_208d6e5b653c68 31-32,106-111,228-233,235,341-342,500-519,654-655,659-662,668-670,675-700,757
+src/integration-hooks.test.js
+  s_0ed6b0ab6884fe::t_2f2b43ec5c8a83 233-234
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "efbb109c56ed961ca5ffa17223ad97679535941a",
+  "prompts": {},
+  "sessions": {
+    "s_0ed6b0ab6884fe": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "2059df96-2525-497c-a506-96b5e0a5f467",
+        "model": "unknown"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
