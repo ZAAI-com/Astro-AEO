@@ -2,6 +2,7 @@
 
 const SITEMAP_NAMESPACE = 'http://www.sitemaps.org/schemas/sitemap/0.9';
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
+const ELEMENT_ONLY = new Set(['urlset', 'url', 'sitemapindex', 'sitemap']);
 
 /**
  * @typedef {{ code: string; message: string }} SitemapXmlFinding
@@ -43,20 +44,24 @@ export function parseSitemapXml(source) {
     return { kind: null, locations: [], urls: [], findings };
   }
 
-  const namespaces = namespaceMap(root);
-  if (namespaceFor(root.name, namespaces) !== SITEMAP_NAMESPACE) {
+  const rootNamespaces = namespaceMap(root);
+  if (namespaceFor(root.name, rootNamespaces) !== SITEMAP_NAMESPACE) {
     findings.push({
       code: 'sitemap-namespace-invalid',
       message: `The sitemap root must use the ${SITEMAP_NAMESPACE} namespace.`,
     });
   }
+  rejectMixedContent(root, findings);
 
   if (rootName === 'sitemapindex') {
     /** @type {string[]} */
     const locations = [];
     for (const child of elementChildren(root)) {
-      if (!isSitemapElement(child, 'sitemap', namespaces)) continue;
-      const locs = elementChildren(child).filter((entry) => isSitemapElement(entry, 'loc', namespaces));
+      const childNs = namespaceMap(child, rootNamespaces);
+      if (!isSitemapElement(child, 'sitemap', childNs)) continue;
+      rejectMixedContent(child, findings);
+      const locs = elementChildren(child).filter((entry) =>
+        isSitemapElement(entry, 'loc', namespaceMap(entry, childNs)));
       if (locs.length !== 1 || elementChildren(locs[0]).length > 0 || !nodeText(locs[0]).trim()) {
         findings.push({
           code: 'sitemap-index-loc-invalid',
@@ -78,8 +83,11 @@ export function parseSitemapXml(source) {
   /** @type {SitemapUrlEntry[]} */
   const urls = [];
   for (const child of elementChildren(root)) {
-    if (!isSitemapElement(child, 'url', namespaces)) continue;
-    const locs = elementChildren(child).filter((entry) => isSitemapElement(entry, 'loc', namespaces));
+    const childNs = namespaceMap(child, rootNamespaces);
+    if (!isSitemapElement(child, 'url', childNs)) continue;
+    rejectMixedContent(child, findings);
+    const locs = elementChildren(child).filter((entry) =>
+      isSitemapElement(entry, 'loc', namespaceMap(entry, childNs)));
     if (locs.length !== 1 || elementChildren(locs[0]).length > 0 || !nodeText(locs[0]).trim()) {
       findings.push({
         code: 'sitemap-url-loc-invalid',
@@ -92,7 +100,8 @@ export function parseSitemapXml(source) {
     const alternates = [];
     const languages = new Set();
     for (const entry of elementChildren(child)) {
-      if (localName(entry.name) !== 'link' || namespaceFor(entry.name, namespaces) !== XHTML_NAMESPACE) continue;
+      const entryNs = namespaceMap(entry, childNs);
+      if (localName(entry.name) !== 'link' || namespaceFor(entry.name, entryNs) !== XHTML_NAMESPACE) continue;
       const rel = entry.attrs.get('rel')?.trim().toLowerCase();
       if (rel !== 'alternate') continue;
       const language = canonicalLanguage(entry.attrs.get('hreflang'));
@@ -144,12 +153,15 @@ function parseXml(raw) {
   let root;
   let position = 0;
   let declarationSeen = false;
+  // An XML declaration must be the first prolog item after an optional BOM.
+  let mayDeclare = true;
 
   const appendText = (/** @type {string} */ text, /** @type {boolean} */ cdata = false) => {
     if (!text) return;
     const value = cdata ? text : decodeXmlEntities(text);
     if (stack.length === 0) {
       if (value.trim()) fail(position, 'Text is not allowed outside the document element.');
+      if (value) mayDeclare = false;
       return;
     }
     stack[stack.length - 1].children.push(value);
@@ -169,6 +181,7 @@ function parseXml(raw) {
       const end = source.indexOf('-->', position + 4);
       if (end === -1) fail(position, 'An XML comment is not closed.');
       if (source.slice(position + 4, end).includes('--')) fail(position, 'An XML comment contains "--".');
+      mayDeclare = false;
       position = end + 3;
       continue;
     }
@@ -186,14 +199,25 @@ function parseXml(raw) {
     if (source.startsWith('<?', position)) {
       const end = source.indexOf('?>', position + 2);
       if (end === -1) fail(position, 'A processing instruction is not closed.');
-      const body = source.slice(position + 2, end).trim();
-      if (!/^xml(?:\s|$)/i.test(body) || declarationSeen || root || stack.length) {
-        fail(position, 'Only one leading XML declaration is allowed.');
+      const content = source.slice(position + 2, end);
+      const targetMatch = content.match(/^([^\s]+)/);
+      if (!targetMatch) fail(position, 'A processing instruction has no target.');
+      const target = targetMatch[1];
+      if (target === 'xml') {
+        if (!mayDeclare || declarationSeen || root || stack.length) {
+          fail(position, 'Only one leading XML declaration is allowed.');
+        }
+        if (!/^xml\s+version\s*=\s*(["'])1\.0\1(?:\s+encoding\s*=\s*(["'])UTF-8\2)?\s*$/i.test(content)) {
+          fail(position, 'The XML declaration must specify version 1.0 and optional UTF-8 encoding.');
+        }
+        declarationSeen = true;
+        mayDeclare = false;
+      } else if (/^xml$/i.test(target)) {
+        fail(position, 'The XML declaration target must be lowercase "xml".');
+      } else {
+        // Non-xml PIs (e.g. xml-stylesheet from xslURL) are valid anywhere.
+        mayDeclare = false;
       }
-      if (!/^xml\s+version\s*=\s*(["'])1\.0\1(?:\s+encoding\s*=\s*(["'])UTF-8\2)?\s*$/i.test(body)) {
-        fail(position, 'The XML declaration must specify version 1.0 and optional UTF-8 encoding.');
-      }
-      declarationSeen = true;
       position = end + 2;
       continue;
     }
@@ -219,6 +243,7 @@ function parseXml(raw) {
     const parsed = parseOpeningTag(body, position);
     /** @type {XmlNode} */
     const node = { name: parsed.name, attrs: parsed.attrs, children: [] };
+    mayDeclare = false;
     if (stack.length > 0) stack[stack.length - 1].children.push(node);
     else if (root) fail(position, 'An XML document may contain only one root element.');
     else root = node;
@@ -316,9 +341,14 @@ function validXmlName(name) {
   return /^(?:[A-Za-z_][\w.-]*)(?::[A-Za-z_][\w.-]*)?$/.test(name);
 }
 
-/** @param {XmlNode} node */
-function namespaceMap(node) {
-  const namespaces = new Map([['xml', 'http://www.w3.org/XML/1998/namespace']]);
+/**
+ * @param {XmlNode} node
+ * @param {Map<string, string>} [parent]
+ */
+function namespaceMap(node, parent) {
+  const namespaces = parent
+    ? new Map(parent)
+    : new Map([['xml', 'http://www.w3.org/XML/1998/namespace']]);
   for (const [name, value] of node.attrs) {
     if (name === 'xmlns') namespaces.set('', value);
     else if (name.startsWith('xmlns:')) namespaces.set(name.slice(6), value);
@@ -350,6 +380,20 @@ function elementChildren(node) {
 /** @param {XmlNode} node @returns {string} */
 function nodeText(node) {
   return node.children.map((child) => typeof child === 'string' ? child : nodeText(child)).join('');
+}
+
+/** @param {XmlNode} node @param {SitemapXmlFinding[]} findings */
+function rejectMixedContent(node, findings) {
+  if (!ELEMENT_ONLY.has(localName(node.name))) return;
+  for (const child of node.children) {
+    if (typeof child === 'string' && child.trim()) {
+      findings.push({
+        code: 'sitemap-mixed-content',
+        message: `<${localName(node.name)}> must not contain non-whitespace text.`,
+      });
+      return;
+    }
+  }
 }
 
 /** @param {unknown} value */

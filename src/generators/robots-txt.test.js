@@ -183,14 +183,61 @@ describe('buildRobotsTxt', () => {
       includeLlmsTxt: false,
       contentSignals: { search: true, aiInput: false, aiTrain: false },
     } } });
-    expect(buildRobotsTxt(withSignals, 'https://x.com')).toContain(
+    expect(buildRobotsTxt(withSignals, 'https://x.com')).toBe(
+      'User-agent: *\nAllow: /\n' +
       '# Experimental Content Signals, not part of RFC 9309\n' +
-      'Content-Signal: search=yes, ai-input=no, ai-train=no\n',
+      'Content-Signal: search=yes, ai-input=no, ai-train=no\n' +
+      '\n',
+    );
+  });
+
+  test('places Content-Signal inside each user-agent group', () => {
+    const config = resolveConfig({ discovery: { robots: {
+      enabled: true,
+      policy: 'search-open-training-closed',
+      includeSitemap: false,
+      includeLlmsTxt: false,
+      contentSignals: { search: true, aiInput: true, aiTrain: false },
+    } } });
+    const out = buildRobotsTxt(config, 'https://x.com');
+    expect(out).toContain(
+      'User-agent: *\nAllow: /\n' +
+      '# Experimental Content Signals, not part of RFC 9309\n' +
+      'Content-Signal: search=yes, ai-input=yes, ai-train=no\n\n',
+    );
+    expect(out).toContain(
+      'User-agent: GPTBot\nDisallow: /\n' +
+      '# Experimental Content Signals, not part of RFC 9309\n' +
+      'Content-Signal: search=yes, ai-input=yes, ai-train=no\n\n',
+    );
+    expect(out.trimEnd().endsWith('Content-Signal: search=yes, ai-input=yes, ai-train=no')).toBe(true);
+  });
+
+  test('synthesizes a wildcard group when custom output has none', () => {
+    const config = resolveConfig({ discovery: { robots: {
+      enabled: true,
+      universalAllow: false,
+      includeSitemap: false,
+      includeLlmsTxt: false,
+      contentSignals: { search: false, aiInput: false, aiTrain: false },
+    } } });
+    expect(buildRobotsTxt(config, 'https://x.com')).toBe(
+      'User-agent: *\n' +
+      '# Experimental Content Signals, not part of RFC 9309\n' +
+      'Content-Signal: search=no, ai-input=no, ai-train=no\n',
     );
   });
 
   test('uses accepted root llms claims rather than the raw config flag', () => {
     const config = resolveConfig({ robotsTxt: { enabled: true } });
     expect(buildRobotsTxt(config, 'https://x.com', '', true, false)).not.toContain('# llms.txt:');
+  });
+
+  test('does not advertise root llms.txt under locale-only indexes', () => {
+    const config = resolveConfig({
+      robotsTxt: { enabled: true, includeSitemap: false },
+      i18n: { indexes: 'locale' },
+    });
+    expect(buildRobotsTxt(config, 'https://x.com')).not.toContain('# llms.txt:');
   });
 });

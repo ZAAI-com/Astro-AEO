@@ -2,11 +2,12 @@ import { describe, expect, test } from 'vitest';
 import { parseSitemapXml } from './sitemap-xml.js';
 
 const NS = 'http://www.sitemaps.org/schemas/sitemap/0.9';
+const XHTML = 'http://www.w3.org/1999/xhtml';
 
 describe('parseSitemapXml', () => {
   test('parses a strict URL set and canonicalizes hreflang tags', () => {
     const parsed = parseSitemapXml(
-      `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="${NS}" xmlns:xhtml="http://www.w3.org/1999/xhtml">` +
+      `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="${NS}" xmlns:xhtml="${XHTML}">` +
         '<url><loc>https://example.test/en/?a=1&amp;b=2</loc>' +
         '<xhtml:link rel="alternate" hreflang="en_us" href="https://example.test/en/"/></url></urlset>',
     );
@@ -19,6 +20,50 @@ describe('parseSitemapXml', () => {
         alternates: [{ language: 'en-US', url: 'https://example.test/en/' }],
       }],
     });
+  });
+
+  test('accepts xml-stylesheet processing instructions from xslURL', () => {
+    const parsed = parseSitemapXml(
+      `<?xml version="1.0" encoding="UTF-8"?>` +
+        `<?xml-stylesheet type="text/xsl" href="sitemap.xsl"?>` +
+        `<urlset xmlns="${NS}"><url><loc>https://example.test/</loc></url></urlset>`,
+    );
+    expect(parsed.findings).toEqual([]);
+    expect(parsed.kind).toBe('urlset');
+    expect(parsed.urls).toEqual([{ loc: 'https://example.test/', alternates: [] }]);
+  });
+
+  test('rejects a late XML declaration and uppercase XML targets', () => {
+    for (const xml of [
+      `<!-- comment --><?xml version="1.0"?><urlset xmlns="${NS}"/>`,
+      ` <?xml version="1.0"?><urlset xmlns="${NS}"/>`,
+      `<?XML version="1.0"?><urlset xmlns="${NS}"/>`,
+      `<?xml-stylesheet href="x.xsl"?><?xml version="1.0"?><urlset xmlns="${NS}"/>`,
+    ]) {
+      expect(parseSitemapXml(xml).findings.map((entry) => entry.code)).toContain('sitemap-xml-malformed');
+    }
+  });
+
+  test('resolves per-element xmlns:xhtml declarations', () => {
+    const parsed = parseSitemapXml(
+      `<urlset xmlns="${NS}">` +
+        `<url xmlns:xhtml="${XHTML}">` +
+        '<loc>https://example.test/en/</loc>' +
+        '<xhtml:link rel="alternate" hreflang="fr" href="https://example.test/fr/"/>' +
+        '</url></urlset>',
+    );
+    expect(parsed.findings).toEqual([]);
+    expect(parsed.urls).toEqual([{
+      loc: 'https://example.test/en/',
+      alternates: [{ language: 'fr', url: 'https://example.test/fr/' }],
+    }]);
+  });
+
+  test('rejects non-whitespace text in element-only containers', () => {
+    const parsed = parseSitemapXml(
+      `<urlset xmlns="${NS}">oops<url><loc>https://example.test/</loc></url></urlset>`,
+    );
+    expect(parsed.findings.map((entry) => entry.code)).toContain('sitemap-mixed-content');
   });
 
   test('rejects mismatched tags, DTDs, bare ampersands, and repaired-looking XML', () => {
@@ -47,7 +92,7 @@ describe('parseSitemapXml', () => {
     expect(index).toMatchObject({ kind: 'index', locations: ['https://example.test/sitemap-0.xml'], findings: [] });
 
     const urlset = parseSitemapXml(
-      `<urlset xmlns="${NS}" xmlns:xhtml="http://www.w3.org/1999/xhtml"><url>` +
+      `<urlset xmlns="${NS}" xmlns:xhtml="${XHTML}"><url>` +
         '<loc>https://example.test/</loc>' +
         '<xhtml:link rel="alternate" hreflang="en" href="https://example.test/en/"/>' +
         '<xhtml:link rel="alternate" hreflang="EN" href="https://example.test/other/"/>' +

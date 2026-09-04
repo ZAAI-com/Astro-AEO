@@ -152,7 +152,7 @@ export function validateLocalSitemap(input) {
 
     for (const entry of parsed.urls) {
       const canonical = safeHttpUrl(entry.loc);
-      if (!canonical || canonical.username || canonical.password || canonical.hash || canonical.search) {
+      if (!canonical || canonical.username || canonical.password || canonical.hash) {
         findings.push(finding('sitemap-url-invalid', 'error', `Invalid canonical sitemap URL: ${redactUrl(entry.loc)}`, servedPath));
         continue;
       }
@@ -168,7 +168,9 @@ export function validateLocalSitemap(input) {
       seenUrls.add(canonical.href);
 
       const route = normalizeRoute(canonical.pathname);
-      const routeKey = `${canonical.origin}\0${route}`;
+      // Query strings are valid in the Sitemaps protocol; include them so two
+      // distinct query URLs for one path are not reported as aliases.
+      const routeKey = `${canonical.origin}\0${route}\0${canonical.search}`;
       const routeAlias = seenRouteUrls.get(routeKey);
       if (routeAlias && routeAlias !== canonical.href) {
         findings.push(finding(

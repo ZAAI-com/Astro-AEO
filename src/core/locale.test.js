@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { normalizePageAlternates } from './locale.js';
+import { createLocaleSnapshot, normalizePageAlternates, resolvePageLocale } from './locale.js';
 
 function page(pathname, alternates = [], rendered = '') {
   const canonicalUrl = `https://example.test${pathname}`;
@@ -54,5 +54,49 @@ describe('hreflang normalization', () => {
     ]);
 
     expect(result.diagnostics.some(({ code }) => code === 'hreflang-not-reciprocal')).toBe(false);
+  });
+});
+
+describe('resolvePageLocale', () => {
+  const snapshot = createLocaleSnapshot({
+    locales: ['en', 'fr'],
+    defaultLocale: 'en',
+    routing: { prefixDefaultLocale: true },
+  });
+
+  test('applies default-language fallback only when unresolvedLanguage is default', () => {
+    const resolved = resolvePageLocale(
+      { pathname: '/about', languageSources: {} },
+      snapshot,
+      { unresolvedLanguage: 'default' },
+    );
+    expect(resolved.excluded).toBe(false);
+    expect(resolved.page.language).toBe('en');
+  });
+
+  test('excludes unresolved pages when unresolvedLanguage is exclude', () => {
+    const resolved = resolvePageLocale(
+      { pathname: '/about', languageSources: {} },
+      snapshot,
+      { unresolvedLanguage: 'exclude' },
+    );
+    expect(resolved.excluded).toBe(true);
+    expect(resolved.diagnostics).toContainEqual(expect.objectContaining({
+      code: 'page-language-unresolved',
+      severity: 'warning',
+    }));
+  });
+
+  test('errors on unresolved pages when unresolvedLanguage is error', () => {
+    const resolved = resolvePageLocale(
+      { pathname: '/about', languageSources: {} },
+      snapshot,
+      { unresolvedLanguage: 'error' },
+    );
+    expect(resolved.excluded).toBe(true);
+    expect(resolved.diagnostics).toContainEqual(expect.objectContaining({
+      code: 'page-language-unresolved',
+      severity: 'error',
+    }));
   });
 });

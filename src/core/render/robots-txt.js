@@ -6,6 +6,16 @@ import { CRAWLER_REGISTRY, crawlerRegistryEntry } from '../crawler-registry.js';
  */
 
 /**
+ * Whether a root `/llms.txt` advertisement is topology-appropriate. Locale-only
+ * indexes do not emit or serve a root index; callers may still override with an
+ * explicit accepted claim.
+ * @param {import('../../index.js').ResolvedAstroAeoConfig} config
+ */
+export function rootLlmsAvailable(config) {
+  return Boolean(config.corpus.index.enabled && config.i18n.indexes !== 'locale');
+}
+
+/**
  * Build the robots.txt body from config.
  * @param {import('../../index.js').ResolvedAstroAeoConfig} config
  * @param {string} siteUrl  Site origin without trailing slash.
@@ -22,17 +32,20 @@ export function buildRobotsTxt(
   siteUrl,
   base = '',
   sitemapAvailable = true,
-  llmsAvailable = config.corpus.index.enabled,
+  llmsAvailable = rootLlmsAvailable(config),
 ) {
   const robots = config.discovery.robots;
   const policy = robots.policy ?? 'custom';
   if (policy === 'custom') {
-    return appendContentSignals(
+    return injectContentSignals(
       buildCustomRobotsTxt(config, siteUrl, base, sitemapAvailable, llmsAvailable),
       robots.contentSignals,
     );
   }
-  return buildPresetRobotsTxt(config, siteUrl, base, sitemapAvailable, llmsAvailable, policy);
+  return injectContentSignals(
+    buildPresetRobotsTxt(config, siteUrl, base, sitemapAvailable, llmsAvailable, policy),
+    robots.contentSignals,
+  );
 }
 
 /**
@@ -130,7 +143,7 @@ function buildPresetRobotsTxt(config, siteUrl, base, sitemapAvailable, llmsAvail
   }
   for (const extra of robots.extraLines ?? []) lines.push(extra);
 
-  return appendContentSignals(`${lines.join('\n')}\n`, robots.contentSignals);
+  return `${lines.join('\n')}\n`;
 }
 
 /**
@@ -167,10 +180,12 @@ function normalizeOverrides(values, name) {
 }
 
 /**
+ * Insert Content-Signal inside each user-agent group. When the body declares no
+ * groups, synthesize a wildcard group so the directive is not a dangling trailer.
  * @param {string} body
  * @param {{ search?: boolean; aiInput?: boolean; aiTrain?: boolean } | undefined} signals
  */
-function appendContentSignals(body, signals) {
+function injectContentSignals(body, signals) {
   if (
     !signals ||
     typeof signals.search !== 'boolean' ||
@@ -179,12 +194,37 @@ function appendContentSignals(body, signals) {
   ) {
     return body;
   }
-  const value = [
-    `search=${signals.search ? 'yes' : 'no'}`,
-    `ai-input=${signals.aiInput ? 'yes' : 'no'}`,
-    `ai-train=${signals.aiTrain ? 'yes' : 'no'}`,
-  ].join(', ');
-  return `${body}# Experimental Content Signals, not part of RFC 9309\nContent-Signal: ${value}\n`;
+  const signalLines = [
+    '# Experimental Content Signals, not part of RFC 9309',
+    `Content-Signal: search=${signals.search ? 'yes' : 'no'}, ai-input=${signals.aiInput ? 'yes' : 'no'}, ai-train=${signals.aiTrain ? 'yes' : 'no'}`,
+  ];
+  const trimmed = body.endsWith('\n') ? body.slice(0, -1) : body;
+  const lines = trimmed.length === 0 ? [] : trimmed.split('\n');
+  const hasUserAgent = lines.some((line) => /^user-agent:\s*\S/i.test(line.trim()));
+  if (!hasUserAgent) {
+    return ['User-agent: *', ...signalLines, '', ...lines].join('\n').replace(/\n*$/, '\n');
+  }
+
+  /** @type {string[]} */
+  const out = [];
+  let inGroup = false;
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    if (/^user-agent:/i.test(trimmedLine)) {
+      inGroup = true;
+      out.push(line);
+      continue;
+    }
+    if (inGroup && trimmedLine === '') {
+      out.push(...signalLines);
+      out.push(line);
+      inGroup = false;
+      continue;
+    }
+    out.push(line);
+  }
+  if (inGroup) out.push(...signalLines);
+  return `${out.join('\n')}\n`;
 }
 
 /** @param {string} a @param {string} b */

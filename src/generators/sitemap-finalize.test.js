@@ -293,4 +293,40 @@ describe('finalizeSitemapOutputs', () => {
     expect(result).toEqual({ aliasEmitted: false, sitemapAdvertised: false });
     expect(warnings.some((warning) => warning.includes('missing or is not a regular'))).toBe(true);
   });
+
+  test('accepts runtime-only sitemap URLs supplied through runtimeUrls', () => {
+    writeFileSync(
+      join(dir, 'sitemap-index.xml'),
+      '<?xml version="1.0" encoding="UTF-8"?>' +
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' +
+        '<url><loc>https://example.com/dynamic/item</loc></url></urlset>',
+    );
+    const diagnostics = [];
+    const result = finalizeSitemapOutputs(
+      distDir,
+      resolveConfig({ robotsTxt: { enabled: true } }),
+      {
+        siteUrl: 'https://example.com',
+        base: '',
+        sitemapExpected: true,
+        logger,
+        routePaths: new Set(['/']),
+        runtimeUrls: ['https://example.com/dynamic/item'],
+        onDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
+      },
+    );
+
+    expect(result.sitemapAdvertised).toBe(true);
+    expect(diagnostics.map((entry) => entry.code)).not.toContain('sitemap-route-missing');
+    expect(readFileSync(join(dir, 'robots.txt'), 'utf8')).toContain('Sitemap:');
+  });
+
+  test('does not advertise root llms.txt under locale-only indexes', () => {
+    const result = finalize({
+      i18n: { indexes: 'locale' },
+      robotsTxt: { enabled: true, includeSitemap: false },
+    });
+    expect(result.sitemapAdvertised).toBe(false);
+    expect(readFileSync(join(dir, 'robots.txt'), 'utf8')).not.toContain('# llms.txt:');
+  });
 });

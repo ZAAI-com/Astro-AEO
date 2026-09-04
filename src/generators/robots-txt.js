@@ -1,10 +1,10 @@
 // @ts-check
 import { createArtifactWriter } from '../build/artifacts.js';
-import { buildRobotsTxt } from '../core/render/robots-txt.js';
-
-export { buildRobotsTxt } from '../core/render/robots-txt.js';
+import { buildRobotsTxt, rootLlmsAvailable } from '../core/render/robots-txt.js';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+export { buildRobotsTxt, rootLlmsAvailable } from '../core/render/robots-txt.js';
 
 /**
  * Write /robots.txt. Warns (but still overwrites) when one already exists in the
@@ -27,7 +27,7 @@ export function emitRobotsTxt(
   base = '',
   sitemapAvailable = true,
   writer = undefined,
-  llmsAvailable = config.corpus.index.enabled,
+  llmsAvailable = rootLlmsAvailable(config),
 ) {
   if (!config.discovery.robots.enabled) return;
   const write = writer ?? createArtifactWriter({ distDir, logger: toLogger(logger) });

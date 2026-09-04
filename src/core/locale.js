@@ -131,18 +131,22 @@ export function resolvePageLocale(page, snapshot, options) {
       language = route.language;
     }
   }
-  if (!language && snapshot.defaultLanguage) {
-    locale = snapshot.locales.find((entry) => entry.locale === snapshot.defaultLocale) ?? null;
-    language = snapshot.defaultLanguage;
-  }
-  const siteDefault = sources.siteDefault ?? options.siteDefaultLocale;
-  if (!language && siteDefault) {
-    language = canonicalLanguage(siteDefault);
-    if (!language) {
-      diagnostics.push(localeDiagnostic('site-default-locale-invalid', 'error', 'site.defaultLocale is not a valid language tag.', page.pathname));
-      return { page, excluded: true, diagnostics };
+  // Default-language and site-default fallbacks only apply when the policy asks
+  // for them. Otherwise `exclude` / `error` must reach their unresolved branch.
+  if (options.unresolvedLanguage === 'default') {
+    if (!language && snapshot.defaultLanguage) {
+      locale = snapshot.locales.find((entry) => entry.locale === snapshot.defaultLocale) ?? null;
+      language = snapshot.defaultLanguage;
     }
-    locale = localeForAlias(language, snapshot.locales);
+    const siteDefault = sources.siteDefault ?? options.siteDefaultLocale;
+    if (!language && siteDefault) {
+      language = canonicalLanguage(siteDefault);
+      if (!language) {
+        diagnostics.push(localeDiagnostic('site-default-locale-invalid', 'error', 'site.defaultLocale is not a valid language tag.', page.pathname));
+        return { page, excluded: true, diagnostics };
+      }
+      locale = localeForAlias(language, snapshot.locales);
+    }
   }
   if (!language && snapshot.locales.length === 0 && !options.siteDefaultLocale) {
     return {

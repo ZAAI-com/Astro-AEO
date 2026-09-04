@@ -4,6 +4,7 @@ import { emitSitemapAlias } from './sitemap-alias.js';
 import { sitemapPathExists } from '../lib/sitemap.js';
 import { createArtifactWriter } from '../build/artifacts.js';
 import { validateLocalSitemap } from '../build/sitemap-validate.js';
+import { rootLlmsAvailable } from '../core/render/robots-txt.js';
 
 /**
  * Finalize sitemap-dependent outputs after every configured sitemap integration
@@ -81,7 +82,7 @@ export function finalizeSitemapOutputs(
     ? advertisedPathExists ? advertisedPathValid : true
     : sitemapPolicy === 'auto' && (advertisedPathValid || advertisedAliasClaimed);
 
-  const llmsAvailable = acceptedRootLlms(activeWriter, base, config.corpus.index.enabled);
+  const llmsAvailable = acceptedRootLlms(activeWriter, base, rootLlmsAvailable(config));
   emitRobotsTxt(
     distDir,
     config,

@@ -100,4 +100,33 @@ describe('validateLocalSitemap', () => {
     expect(result.documentsChecked).toBe(1);
     expect(result.findings.map((entry) => entry.code)).toContain('sitemap-reference-not-local');
   });
+
+  test('allows query-bearing sitemap URLs and treats distinct queries as separate routes', () => {
+    const root = fixture();
+    writeFileSync(
+      join(root, 'sitemap.xml'),
+      `<urlset xmlns="${NS}">` +
+        '<url><loc>https://example.test/en/?page=1</loc></url>' +
+        '<url><loc>https://example.test/en/?page=2</loc></url>' +
+        '</urlset>',
+    );
+
+    const result = validateLocalSitemap({
+      distDir: root,
+      entryPath: '/sitemap.xml',
+      siteUrl: 'https://example.test',
+      runtimeUrls: [
+        'https://example.test/en/?page=1',
+        'https://example.test/en/?page=2',
+      ],
+    });
+
+    expect(result.valid).toBe(true);
+    expect(result.urls).toEqual([
+      'https://example.test/en/?page=1',
+      'https://example.test/en/?page=2',
+    ]);
+    expect(result.findings.map((entry) => entry.code)).not.toContain('sitemap-url-invalid');
+    expect(result.findings.map((entry) => entry.code)).not.toContain('sitemap-url-alias');
+  });
 });
