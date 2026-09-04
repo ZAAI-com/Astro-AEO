@@ -24,9 +24,14 @@ let serverOutputRevision = 0;
 /** @type {Error | undefined} */
 let serverStartError;
 
+// The dev server colourises its request log whenever CI is set, which puts an
+// escape sequence between "[200]" and the pathname. Strip it once, here, so every
+// pattern, assertion, and diagnostic dump below reads plain text.
+const ANSI = /\u001B\[[0-9;]*m/g;
+
 /** @param {string | Buffer} chunk */
 function captureServerOutput(chunk) {
-  serverOutput += chunk.toString();
+  serverOutput += chunk.toString().replace(ANSI, '');
   serverOutputRevision += 1;
 }
 

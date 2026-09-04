@@ -22,6 +22,12 @@ function write(root, pathname, contents) {
   writeFileSync(target, contents);
 }
 
+// Outside src/, so toggling it does not churn the module graph.
+/** @param {string} root */
+function discoveryFlag(root) {
+  return join(root, 'discovery-flag.txt');
+}
+
 /** @param {'startup'|'hot'} mode */
 function createFixture(mode) {
   const root = mkdtempSync(join(TEMP_PARENT, `dev-dynamic-${mode}-`));
@@ -51,7 +57,11 @@ export const collections = {
 `);
   write(root, 'src/data/products/one.md', '---\ntitle: Product One\n---\n\nProduct one body.\n');
   write(root, 'src/data/archive.mjs', "export const archiveSlugs = ['first', 'why?now#yes'];\n");
-  write(root, 'src/data/failure.mjs', 'export const failDiscovery = false;\n');
+  // The controlled failure reads a flag file when getStaticPaths() runs, rather
+  // than importing a module the test rewrites. Discovery calls getStaticPaths()
+  // on every corpus request, so both the failure and the recovery take effect on
+  // the next request without depending on the dev server's file watcher.
+  writeFileSync(discoveryFlag(root), 'ok\n');
   write(root, 'src/pages/index.astro', `---\n---
 <html><head><title>Home</title></head><body><main><h1>Home</h1></main></body></html>
 `);
@@ -80,9 +90,11 @@ const { slug } = Astro.props;
 `);
   write(root, 'src/pages/failure/[slug].astro', `
 ---
-import { failDiscovery } from '../../data/failure.mjs';
+import { readFileSync } from 'node:fs';
 export function getStaticPaths() {
-  if (failDiscovery) throw new Error('SECRET_CONTROLLED_DISCOVERY_FAILURE');
+  if (readFileSync(${JSON.stringify(discoveryFlag(root))}, 'utf8').trim() === 'fail') {
+    throw new Error('SECRET_CONTROLLED_DISCOVERY_FAILURE');
+  }
   return [{ params: { slug: 'ok' } }];
 }
 ---
@@ -111,6 +123,10 @@ export const prerender = false;
 ---
 <html><head><title>Live route</title></head><body><main><h1>Live {Astro.params.slug}</h1></main></body></html>
 `;
+
+// The dev server colourises its output whenever CI is set. Strip the escape
+// sequences once, on capture, so assertions and diagnostics read plain text.
+const ANSI = /\u001B\[[0-9;]*m/g;
 
 async function freePort() {
   const socket = createServer();
@@ -141,8 +157,8 @@ async function startServer(root) {
     { cwd: REPO, env, stdio: ['ignore', 'pipe', 'pipe'] },
   );
   servers.add(child);
-  child.stdout.on('data', (chunk) => { output += chunk; });
-  child.stderr.on('data', (chunk) => { output += chunk; });
+  child.stdout.on('data', (chunk) => { output += String(chunk).replace(ANSI, ''); });
+  child.stderr.on('data', (chunk) => { output += String(chunk).replace(ANSI, ''); });
   const base = `http://127.0.0.1:${port}`;
   await waitFor(async () => {
     try {
@@ -237,9 +253,13 @@ describe.sequential('development dynamic-route discovery', () => {
     await waitFor(async () => (await responseText(running.base, '/llms.txt')).body
       .includes('/new/added.md'), 'startup restart route discovery');
 
-    write(root, 'src/data/failure.mjs', 'export const failDiscovery = true;\n');
-    await waitFor(async () => (await fetch(`${running.base}/llms.txt`)).status === 500,
-      'controlled discovery failure');
+    writeFileSync(discoveryFlag(root), 'fail\n');
+    let lastFailureResponse = llms;
+    await waitFor(async () => {
+      lastFailureResponse = await responseText(running.base, '/llms.txt');
+      return lastFailureResponse.response.status === 500;
+    }, 'controlled discovery failure', () =>
+      `${running.output()}\nLast response: ${lastFailureResponse.response.status} ${lastFailureResponse.body}`);
     const failed = await responseText(running.base, '/llms.txt');
     expect(failed.response.status).toBe(500);
     expect(failed.response.headers.get('cache-control')).toBe('no-store');
@@ -249,9 +269,13 @@ describe.sequential('development dynamic-route discovery', () => {
     expect((await fetch(`${running.base}/`)).status).toBe(200);
     expect((await fetch(`${running.base}/products/one.md`)).status).toBe(200);
 
-    write(root, 'src/data/failure.mjs', 'export const failDiscovery = false;\n');
-    await waitFor(async () => (await fetch(`${running.base}/llms.txt`)).status === 200,
-      'discovery recovery');
+    writeFileSync(discoveryFlag(root), 'ok\n');
+    let lastRecoveryResponse = failed;
+    await waitFor(async () => {
+      lastRecoveryResponse = await responseText(running.base, '/llms.txt');
+      return lastRecoveryResponse.response.status === 200;
+    }, 'discovery recovery', () =>
+      `${running.output()}\nLast response: ${lastRecoveryResponse.response.status} ${lastRecoveryResponse.body}`);
     await stopServer(running);
   });
 

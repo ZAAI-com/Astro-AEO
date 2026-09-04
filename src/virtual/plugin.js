@@ -5,6 +5,9 @@ export const RUNTIME_CONFIG_ID = 'astro-aeo:runtime-config';
 export const DYNAMIC_ROUTES_ID = 'astro-aeo:dynamic-routes';
 export const DEVELOPMENT_DYNAMIC_ROUTE_LOADER_SENTINEL =
   'astro-aeo:development-dynamic-route-loader';
+// Registered symbol key: the hot loader warns once per development process, even
+// when a page-file change makes Vite re-execute the module.
+export const DEV_ON_DEMAND_WARNING_KEY = 'astro-aeo:development-on-demand-warning';
 const RESOLVED_RUNTIME_CONFIG_ID = `\0${RUNTIME_CONFIG_ID}`;
 const RESOLVED_DYNAMIC_ROUTES_ID = `\0${DYNAMIC_ROUTES_ID}`;
 
@@ -175,17 +178,19 @@ function hotDynamicRoutesModuleSource(projectRoot, pagesGlob, warnOnDemand) {
     `const __astroAeoFreshModules = import.meta.glob(${JSON.stringify(pagesGlob)}, { exhaustive: true });\n` +
     `const __astroAeoRoot = ${JSON.stringify(normalizeFsPath(projectRoot))};\n` +
     `const __astroAeoFail = () => { throw new Error("astro-aeo-hot-routes-unavailable"); };\n` +
-    `let __astroAeoWarnedOnDemand = false;\n` +
     `if (import.meta.hot) {\n` +
     `  import.meta.hot.data.astroAeoModules = __astroAeoFreshModules;\n` +
     `  import.meta.hot.accept();\n` +
     `}\n` +
+    // Adding a page file re-executes this module, and import.meta.hot.data does not
+    // survive that on every Vite version, so the guard lives on the development
+    // process instead. One warning per dev server, whatever the module lifetime.
+    `const __astroAeoWarnedKey = ${JSON.stringify(DEV_ON_DEMAND_WARNING_KEY)};\n` +
     `const __astroAeoWarnOnDemand = () => {\n` +
     `  if (!${JSON.stringify(warnOnDemand)}) return;\n` +
-    `  const state = import.meta.hot?.data;\n` +
-    `  if (state?.astroAeoWarnedOnDemand || __astroAeoWarnedOnDemand) return;\n` +
-    `  if (state) state.astroAeoWarnedOnDemand = true;\n` +
-    `  else __astroAeoWarnedOnDemand = true;\n` +
+    `  const scope = globalThis;\n` +
+    `  if (scope[Symbol.for(__astroAeoWarnedKey)]) return;\n` +
+    `  scope[Symbol.for(__astroAeoWarnedKey)] = true;\n` +
     `  console.warn("astro-aeo: on-demand dynamic page routes require pages.catalogs for development corpus enumeration.");\n` +
     `};\n` +
     `const __astroAeoEntrypointKey = (value) => {\n` +

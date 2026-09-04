@@ -631,6 +631,21 @@ describe('integration diagnostics and declarations', () => {
       .toHaveLength(1);
   });
 
+  test('hot discovery leaves the on-demand warning to the generated loader', async () => {
+    // Only the loader sees routes added after the last astro:routes:resolved, so
+    // it owns the message. Two owners emitted it twice when the orders interleaved.
+    const result = await runRouteLifecycle({
+      command: 'dev',
+      repeatRoutes: true,
+      userConfig: { pages: { devDynamicDiscovery: 'hot' } },
+      routes: [dynamicRoute({ isPrerendered: false })],
+    });
+    expect(result.warnings.some((message) =>
+      message.includes('on-demand dynamic page routes'))).toBe(false);
+    expect(result.dynamicSource)
+      .toContain('console.warn("astro-aeo: on-demand dynamic page routes');
+  });
+
   test('a configured catalog suppresses development dynamic-route warnings', async () => {
     const result = await runRouteLifecycle({
       command: 'dev',

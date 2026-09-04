@@ -30,9 +30,11 @@ jobs:
       - name: Require a Changeset or an already-versioned release
         if: matrix.astro == '7' && github.event_name == 'pull_request'
         run: node scripts/check-changesets.mjs --since "origin/${{ github.base_ref }}"
+      # Astro 6 requires Vite 7 and says so at startup, but the lockfile resolves
+      # Vite 8 for Astro 7. Pin the pair so this leg tests a combination users have.
       - name: Pin Astro version for this leg
         if: matrix.astro != '7'
-        run: pnpm add -D astro@${{ matrix.astro }}
+        run: pnpm add -D astro@${{ matrix.astro }} ${{ matrix.astro == '6' && 'vite@7' || '' }}
       - name: Typecheck
         run: pnpm run typecheck
       # The published .d.ts files are hand-written and only ever seen by this

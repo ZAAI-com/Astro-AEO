@@ -162,8 +162,10 @@ export default function aeo(userConfig = {}) {
         mode: 'hot',
         routes: [],
         projectRoot,
-        warnOnDemand:
-          config.pages.catalogs.length === 0 && !developmentDynamicWarningEmitted,
+        // Hot discovery owns this warning: only the loader sees routes that appear
+        // after the last astro:routes:resolved, and a single owner keeps the
+        // message from being emitted twice when the two orders interleave.
+        warnOnDemand: config.pages.catalogs.length === 0,
         ...(safeRelative
           ? { pagesGlob: `/${escapeViteGlobPath(relativePagesDir)}/**/*` }
           : {}),
@@ -441,7 +443,7 @@ export default function aeo(userConfig = {}) {
           !developmentDynamicWarningEmitted &&
           config.pages.catalogs.length === 0
         ) {
-          if (hasOnDemandDynamicProjectPage) {
+          if (hasOnDemandDynamicProjectPage && config.pages.devDynamicDiscovery !== 'hot') {
             developmentDynamicWarningEmitted = true;
             integrationLogger?.warn(
               'astro-aeo: on-demand dynamic page routes require pages.catalogs for development corpus enumeration.',

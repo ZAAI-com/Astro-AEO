@@ -1,6 +1,7 @@
 import { test, expect, describe, vi } from 'vitest';
 import {
   aeoRuntimeConfigPlugin,
+  DEV_ON_DEMAND_WARNING_KEY,
   DEVELOPMENT_DYNAMIC_ROUTE_LOADER_SENTINEL,
   DYNAMIC_ROUTES_ID,
   RUNTIME_CONFIG_ID,
@@ -8,6 +9,12 @@ import {
 import { resolveConfig } from '../config.js';
 
 let evaluatedHotModule = 0;
+
+// The generated loader guards its warning on the development process, so each
+// test that exercises it starts from a clean slate.
+function clearOnDemandWarningGuard() {
+  delete globalThis[Symbol.for(DEV_ON_DEMAND_WARNING_KEY)];
+}
 
 async function loadGeneratedHotModule(source, routes, modules) {
   const key = `__astroAeoHotModule${evaluatedHotModule++}`;
@@ -339,6 +346,7 @@ describe('aeoRuntimeConfigPlugin', () => {
   });
 
   test('warns once when hot discovery encounters an uncataloged on-demand route', async () => {
+    clearOnDemandWarningGuard();
     const plugin = aeoRuntimeConfigPlugin(
       () => ({ command: 'dev' }),
       undefined,
@@ -369,6 +377,47 @@ describe('aeoRuntimeConfigPlugin', () => {
       expect(await generated.list()).toEqual([]);
       expect(warn).toHaveBeenCalledTimes(1);
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('on-demand dynamic page routes'));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('the hot on-demand warning survives a module re-execution', async () => {
+    // Adding a page file re-executes the loader. The guard lives on the process,
+    // so a second instance stays silent instead of repeating the warning.
+    clearOnDemandWarningGuard();
+    const plugin = aeoRuntimeConfigPlugin(
+      () => ({ command: 'dev' }),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      () => ({
+        mode: 'hot',
+        routes: [],
+        projectRoot: '/project',
+        pagesGlob: '/src/pages/**/*',
+        warnOnDemand: true,
+      }),
+    );
+    const onDemandRoute = [{
+      type: 'page', origin: 'project', pathname: undefined, prerender: false,
+      component: '/src/pages/live/[slug].astro', route: '/live/[slug]',
+      params: ['slug'], segments: [[{ content: 'slug', dynamic: true, spread: false }]],
+    }];
+    const modules = { '/src/pages/live/[slug].astro': async () => ({}) };
+    const first = await loadGeneratedHotModule(
+      plugin.load(`\0${DYNAMIC_ROUTES_ID}`), onDemandRoute, modules,
+    );
+    const second = await loadGeneratedHotModule(
+      plugin.load(`\0${DYNAMIC_ROUTES_ID}`), onDemandRoute, modules,
+    );
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await first.list()).toEqual([]);
+      expect(await second.list()).toEqual([]);
+      expect(warn).toHaveBeenCalledTimes(1);
     } finally {
       warn.mockRestore();
     }
