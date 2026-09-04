@@ -1,0 +1,26 @@
+scripts/update-benchmark-baseline.mjs
+  s_097dd452b2021b::t_b558de861099b9 7-12,24-26,28-59
+benchmarks/README.md
+  s_097dd452b2021b::t_ec278712a4d501 96-110
+  s_097dd452b2021b::t_fceaccbfc22d01 48
+benchmarks/baseline-1.3.json
+  s_097dd452b2021b::t_a38ac120395145 3,8,13-15,20-28,32-40,44-46
+benchmarks/thresholds.mjs
+  s_097dd452b2021b::t_fceaccbfc22d01 2-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "41c20f5119f07ae53c7a733fb1d4398f443c967d",
+  "prompts": {},
+  "sessions": {
+    "s_097dd452b2021b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "64e7294d-1125-4235-b66b-7592484eab71",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
