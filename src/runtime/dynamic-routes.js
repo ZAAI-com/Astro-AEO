@@ -360,6 +360,9 @@ function generateRoute(params, segments, trailingSlash) {
         if (parameter === undefined) {
           throw new DynamicRouteValidationError('a required route parameter was missing');
         }
+        if (parameter.includes('/')) {
+          throw new DynamicRouteValidationError('a route parameter contained a path separator');
+        }
         return parameter;
       }
       if (!isWellFormedUnicode(part.content)) {
@@ -380,7 +383,7 @@ function generateRoute(params, segments, trailingSlash) {
 
 /** @param {string} value */
 function trimSlashes(value) {
-  return value.replace(/^\/|\/$/g, '');
+  return value.replace(/^\/+|\/+$/g, '');
 }
 
 /** @param {string} value */
@@ -429,10 +432,17 @@ function assertSafeGeneratedPath(pathname) {
   let current = pathname;
   let segmentCount = current.split('/').length;
   for (let depth = 0; depth < 3; depth++) {
+    const segments = current.split('/');
     if (
       current.startsWith('//') ||
       /[\\\u0000-\u001F\u007F]/.test(current) ||
-      current.split('/').some((segment) => segment === '.' || segment === '..')
+      segments.some((segment, index) =>
+        segment === '.' ||
+        segment === '..' ||
+        // Interior empty segments are `//` after join; keep a leading empty
+        // slot from the root slash and an optional trailing empty slot.
+        (segment === '' && index > 0 && index < segments.length - 1)
+      )
     ) {
       throw new DynamicRouteValidationError('getStaticPaths() generated an unsafe pathname');
     }

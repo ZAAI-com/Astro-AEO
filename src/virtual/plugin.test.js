@@ -140,6 +140,10 @@ describe('aeoRuntimeConfigPlugin', () => {
         specifier: 'file:///project/runtime.js',
         options: { label: 'Answers' },
         stages: ['artifact:generate', 'artifact:validate'],
+        hookManifest: [
+          { stage: 'artifact:generate', ordinal: 0 },
+          { stage: 'artifact:validate', ordinal: 0 },
+        ],
         claims: [{ id: 'feed', pathname: '/feed.txt', replace: true }],
       }],
     );
@@ -147,6 +151,9 @@ describe('aeoRuntimeConfigPlugin', () => {
     expect(code).toContain('export const RUNTIME_PLUGIN_LOADERS = [{ name: "feed"');
     expect(code).toContain('options: { "label": "Answers" }');
     expect(code).toContain('stages: ["artifact:generate", "artifact:validate"]');
+    expect(code).toContain(
+      'hookManifest: [{ "stage": "artifact:generate", "ordinal": 0 }, { "stage": "artifact:validate", "ordinal": 0 }]',
+    );
     expect(code).toContain('claims: [{ "id": "feed", "pathname": "/feed.txt", "replace": true }]');
     expect(code).toContain('load: () => import("file:///project/runtime.js")');
     expect(code).not.toContain('import * as');

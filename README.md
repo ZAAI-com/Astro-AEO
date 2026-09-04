@@ -643,10 +643,14 @@ local tokenizer module must default-export API version 1 with stable `name`, `ve
 `approximate`, and `count()` fields. It is probed twice. Any load or count failure restarts the
 whole plan with the built-in tokenizer so a manifest never mixes identities.
 
-When enabled, `/llms/manifest.json` records locales, canonical artifacts, pages, token counts, and
-exact SHA-256 byte hashes. Static `corpus.compression.gzip` adds deterministic level-9 siblings for
-text corpus artifacts. Runtime middleware serves every logical artifact except precompressed gzip
-and relies on provider transport compression.
+When enabled, `/llms/manifest.json` records locales, canonical artifacts, pages, and exact SHA-256
+byte hashes of published companions. Pages without a `.md` companion (Markdown disabled, `no-dotmd`,
+or `generateMarkdown: false`) keep a page record with `markdownUrl`, `tokenCount`, and `hash` set to
+`null`. When a companion exists, `hash` and `tokenCount` match the emitted `.md` bytes after
+`renderMarkdownDocument` (frontmatter, trailing newline, and last-modified footer included). Static
+`corpus.compression.gzip` adds deterministic level-9 siblings for text corpus artifacts. Runtime
+middleware serves every logical artifact except precompressed gzip and relies on provider transport
+compression.
 
 ### Incremental processing cache
 
@@ -664,7 +668,10 @@ match the prior emitted hash.
 The `custom` policy preserves this renderer. Presets use a frozen, first-party-documented crawler
 registry: `open`, `search-open-training-closed`, `retrieval-only`, and `closed`. Per-token
 `allow`/`disallow` overrides are case-insensitive and cannot overlap. Content Signals are emitted
-only when all three booleans are supplied. Robots policies and experimental Content Signals state
+only when all three booleans are supplied, and each `Content-Signal` line is placed inside every
+applicable `User-agent` group (Cloudflare treats it as a group directive). When
+`i18n.indexes` is `locale`, robots does not advertise a root `# llms.txt:` hint because no root
+`/llms.txt` is emitted or served. Robots policies and experimental Content Signals state
 preferences, not access control or guaranteed crawler compliance.
 
 ### IndexNow prepare and submit
@@ -683,11 +690,12 @@ deployed digest before submission. `private` uses only the transferred CI acknow
 `.astro/aeo-cache/indexnow/pending-v1.json`.
 
 Submission verifies a same-origin HTTPS key file without redirects, pins public DNS addresses,
-batches at 10,000 URLs, and retries network errors, `429`, and `5xx` responses three total times.
-Successful batches update acknowledgment state atomically; failed work remains pending. Remote
-failures warn with exit 0 unless `strict` is enabled, while malformed invocation, origins,
-credentials, or key responses always exit 2. Keys, secret-derived paths, and POST bodies are never
-logged or persisted.
+enforces `keyLocation` directory scope before posting (a non-root key authorizes only URLs beneath
+that directory), batches at 10,000 URLs, and retries network errors, `429`, and `5xx` responses
+three total times. Successful batches update acknowledgment state atomically; failed work remains
+pending. Remote failures warn with exit 0 unless `strict` is enabled. `IndexNowInvocationError`
+(malformed invocation, origins, credentials, key responses, lock failures, or scope violations)
+always exits 2. Keys, secret-derived paths, and POST bodies are never logged or persisted.
 
 ### Profile email
 

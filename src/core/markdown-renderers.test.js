@@ -109,6 +109,32 @@ describe('Markdown renderer validation', () => {
       .toThrow(/non-empty name/);
   });
 
+  test('accepts a valid cache declaration and rejects invalid ones', () => {
+    const render = () => ({ status: 'decline' });
+    const accepted = validateMarkdownRendererModule({
+      name: 'cached',
+      apiVersion: 1,
+      render,
+      cache: { pure: true, version: ' 1.0.0 ' },
+    }, './cached.js');
+    expect(accepted.cache).toEqual({ pure: true, version: '1.0.0' });
+    expect(Object.isFrozen(accepted.cache)).toBe(true);
+
+    expect(() => validateMarkdownRendererModule({
+      name: 'impure',
+      apiVersion: 1,
+      render,
+      cache: { pure: false, version: '1' },
+    }, './impure.js')).toThrow(/invalid cache declaration/);
+
+    expect(() => validateMarkdownRendererModule({
+      name: 'blank',
+      apiVersion: 1,
+      render,
+      cache: { pure: true, version: '   ' },
+    }, './blank.js')).toThrow(/invalid cache declaration/);
+  });
+
   test('rejects non-JSON, cyclic, unsafe, and accessor options', () => {
     const cyclic = {};
     cyclic.self = cyclic;

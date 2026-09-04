@@ -31,6 +31,9 @@ vi.mock('./config.js', async () => {
       load: async () => ({
         listPages: async () => [{
           pathname: '/catalog-page',
+          origin: 'https://example.test',
+          locale: 'en',
+          alternates: [{ language: 'fr', url: 'https://example.test/fr/catalog-page/' }],
           title: 'Catalog title',
           description: 'Catalog description',
           markdown: '# Private catalog source',
@@ -277,7 +280,7 @@ describe('runtime plugin middleware integration', () => {
     expect(response.status).toBe(200);
     expect(harness.rewrites).toHaveLength(1);
     expect(JSON.parse(await response.text())).toEqual({
-      handleKeys: ['id', 'pathname', 'read'],
+      handleKeys: ['alternates', 'id', 'locale', 'origin', 'pathname', 'read'],
       readArity: 0,
       title: 'Runtime plugin title',
       representations: {

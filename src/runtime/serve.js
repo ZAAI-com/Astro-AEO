@@ -6,12 +6,13 @@ import {
   isPotentialCorpusArtifactPath,
   planCorpusArtifacts,
 } from '../core/corpus-artifacts.js';
-import { buildRobotsTxt } from '../core/render/robots-txt.js';
+import { buildRobotsTxt, rootLlmsAvailable } from '../core/render/robots-txt.js';
 import { buildDomainProfile } from '../core/render/domain-profile.js';
 import { resolveSiteMeta } from '../core/site-meta.js';
 import { isOwnedArtifactPath } from '../core/owned-artifacts.js';
 import { inspectRootPathname, normalizeCatalogPathname } from '../core/match.js';
 import { matchesExactPathname } from '../core/artifact-path.js';
+import { pageCatalogIdentity } from '../core/page-identity.js';
 import { cancelResponseBody, isIdentityEncoded, isNullBodyStatus } from './respond.js';
 import { enrichHtmlHead, stripAeoHeadMarkers } from '../core/head.js';
 import { renderSchemaCorpus } from '../core/schema-corpus.js';
@@ -124,7 +125,13 @@ export function renderStandaloneArtifact(kind, runtime, opts = {}) {
     const policy = config.discovery.robots.sitemapPolicy;
     const available = opts.sitemapAvailable ?? policy === 'always';
     return {
-      body: buildRobotsTxt(config, siteUrl, site.base, available),
+      body: buildRobotsTxt(
+        config,
+        siteUrl,
+        site.base,
+        available,
+        rootLlmsAvailable(config),
+      ),
       contentType: 'text/plain; charset=utf-8',
     };
   }
@@ -507,14 +514,22 @@ export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {
         cancelResponseBody(loaded?.response);
         return null;
       }
-      const page = await pageFromHtml(target.pathname, loaded.html, runtime, {
-        descriptor: target.descriptor,
-        origin: activeOrigin,
-        publicPathname: target.publicPathname,
-        rendererLoaders: opts.rendererLoaders,
-        pluginLoaders: opts.pluginLoaders,
-        failOnPluginIsolation: true,
-      });
+      let page;
+      try {
+        page = await pageFromHtml(target.pathname, loaded.html, runtime, {
+          descriptor: target.descriptor,
+          origin: activeOrigin,
+          publicPathname: target.publicPathname,
+          rendererLoaders: opts.rendererLoaders,
+          pluginLoaders: opts.pluginLoaders,
+          failOnPluginIsolation: true,
+        });
+      } catch (error) {
+        if (error instanceof RuntimePageLifecycleError) {
+          throw new RuntimeCorpusPlanError('A runtime page plugin isolated a collected page.');
+        }
+        throw error;
+      }
       if (!page) return null;
       const enriched = await enrichRuntimePageGraph(loaded.html, page, runtime, {
         pluginLoaders: opts.pluginLoaders,
@@ -608,14 +623,19 @@ export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {
     i18n: snapshot,
     tokenizer: loadedTokenizer.implementation,
     tokenizerOptions: 'options' in loadedTokenizer ? loadedTokenizer.options : undefined,
+    tokenizerProbed: true,
     note: opts.note,
   });
   if (plan.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
     throw new RuntimeCorpusPlanError('The runtime corpus plan failed validation.');
   }
-  const requested = plan.artifacts.find((artifact) => artifact.pathname === pathname);
+  const requested = plan.artifacts.find((artifact) =>
+    matchesExactPathname(pathname, artifact.pathname));
   if (requested) return { body: requested.contents, contentType: 'text/plain; charset=utf-8' };
-  if (pathname === '/llms/manifest.json' && plan.manifestText) {
+  if (
+    (pathname === '/llms/manifest.json' || matchesExactPathname(pathname, '/llms/manifest.json')) &&
+    plan.manifestText
+  ) {
     return { body: plan.manifestText, contentType: 'application/json; charset=utf-8' };
   }
   return null;
@@ -888,7 +908,10 @@ async function loadRuntimeCatalogPages(loaders, runtime, siteUrl) {
           continue;
         }
         const canonicalPathname = catalogRuntimePath(pathname).canonical;
-        const identity = `${descriptorOrigin ?? normalizeOrigin(siteUrl) ?? ''}\0${canonicalPathname}`;
+        const identity = pageCatalogIdentity(
+          descriptorOrigin ?? normalizeOrigin(siteUrl) ?? '',
+          canonicalPathname,
+        );
         if (seen.has(identity)) {
           console.warn(`astro-aeo: more than one runtime catalog described ${pathname}; the first descriptor wins.`);
           continue;
@@ -929,9 +952,22 @@ export function runtimeArtifactOrigin(runtime, requestOrigin) {
   ])];
   if (configured.length === 0) return requested;
   if (configured.includes(requested)) return requested;
-  // The Astro dev server necessarily runs on a local preview origin while
-  // generated links and host profiles retain the configured public site.
-  if (isLocalDevelopmentOrigin(requested)) {
+  // A request that already names a configured public hostname (for example
+  // `Host: adapter.example.com` against a local HTTP listener) is the configured
+  // origin. Loopback hosts are excluded here and handled only for local commands.
+  const requestedHost = originHostname(requested);
+  if (requestedHost && !isLocalDevelopmentHostname(requestedHost)) {
+    for (const origin of configured) {
+      if (originHostname(origin) === requestedHost) return origin;
+    }
+  }
+  // The Astro dev server and local `astro preview` necessarily run on a loopback
+  // origin while generated links and host profiles retain the configured public
+  // site. Production must not treat Host: localhost as the configured origin.
+  if (
+    (runtime.command === 'dev' || runtime.command === 'preview') &&
+    isLocalDevelopmentOrigin(requested)
+  ) {
     return normalizeOrigin(runtime.site.siteUrl) ?? requested;
   }
   return null;
@@ -939,7 +975,20 @@ export function runtimeArtifactOrigin(runtime, requestOrigin) {
 
 /** @param {string} origin */
 function isLocalDevelopmentOrigin(origin) {
-  const hostname = new URL(origin).hostname.toLowerCase();
+  return isLocalDevelopmentHostname(originHostname(origin));
+}
+
+/** @param {string} origin */
+function originHostname(origin) {
+  try {
+    return new URL(origin).hostname.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+/** @param {string} hostname */
+function isLocalDevelopmentHostname(hostname) {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
 }
 

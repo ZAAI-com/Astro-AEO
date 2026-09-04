@@ -7,6 +7,7 @@ import {
   pageFromHtml,
   renderStandaloneArtifact,
   RuntimeCorpusLimitError,
+  RuntimeCorpusPlanError,
   runtimeArtifactOrigin,
   serveCorpusArtifact,
   RuntimeSchemaCorpusError,
@@ -720,6 +721,12 @@ describe('locale-aware request-time corpus planning', () => {
     expect(runtimeArtifactOrigin(requestRuntime, 'https://unknown.example')).toBeNull();
     expect(runtimeArtifactOrigin({ ...requestRuntime, command: 'dev' }, 'http://localhost:4321'))
       .toBe('https://example.com');
+    expect(runtimeArtifactOrigin({ ...requestRuntime, command: 'preview' }, 'http://127.0.0.1:4321'))
+      .toBe('https://example.com');
+    expect(runtimeArtifactOrigin({ ...requestRuntime, command: 'build' }, 'http://localhost:4321'))
+      .toBeNull();
+    expect(runtimeArtifactOrigin({ ...requestRuntime, command: 'build' }, 'http://example.com'))
+      .toBe('https://example.com');
   });
 
   test('lets the Astro route locale outrank site.defaultLocale', async () => {
@@ -743,6 +750,35 @@ describe('locale-aware request-time corpus planning', () => {
     expect(JSON.parse(manifest.body).locales).toMatchObject([
       { locale: 'fr', language: 'fr' },
     ]);
+  });
+
+  test('fails closed when a page lifecycle hook throws during corpus collection', async () => {
+    const requestRuntime = runtime(['/page']);
+    requestRuntime.config = resolveConfig({
+      corpus: { full: { enabled: true } },
+    });
+    const pluginLoaders = [{
+      name: 'throwing-metadata',
+      module: './throwing-metadata.js',
+      stages: ['page:metadata'],
+      claims: [],
+      load: async () => ({
+        name: 'throwing-metadata',
+        apiVersion: 1,
+        setup(api) {
+          api.on('page:metadata', () => {
+            throw new Error('private lifecycle details');
+          });
+        },
+      }),
+    }];
+
+    await expect(serveCorpusArtifact(
+      '/llms-full.txt',
+      requestRuntime,
+      async () => loaded(),
+      { pluginLoaders },
+    )).rejects.toBeInstanceOf(RuntimeCorpusPlanError);
   });
 });
 

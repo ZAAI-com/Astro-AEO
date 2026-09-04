@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { request as httpRequest } from 'node:http';
 import { join } from 'node:path';
 import {
   ASTRO_BIN,
@@ -9,6 +10,37 @@ import {
   stopProcess,
   waitForReady,
 } from './helpers.js';
+
+/**
+ * Node's fetch forbids overriding Host. Adapter runtimes build the request URL
+ * from that header, so production host scoping must be exercised with a raw
+ * HTTP client that can send `Host: adapter.example.com` to a loopback listener.
+ * @param {string} urlString
+ * @param {string} host
+ * @returns {Promise<Response>}
+ */
+function fetchWithHost(urlString, host) {
+  const url = new URL(urlString);
+  return new Promise((resolve, reject) => {
+    const req = httpRequest({
+      hostname: url.hostname,
+      port: url.port,
+      path: `${url.pathname}${url.search}`,
+      headers: { host },
+    }, (res) => {
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(chunk));
+      res.on('end', () => {
+        resolve(new Response(Buffer.concat(chunks), {
+          status: res.statusCode ?? 500,
+          headers: /** @type {HeadersInit} */ (res.headers),
+        }));
+      });
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
 
 const explicitRuntimes = process.env.ASTRO_AEO_ADAPTER_RUNTIMES;
 const selected = new Set((explicitRuntimes ?? 'node,cloudflare,deno').split(',').map((name) => name.trim()));
@@ -295,7 +327,9 @@ for (const runtime of runtimes) {
     }
 
     test('loads catalog source without recursing through owned artifacts', async () => {
-      const response = await fetch(`${runtime.base}/llms-full.txt`);
+      // Production must not trust Host: localhost. Send the configured public
+      // host against the loopback listener (Node's fetch forbids overriding Host).
+      const response = await fetchWithHost(`${runtime.base}/llms-full.txt`, 'adapter.example.com');
       expect(response.status).toBe(200);
       expect(response.headers.get('etag')).toMatch(/^"[0-9a-f]{64}"$/);
       const body = await response.text();

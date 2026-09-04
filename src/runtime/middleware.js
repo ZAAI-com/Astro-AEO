@@ -506,7 +506,17 @@ async function runtimePluginPageHandles(context, next, dynamicRouteSource) {
     excludedPaths: artifactPaths,
   });
   return createRuntimePluginPageHandles(
-    targets.map((target) => ({ ...target, id: target.pathname })),
+    targets.map((target) => ({
+      id: target.pathname,
+      pathname: target.pathname,
+      publicPathname: target.publicPathname,
+      descriptor: target.descriptor,
+      ...(target.descriptor?.origin ? { origin: target.descriptor.origin } : {}),
+      ...(target.descriptor?.locale ? { locale: target.descriptor.locale } : {}),
+      ...(target.descriptor?.alternates
+        ? { alternates: target.descriptor.alternates.map((alternate) => ({ ...alternate })) }
+        : {}),
+    })),
     async ({ pathname, publicPathname, descriptor }) => {
       const loaded = await fetch(publicPathname);
       if (
@@ -847,13 +857,14 @@ async function renderFreshCorpusState(outerState, request, collect) {
   };
   let state;
   try {
-    state = pipeline
-      ? new outerState.constructor(pipeline, request, renderOptions)
-      : new outerState.constructor(manifest, request, renderOptions, {
-          streaming: outerState.streaming,
-          renderError: outerState.renderError,
-          logRequest: outerState.logRequest,
-        });
+    state = constructFreshCorpusState(outerState, request, renderOptions);
+  } catch (error) {
+    // Construction failures for Astro 7.2's public one-argument FetchState must
+    // surface in development instead of silently emptying the corpus.
+    if (RUNTIME.command === 'dev') throw error;
+    return null;
+  }
+  try {
     await provideFreshSession(outerState, state);
     await provideFreshCache(outerState, state);
   } catch {
@@ -883,6 +894,39 @@ async function renderFreshCorpusState(outerState, request, collect) {
   }
   cancelResponseBody(response);
   return { response: bodylessResponse(response), html: null };
+}
+
+/**
+ * Astro 6.3-7.1 construct with (pipeline|manifest, request, options[, hooks]).
+ * Astro 7.2's public `astro/fetch` and `astro/hono` FetchState subclasses take
+ * only the request and bind the ambient manifest inside the constructor.
+ * @param {any} outerState
+ * @param {Request} request
+ * @param {object} renderOptions
+ */
+function constructFreshCorpusState(outerState, request, renderOptions) {
+  const Ctor = outerState.constructor;
+  if (isOneArgumentFetchState(Ctor)) {
+    return new Ctor(request);
+  }
+  if (outerState.pipeline) {
+    return new Ctor(outerState.pipeline, request, renderOptions);
+  }
+  return new Ctor(outerState.manifest, request, renderOptions, {
+    streaming: outerState.streaming,
+    renderError: outerState.renderError,
+    logRequest: outerState.logRequest,
+  });
+}
+
+/** @param {Function} Ctor */
+function isOneArgumentFetchState(Ctor) {
+  let current = Ctor;
+  while (typeof current === 'function' && current !== Function.prototype) {
+    if (current.length === 1) return true;
+    current = Object.getPrototypeOf(current);
+  }
+  return false;
 }
 
 /** @param {any} outerState @param {any} freshState */

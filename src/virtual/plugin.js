@@ -31,7 +31,7 @@ const RESOLVED_DYNAMIC_ROUTES_ID = `\0${DYNAMIC_ROUTES_ID}`;
  * @param {() => { module: string; specifier: string }[]} [getCatalogModules]
  * @param {() => { pathname: string; path: string; specifier: string; kind?: 'markdown'|'mdx' }[]} [getMarkdownSources]
  * @param {() => { name: string; module: string; specifier: string; options?: import('../index.js').JsonValue; cache?: import('../index.js').CacheDeclaration }[]} [getMarkdownRenderers]
- * @param {() => { name: string; module: string; specifier: string; options?: import('../index.js').JsonValue; stages: string[]; claims: { id: string; pathname: string; replace?: boolean }[] }[]} [getRuntimePlugins]
+ * @param {() => { name: string; module: string; specifier: string; options?: import('../index.js').JsonValue; stages: string[]; hookManifest?: { stage: string; ordinal: number; cache?: import('../index.js').CacheDeclaration }[]; claims: { id: string; pathname: string; replace?: boolean }[] }[]} [getRuntimePlugins]
  * @param {() => { name: string; version: string; approximate: boolean; module: string; specifier: string; options?: import('../index.js').JsonValue } | undefined} [getCorpusTokenizer]
  * @param {() => DynamicRouteModuleConfig | null} [getDynamicRoutes]
  * @returns {{ name: string; enforce: 'pre'; resolveId(id: string): string | undefined; load(id: string): string | undefined }}
@@ -77,10 +77,12 @@ export function aeoRuntimeConfigPlugin(
         .join(', ');
       const runtimePluginLoaders = getRuntimePlugins()
         .map(
-          ({ name, module, specifier, options, stages, claims }) =>
+          ({ name, module, specifier, options, stages, hookManifest, claims }) =>
             `{ name: ${JSON.stringify(name)}, module: ${JSON.stringify(module)}, ` +
             `${options === undefined ? '' : `options: ${toSource(options)}, `}` +
-            `stages: ${toSource(stages)}, claims: ${toSource(claims)}, ` +
+            `stages: ${toSource(stages)}, ` +
+            `${hookManifest === undefined ? '' : `hookManifest: ${toSource(hookManifest)}, `}` +
+            `claims: ${toSource(claims)}, ` +
             `load: () => import(${JSON.stringify(specifier)}).then((namespace) => namespace.default ?? namespace) }`,
         )
         .join(', ');

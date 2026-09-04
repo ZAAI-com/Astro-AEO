@@ -36,6 +36,25 @@ startup, memory, and request ceilings remain enforced.
 - Extended page, catalog, renderer, plugin, tokenizer, manifest, and runtime declarations without
   changing the frozen `ResolvedAeoConfig` compatibility type.
 
+### Correctness and safety (review backlog)
+
+- Manifest truthfulness: companion-less pages publish nullable `markdownUrl` / `tokenCount` /
+  `hash`; companion hashes and token counts match the bytes from `renderMarkdownDocument`.
+- Corpus topology: dependent claims (aliases, gzip, manifest) follow ownership decisions; runtime
+  fallback routes cover small, manifest, locale, alias, and chunk paths on manifest-based adapters.
+- IndexNow safety: `keyLocation` directory scope is enforced at submit; incomplete catalogs do not
+  queue removals; response limits and queue writes stay compatible with generated state;
+  `IndexNowInvocationError` exits 2.
+- Locks: stale processing-cache and IndexNow lock reclamation is an atomic claim with ownership
+  checks on release.
+- Sitemap: legal non-declaration processing instructions (for example `xml-stylesheet`) validate;
+  query strings remain part of sitemap URL identity.
+- Robots: `Content-Signal` is emitted inside each user-agent group; locale-only indexes do not
+  advertise a root `/llms.txt`.
+- Runtime edges: page lifecycle failures become corpus-plan errors; catalog locale metadata reaches
+  plugin handles; Astro 7.2 one-argument FetchState is supported; loopback origin trust stays
+  development-only; encoded locale pathnames resolve consistently.
+
 ### Upgrade notes
 
 - `pages.devDynamicDiscovery` defaults to `'startup'`; select experimental `'hot'` for route-file

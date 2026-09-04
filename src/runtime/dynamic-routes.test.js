@@ -89,6 +89,7 @@ describe('discoverRuntimeDynamicPaths', () => {
           { params: { slug: decomposed } },
           { params: { slug: 'launch🚀' } },
           { params: { slug: '/trimmed/' } },
+          { params: { slug: '///multi///' } },
           { params: { slug: 'why?now#yes' } },
         ],
       }),
@@ -97,8 +98,31 @@ describe('discoverRuntimeDynamicPaths', () => {
       '/products/café',
       '/products/launch🚀',
       '/products/trimmed',
+      '/products/multi',
       '/products/why%3Fnow%23yes',
     ]);
+  });
+
+  test('rejects non-spread parameters that invent path segments', async () => {
+    await expect(discoverRuntimeDynamicPaths(runtime(), source([
+      loader({ getStaticPaths: () => [{ params: { slug: 'a/b' } }] }),
+    ]))).rejects.toMatchObject({
+      name: 'RuntimeDynamicRouteDiscoveryError',
+      message: expect.stringContaining('path separator'),
+    });
+  });
+
+  test('rejects empty interior segments after slash trimming', async () => {
+    await expect(discoverRuntimeDynamicPaths(runtime(), source([
+      loader({
+        pattern: '/docs/[...path]',
+        params: ['...path'],
+        segments: [[staticPart('docs')], [paramPart('path', true)]],
+        getStaticPaths: () => [{ params: { path: 'a//b' } }],
+      }),
+    ]))).rejects.toMatchObject({
+      name: 'RuntimeDynamicRouteDiscoveryError',
+    });
   });
 
   test('accepts an empty getStaticPaths result', async () => {

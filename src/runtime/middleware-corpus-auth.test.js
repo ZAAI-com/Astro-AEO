@@ -19,6 +19,7 @@ vi.mock('./config.js', async () => {
 });
 
 const { onRequest } = await import('./middleware.js');
+const { RUNTIME } = await import('./config.js');
 const FETCH_STATE = Symbol.for('astro.fetchState');
 
 function disposableContext({ request, url, locals = {}, render }) {
@@ -351,6 +352,98 @@ describe('runtime corpus subrequests', () => {
           logRequest: outer.logRequest,
         }
       : {});
+  });
+
+  test('constructs Astro 7.2 one-argument FetchState subclasses with only the request', async () => {
+    const fetchStateSymbol = Symbol.for('astro.fetchState');
+    const instances = [];
+    const manifest = {};
+    class OneArgFetchState {
+      constructor(request) {
+        expect(arguments.length).toBe(1);
+        this.manifest = manifest;
+        this.request = request;
+        this.renderOptions = { locals: {} };
+        this.locals = this.renderOptions.locals;
+        this.cookies = { request };
+        instances.push(this);
+      }
+      async rewrite(request) {
+        const url = new URL(request.url);
+        return onRequest(
+          {
+            request,
+            url,
+            locals: this.locals,
+            isPrerendered: false,
+            rewrite: this.rewrite.bind(this),
+            [fetchStateSymbol]: this,
+          },
+          vi.fn(async () => new Response(
+            `<html><head><title>${url.pathname}</title></head><body><main><h1>${url.pathname}</h1></main></body></html>`,
+            { headers: { 'content-type': 'text/html' } },
+          )),
+        );
+      }
+    }
+
+    const url = new URL('https://example.test/llms-full.txt');
+    const outer = new OneArgFetchState(new Request(url));
+    outer.locals = { callerUser: 'private' };
+    const context = {
+      request: outer.request,
+      url,
+      locals: outer.locals,
+      isPrerendered: false,
+      rewrite: vi.fn(),
+      [fetchStateSymbol]: outer,
+    };
+
+    const response = await onRequest(context, vi.fn());
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain('# /public/');
+    expect(instances).toHaveLength(3);
+    expect(instances[1]).toBeInstanceOf(OneArgFetchState);
+    expect(instances[1]).not.toBe(instances[0]);
+  });
+
+  test('surfaces one-argument FetchState construction failures in development', async () => {
+    const previous = RUNTIME.command;
+    RUNTIME.command = 'dev';
+    const fetchStateSymbol = Symbol.for('astro.fetchState');
+    class BrokenOneArgFetchState {
+      constructor(request) {
+        if (BrokenOneArgFetchState.calls++ > 0) {
+          throw new Error('SECRET_CONSTRUCTION_FAILURE');
+        }
+        this.manifest = {};
+        this.request = request;
+        this.renderOptions = { locals: {} };
+        this.locals = this.renderOptions.locals;
+        this.cookies = { request };
+      }
+      async rewrite() {
+        throw new Error('rewrite should not run after construction failure');
+      }
+    }
+    BrokenOneArgFetchState.calls = 0;
+
+    const url = new URL('https://example.test/llms-full.txt');
+    const outer = new BrokenOneArgFetchState(new Request(url));
+    const context = {
+      request: outer.request,
+      url,
+      locals: outer.locals,
+      isPrerendered: false,
+      rewrite: vi.fn(),
+      [fetchStateSymbol]: outer,
+    };
+
+    try {
+      await expect(onRequest(context, vi.fn())).rejects.toThrow('SECRET_CONSTRUCTION_FAILURE');
+    } finally {
+      RUNTIME.command = previous;
+    }
   });
 
   test.each([
