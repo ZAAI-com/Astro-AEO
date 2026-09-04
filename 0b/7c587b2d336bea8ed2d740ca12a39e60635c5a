@@ -1,0 +1,47 @@
+cli/indexnow-io.js
+  s_6b7494a811aa94::t_81f4512ee96277 27-28,34
+cli/indexnow-prepare.js
+  s_6b7494a811aa94::t_8e6482a996f339 20,92,94,118-119,220
+cli/indexnow-prepare.test.js
+  s_6b7494a811aa94::t_ccfa7066086624 27-47,49-62
+cli/indexnow-submit.js
+  s_6b7494a811aa94::t_6d6088f651e623 30-31,34,93,148,165,205-211,223-226,230,235,241-251,260-289
+schema/astro-aeo.schema.json
+  s_6b7494a811aa94::t_9c8af4dd65e00a 1
+scripts/schema-definition.mjs
+  s_6b7494a811aa94::t_4e5205794ac87d 204-209
+src/build/catalogs.js
+  s_6b7494a811aa94::t_d16c7b202d186f 5,7,144,150,156,168-179,188,222-224,261,271,295-297,302-304
+src/build/catalogs.test.js
+  s_6b7494a811aa94::t_df53ccd93f250b 170,192-194,224,252-278,281
+src/build/corpus.js
+  s_6b7494a811aa94::t_d88e50d13d57ec 34,56,61
+src/build/indexnow-state.js
+  s_6b7494a811aa94::t_bb86aa18e56f4c 233-234,236,263-268
+src/build/indexnow.js
+  s_6b7494a811aa94::t_dca1de80337c5f 6,65-67,71-77,79-101,103-104,106
+src/build/ownership.js
+  s_6b7494a811aa94::t_ae554bc76c6ad7 5,143,145-146
+src/build/processing-cache.js
+  s_6b7494a811aa94::t_0c332c84866101 6,40-41,54-57,66,149,152-160,166-240,301-305
+src/core/extract/marker.test.js
+  s_6b7494a811aa94::t_52d06f552104db 149,155,161,169,176-177,183,199,218
+src/hooks/build-done.js
+  s_6b7494a811aa94::t_a9b8508e93cd17 99-152,160,178-186,304,724,757,762,775-778,780,782,892-894
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "0b7c587b2d336bea8ed2d740ca12a39e60635c5a",
+  "prompts": {},
+  "sessions": {
+    "s_6b7494a811aa94": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "01521f05-112e-488f-8fea-df7335dfe716",
+        "model": "unknown"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
