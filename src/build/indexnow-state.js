@@ -230,8 +230,10 @@ export function prepareIndexNowQueue(input, state = {}) {
   for (const origin of allOrigins) {
     const override = overrides.get(origin) ?? { origin };
     const privateValue = acknowledgment.origins.find((item) => item.origin === origin)?.acknowledged;
+    const hasPrivate = Array.isArray(privateValue) && privateValue.length > 0;
+    const hasPublic = state.publicAcknowledgments?.has(origin) === true;
     const acknowledged = input.mode === 'public'
-      ? privateValue ?? state.publicAcknowledgments?.get(origin) ?? []
+      ? (hasPrivate ? privateValue : state.publicAcknowledgments?.get(origin) ?? privateValue ?? [])
       : privateValue ?? [];
     const previousOperations = priorQueue.origins.find((item) => item.origin === origin)?.operations ?? [];
     const prepared = prepareIndexNowOrigin({
@@ -258,7 +260,12 @@ export function prepareIndexNowQueue(input, state = {}) {
         : {}),
       operations: prepared.operations,
     });
-    acknowledgmentOrigins.push({ origin, acknowledged: prepared.acknowledged });
+    // Persist only resolved origins. Empty private acks are unresolved in public
+    // mode so a poisoned empty ledger can fall through to public discovery.
+    const resolved = input.mode !== 'public' || hasPrivate || hasPublic;
+    if (resolved) {
+      acknowledgmentOrigins.push({ origin, acknowledged: prepared.acknowledged });
+    }
   }
 
   return {

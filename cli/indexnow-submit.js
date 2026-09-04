@@ -27,9 +27,11 @@ import {
 } from './indexnow-io.js';
 
 export const INDEXNOW_ENDPOINT = 'https://api.indexnow.org/indexnow';
+/** Safe upper bound for IndexNow state/queue JSON (~10k URL manifests). */
+export const MAX_INDEXNOW_STATE_BYTES = 8 * 1024 * 1024;
 const MAX_BATCH = 10_000;
 const MAX_KEY_RESPONSE = 1_024;
-const MAX_STATE_RESPONSE = 2 * 1024 * 1024;
+const MAX_STATE_RESPONSE = MAX_INDEXNOW_STATE_BYTES;
 
 /** @typedef {{ status: number; headers: Record<string, string>; body: string; url: string }} HttpResult */
 /** @typedef {{ request: (url: string, options: { method?: string; headers?: Record<string, string>; body?: string; maxBytes?: number }) => Promise<HttpResult> }} IndexNowTransport */
@@ -88,6 +90,7 @@ async function submitIndexNowLocked(queuePath, root, options) {
     const keyLocation = originQueue.keyLocation === undefined
       ? `/${key}.txt`
       : validateRootPath(originQueue.keyLocation, 'keyLocation');
+    assertUrlsUnderKeyLocation(originQueue.operations, keyLocation, originQueue.origin);
     return { originQueue, key, keyLocation };
   });
 
@@ -142,6 +145,7 @@ async function submitIndexNowLocked(queuePath, root, options) {
       try {
         response = await postBatchWithRetry(transport, originQueue.origin, key, keyLocation, batch, sleep, now);
       } catch (error) {
+        if (error instanceof IndexNowInvocationError) throw error;
         warnings.push(`IndexNow submission failed for ${originQueue.origin}: ${safeRemoteMessage(error)}`);
         if (originQueue.strict) strictFailure = true;
         break;
@@ -158,9 +162,7 @@ async function submitIndexNowLocked(queuePath, root, options) {
         originQueue.origin,
         acknowledgeIndexNowOperations(currentAck, batch, originQueue.origin),
       );
-      originQueue.operations = originQueue.operations.filter(
-        (operation) => !batch.some((success) => success.url === operation.url),
-      );
+      originQueue.operations = originQueue.operations.slice(batch.length);
       submitted += batch.length;
       persistProgress(progressPath, queuePath, ackPath, queue, ackByOrigin);
     }
@@ -200,6 +202,13 @@ export function createSafeHttpsTransport(dependencies = {}) {
       }
       const pinned = addresses[0];
       return new Promise((resolvePromise, reject) => {
+        let settled = false;
+        /** @param {(value: any) => void} settle @param {any} value */
+        const finish = (settle, value) => {
+          if (settled) return;
+          settled = true;
+          settle(value);
+        };
         const request = requestImpl(url, {
           method: options.method ?? 'GET',
           headers: options.headers,
@@ -211,28 +220,71 @@ export function createSafeHttpsTransport(dependencies = {}) {
           const chunks = [];
           let length = 0;
           const limit = options.maxBytes ?? 64 * 1024;
+          const fail = (/** @type {unknown} */ error) => {
+            request.destroy();
+            finish(reject, error);
+          };
           response.on('data', (chunk) => {
             length += chunk.length;
             if (length > limit) {
-              request.destroy(new IndexNowInvocationError('IndexNow response exceeded its safe size limit'));
+              fail(new IndexNowInvocationError('IndexNow response exceeded its safe size limit'));
               return;
             }
             chunks.push(chunk);
           });
-          response.on('end', () => resolvePromise({
+          response.on('end', () => finish(resolvePromise, {
             status: response.statusCode ?? 0,
             headers: normalizeHeaders(response.headers),
             body: Buffer.concat(chunks).toString('utf8'),
             url: url.href,
           }));
+          response.on('error', (error) => fail(error));
+          response.on('aborted', () => fail(new IndexNowRemoteError('IndexNow response was aborted')));
+          response.on('close', () => {
+            if (!settled && !response.complete) {
+              fail(new IndexNowRemoteError('IndexNow response closed prematurely'));
+            }
+          });
         });
-        request.on('error', reject);
-        request.setTimeout(15_000, () => request.destroy(new Error('request timed out')));
+        request.on('error', (error) => finish(reject, error));
+        request.setTimeout(15_000, () => {
+          request.destroy(new Error('request timed out'));
+        });
         if (options.body !== undefined) request.end(options.body);
         else request.end();
       });
     },
   };
+}
+
+/**
+ * IndexNow requires the key file path to be a prefix of every submitted URL.
+ * @param {import('../src/build/indexnow-state.js').IndexNowOperation[]} operations
+ * @param {string} keyLocation
+ * @param {string} origin
+ */
+function assertUrlsUnderKeyLocation(operations, keyLocation, origin) {
+  const keyDirectory = dirname(keyLocation);
+  const prefix = keyDirectory === '/' ? '/' : `${keyDirectory.replace(/\/$/u, '')}/`;
+  for (const operation of operations) {
+    let pathname;
+    try {
+      const url = new URL(operation.url);
+      if (url.origin !== origin) {
+        throw new IndexNowInvocationError(`IndexNow URL ${operation.url} is outside origin ${origin}`);
+      }
+      pathname = url.pathname;
+    } catch (error) {
+      if (error instanceof IndexNowInvocationError) throw error;
+      throw new IndexNowInvocationError(`IndexNow URL ${operation.url} is invalid`);
+    }
+    if (prefix === '/') continue;
+    if (pathname !== keyDirectory && !pathname.startsWith(prefix)) {
+      throw new IndexNowInvocationError(
+        `IndexNow URL ${operation.url} is not under the keyLocation prefix ${keyDirectory}`,
+      );
+    }
+  }
 }
 
 /**

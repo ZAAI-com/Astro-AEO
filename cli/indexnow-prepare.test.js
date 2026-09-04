@@ -24,32 +24,42 @@ describe('indexnow prepare', () => {
     const root = mkdtempSync(join(tmpdir(), 'astro-aeo-indexnow-'));
     roots.push(root);
     const cache = join(root, '.astro', 'aeo-cache', 'indexnow');
-    const input = {
-      version: 1,
-      projectRoot: root,
-      mode: 'private',
-      submit: 'changed',
-      strict: false,
-      base: '',
-      statePathname: '/.well-known/astro-aeo-indexnow-v1.json',
-      key: { source: 'env', name: 'INDEXNOW_TEST_KEY' },
-      origins: [{ origin: 'https://example.com' }],
-      current: [fp('same'), fp('added')],
-    };
-    writePrivateFile(join(cache, 'prepare-input-v1.json'), serializeIndexNowPrepareInput(input));
-    writePrivateFile(join(cache, 'ack-v1.json'), `${JSON.stringify({
-      version: 1,
-      origins: [{ origin: 'https://example.com', acknowledged: [fp('same'), fp('removed')] }],
-    }, null, 2)}\n`);
+    const secret = 'INDEXNOW_TEST_KEY_VALUE';
+    const previous = process.env.INDEXNOW_TEST_KEY;
+    process.env.INDEXNOW_TEST_KEY = secret;
+    try {
+      const input = {
+        version: 1,
+        projectRoot: root,
+        mode: 'private',
+        submit: 'changed',
+        strict: false,
+        base: '',
+        statePathname: '/.well-known/astro-aeo-indexnow-v1.json',
+        key: { source: 'env', name: 'INDEXNOW_TEST_KEY' },
+        origins: [{ origin: 'https://example.com' }],
+        current: [fp('same'), fp('added')],
+      };
+      writePrivateFile(join(cache, 'prepare-input-v1.json'), serializeIndexNowPrepareInput(input));
+      writePrivateFile(join(cache, 'ack-v1.json'), `${JSON.stringify({
+        version: 1,
+        origins: [{ origin: 'https://example.com', acknowledged: [fp('same'), fp('removed')] }],
+      }, null, 2)}\n`);
 
-    const result = await prepareIndexNow(join(root, 'dist'), { projectRoot: root });
-    expect(result.operations).toBe(2);
-    const queue = parseIndexNowQueue(JSON.parse(readFileSync(result.queuePath, 'utf8')));
-    expect(queue.origins[0].operations).toEqual([
-      { url: 'https://example.com/added', operation: 'upsert', fingerprint: sha256('added') },
-      { url: 'https://example.com/removed', operation: 'remove' },
-    ]);
-    expect(readFileSync(result.queuePath, 'utf8')).not.toContain('INDEXNOW_TEST_KEY_VALUE');
+      const result = await prepareIndexNow(join(root, 'dist'), { projectRoot: root });
+      expect(result.operations).toBe(2);
+      const queueRaw = readFileSync(result.queuePath, 'utf8');
+      const queue = parseIndexNowQueue(JSON.parse(queueRaw));
+      expect(queue.origins[0].operations).toEqual([
+        { url: 'https://example.com/added', operation: 'upsert', fingerprint: sha256('added') },
+        { url: 'https://example.com/removed', operation: 'remove' },
+      ]);
+      expect(queue.origins[0].key).toEqual({ source: 'env', name: 'INDEXNOW_TEST_KEY' });
+      expect(queueRaw).not.toContain(secret);
+    } finally {
+      if (previous === undefined) delete process.env.INDEXNOW_TEST_KEY;
+      else process.env.INDEXNOW_TEST_KEY = previous;
+    }
   });
 
   test('falls back to the older same-origin public acknowledgment', async () => {

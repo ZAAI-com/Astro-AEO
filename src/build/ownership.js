@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto';
 import { lstatSync, readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
+import { exactPathnameIdentity } from '../core/artifact-path.js';
 
 export const OWNERSHIP_MANIFEST_VERSION = 1;
 export const OWNERSHIP_MANIFEST_FILENAME = 'ownership-v1.json';
@@ -139,10 +140,10 @@ function isBlockingOwner(value) {
 
 /** @param {unknown} value */
 function safeManifestPathname(value) {
-  if (typeof value !== 'string' || !value.startsWith('/') || value.includes('\\')) return false;
+  if (typeof value !== 'string') return false;
   try {
-    const decoded = decodeURIComponent(value);
-    return !decoded.split('/').some((part) => part === '.' || part === '..' || part.includes('\0'));
+    exactPathnameIdentity(value, 'ownership pathname');
+    return true;
   } catch {
     return false;
   }

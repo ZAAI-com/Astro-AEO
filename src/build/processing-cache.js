@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import {
   closeSync,
   constants,
+  linkSync,
   lstatSync,
   mkdirSync,
   openSync,
@@ -36,6 +37,8 @@ export function openProcessingCache(projectRoot, options) {
   const statePath = join(root, 'state.json');
   const lockPath = join(root, 'lock');
   let lockOwned = false;
+  /** @type {string | undefined} */
+  let lockNonce;
   let readOnly = false;
   /** @type {CacheState} */
   let state = { version: 1, entries: {} };
@@ -48,50 +51,10 @@ export function openProcessingCache(projectRoot, options) {
     invalidations: /** @type {Record<string, number>} */ ({}),
   };
 
-  try {
-    mkdirSync(blobsRoot, { recursive: true, mode: 0o700 });
-    acquireLock();
-  } catch {
-    readOnly = true;
-    report('processing-cache-lock-unavailable', 'The processing cache is locked or unavailable; this build is cold and cache state is read-only.');
-  }
-
-  if (!readOnly && fileExists(statePath)) {
-    try {
-      const parsed = JSON.parse(readFileSync(statePath, 'utf8'));
-      if (!validState(parsed)) throw new TypeError('invalid state');
-      state = parsed;
-    } catch {
-      readOnly = true;
-      report('processing-cache-invalid', 'The processing cache state is invalid; this build is cold and grants no reusable-state authority.');
-    }
-  }
-
-  /** Acquire or safely reclaim a same-host dead-process lock. */
-  function acquireLock() {
-    const attempt = () => {
-      const fd = openSync(lockPath, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600);
-      try {
-        writeFileSync(fd, `${JSON.stringify({ version: 1, hostname: hostname(), pid: process.pid, nonce: randomUUID() })}\n`);
-      } finally {
-        closeSync(fd);
-      }
-      lockOwned = true;
-    };
-    try {
-      attempt();
-      return;
-    } catch (error) {
-      if (/** @type {any} */ (error)?.code !== 'EEXIST') throw error;
-    }
-    const prior = readLock(lockPath);
-    if (!prior || prior.hostname !== hostname() || processExists(prior.pid)) {
-      throw new Error('processing cache is locked');
-    }
-    const stat = lstatSync(lockPath);
-    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('processing cache lock is unsafe');
-    rmSync(lockPath, { force: true });
-    attempt();
+  /** @param {string} reason */
+  function miss(reason) {
+    stats.misses++;
+    stats.invalidations[reason] = (stats.invalidations[reason] ?? 0) + 1;
   }
 
   /** @param {string} code @param {string} message */
@@ -100,13 +63,7 @@ export function openProcessingCache(projectRoot, options) {
     options.logger?.warn(`astro-aeo: ${message}`);
   }
 
-  /** @param {string} reason */
-  function miss(reason) {
-    stats.misses++;
-    stats.invalidations[reason] = (stats.invalidations[reason] ?? 0) + 1;
-  }
-
-  return {
+  const api = {
     root,
     statePath,
     blobsRoot,
@@ -189,16 +146,98 @@ export function openProcessingCache(projectRoot, options) {
     },
 
     close() {
-      if (!lockOwned) return;
+      if (!lockOwned || lockNonce === undefined) return;
       lockOwned = false;
       try {
-        const stat = lstatSync(lockPath);
-        if (stat.isFile() && !stat.isSymbolicLink()) rmSync(lockPath, { force: true });
+        const current = readLock(lockPath);
+        if (
+          current?.nonce === lockNonce &&
+          current.pid === process.pid &&
+          current.hostname === hostname()
+        ) {
+          const stat = lstatSync(lockPath);
+          if (stat.isFile() && !stat.isSymbolicLink()) rmSync(lockPath, { force: true });
+        }
       } catch {
         // A retained lock fails closed on the next build.
       }
     },
   };
+
+  if (!options.enabled) {
+    readOnly = true;
+    return api;
+  }
+
+  try {
+    mkdirSync(blobsRoot, { recursive: true, mode: 0o700 });
+    acquireLock();
+  } catch {
+    readOnly = true;
+    report('processing-cache-lock-unavailable', 'The processing cache is locked or unavailable; this build is cold and cache state is read-only.');
+  }
+
+  if (!readOnly && fileExists(statePath)) {
+    try {
+      const parsed = JSON.parse(readFileSync(statePath, 'utf8'));
+      if (!validState(parsed)) throw new TypeError('invalid state');
+      state = parsed;
+    } catch {
+      readOnly = true;
+      report('processing-cache-invalid', 'The processing cache state is invalid; this build is cold and grants no reusable-state authority.');
+    }
+  }
+
+  /** Acquire or safely reclaim a same-host dead-process lock. */
+  function acquireLock() {
+    const nonce = randomUUID();
+    const record = { version: 1, hostname: hostname(), pid: process.pid, nonce };
+    const temporary = `${lockPath}.${process.pid}.${nonce}.tmp`;
+    const writeTemporary = () => {
+      const fd = openSync(temporary, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600);
+      try { writeFileSync(fd, `${JSON.stringify(record)}\n`); }
+      finally { closeSync(fd); }
+    };
+    const claim = () => {
+      try {
+        linkSync(temporary, lockPath);
+        return true;
+      } catch (error) {
+        if (/** @type {any} */ (error)?.code !== 'EEXIST') throw error;
+        return false;
+      }
+    };
+
+    writeTemporary();
+    try {
+      if (!claim()) {
+        const prior = readLock(lockPath);
+        if (!prior || prior.hostname !== hostname() || processExists(prior.pid)) {
+          throw new Error('processing cache is locked');
+        }
+        const before = lstatSync(lockPath);
+        if (!before.isFile() || before.isSymbolicLink()) throw new Error('processing cache lock is unsafe');
+        const confirmed = readLock(lockPath);
+        const after = lstatSync(lockPath);
+        if (
+          !confirmed ||
+          confirmed.nonce !== prior.nonce ||
+          before.dev !== after.dev ||
+          before.ino !== after.ino
+        ) {
+          throw new Error('processing cache lock changed during inspection');
+        }
+        rmSync(lockPath, { force: true });
+        if (!claim()) throw new Error('processing cache is locked');
+      }
+    } finally {
+      rmSync(temporary, { force: true });
+    }
+    lockOwned = true;
+    lockNonce = nonce;
+  }
+
+  return api;
 }
 
 /** @param {unknown} value */
@@ -259,7 +298,11 @@ function readLock(path) {
     const stat = lstatSync(path);
     if (!stat.isFile() || stat.isSymbolicLink()) return null;
     const value = JSON.parse(readFileSync(path, 'utf8'));
-    return value?.version === 1 && typeof value.hostname === 'string' && Number.isSafeInteger(value.pid) && value.pid > 0
+    return value?.version === 1 &&
+      typeof value.hostname === 'string' &&
+      Number.isSafeInteger(value.pid) &&
+      value.pid > 0 &&
+      typeof value.nonce === 'string'
       ? value
       : null;
   } catch {

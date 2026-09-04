@@ -3,7 +3,6 @@ import {
   mkdirSync,
   openSync,
   closeSync,
-  chmodSync,
   fsyncSync,
   lstatSync,
   readFileSync,
@@ -25,18 +24,18 @@ export function readJsonFile(path) {
 
 /**
  * Atomic private write with a sibling temporary file. No secret-derived value
- * is included in either filename.
+ * is included in either filename. Parent directories are created without changing
+ * their mode; tool-owned IndexNow dirs are secured by ensureIndexNowPrivateDirectory.
  * @param {string} path
  * @param {string} contents
  */
 export function writePrivateFile(path, contents) {
   const directory = dirname(path);
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  mkdirSync(directory, { recursive: true });
   const stat = lstatSync(directory);
   if (!stat.isDirectory() || stat.isSymbolicLink()) {
     throw new IndexNowInvocationError('cannot write IndexNow state through an unsafe directory');
   }
-  try { chmodSync(directory, 0o700); } catch {}
   const temporary = `${path}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`;
   let fd;
   try {

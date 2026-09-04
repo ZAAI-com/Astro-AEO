@@ -201,7 +201,12 @@ const indexNowOrigin = {
   type: 'object',
   required: ['origin'],
   properties: {
-    origin: { type: 'string', format: 'uri', pattern: '^https://' },
+    origin: {
+      type: 'string',
+      format: 'uri',
+      pattern: '^https://[^/@?#]+$',
+      description: 'Public HTTPS origin with no path, query, hash, or userinfo. Port must be 443 when present.',
+    },
     key: indexNowKeySource,
     keyLocation: exactPathname('Root-relative same-origin key pathname.'),
   },

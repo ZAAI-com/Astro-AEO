@@ -96,6 +96,60 @@ export async function onBuildDone(config, options, env) {
     : undefined;
   if (indexNowPrivate) buildDiagnostics.push(...indexNowPrivate.diagnostics);
 
+  let locksReleased = false;
+  const releaseLocks = () => {
+    if (locksReleased) return;
+    locksReleased = true;
+    processingCache.close();
+    indexNowPrivate?.close();
+  };
+
+  try {
+    return await onBuildDoneLocked(config, options, env, {
+      rawPages,
+      logger,
+      dir,
+      buildDiagnostics,
+      buildStarted,
+      processingCache,
+      indexNowPrivate,
+      releaseLocks,
+    });
+  } catch (error) {
+    // Writer onSettled only runs after commit. Release immediately when setup or
+    // staging throws so locks cannot leak across builds.
+    releaseLocks();
+    throw error;
+  }
+}
+
+/**
+ * @param {import('../index.js').ResolvedAstroAeoConfig} config
+ * @param {{ dir: URL; pages: { pathname: string }[]; logger: { info: (m: string) => void; warn: (m: string) => void } }} options
+ * @param {BuildEnv} env
+ * @param {{
+ *   rawPages: { pathname: string }[];
+ *   logger: { info: (m: string) => void; warn: (m: string) => void };
+ *   dir: URL;
+ *   buildDiagnostics: import('../index.js').Diagnostic[];
+ *   buildStarted: number;
+ *   processingCache: ReturnType<typeof openProcessingCache>;
+ *   indexNowPrivate: ReturnType<typeof readIndexNowPrivateState> | undefined;
+ *   releaseLocks: () => void;
+ * }} session
+ */
+async function onBuildDoneLocked(config, options, env, session) {
+  const {
+    rawPages,
+    logger,
+    dir,
+    buildDiagnostics,
+    buildStarted,
+    processingCache,
+    indexNowPrivate,
+    releaseLocks,
+  } = session;
+
   // Astro includes concrete prerendered `getStaticPaths()` results in this build
   // page list. Catalogs add request-time or external inventory and may enrich a
   // matching concrete descriptor with exact source and metadata.
@@ -103,7 +157,7 @@ export async function onBuildDone(config, options, env) {
   const buildCatalogs = catalogModules
     ? catalogModules.map(({ module }) => ({ module }))
     : config.pages.catalogs;
-  const loadedCatalogPages = buildCatalogs.length
+  const loadedCatalogs = buildCatalogs.length
     ? await loadCatalogPages(
         buildCatalogs,
         (/** @type {string} */ module) => {
@@ -121,7 +175,15 @@ export async function onBuildDone(config, options, env) {
         },
         env.diagnostics ?? [],
       )
-    : [];
+    : { pages: [], inventoryComplete: true };
+  const incompleteInventoryCodes = new Set([
+    'catalog-load-failed',
+    'catalog-missing-list-pages',
+    'catalog-unsupported-module-format',
+  ]);
+  const inventoryComplete = loadedCatalogs.inventoryComplete &&
+    !(env.diagnostics ?? []).some((diagnostic) => incompleteInventoryCodes.has(diagnostic.code));
+  const loadedCatalogPages = loadedCatalogs.pages;
   const catalogPages = loadedCatalogPages.filter((page) => {
     if (!isOwnedArtifactPath(page.pathname, config)) return true;
     env.diagnostics?.push({
@@ -239,10 +301,7 @@ export async function onBuildDone(config, options, env) {
     validationOnBuild: config.validation?.onBuild ?? 'artifacts',
     diagnosticsProvider: () => pages.flatMap((page) => page.diagnostics),
     onDiagnostics: () => writeDiagnosticsManifest(env.projectRoot, pages, env.diagnostics ?? []),
-    onSettled: () => {
-      processingCache.close();
-      indexNowPrivate?.close();
-    },
+    onSettled: releaseLocks,
   });
   /** @type {any} */ (writer).stagePrivateWrite?.(
     diagnosticsManifestPath(env.projectRoot),
@@ -662,6 +721,7 @@ export async function onBuildDone(config, options, env) {
       writer,
       privateState: indexNowPrivate,
       processingReadOnly: processingCache.readOnly,
+      inventoryComplete,
       diagnostics: buildDiagnostics,
     });
   }
@@ -694,11 +754,12 @@ export async function onBuildDone(config, options, env) {
  *   writer: ReturnType<typeof createArtifactWriter>;
  *   privateState: ReturnType<typeof readIndexNowPrivateState>;
  *   processingReadOnly: boolean;
+ *   inventoryComplete: boolean;
  *   diagnostics: import('../index.js').Diagnostic[];
  * }} options
  */
 function stageIndexNowBuild(options) {
-  const { config, env, writer, privateState, processingReadOnly, diagnostics } = options;
+  const { config, env, writer, privateState, processingReadOnly, inventoryComplete, diagnostics } = options;
   let primaryOrigin;
   try { primaryOrigin = normalizeIndexNowOrigin(env.siteUrl); }
   catch {
@@ -711,11 +772,14 @@ function stageIndexNowBuild(options) {
     return;
   }
 
-  const readOnly = processingReadOnly || privateState.readOnly;
+  // Incomplete catalog inventory must not authorize removals. Keep prior private
+  // ledgers for fingerprinting, but treat private state as read-only for writes.
+  const stateUnavailable = processingReadOnly || privateState.readOnly;
+  const readOnly = stateUnavailable || !inventoryComplete;
   /** @type {import('../build/indexnow-state.js').IndexNowAcknowledgmentV1} */
-  const priorAck = readOnly ? { version: 1, origins: [] } : privateState.acknowledgment;
+  const priorAck = stateUnavailable ? { version: 1, origins: [] } : privateState.acknowledgment;
   /** @type {import('../build/indexnow-state.js').IndexNowQueueV1} */
-  const priorQueue = readOnly ? { version: 1, origins: [] } : privateState.queue;
+  const priorQueue = stateUnavailable ? { version: 1, origins: [] } : privateState.queue;
   const stateMode = config.discovery.indexNow.state;
   const configuredOrigins = new Set([primaryOrigin]);
   if (stateMode !== 'public') {
@@ -825,7 +889,9 @@ function stageIndexNowBuild(options) {
       version: 1,
       code: 'indexnow-state-read-only',
       severity: 'warning',
-      message: 'IndexNow state preparation is read-only because reusable build state is locked or invalid.',
+      message: !inventoryComplete
+        ? 'IndexNow state preparation is read-only because page catalog inventory is incomplete.'
+        : 'IndexNow state preparation is read-only because reusable build state is locked or invalid.',
     });
     return;
   }

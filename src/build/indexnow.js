@@ -3,6 +3,7 @@ import {
   chmodSync,
   closeSync,
   constants,
+  linkSync,
   lstatSync,
   mkdirSync,
   openSync,
@@ -61,34 +62,48 @@ export function acquireIndexNowLock(projectRoot) {
   const path = indexNowPaths(projectRoot).lock;
   const nonce = randomUUID();
   const record = { version: 1, hostname: hostname(), pid: process.pid, nonce };
-  const attempt = () => {
-    const fd = openSync(path, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600);
+  const temporary = `${path}.${process.pid}.${nonce}.tmp`;
+  const writeTemporary = () => {
+    const fd = openSync(temporary, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600);
     try { writeFileSync(fd, `${JSON.stringify(record)}\n`); }
     finally { closeSync(fd); }
   };
+  const claim = () => {
+    try {
+      linkSync(temporary, path);
+      return true;
+    } catch (error) {
+      if (/** @type {any} */ (error)?.code !== 'EEXIST') throw error;
+      return false;
+    }
+  };
+
+  writeTemporary();
   try {
-    attempt();
-  } catch (error) {
-    if (/** @type {any} */ (error)?.code !== 'EEXIST') throw error;
-    const prior = readIndexNowLock(path);
-    if (!prior || prior.hostname !== hostname() || processExists(prior.pid)) {
-      throw new Error('IndexNow notification state is locked');
+    if (!claim()) {
+      const prior = readIndexNowLock(path);
+      if (!prior || prior.hostname !== hostname() || processExists(prior.pid)) {
+        throw new Error('IndexNow notification state is locked');
+      }
+      const before = lstatSync(path);
+      if (!before.isFile() || before.isSymbolicLink()) throw new Error('IndexNow notification lock is unsafe');
+      const confirmed = readIndexNowLock(path);
+      const after = lstatSync(path);
+      if (
+        !confirmed ||
+        confirmed.nonce !== prior.nonce ||
+        before.dev !== after.dev ||
+        before.ino !== after.ino
+      ) {
+        throw new Error('IndexNow notification lock changed during inspection');
+      }
+      rmSync(path, { force: true });
+      if (!claim()) throw new Error('IndexNow notification state is locked');
     }
-    const before = lstatSync(path);
-    if (!before.isFile() || before.isSymbolicLink()) throw new Error('IndexNow notification lock is unsafe');
-    const confirmed = readIndexNowLock(path);
-    const after = lstatSync(path);
-    if (
-      !confirmed ||
-      confirmed.nonce !== prior.nonce ||
-      before.dev !== after.dev ||
-      before.ino !== after.ino
-    ) {
-      throw new Error('IndexNow notification lock changed during inspection');
-    }
-    rmSync(path, { force: true });
-    attempt();
+  } finally {
+    rmSync(temporary, { force: true });
   }
+
   let held = true;
   return () => {
     if (!held) return;

@@ -17,7 +17,7 @@ import {
   serializeIndexNowQueue,
 } from '../src/build/indexnow-state.js';
 import { IndexNowInvocationError, errorMessage, readJsonFile, writePrivateFile } from './indexnow-io.js';
-import { createSafeHttpsTransport } from './indexnow-submit.js';
+import { createSafeHttpsTransport, MAX_INDEXNOW_STATE_BYTES } from './indexnow-submit.js';
 import { INDEXNOW_PREPARE_PROVIDER, acquireIndexNowLock } from '../src/build/indexnow.js';
 
 /**
@@ -89,8 +89,9 @@ async function prepareIndexNowLocked(distDir, options, source, root) {
 
   for (const origin of allOrigins) {
     const privateAck = priorAck.origins.find((item) => item.origin === origin)?.acknowledged;
+    const hasPrivate = Array.isArray(privateAck) && privateAck.length > 0;
     const stateUrl = new URL(input.statePathname, `${origin}/`).href;
-    if (!privateAck && input.mode === 'public') {
+    if (!hasPrivate && input.mode === 'public') {
       try {
         const acknowledged = (
           fetchImpl
@@ -114,9 +115,8 @@ async function prepareIndexNowLocked(distDir, options, source, root) {
   });
   warnings.push(...prepared.warnings);
   writePrivateFile(queuePath, serializeIndexNowQueue(prepared.queue));
-  // Persist a validated normalization of the source used for the diff. This is
-  // not an acknowledgment of submission, but retaining prior ack atomically
-  // makes a transferred directory self-contained.
+  // Persist only origins whose acknowledgment was actually resolved. Empty
+  // private entries are treated as unresolved so poisoned state can recover.
   writePrivateFile(ackPath, serializeIndexNowAcknowledgment(prepared.acknowledgment));
   return {
     queuePath,
@@ -217,7 +217,7 @@ async function fetchPublicState(fetchImpl, url, origin) {
 async function requestPublicState(transport, url, origin) {
   const response = await transport.request(url, {
     headers: { accept: 'application/json' },
-    maxBytes: 2 * 1024 * 1024,
+    maxBytes: MAX_INDEXNOW_STATE_BYTES,
   });
   if (response.status !== 200) throw new Error(`HTTP ${response.status}`);
   let parsed;

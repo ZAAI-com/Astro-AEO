@@ -31,6 +31,7 @@ export async function stageCorpusArtifacts(inputPages, config, env) {
     i18n: env.i18n,
     tokenizer: env.tokenizer,
     tokenizerOptions: config.corpus.tokenizer?.options,
+    tokenizerProbed: env.tokenizer != null,
   });
   env.diagnostics.push(...plan.diagnostics.map((diagnostic) => /** @type {import('../index.js').Diagnostic} */ ({
     version: /** @type {const} */ (1),
@@ -52,10 +53,12 @@ export async function stageCorpusArtifacts(inputPages, config, env) {
   }
 
   for (const artifact of artifacts) {
+    const groupPath = artifact.sourcePathname ?? artifact.pathname;
     env.writer.write({
       route: artifact.pathname,
       owner: { kind: 'core', name: corpusOwner(artifact) },
       contents: artifact.contents,
+      group: `astro-aeo/corpus:${groupPath}`,
       ...(artifact.encoding === 'gzip' ? { contentType: 'application/gzip' } : {}),
       ...(env.runtime ? { runtime: true } : {}),
     });
