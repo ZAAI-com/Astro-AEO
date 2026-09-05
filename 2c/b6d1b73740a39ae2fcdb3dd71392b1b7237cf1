@@ -1,0 +1,26 @@
+benchmarks/README.md
+  s_097dd452b2021b::t_dea4f27ea1b5e9 48
+benchmarks/thresholds.mjs
+  s_097dd452b2021b::t_dea4f27ea1b5e9 2
+benchmarks/baseline-1.3.json
+  s_097dd452b2021b::t_7ff9163c7f2c5b 3,13-14,19-21,23,25-27,31-35,37-39
+CHANGELOG.md
+  s_097dd452b2021b::t_7c3026bfd407a4 86-89
+  s_097dd452b2021b::t_6546d9aa42c8b6 57-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "2cb6d1b73740a39ae2fcdb3dd71392b1b7237cf1",
+  "prompts": {},
+  "sessions": {
+    "s_097dd452b2021b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "64e7294d-1125-4235-b66b-7592484eab71",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
