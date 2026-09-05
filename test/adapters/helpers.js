@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { request as httpRequest } from 'node:http';
 import {
   existsSync,
   readFileSync,
@@ -120,6 +121,38 @@ export function startProcess(command, args, options = {}) {
   child.stdout?.on('data', (chunk) => (output += chunk));
   child.stderr?.on('data', (chunk) => (output += chunk));
   return { child, output: () => output };
+}
+
+/**
+ * Node's fetch forbids overriding Host. Adapter runtimes build the request URL
+ * from that header, so production host scoping must be exercised with a raw
+ * HTTP client that can send `Host: adapter.example.com` to a loopback listener.
+ * @param {string} urlString
+ * @param {string} host
+ * @returns {Promise<Response>}
+ */
+export function fetchWithHost(urlString, host) {
+  const url = new URL(urlString);
+  return new Promise((resolve, reject) => {
+    const req = httpRequest({
+      hostname: url.hostname,
+      port: url.port,
+      path: `${url.pathname}${url.search}`,
+      headers: { host },
+    }, (res) => {
+      /** @type {Buffer[]} */
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(chunk));
+      res.on('end', () => {
+        resolve(new Response(Buffer.concat(chunks), {
+          status: res.statusCode ?? 500,
+          headers: /** @type {HeadersInit} */ (res.headers),
+        }));
+      });
+    });
+    req.on('error', reject);
+    req.end();
+  });
 }
 
 /**

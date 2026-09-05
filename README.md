@@ -517,6 +517,10 @@ bytes but currently still calculates the Markdown representation. A source `304`
 re-evaluated with a sanitized GET only when Markdown is strictly preferred; otherwise
 it passes through unchanged. Redirects, API responses, negotiated error pages, and
 `204`/`205` responses retain the application's original behavior.
+Astro 7.3's `memoryCache()` skips caching a response that carries `Vary: Cookie` or
+`Vary: *`. Negotiated responses vary on `Accept`, so they stay cacheable; a drop in
+hit rate comes from cookie-varying responses your own site emits, not from
+content negotiation.
 An explicit `.md` request may convert an HTML error body while preserving its status.
 Encoded and partial (`206`) HTML responses are not transformed.
 
@@ -719,6 +723,13 @@ contracts run locally for Node, Cloudflare in workerd, Deno, and the emitted Ver
 handlers. Separate assertions verify that Vercel routes runtime artifacts to `_render` before its
 status-404 fallback and that Netlify does not short-circuit `.md` through bundled custom-404
 content.
+
+The stock `@astrojs/cloudflare()` adapter needs no extra wiring. If you replace its worker
+entrypoint with a hand-written `astro/fetch` handler, wrap the app response in
+`finalize(state, response)` from `@astrojs/cloudflare/fetch` (Astro 7.3 and newer). Without it
+cookies set during the request, including the ones Astro-AEO merges when it rewrites a direct
+`.md` request into your route, may never reach the client. The `@astrojs/cloudflare/hono`
+middleware applies those headers already.
 
 On static hosting the companions are plain files, and many hosts serve unknown
 extensions as `text/plain`, `application/octet-stream`, or a download. To keep answer

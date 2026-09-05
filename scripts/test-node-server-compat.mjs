@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import {
   REPO,
   buildAdapter,
+  fetchWithHost,
   fixture,
   startProcess,
   stopProcess,
@@ -84,7 +85,9 @@ for (const [index, trailingSlash] of modes.entries()) {
       '/schema/graph.jsonld',
       '/schema/schema-map.xml',
     ]) {
-      const response = await fetch(`${base}${pathname}`);
+      // Production must not trust Host: localhost, so the origin-scoped
+      // artifacts have to be requested under the configured public host.
+      const response = await fetchWithHost(`${base}${pathname}`, 'adapter.example.com');
       assert.equal(
         response.status,
         liveCorpusSupported ? 200 : 503,
