@@ -54,6 +54,13 @@ startup, memory, and request ceilings remain enforced.
 - Runtime edges: page lifecycle failures become corpus-plan errors; catalog locale metadata reaches
   plugin handles; Astro 7.2 one-argument FetchState is supported; loopback origin trust stays
   development-only; encoded locale pathnames resolve consistently.
+- Prerendered pages no longer read request headers, which Astro warns about. HTML enrichment and
+  marker redaction still emit fresh ETags, while Accept negotiation and conditional requests remain
+  available for on-demand routes.
+- The development on-demand dynamic-route warning is emitted exactly once. With
+  `pages.devDynamicDiscovery: 'hot'` the generated loader owns the message, because only it sees
+  routes added after the last route resolution, and its guard lives on the development process so a
+  re-executed loader stays quiet.
 
 ### Upgrade notes
 
@@ -76,6 +83,10 @@ startup, memory, and request ceilings remain enforced.
   responsible for runtime compression.
 - Crawler presets and Content Signals express preferences only. They are not access control and do
   not guarantee crawler compliance.
+- Astro 7.3 needs no code change. Two consumer-facing notes were added to the README: a hand-written
+  `astro/fetch` Cloudflare entrypoint must call `finalize(state, response)` so cookies merged during
+  a direct `.md` rewrite still reach the client, and Astro's `memoryCache()` now skips responses
+  carrying `Vary: Cookie` or `Vary: *`, which negotiated responses do not.
 
 ## 1.2.0
 

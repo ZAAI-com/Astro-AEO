@@ -45,7 +45,7 @@ framework code that both builds share.
 `--enforce` applies the 1.3 safety ceilings embedded in the report:
 
 - Packed package at most 280,000 bytes and unpacked package at most 1,150,000 bytes. The measured
-  1.3 package is 272,099 packed and 1,105,574 unpacked bytes.
+  1.3 package is 272,377 packed and 1,106,331 unpacked bytes.
 - 100 KB parse p95 below 50 ms and conversion p95 below 150 ms.
 - Retained heap after 100 conversions at most 10 MB.
 - Paired Markdown-minus-HTML p95 request overhead at most 10 ms. Direct and negotiated modes each

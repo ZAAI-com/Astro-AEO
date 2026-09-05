@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "recordedAt": "2026-09-04",
+  "recordedAt": "2026-09-05",
   "environment": {
     "node": "v24.15.0",
     "platform": "darwin",
@@ -10,33 +10,33 @@
     "runnerClass": "portable-size-only"
   },
   "package": {
-    "packedBytes": 272099,
-    "unpackedBytes": 1105574,
+    "packedBytes": 272377,
+    "unpackedBytes": 1106331,
     "files": 113
   },
   "bundles": {
     "node": {
-      "files": 33,
-      "rawBytes": 1697845,
-      "gzipBytes": 394177,
+      "files": 34,
+      "rawBytes": 1733637,
+      "gzipBytes": 405391,
       "deltaRawBytes": 420869,
-      "deltaGzipBytes": 99822,
+      "deltaGzipBytes": 99795,
       "baseline": {
-        "files": 31,
-        "rawBytes": 1276976,
-        "gzipBytes": 294355
+        "files": 32,
+        "rawBytes": 1312768,
+        "gzipBytes": 305596
       }
     },
     "cloudflare": {
-      "files": 36,
-      "rawBytes": 1849233,
-      "gzipBytes": 443725,
-      "deltaRawBytes": 1195246,
-      "deltaGzipBytes": 275592,
+      "files": 37,
+      "rawBytes": 1882355,
+      "gzipBytes": 454657,
+      "deltaRawBytes": 1195211,
+      "deltaGzipBytes": 275596,
       "baseline": {
-        "files": 33,
-        "rawBytes": 653987,
-        "gzipBytes": 168133
+        "files": 34,
+        "rawBytes": 687144,
+        "gzipBytes": 179061
       }
     }
   },
