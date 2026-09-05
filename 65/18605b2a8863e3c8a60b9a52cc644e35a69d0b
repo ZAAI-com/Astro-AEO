@@ -1,0 +1,23 @@
+fixtures/adapters/node/astro.config.mjs
+  s_4b0e1815762454::t_89903e6e1cbb80 16-20
+README.md
+  s_4b0e1815762454::t_0049016533328b 734-750
+CHANGELOG.md
+  s_4b0e1815762454::t_b36fc124922e10 56-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "6518605b2a8863e3c8a60b9a52cc644e35a69d0b",
+  "prompts": {},
+  "sessions": {
+    "s_4b0e1815762454": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9b256b1a-5696-4df4-b087-1443b548a9d2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
