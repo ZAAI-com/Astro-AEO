@@ -1,0 +1,43 @@
+test/adapters/runtime.test.js
+  s_3a5e82f8a9a877::t_b017be34f7290f 103
+  s_3a5e82f8a9a877::t_53d31c9e4fc9f2 97-99
+  s_3a5e82f8a9a877::t_f534f1f6f642f8 7
+.changeset/astro-7-3-compatibility.md
+  s_3a5e82f8a9a877::t_e4dd1f536912b3 1-11
+test/adapters/helpers.js
+  s_3a5e82f8a9a877::t_0841fbde1fe9e5 127-157
+  s_3a5e82f8a9a877::t_45ce203a2763d7 2
+  s_3a5e82f8a9a877::t_8a458bfa4be34f 126
+.github/workflows/W-Node-Compat.yml
+  s_3a5e82f8a9a877::t_7b4a50ba8ba03a 25,29-30
+  s_3a5e82f8a9a877::t_c0874b834d6407 31
+scripts/test-node-server-compat.mjs
+  s_3a5e82f8a9a877::t_15375a3136f93b 8,88-90
+README.md
+  s_3a5e82f8a9a877::t_768178da721958 520-523
+  s_3a5e82f8a9a877::t_1e9b121d3cb401 727-733
+scripts/run-release-benchmark.mjs
+  s_3a5e82f8a9a877::t_4341fe36d1915f 31
+  s_3a5e82f8a9a877::t_53d31c9e4fc9f2 42-44
+package.json
+  s_3a5e82f8a9a877::t_e47a739b1e4aab 107,123
+  s_3a5e82f8a9a877::t_3dda63fad748d8 116
+pnpm-lock.yaml
+  s_3a5e82f8a9a877::t_32068bff0a4408 25-26,29,32,35,41,52-53,73-74,78-79,81-82,155-159,185-187,347-348,352,354-355,360-361,366-367,372-373,378-379,2089-2090,2094,3749-3750,4735-4736,5015-5016,5020-5021,5025,5120-5122,5128,5130-5133,5136,5229,5231-5242,5247,5255,5299,5302,5327-5329,5336,5566,5570,5572,5574-5575,5578-5579,5585,5588,5591,5594,5597,5612,5614,6196,7235,7238-7239,7289,9251,9255-9256,10461,10693,10695-10699,10701,10704,10707,10710,10801-10802
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "27d405afff24f8f751fd010186343a87b35064a0",
+  "prompts": {},
+  "sessions": {
+    "s_3a5e82f8a9a877": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "293eecae-9269-4923-a4d9-41924a66e646",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
