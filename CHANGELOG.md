@@ -53,7 +53,9 @@ startup, memory, and request ceilings remain enforced.
   advertise a root `/llms.txt`.
 - Runtime edges: page lifecycle failures become corpus-plan errors; catalog locale metadata reaches
   plugin handles; Astro 7.2 one-argument FetchState is supported; loopback origin trust stays
-  development-only; encoded locale pathnames resolve consistently.
+  development-only (Astro 5 and 6 projects on `@astrojs/node` need
+  `security.allowedDomains` so the deployed request keeps its real `Host`); encoded locale
+  pathnames resolve consistently.
 - Prerendered pages no longer read request headers, which Astro warns about. HTML enrichment and
   marker redaction still emit fresh ETags, while Accept negotiation and conditional requests remain
   available for on-demand routes.

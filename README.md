@@ -731,6 +731,23 @@ cookies set during the request, including the ones Astro-AEO merges when it rewr
 `.md` request into your route, may never reach the client. The `@astrojs/cloudflare/hono`
 middleware applies those headers already.
 
+Origin-scoped runtime artifacts (`llms.txt`, `llms-full.txt`, the corpus paths, and
+`/.well-known/domain-profile.json`) are served only when the request origin matches the configured
+`site` or one of the configured i18n domains. `astro dev` and `astro preview` additionally accept
+their loopback origin; a deployed server does not, so a spoofed `Host: localhost` cannot claim the
+configured site. On Astro 5 and Astro 6 the Node adapter rewrites the request host to `localhost`
+unless the domain is allowed, so those projects need Astro's own host trust for the artifacts to be
+reachable:
+
+```js
+export default defineConfig({
+  site: 'https://example.com',
+  security: { allowedDomains: [{ hostname: 'example.com' }] },
+});
+```
+
+Astro 7 keeps the request `Host` header without that setting.
+
 On static hosting the companions are plain files, and many hosts serve unknown
 extensions as `text/plain`, `application/octet-stream`, or a download. To keep answer
 engines consuming them as Markdown, set `Content-Type: text/markdown; charset=utf-8`
