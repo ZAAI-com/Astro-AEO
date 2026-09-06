@@ -1,0 +1,57 @@
+README.md
+  s_54cc6c42bf0e81::t_10fc20d0494afc 491-497
+src/runtime/middleware-build-owned-corpus.test.js
+  s_54cc6c42bf0e81::t_e9acc5e73065e2 75-79,86-88
+  s_54cc6c42bf0e81::t_f6120b6196b851 1-74,80-85,89-91
+src/runtime/middleware.js
+  s_54cc6c42bf0e81::t_23e13b8e1b18c2 241-243,284-286,1066-1075
+  s_54cc6c42bf0e81::t_4c0c778bd4cfda 1076-1077
+fixtures/adapters/static-cloudflare/src/pages/api.js
+  s_54cc6c42bf0e81::t_666e02becb603e 1-7
+fixtures/adapters/static-cloudflare/wrangler.jsonc
+  s_54cc6c42bf0e81::t_666e02becb603e 1-6
+fixtures/adapters/static-cloudflare/package.json
+  s_54cc6c42bf0e81::t_666e02becb603e 1
+test/adapters/build.test.js
+  s_54cc6c42bf0e81::t_17e7b23f38979d 23,61-66,82-97
+  s_54cc6c42bf0e81::t_4b388357ef7cf5 98-100
+CHANGELOG.md
+  s_54cc6c42bf0e81::t_10fc20d0494afc 47-51,105-108
+src/index.js
+  s_54cc6c42bf0e81::t_8f74c7843f67f5 136-144
+test/adapters/static-cloudflare.test.js
+  s_54cc6c42bf0e81::t_47d0ecfa330c7a 1-68
+fixtures/adapters/static-cloudflare/src/pages/index.astro
+  s_54cc6c42bf0e81::t_666e02becb603e 1-10
+vitest.adapters-runtime.config.js
+  s_54cc6c42bf0e81::t_47d0ecfa330c7a 7
+src/runtime/serve.js
+  s_54cc6c42bf0e81::t_3da67e6c061c02 48-49
+fixtures/adapters/static-cloudflare/src/pages/items/[slug].astro
+  s_54cc6c42bf0e81::t_666e02becb603e 1-17
+AGENTS.md
+  s_54cc6c42bf0e81::t_10fc20d0494afc 80-87
+fixtures/adapters/static-cloudflare/src/pages/about.astro
+  s_54cc6c42bf0e81::t_666e02becb603e 1-10
+src/integration-hooks.test.js
+  s_54cc6c42bf0e81::t_0998da06946db1 625-626,641,650
+  s_54cc6c42bf0e81::t_b601aac138359c 609-624,627-640,642-649,651-652
+fixtures/adapters/static-cloudflare/astro.config.mjs
+  s_54cc6c42bf0e81::t_666e02becb603e 1-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "c4fe3b63b1964c0bae6e8415a7986a3a82f4d311",
+  "prompts": {},
+  "sessions": {
+    "s_54cc6c42bf0e81": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c860d25-57ef-4dc0-bd8f-a06bb7008ed7",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
