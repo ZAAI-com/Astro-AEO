@@ -11,8 +11,9 @@ plain ESM with no package build step.
 
 - At build time it turns eligible rendered pages into `.md` companions and can emit `llms.txt`,
   `llms-full.txt`, `robots.txt`, `/.well-known/domain-profile.json`, a URL map, and a sitemap
-  alias. When a build contains server output or an on-demand page, middleware owns the corpus
-  paths so request-time pages can be included.
+  alias. When a project page route renders on demand, middleware owns the corpus paths so
+  request-time pages can be included. Adapter presence alone does not transfer ownership:
+  Astro-AEO's own injected fallback routes promote the build to server output.
 - At request time its pre-middleware serves eligible `.md` companions, content negotiation, and
   enabled text artifacts. Static sites still receive ordinary files for their build-time output.
 

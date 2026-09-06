@@ -38,6 +38,17 @@ startup, memory, and request ceilings remain enforced.
 
 ### Correctness and safety (review backlog)
 
+- Corpus ownership ([#8](https://github.com/ZAAI-com/Astro-AEO/issues/8)): `llms.txt` and
+  `llms-full.txt` are handed to request-time middleware only when one of the project's own page
+  routes renders on demand. Astro-AEO injects `prerender: false` fallback routes for every adapter,
+  which promotes the build to server output, and the previous rule read that promotion back as
+  proof that a server was required. A fully prerendered site with an adapter silently emitted no
+  corpus at all. The `dynamic-routes-unindexed` diagnostic follows the same ownership decision, so
+  it no longer asks a prerendered project for a `pages.catalogs` module it does not need.
+- Request-state diagnostics: the request-time corpus `503` reports an unrecognized Astro request
+  state instead of naming a version range the middleware cannot observe, and the anonymous corpus
+  session derives its runtime mode from the build command rather than from a pipeline field Astro 7
+  removed.
 - Manifest truthfulness: companion-less pages publish nullable `markdownUrl` / `tokenCount` /
   `hash`; companion hashes and token counts match the bytes from `renderMarkdownDocument`.
 - Corpus topology: dependent claims (aliases, gzip, manifest) follow ownership decisions; runtime
@@ -66,6 +77,11 @@ startup, memory, and request ceilings remain enforced.
 
 ### Upgrade notes
 
+- Adapter projects whose page routes are all prerendered now receive build-time `llms.txt` and
+  `llms-full.txt` containing every `getStaticPaths()` result, where 1.2 emitted nothing and left
+  the paths to middleware. Projects with at least one on-demand page route are unchanged. If you
+  relied on the request-time corpus for a fully prerendered adapter build, the emitted file is
+  served first by every supported adapter and is strictly more complete.
 - `pages.devDynamicDiscovery` defaults to `'startup'`; select experimental `'hot'` for route-file
   HMR or `false` to retain catalog-only development enumeration. Catalogs remain necessary for
   on-demand and external inventories and can overlay automatic paths with authored metadata.

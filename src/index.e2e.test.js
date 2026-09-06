@@ -96,7 +96,7 @@ describe('demo build outputs', () => {
     );
     expect(diagnostics.diagnostics.some(({ code }) => code === 'dynamic-routes-unindexed'))
       .toBe(false);
-    expect(buildOutput).not.toContain('dynamic page routes');
+    expect(buildOutput).not.toContain('request-time middleware owns the corpus');
   });
 
   test('every included page has exactly one markdown alternate link', () => {

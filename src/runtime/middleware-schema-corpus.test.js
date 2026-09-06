@@ -453,7 +453,7 @@ describe('runtime schema corpus middleware', () => {
     expect(response.headers.get('content-type')).toBe('text/plain; charset=utf-8');
     const body = await response.text();
     if (method === 'HEAD') expect(body).toBe('');
-    else expect(body).toContain('require Astro 6.3 or newer');
+    else expect(body).toContain('request state was not recognized');
     expect(next).not.toHaveBeenCalled();
     expect(context.rewrite).not.toHaveBeenCalled();
     expect(context.locals).toEqual({ callerIdentity: 'private' });

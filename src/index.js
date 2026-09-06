@@ -66,8 +66,6 @@ export default function aeo(userConfig = {}) {
   let command = 'build';
   /** @type {'dev'|'build'|'preview'|'sync'} */
   let astroLifecycleCommand = 'build';
-  /** @type {'static'|'server'|undefined} */
-  let exactBuildOutput;
   const sitemapState = {
     expected: false,
     siteUrl: '',
@@ -187,7 +185,6 @@ export default function aeo(userConfig = {}) {
         config = resolveConfig(userConfig, logger);
         integrationLogger = logger;
         astroLifecycleCommand = astroCommand;
-        exactBuildOutput = undefined;
         developmentDynamicWarningEmitted = false;
         initialDynamicRoutesCaptured = false;
         initialDynamicRoutes = [];
@@ -267,7 +264,6 @@ export default function aeo(userConfig = {}) {
         trailingSlash = astroConfig.trailingSlash ?? 'ignore';
         buildFormat = astroConfig.build?.format === 'file' ? 'file' : 'directory';
         localeSnapshot = createLocaleSnapshot(astroConfig.i18n, siteUrl);
-        exactBuildOutput = buildOutput;
         serverOutput = buildOutput === 'server' || astroConfig.output === 'server' || adapterFallbacks;
         projectRoot = fileURLToPath(astroConfig.root);
         pagesDir = astroConfig.srcDir
@@ -462,10 +458,16 @@ export default function aeo(userConfig = {}) {
         // these hooks in the opposite order. Merge here, after catalog preflight
         // is guaranteed to have completed, and keep the route array catalog-free
         // so the newer hook order cannot add the same diagnostics twice.
+
+        // An on-demand page route is the only thing that puts pages outside the
+        // build's reach. Adapter presence is not evidence: injectRuntimeFallbackRoutes
+        // marks its own routes `prerender: false`, which promotes this build to server
+        // output, so reading `buildOutput` back would be self-fulfilling.
+        const corpusOwnedByRuntime = hasOnDemandProjectPage;
         /** @type {import('./index.js').Diagnostic[]} */
         const routeDiagnostics = [];
         if (
-          exactBuildOutput === 'server' &&
+          corpusOwnedByRuntime &&
           hasDynamicProjectPage &&
           config.pages.catalogs.length === 0
         ) {
@@ -474,10 +476,10 @@ export default function aeo(userConfig = {}) {
             code: 'dynamic-routes-unindexed',
             severity: 'warning',
             message:
-              'Request-time corpus enumeration is incomplete for dynamic page routes because no pages.catalogs module is configured.',
+              'Request-time middleware owns the corpus for this build, so dynamic page routes cannot be enumerated without a pages.catalogs module.',
           });
           integrationLogger?.warn(
-            'astro-aeo: dynamic page routes require pages.catalogs for request-time corpus enumeration in server output.',
+            'astro-aeo: this build renders a page on demand, so request-time middleware owns the corpus. Dynamic page routes need pages.catalogs to appear in llms.txt and llms-full.txt.',
           );
         }
         if (hasPrerenderedCustom404 && config.markdown.negotiation !== 'off') {
@@ -530,7 +532,7 @@ export default function aeo(userConfig = {}) {
           resolvedRouteMatchers,
           publicDir,
           diagnostics,
-          runtimeCorpora: serverOutput || hasOnDemandProjectPage,
+          runtimeCorpora: corpusOwnedByRuntime,
           catalogModules,
           markdownRenderers,
           corpusTokenizer: corpusTokenizer?.implementation,

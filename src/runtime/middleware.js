@@ -58,8 +58,12 @@ const DEV_NOTE = '<!-- astro-aeo development preview -->';
 const INTERNAL_REQUEST_HEADER = 'x-astro-aeo-internal';
 const INTERNAL_PURPOSE_HEADER = 'x-astro-aeo-internal-purpose';
 const CORPUS_PURPOSE = 'corpus';
-const LEGACY_CORPUS_UNAVAILABLE =
-  'astro-aeo: request-time corpora require Astro 6.3 or newer so every page can render in a disposable request state; use build output on Astro 5 or Astro 6.0-6.2.\n';
+// The probe can only observe the request state's shape, never the installed Astro
+// version, so this must not assert which version the caller is running.
+const UNRECOGNIZED_CORPUS_STATE =
+  'astro-aeo: the Astro request state was not recognized, so request-time corpora cannot render ' +
+  'each page in a disposable state. Astro 5 and Astro 6.0-6.2 do not expose one and should use ' +
+  'build output; on Astro 6.3 or newer this is an astro-aeo compatibility gap.\n';
 /** @type {WeakMap<object, { collect: boolean; corpus: boolean }>} */
 const INTERNAL_REWRITES = new WeakMap();
 const ASTRO_FETCH_STATE = Symbol.for('astro.fetchState');
@@ -236,7 +240,7 @@ export const onRequest = async (context, next) => {
   if (artifact === 'schema-graph' || artifact === 'schema-map') {
     if (!disposableCorpusStateFor(context)) {
       return textResponse({
-        body: LEGACY_CORPUS_UNAVAILABLE,
+        body: UNRECOGNIZED_CORPUS_STATE,
         contentType: 'text/plain; charset=utf-8',
         request: context.request,
         status: 503,
@@ -276,7 +280,7 @@ export const onRequest = async (context, next) => {
   if (artifact === 'llms' || artifact === 'llms-full' || artifact === 'corpus') {
     if (!disposableCorpusStateFor(context)) {
       return textResponse({
-        body: LEGACY_CORPUS_UNAVAILABLE,
+        body: UNRECOGNIZED_CORPUS_STATE,
         contentType: 'text/plain; charset=utf-8',
         request: context.request,
         status: 503,
@@ -979,7 +983,7 @@ async function provideFreshSession(outerState, freshState) {
     create: () => new Session({
       cookies: freshState.cookies,
       config,
-      runtimeMode: pipeline?.runtimeMode ?? 'production',
+      runtimeMode: pipeline?.runtimeMode ?? (RUNTIME.command === 'dev' ? 'development' : 'production'),
       driverFactory,
       mockStorage: null,
       logger: freshState.logger ?? outerState.logger ?? pipeline?.logger,

@@ -483,7 +483,12 @@ built-in TypeScript support is not a portable substitute: it is unavailable on N
 handles only erasable syntax by default, and ignores `tsconfig.json` behavior. See the
 [Node TypeScript documentation](https://nodejs.org/api/typescript.html).
 
-Request-time `llms.txt` and `llms-full.txt` render each known route through the
+Request-time middleware owns `llms.txt` and `llms-full.txt` when at least one project page
+route renders on demand, because those pages are outside the build's reach. When every page
+route is prerendered the build emits both files even if an adapter is installed, and they
+contain every `getStaticPaths()` result.
+
+Once middleware owns them, both files render each known route through the
 application so page markers behave normally. Each route is rendered serially through
 Astro's in-process rewrite pipeline: no network destination is derived from the Host
 header, the trusted rewrite capability exists only in process, and caller credentials
@@ -492,7 +497,9 @@ corpus returns `503` with `Cache-Control: no-store`, without partial output. Rai
 limit or select `'unlimited'` only when the deployment can safely absorb that work.
 Astro 5 and Astro 6.0-6.2 receive `503` for request-time corpora because those
 versions do not expose a disposable request state. Their closure-held client address,
-cookies, and session cannot be replaced securely for an anonymous corpus render.
+cookies, and session cannot be replaced securely for an anonymous corpus render. The
+response reports an unrecognized request state rather than an Astro version, because the
+middleware can only observe the shape it was handed.
 Build-time corpus artifacts and authenticated direct `.md` requests are unaffected.
 Astro 6.3 and newer use a separate disposable request state for every serialized
 corpus render, including streams whose cancellation never settles. This requirement
@@ -713,7 +720,9 @@ and its authentication apply to a `.md` request exactly as they do to the HTML.
 
 Configuring an adapter authorizes Astro-AEO to inject on-demand fallback routes for catch-all
 `.md` requests and every enabled runtime artifact. This can turn an otherwise static adapter
-build into server or hybrid output. The endpoints return `404` when pre-middleware declines and
+build into server or hybrid output. That promotion does not move the corpus: `llms.txt` and
+`llms-full.txt` are still emitted at build time unless one of your own page routes renders on
+demand. The endpoints return `404` when pre-middleware declines and
 exist so provider routing reaches that middleware before a custom-404 fallback. Literal project
 `.md` routes retain ownership unless their exact served pathname is listed in
 `artifacts.replace`.
@@ -923,8 +932,8 @@ slash. Cross-page reference validation is scoped to the configured Astro site an
 
 Runtime schema corpora use the same anonymous, serial, in-process renderer as the text corpora,
 including `GET`, `HEAD`, ETags, and conditional requests. Astro 5 and Astro 6.0 through 6.2 return
-`503` with `Cache-Control: no-store` for full request-time corpora. Astro 6.3 or newer is required
-for disposable per-page request state.
+`503` with `Cache-Control: no-store` for full request-time corpora, reported as an unrecognized
+request state. Astro 6.3 or newer is required for disposable per-page request state.
 
 ## Plugin API
 

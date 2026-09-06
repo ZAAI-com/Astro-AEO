@@ -75,6 +75,7 @@ async function runRouteLifecycle(options = {}) {
     'export default { listPages() { return []; } };\n',
   );
   const warnings = [];
+  const infos = [];
   let updated;
   try {
     const integration = aeo({
@@ -85,7 +86,7 @@ async function runRouteLifecycle(options = {}) {
     });
     const logger = {
       warn: (message) => warnings.push(message),
-      info() {},
+      info: (message) => infos.push(message),
       error() {},
       debug() {},
     };
@@ -150,7 +151,7 @@ async function runRouteLifecycle(options = {}) {
         readFileSync(join(root, '.astro', 'aeo-cache', 'diagnostics-v1.json'), 'utf8'),
       ).diagnostics;
     }
-    return { warnings, warningsBeforeBuildDone, diagnostics, runtimeSource, dynamicSource };
+    return { warnings, warningsBeforeBuildDone, infos, diagnostics, runtimeSource, dynamicSource };
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -538,7 +539,7 @@ describe('integration diagnostics and declarations', () => {
 
     expect(result.warningsBeforeBuildDone).toEqual([]);
     expect(result.warnings).toEqual(expect.arrayContaining([
-      expect.stringContaining('request-time corpus enumeration'),
+      expect.stringContaining('request-time middleware owns the corpus'),
       expect.stringContaining('custom /404 route is prerendered'),
     ]));
     expect(result.diagnostics.map(({ code }) => code)).toEqual(expect.arrayContaining([
@@ -557,20 +558,82 @@ describe('integration diagnostics and declarations', () => {
         configFirst,
         routes: [dynamicRoute()],
       });
-      expect(result.warnings.some((message) => message.includes('dynamic page routes'))).toBe(false);
+      expect(result.warnings.some((message) =>
+        message.includes('request-time middleware owns the corpus'))).toBe(false);
       expect(result.diagnostics.some(({ code }) => code === 'dynamic-routes-unindexed')).toBe(false);
     },
   );
 
+  // Astro-AEO injects `prerender: false` fallback routes for every adapter, which
+  // promotes the build to server output. Ownership must therefore key on the
+  // project's own pages, never on the build output that promotion produced.
+  const corpusConfig = { corpus: { index: { enabled: true }, full: { enabled: true } } };
+  const prerenderedHome = { type: 'page', origin: 'project', pathname: '/', isPrerendered: true };
+
+  test('builds the corpus when an adapter promotes server output but every page is prerendered', async () => {
+    const result = await runRouteLifecycle({
+      adapter: true,
+      output: 'static',
+      buildOutput: 'server',
+      userConfig: corpusConfig,
+      routes: [
+        prerenderedHome,
+        dynamicRoute(),
+        { type: 'endpoint', origin: 'project', pathname: '/api', isPrerendered: false },
+      ],
+    });
+    expect(result.infos).toContainEqual(expect.stringContaining('corpus artifact'));
+    expect(result.infos.some((message) =>
+      message.includes('request-time middleware owns'))).toBe(false);
+    expect(result.diagnostics.some(({ code }) => code === 'dynamic-routes-unindexed')).toBe(false);
+    expect(result.warnings.some((message) =>
+      message.includes('request-time middleware owns the corpus'))).toBe(false);
+  });
+
+  test('leaves the corpus to middleware once a project page renders on demand', async () => {
+    const result = await runRouteLifecycle({
+      adapter: true,
+      output: 'static',
+      buildOutput: 'server',
+      userConfig: corpusConfig,
+      routes: [
+        prerenderedHome,
+        { type: 'page', origin: 'project', pathname: '/live', isPrerendered: false },
+      ],
+    });
+    expect(result.infos).toContainEqual(
+      expect.stringContaining('request-time middleware owns the configured corpus paths'),
+    );
+  });
+
+  test('builds the corpus for a catalog-only server project with no on-demand page', async () => {
+    const result = await runRouteLifecycle({
+      adapter: true,
+      output: 'server',
+      buildOutput: 'server',
+      userConfig: {
+        ...corpusConfig,
+        pages: { catalogs: [{ module: './catalog.mjs' }] },
+      },
+      routes: [prerenderedHome],
+    });
+    expect(result.infos).toContainEqual(expect.stringContaining('corpus artifact'));
+    expect(result.infos.some((message) =>
+      message.includes('request-time middleware owns'))).toBe(false);
+  });
+
   test.each([
     ['prerendered', true],
     ['on-demand', false],
-  ])('diagnoses %s dynamic routes for exact server output', async (_label, prerendered) => {
+  ])('diagnoses %s dynamic routes for a runtime-owned corpus', async (_label, prerendered) => {
     const result = await runRouteLifecycle({
       buildOutput: 'server',
-      routes: [dynamicRoute({ isPrerendered: prerendered })],
+      routes: [
+        dynamicRoute({ isPrerendered: prerendered }),
+        { type: 'page', origin: 'project', pathname: '/live', isPrerendered: false },
+      ],
     });
-    expect(result.warnings).toContainEqual(expect.stringContaining('request-time corpus enumeration'));
+    expect(result.warnings).toContainEqual(expect.stringContaining('request-time middleware owns the corpus'));
     expect(result.diagnostics).toContainEqual(expect.objectContaining({
       code: 'dynamic-routes-unindexed',
     }));
@@ -705,7 +768,10 @@ describe('integration diagnostics and declarations', () => {
   test('treats a null pathname as an unresolved dynamic page', async () => {
     const result = await runRouteLifecycle({
       buildOutput: 'server',
-      routes: [dynamicRoute({ pathname: null })],
+      routes: [
+        dynamicRoute({ pathname: null }),
+        { type: 'page', origin: 'project', pathname: '/live', isPrerendered: false },
+      ],
     });
     expect(result.diagnostics.some(({ code }) => code === 'dynamic-routes-unindexed')).toBe(true);
   });
@@ -724,7 +790,8 @@ describe('integration diagnostics and declarations', () => {
     integration.hooks['astro:routes:resolved']({
       routes: [{ type: 'page', origin: 'internal', pathname: undefined, prerender: false }],
     });
-    expect(warnings.some((message) => message.includes('dynamic page routes'))).toBe(false);
+    expect(warnings.some((message) =>
+      message.includes('request-time middleware owns the corpus'))).toBe(false);
   });
 
   test('runtime corpus candidates contain project pages, not endpoints or error routes', async () => {

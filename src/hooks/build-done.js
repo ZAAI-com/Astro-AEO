@@ -67,7 +67,7 @@ import {
  *   Dynamic project routes, for collision checks.
  * @property {URL} [publicDir]                   Astro's publicDir, for collision checks.
  * @property {import('../index.js').Diagnostic[]} [diagnostics]
- * @property {boolean} [runtimeCorpora]            Leave corpus paths to middleware.
+ * @property {boolean} [runtimeCorpora]            A page renders on demand, so middleware owns the corpus paths.
  * @property {{ module: string; specifier: string; namespace: any }[]} [catalogModules]
  * @property {import('../core/markdown-renderers.js').MarkdownRendererEntry[]} [markdownRenderers]
  * @property {Awaited<ReturnType<typeof import('../plugins/dispatcher.js').createPluginDispatcher>>} [pluginDispatcher]

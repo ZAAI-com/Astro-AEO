@@ -118,7 +118,7 @@ describe('dynamic route discovery middleware failures', () => {
   test('keeps the legacy corpus guard ahead of discovery', async () => {
     const response = await onRequest(context('/llms.txt', false), vi.fn());
     expect(response.status).toBe(503);
-    expect(await response.text()).toContain('Astro 6.3 or newer');
+    expect(await response.text()).toContain('request state was not recognized');
     expect(discovery.loads).toBe(0);
   });
 });

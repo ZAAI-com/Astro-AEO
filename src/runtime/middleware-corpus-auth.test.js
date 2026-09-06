@@ -483,7 +483,7 @@ describe('runtime corpus subrequests', () => {
     expect(response.status).toBe(503);
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(response.headers.get('set-cookie')).toBeNull();
-    expect(await response.text()).toContain('require Astro 6.3 or newer');
+    expect(await response.text()).toContain('request state was not recognized');
     expect(next).not.toHaveBeenCalled();
     expect(context.rewrite).not.toHaveBeenCalled();
     expect(readCookie).not.toHaveBeenCalled();

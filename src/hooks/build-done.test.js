@@ -245,7 +245,7 @@ describe('staged build plugin pipeline', () => {
     }));
   });
 
-  test('reserves adapter runtime corpora and removes an exactly replaced public copy', async () => {
+  test('reserves runtime corpora and removes an exactly replaced public copy', async () => {
     const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
     const publicRoot = join(files.root, 'public');
     mkdirSync(publicRoot);

@@ -111,7 +111,7 @@ for (const [index, trailingSlash] of modes.entries()) {
         assert.ok(body.includes(canonical), `${trailingSlash}: canonical in schema map`);
       }
       if (!liveCorpusSupported) {
-        assert.match(body, /require Astro 6\.3 or newer/);
+        assert.match(body, /request state was not recognized/);
       }
     }
 
