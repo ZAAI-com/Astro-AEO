@@ -1,0 +1,62 @@
+src/hooks/build-done.js
+  s_54cc6c42bf0e81::t_9c72b023cd2277 70
+fixtures/static-adapter/src/pages/about.astro
+  s_54cc6c42bf0e81::t_45eea9454740d9 1-13
+src/index.e2e.test.js
+  s_54cc6c42bf0e81::t_9b3256f01c7bbe 99
+fixtures/static-adapter/astro.config.mjs
+  s_54cc6c42bf0e81::t_45eea9454740d9 1-19
+src/static-adapter-corpus.ssr.test.js
+  s_54cc6c42bf0e81::t_57bddfef7ec3f3 1-60
+src/runtime/middleware-corpus-auth.test.js
+  s_54cc6c42bf0e81::t_94c05e23d9a0a6 486
+src/index.js
+  s_54cc6c42bf0e81::t_2cf85aea290963 461
+  s_54cc6c42bf0e81::t_078c2a91bc2853 462-466,470,479,482,535
+src/runtime/middleware.js
+  s_54cc6c42bf0e81::t_eabf0d075c5a8b 61-66,243,283,986
+scripts/test-node-server-compat.mjs
+  s_54cc6c42bf0e81::t_94c05e23d9a0a6 114
+fixtures/static-adapter/src/pages/index.astro
+  s_54cc6c42bf0e81::t_45eea9454740d9 1-13
+CHANGELOG.md
+  s_54cc6c42bf0e81::t_47b40f808c9d26 41-51,80-84
+src/runtime/middleware-schema-corpus.test.js
+  s_54cc6c42bf0e81::t_94c05e23d9a0a6 456
+README.md
+  s_54cc6c42bf0e81::t_dbcdd60305e06b 486-490,723-725,935-936
+  s_54cc6c42bf0e81::t_833185dc7e7904 491,500-502
+fixtures/static-adapter/src/pages/items/[slug].astro
+  s_54cc6c42bf0e81::t_45eea9454740d9 1-17
+fixtures/static-adapter/src/pages/api.js
+  s_54cc6c42bf0e81::t_45eea9454740d9 1-7
+src/hooks/build-done.test.js
+  s_54cc6c42bf0e81::t_9ef5154d7ba143 248
+src/integration-hooks.test.js
+  s_54cc6c42bf0e81::t_85becf7f909a7f 628,631-634,771-774
+  s_54cc6c42bf0e81::t_1797691ba7b8c0 78,89,154
+  s_54cc6c42bf0e81::t_9b3256f01c7bbe 542,561-562,636,793-794
+  s_54cc6c42bf0e81::t_9d8e8c0101407b 567-624
+fixtures/static-adapter/package.json
+  s_54cc6c42bf0e81::t_45eea9454740d9 1
+src/runtime/middleware-dynamic-routes.test.js
+  s_54cc6c42bf0e81::t_94c05e23d9a0a6 121
+AGENTS.md
+  s_54cc6c42bf0e81::t_d01b496d12a6f3 14-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "2e157969ad5eaefda699afc0ea6da6efeee7d0e0",
+  "prompts": {},
+  "sessions": {
+    "s_54cc6c42bf0e81": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c860d25-57ef-4dc0-bd8f-a06bb7008ed7",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
