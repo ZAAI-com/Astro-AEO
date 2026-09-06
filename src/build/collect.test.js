@@ -364,3 +364,40 @@ describe('authored source resolution', () => {
     );
   });
 });
+
+describe('catalog origin passthrough', () => {
+  test('carries a descriptor origin onto the collected page', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-origin-'));
+    roots.push(root);
+    const distRoot = join(root, 'dist');
+    mkdirSync(join(distRoot, 'fr', 'guide'), { recursive: true });
+    mkdirSync(join(distRoot, 'guide'), { recursive: true });
+    const html = '<!doctype html><html><head><title>T</title></head><body><main>Body.</main></body></html>';
+    writeFileSync(join(distRoot, 'fr', 'guide', 'index.html'), html);
+    writeFileSync(join(distRoot, 'guide', 'index.html'), html);
+
+    const pages = await collectPages(
+      [
+        { pathname: '/fr/guide', origin: 'https://fr.example.test' },
+        { pathname: '/guide' },
+      ],
+      resolveConfig(),
+      {
+        distDir: pathToFileURL(`${distRoot}/`),
+        siteUrl: 'https://example.test',
+        base: '',
+        trailingSlash: 'always',
+        buildFormat: 'directory',
+        projectRoot: root,
+        routeEntrypoints: new Map(),
+        logger: { warn() {} },
+      },
+    );
+
+    expect(pages.find((page) => page.pathname === '/fr/guide')?.origin)
+      .toBe('https://fr.example.test');
+    // A page without a declared origin stays untouched, so resolvePageLocale
+    // still applies the locale or site origin later.
+    expect(pages.find((page) => page.pathname === '/guide')).not.toHaveProperty('origin');
+  });
+});

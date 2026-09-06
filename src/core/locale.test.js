@@ -15,6 +15,11 @@ function page(pathname, alternates = [], rendered = '') {
   };
 }
 
+function withoutCanonical(record) {
+  const { canonicalUrl: _canonicalUrl, ...rest } = record;
+  return rest;
+}
+
 describe('hreflang normalization', () => {
   test('keeps a structured language target when unmanaged markup conflicts', () => {
     const result = normalizePageAlternates([
@@ -54,6 +59,57 @@ describe('hreflang normalization', () => {
     ]);
 
     expect(result.diagnostics.some(({ code }) => code === 'hreflang-not-reciprocal')).toBe(false);
+  });
+
+  test('reports a local hreflang target that is not the page canonical', () => {
+    const result = normalizePageAlternates([
+      page('/en/', [{ language: 'fr', url: 'https://example.test/fr' }]),
+      { ...page('/fr/'), url: 'https://example.test/fr' },
+    ]);
+
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({
+      code: 'hreflang-canonical-conflict',
+      pathname: '/en/',
+    }));
+  });
+
+  test('checks a page that declares no canonical URL through its served URL', () => {
+    const result = normalizePageAlternates([
+      withoutCanonical(page('/en/', [{ language: 'fr', url: 'https://example.test/fr/' }])),
+      page('/fr/'),
+    ]);
+
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({
+      code: 'hreflang-not-reciprocal',
+      pathname: '/en/',
+    }));
+    expect(result.diagnostics.some(({ code }) => code === 'hreflang-canonical-conflict'))
+      .toBe(false);
+  });
+
+  // Regression guard: absence of a canonical is not evidence of disagreement.
+  test('never flags a canonical-less target as non-canonical', () => {
+    const result = normalizePageAlternates([
+      withoutCanonical(page('/en/', [{ language: 'fr', url: 'https://example.test/fr/' }])),
+      withoutCanonical(page('/fr/', [{ language: 'en', url: 'https://example.test/en/' }])),
+    ]);
+
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  // Regression guard: alternates must be https, so an http development page can
+  // never match a local target and both checks stay silent exactly as they did
+  // before canonical-less pages were brought into scope.
+  test('leaves http development pages alone', () => {
+    const result = normalizePageAlternates([
+      {
+        ...withoutCanonical(page('/en/', [{ language: 'fr', url: 'https://example.test/fr/' }])),
+        url: 'http://localhost:4321/en/',
+      },
+      { ...withoutCanonical(page('/fr/')), url: 'http://localhost:4321/fr/' },
+    ]);
+
+    expect(result.diagnostics).toEqual([]);
   });
 });
 

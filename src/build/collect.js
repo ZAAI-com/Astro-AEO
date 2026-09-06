@@ -129,13 +129,20 @@ export async function collectPages(rawPages, config, ctx) {
             lastModified,
           }
         : {}),
+      // A catalog may place a page on another configured host. buildPage never
+      // sees this, so carry the descriptor's origin across exactly as the
+      // runtime inventory does. Callers without one keep the site origin that
+      // resolvePageLocale assigns later.
+      ...(typeof raw.origin === 'string' && raw.origin ? { origin: raw.origin } : {}),
       htmlPath: read?.htmlPath ?? '',
       mdPath: join(source.root, mdPathnameFor(pathname)),
     };
     pages.push(page);
     if (cacheKey && cached === undefined) {
       const { html: _html, ...cachedRepresentations } = page.representations;
-      const { htmlPath: _htmlPath, mdPath: _mdPath, ...cachedPage } = page;
+      // `origin` is descriptor passthrough, not an extraction result. Keep it out
+      // of the payload, like htmlPath/mdPath, so it is not part of the cache key.
+      const { htmlPath: _htmlPath, mdPath: _mdPath, origin: _origin, ...cachedPage } = page;
       ctx.cache?.put(cacheKey, {
         page: {
           ...cachedPage,

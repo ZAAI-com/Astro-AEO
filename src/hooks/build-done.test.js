@@ -15,6 +15,7 @@ import { resolveConfig } from '../config.js';
 import { createPluginDispatcher } from '../plugins/dispatcher.js';
 import { createSemanticPlugin } from '../semantic/plugin.js';
 import { createGraph } from '../schema.js';
+import { createLocaleSnapshot } from '../core/locale.js';
 import { onBuildDone } from './build-done.js';
 
 const roots = [];
@@ -959,5 +960,53 @@ describe('staged build plugin pipeline', () => {
       pathname: '/',
     }));
     expect(JSON.stringify(diagnostics)).not.toContain('private');
+  });
+});
+
+describe('catalog origins', () => {
+  function catalogEnvironment(root, diagnostics, pages, i18n) {
+    return {
+      ...environment(root, undefined, diagnostics),
+      catalogModules: [{
+        module: 'origins',
+        specifier: 'origins',
+        namespace: { default: { listPages: () => pages } },
+      }],
+      ...(i18n ? { i18n } : {}),
+    };
+  }
+
+  test('keeps a descriptor on another configured domain and drops an unconfigured one', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    mkdirSync(join(files.dist, 'fr', 'guide'), { recursive: true });
+    writeFileSync(
+      join(files.dist, 'fr', 'guide', 'index.html'),
+      '<!doctype html><html><head><title>FR</title></head><body><main>FR</main></body></html>',
+    );
+    const diagnostics = [];
+    const writer = await onBuildDone(
+      config(),
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      catalogEnvironment(
+        files.root,
+        diagnostics,
+        [
+          { pathname: '/fr/guide', origin: 'https://fr.example.test' },
+          { pathname: '/elsewhere', origin: 'https://not-configured.example' },
+        ],
+        createLocaleSnapshot(
+          { locales: ['en', 'fr'], defaultLocale: 'en', domains: { fr: 'https://fr.example.test' } },
+          'https://example.test',
+        ),
+      ),
+    );
+    expect(diagnostics.filter(({ severity }) => severity === 'error')).toEqual([]);
+    writer.commit();
+
+    expect(diagnostics.map(({ code }) => code)).toContain('catalog-unconfigured-origin');
+    expect(diagnostics.find(({ code }) => code === 'catalog-unconfigured-origin')?.pathname)
+      .toBe('/elsewhere');
+    expect(diagnostics.some(({ code, pathname }) =>
+      code === 'catalog-unconfigured-origin' && pathname === '/fr/guide')).toBe(false);
   });
 });

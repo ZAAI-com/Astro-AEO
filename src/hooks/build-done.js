@@ -34,7 +34,7 @@ import {
   serializeIndexNowQueue,
   serializeIndexNowStateManifest,
 } from '../build/indexnow-state.js';
-import { normalizePageAlternates, resolvePageLocale } from '../core/locale.js';
+import { normalizeOrigin, normalizePageAlternates, resolvePageLocale } from '../core/locale.js';
 import { isOwnedArtifactPath } from '../core/owned-artifacts.js';
 import { renderSchemaCorpus, validateCollectedSchemaGraphs } from '../core/schema-corpus.js';
 import { siteScopeUrl, stableCanonical } from '../core/canonical.js';
@@ -184,17 +184,38 @@ async function onBuildDoneLocked(config, options, env, session) {
   const inventoryComplete = loadedCatalogs.inventoryComplete &&
     !(env.diagnostics ?? []).some((diagnostic) => incompleteInventoryCodes.has(diagnostic.code));
   const loadedCatalogPages = loadedCatalogs.pages;
+  // A descriptor may name any host Astro is configured for, but only those. An
+  // unconfigured origin would otherwise reach the corpus planner and invent a
+  // locale family for a host this project does not publish.
+  const configuredOrigins = new Set([
+    ...(env.i18n?.origins ?? []),
+    ...(normalizeOrigin(env.siteUrl) ? [/** @type {string} */ (normalizeOrigin(env.siteUrl))] : []),
+  ]);
   const catalogPages = loadedCatalogPages.filter((page) => {
-    if (!isOwnedArtifactPath(page.pathname, config)) return true;
-    env.diagnostics?.push({
-      version: 1,
-      code: 'catalog-owned-artifact-excluded',
-      severity: 'warning',
-      message: `Catalog page ${page.pathname} was excluded because Astro-AEO owns that artifact path.`,
-      pathname: page.pathname,
-      ...(page.sourcePath ? { sourcePath: page.sourcePath } : {}),
-    });
-    return false;
+    if (isOwnedArtifactPath(page.pathname, config)) {
+      env.diagnostics?.push({
+        version: 1,
+        code: 'catalog-owned-artifact-excluded',
+        severity: 'warning',
+        message: `Catalog page ${page.pathname} was excluded because Astro-AEO owns that artifact path.`,
+        pathname: page.pathname,
+        ...(page.sourcePath ? { sourcePath: page.sourcePath } : {}),
+      });
+      return false;
+    }
+    const origin = page.origin === undefined ? null : normalizeOrigin(page.origin);
+    if (origin && !configuredOrigins.has(origin)) {
+      env.diagnostics?.push({
+        version: 1,
+        code: 'catalog-unconfigured-origin',
+        severity: 'warning',
+        message: `Catalog page ${page.pathname} names an origin this project is not configured for and was excluded.`,
+        pathname: page.pathname,
+        ...(page.sourcePath ? { sourcePath: page.sourcePath } : {}),
+      });
+      return false;
+    }
+    return true;
   });
   if (catalogPages.length) {
     logger.info(`astro-aeo: ${catalogPages.length} page(s) contributed by catalogs`);

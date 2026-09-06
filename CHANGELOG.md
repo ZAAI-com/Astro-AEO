@@ -74,6 +74,23 @@ startup, memory, and request ceilings remain enforced.
   `pages.devDynamicDiscovery: 'hot'` the generated loader owns the message, because only it sees
   routes added after the last route resolution, and its guard lives on the development process so a
   re-executed loader stays quiet.
+- Multi-domain corpus topology: the build filtered its pages by the site origin before handing them
+  to the shared planner, which already applies that filter internally and separately needs the
+  complete set to choose a topology. The build therefore saw one locale under `i18n.domains` and
+  reserved a legacy root `/llms.txt` instead of the locale families and root language directory that
+  middleware serves. Request-time output was never affected; ownership arbitration, stale-output
+  removal, and the recorded claim set were.
+- Catalog origins reach the build: a descriptor naming another configured host kept that host at
+  request time but silently inherited the primary site origin during a build. Descriptor origins now
+  survive collection, and an origin the project is not configured for is excluded with a
+  `catalog-unconfigured-origin` diagnostic, matching the runtime loader.
+- Reachable hreflang canonical conflicts: `hreflang-canonical-conflict` compared a page found by its
+  canonical URL against that same URL, so it could never fire, and an alternate naming a local
+  page's non-canonical URL was reported nowhere. Local pages are now indexed by their served URL as
+  well, and pages that declare no canonical URL are checked through their served URL instead of
+  being skipped. A target that declares no canonical URL is still never called non-canonical.
+  Reciprocity is a map lookup rather than a scan over every page, which removes a quadratic cost
+  from both builds and request-time corpus renders.
 
 ### Upgrade notes
 
@@ -82,6 +99,11 @@ startup, memory, and request ceilings remain enforced.
   the paths to middleware. Projects with at least one on-demand page route are unchanged. If you
   relied on the request-time corpus for a fully prerendered adapter build, the emitted file is
   served first by every supported adapter and is strictly more complete.
+- `hreflang-canonical-conflict` is reachable for the first time and is an `error`, so with the
+  default `validation.onBuild: 'artifacts'` and `validation.failOn: 'error'` it can fail a build
+  that previously passed. It fires when a page's `hreflang` alternate names a local page by a URL
+  that is not that page's canonical. Point the alternate at the canonical URL, or lower
+  `validation.failOn`.
 - `pages.devDynamicDiscovery` defaults to `'startup'`; select experimental `'hot'` for route-file
   HMR or `false` to retain catalog-only development enumeration. Catalogs remain necessary for
   on-demand and external inventories and can overlay automatic paths with authored metadata.

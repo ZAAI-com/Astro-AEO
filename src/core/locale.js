@@ -189,8 +189,6 @@ export function resolvePageLocale(page, snapshot, options) {
 export function normalizePageAlternates(pages) {
   /** @type {import('../index.js').Diagnostic[]} */
   const diagnostics = [];
-  const byCanonical = new Map(pages.flatMap((page) =>
-    typeof page.canonicalUrl === 'string' ? [[page.canonicalUrl, page]] : []));
   const normalizedPages = pages.map((page) => {
     const byLanguage = new Map();
     const blockedStructured = new Set();
@@ -248,17 +246,31 @@ export function normalizePageAlternates(pages) {
         .map(([language, url]) => ({ language, url })),
     };
   });
+  // Index normalized pages by every URL a local hreflang target can name. The
+  // served URL goes in first so a canonical always wins a key they share. Keying
+  // on something other than the compared value is what makes the canonical check
+  // reachable; compare src/build/sitemap-validate.js, which indexes by route.
+  /** @type {Map<string, any>} */
+  const byLocalUrl = new Map();
   for (const page of normalizedPages) {
+    if (typeof page.url === 'string' && !byLocalUrl.has(page.url)) byLocalUrl.set(page.url, page);
+  }
+  for (const page of normalizedPages) {
+    if (typeof page.canonicalUrl === 'string') byLocalUrl.set(page.canonicalUrl, page);
+  }
+  for (const page of normalizedPages) {
+    const identity = page.canonicalUrl ?? page.url;
     for (const alternate of page.alternates) {
-      const target = byCanonical.get(alternate.url);
+      const target = byLocalUrl.get(alternate.url);
       if (!target) continue;
-      if (urlOrigin(page.canonicalUrl) !== urlOrigin(alternate.url)) continue;
-      if (target.canonicalUrl !== alternate.url) {
+      if (urlOrigin(identity) !== urlOrigin(alternate.url)) continue;
+      // A target that declares no canonical URL cannot be proven non-canonical.
+      if (target.canonicalUrl && target.canonicalUrl !== alternate.url) {
         diagnostics.push(localeDiagnostic('hreflang-canonical-conflict', 'error', 'A local hreflang target is not canonical.', page.pathname));
         continue;
       }
-      const reciprocal = normalizedPages.find((/** @type {any} */ candidate) => candidate.canonicalUrl === alternate.url)
-        ?.alternates.some((/** @type {any} */ candidate) => candidate.url === page.canonicalUrl);
+      const reciprocal = target.alternates.some(
+        (/** @type {any} */ candidate) => candidate.url === identity);
       if (!reciprocal) {
         diagnostics.push(localeDiagnostic('hreflang-not-reciprocal', 'error', 'A local hreflang alternate is not reciprocal.', page.pathname));
       }

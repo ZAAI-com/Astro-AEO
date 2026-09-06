@@ -1014,7 +1014,7 @@ On `astro build`, generated files and targeted HTML enrichments are buffered unt
 ownership checks finish, then committed atomically. No separate package build step, external
 service, or network self-fetch is required. Redirect stubs and non-HTML outputs are skipped.
 
-In `astro dev`, a middleware serves `robots.txt`, `domain-profile.json`, and `.md` companions live, and builds `llms.txt` from your static routes. Dev is best-effort: dynamic and content-collection routes are only fully enumerated by a build, so the dev `llms.txt` carries a note to that effect and the build output remains the source of truth.
+In `astro dev`, a middleware serves `robots.txt`, `domain-profile.json`, and `.md` companions live, and renders the aggregate corpora on request. `pages.devDynamicDiscovery` defaults to `'startup'`, so prerendered dynamic routes are enumerated in development as well; see "Dynamic routes and catalogs" for what each mode does and when a restart is needed. On-demand, CMS-only, and other externally inventoried paths still need a `pages.catalogs` module, and the build output remains the source of truth.
 
 Last-modified dates come from `<meta property="article:modified_time">` when present, otherwise from the git commit history of a static route's source file. Emit `article:modified_time` for precise dates on content-collection pages.
 

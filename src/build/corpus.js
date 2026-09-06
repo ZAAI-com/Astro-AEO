@@ -18,10 +18,10 @@ import { normalizeOrigin } from '../core/locale.js';
  */
 export async function stageCorpusArtifacts(inputPages, config, env) {
   const origin = normalizeOrigin(env.siteUrl) ?? '';
-  const pages = inputPages.filter((page) =>
-    !page.corpusExcluded &&
-    (!origin || !page.origin || normalizeOrigin(page.origin) === origin),
-  );
+  // Do not pre-filter by origin. planCorpusArtifacts applies that exact filter
+  // internally to derive the host-local plan, and separately needs the complete
+  // set to decide the multi-domain topology and the root language directory.
+  const pages = inputPages.filter((page) => !page.corpusExcluded);
   const plan = await planCorpusArtifacts({
     pages,
     config,
