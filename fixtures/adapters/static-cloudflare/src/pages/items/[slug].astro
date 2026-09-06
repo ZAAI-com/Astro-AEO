@@ -1,0 +1,17 @@
+---
+// Only the build can expand these. A request-time corpus has no concrete pathname
+// for a dynamic route, so their presence in the served file proves the assets
+// handler answered with the build's bytes rather than the worker rendering live.
+export function getStaticPaths() {
+  return [{ params: { slug: 'alpha' } }, { params: { slug: 'beta' } }];
+}
+
+const { slug } = Astro.params;
+---
+<html lang="en">
+  <head>
+    <title>Item {slug}</title>
+    <meta name="description" content={`Prerendered item ${slug}.`} />
+  </head>
+  <body><h1>Item {slug}</h1><p>Prerendered through getStaticPaths.</p></body>
+</html>

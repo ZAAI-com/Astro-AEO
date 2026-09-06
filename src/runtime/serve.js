@@ -45,6 +45,8 @@ import {
  * @property {import('../index.js').ResolvedAstroAeoConfig} config
  * @property {{ siteUrl: string; stableSiteUrl?: string; base: string; trailingSlash: 'always'|'never'|'ignore'; i18n?: import('../core/locale.js').LocaleSnapshot }} site
  * @property {boolean} [sitemapAvailable]
+ * @property {boolean} [buildOwnsCorpora]  The build emitted real corpus bytes for these paths.
+ * @property {boolean} [dynamicPagesUnreachable]  Dynamic page routes exist that staticPaths cannot carry.
  * @property {string[]} staticPaths
  * @property {string[]} [projectPaths]
  * @property {RegExp[]} [projectPatterns]

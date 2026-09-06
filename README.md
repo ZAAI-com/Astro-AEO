@@ -488,6 +488,13 @@ route renders on demand, because those pages are outside the build's reach. When
 route is prerendered the build emits both files even if an adapter is installed, and they
 contain every `getStaticPaths()` result.
 
+In that case the middleware declines those paths, along with the schema corpus, rather than
+answering with a second and shorter list: a request-time render cannot expand
+`getStaticPaths()`. Every supported adapter serves static assets before the application, so
+the emitted file answers. A deployment that reaches the application first, such as
+`@astrojs/node` in middleware mode mounted ahead of its own static handler, receives `404`
+instead. Serve your static output before the Astro handler.
+
 Once middleware owns them, both files render each known route through the
 application so page markers behave normally. Each route is rendered serially through
 Astro's in-process rewrite pipeline: no network destination is derived from the Host

@@ -77,6 +77,14 @@ plain ESM with no package build step.
 - The middleware entrypoint stays the bare specifier `astro-aeo/middleware`, registered with
   `order: 'pre'`. Vite resolves it. `addMiddleware` itself must not introduce an adapter
   requirement.
+- Astro exposes `injectRoute` only in `astro:config:setup` and has no `removeRoute`, so the
+  injected fallback routes are unavoidably a superset of what a build turns out to need. When the
+  build owns the corpus, the runtime declines the inventory-derived artifacts (`llms.txt`,
+  `llms-full.txt`, the corpus paths, and the schema graph and map) instead of shadowing the
+  emitted bytes with a shorter live render. It declines only when a dynamic page route exists,
+  because otherwise both answers agree and declining would only cost a working response.
+  `robots.txt` and the domain profile are pure functions of configuration, so they never diverge
+  and are never declined.
 - Runtime configuration must remain serializable. Function options apply during builds but cannot
   cross the virtual-module boundary; keep warnings and fallbacks explicit.
 - Development dynamic-route records carry only route mechanics and lazy module imports. Never

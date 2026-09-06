@@ -238,6 +238,9 @@ export const onRequest = async (context, next) => {
     return textResponse({ body, contentType, request: context.request });
   }
   if (artifact === 'schema-graph' || artifact === 'schema-map') {
+    if (buildOwnsInventoryArtifact()) {
+      return redactAeoHeadMarkers(await next(), context.request, requestHeadersAvailable);
+    }
     if (!disposableCorpusStateFor(context)) {
       return textResponse({
         body: UNRECOGNIZED_CORPUS_STATE,
@@ -278,6 +281,9 @@ export const onRequest = async (context, next) => {
     }
   }
   if (artifact === 'llms' || artifact === 'llms-full' || artifact === 'corpus') {
+    if (buildOwnsInventoryArtifact()) {
+      return redactAeoHeadMarkers(await next(), context.request, requestHeadersAvailable);
+    }
     if (!disposableCorpusStateFor(context)) {
       return textResponse({
         body: UNRECOGNIZED_CORPUS_STATE,
@@ -1055,6 +1061,18 @@ async function prepareRewriteState(
 function legacyPipelineFor(context) {
   return /** @type {any} */ (context)[ASTRO_5_PIPELINE] ??
     /** @type {any} */ (context)[ASTRO_6_LEGACY_PIPELINE];
+}
+
+/**
+ * The build emitted these bytes and a request-time render would omit every
+ * getStaticPaths() result, so answering here would shadow the file with a shorter
+ * one. Astro has no removeRoute, so the injected fallback route cannot be withdrawn
+ * and declining surfaces as its 404 rather than as a fall through to the deployment's
+ * static handler. That is only worth it when the two answers would actually differ.
+ * @returns {boolean}
+ */
+function buildOwnsInventoryArtifact() {
+  return Boolean(RUNTIME.buildOwnsCorpora) && Boolean(RUNTIME.dynamicPagesUnreachable);
 }
 
 /**

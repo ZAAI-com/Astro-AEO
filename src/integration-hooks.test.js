@@ -606,6 +606,50 @@ describe('integration diagnostics and declarations', () => {
     );
   });
 
+  // The runtime must be able to tell that the build already wrote these bytes, and that
+  // a live render would drop the getStaticPaths() results. Both facts are read from the
+  // route snapshot, so this also pins the ordering: routes resolve before Vite loads the
+  // virtual module, in every command and on every supported Astro major.
+  test('tells the runtime the build owns a fully prerendered corpus', async () => {
+    const result = await runRouteLifecycle({
+      adapter: true,
+      output: 'static',
+      buildOutput: 'server',
+      userConfig: corpusConfig,
+      routes: [
+        prerenderedHome,
+        dynamicRoute(),
+        { type: 'endpoint', origin: 'project', pathname: '/api', isPrerendered: false },
+      ],
+    });
+    expect(result.runtimeSource).toContain('"buildOwnsCorpora": true');
+    expect(result.runtimeSource).toContain('"dynamicPagesUnreachable": true');
+  });
+
+  test('leaves the corpus to the runtime when a page renders on demand', async () => {
+    const result = await runRouteLifecycle({
+      adapter: true,
+      output: 'static',
+      buildOutput: 'server',
+      userConfig: corpusConfig,
+      routes: [
+        prerenderedHome,
+        dynamicRoute(),
+        { type: 'page', origin: 'project', pathname: '/live', isPrerendered: false },
+      ],
+    });
+    expect(result.runtimeSource).toContain('"buildOwnsCorpora": false');
+  });
+
+  test('never claims build ownership in dev, where nothing has been built', async () => {
+    const result = await runRouteLifecycle({
+      command: 'dev',
+      userConfig: corpusConfig,
+      routes: [prerenderedHome, dynamicRoute()],
+    });
+    expect(result.runtimeSource).toContain('"buildOwnsCorpora": false');
+  });
+
   test('builds the corpus for a catalog-only server project with no on-demand page', async () => {
     const result = await runRouteLifecycle({
       adapter: true,

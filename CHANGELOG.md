@@ -44,7 +44,11 @@ startup, memory, and request ceilings remain enforced.
   which promotes the build to server output, and the previous rule read that promotion back as
   proof that a server was required. A fully prerendered site with an adapter silently emitted no
   corpus at all. The `dynamic-routes-unindexed` diagnostic follows the same ownership decision, so
-  it no longer asks a prerendered project for a `pages.catalogs` module it does not need.
+  it no longer asks a prerendered project for a `pages.catalogs` module it does not need. Once the
+  build owns those paths the runtime declines them, along with the schema graph and map, so a
+  deployment that reaches the application before its static files cannot answer with a shorter
+  corpus than the one on disk. Verified against real workerd through a new static Cloudflare
+  adapter fixture.
 - Request-state diagnostics: the request-time corpus `503` reports an unrecognized Astro request
   state instead of naming a version range the middleware cannot observe, and the anonymous corpus
   session derives its runtime mode from the build command rather than from a pipeline field Astro 7
@@ -98,7 +102,10 @@ startup, memory, and request ceilings remain enforced.
   `llms-full.txt` containing every `getStaticPaths()` result, where 1.2 emitted nothing and left
   the paths to middleware. Projects with at least one on-demand page route are unchanged. If you
   relied on the request-time corpus for a fully prerendered adapter build, the emitted file is
-  served first by every supported adapter and is strictly more complete.
+  served first by every supported adapter and is strictly more complete. A deployment that mounts
+  the Astro handler ahead of its own static handler, such as `@astrojs/node` in middleware mode,
+  now receives `404` on those paths rather than a silently shorter corpus. Serve static output
+  first.
 - `hreflang-canonical-conflict` is reachable for the first time and is an `error`, so with the
   default `validation.onBuild: 'artifacts'` and `validation.failOn: 'error'` it can fail a build
   that previously passed. It fires when a page's `hreflang` alternate names a local page by a URL

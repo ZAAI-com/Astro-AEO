@@ -20,6 +20,7 @@ const productionBundleRoots = {
   deno: join(fixture('deno'), 'dist/server'),
   vercel: join(fixture('vercel'), '.vercel/output'),
   netlify: join(fixture('netlify'), '.netlify'),
+  'static-cloudflare': join(fixture('static-cloudflare'), 'dist/server'),
 };
 
 const developmentDynamicRouteLoaderSentinels = [
@@ -57,9 +58,12 @@ const providerRuntimeArtifacts = [
 ];
 
 describe('adapter build gates', () => {
-  test.each(['node', 'cloudflare', 'deno', 'vercel', 'netlify'])('%s builds successfully', (name) => {
-    expect(() => buildAdapter(name)).not.toThrow();
-  });
+  test.each(['node', 'cloudflare', 'deno', 'vercel', 'netlify', 'static-cloudflare'])(
+    '%s builds successfully',
+    (name) => {
+      expect(() => buildAdapter(name)).not.toThrow();
+    },
+  );
 
   test.each(serverEntryAdapters)('%s emits a complete server module graph', (name) => {
     const server = join(fixture(name), 'dist/server');
@@ -72,6 +76,25 @@ describe('adapter build gates', () => {
     const client = join(fixture(name), 'dist/client');
     for (const path of ['llms.txt', 'llms-full.txt', 'docs/llms.txt', 'docs/llms-full.txt']) {
       expect(existsSync(join(client, path)), path).toBe(false);
+    }
+  });
+
+  // Issue #8. Every page route here is prerendered, so the build owns the corpus even
+  // though Astro-AEO's own fallback routes promoted the build to server output. The
+  // files must land in the directory the worker's ASSETS binding serves from, and they
+  // must carry the getStaticPaths() results that a request-time render cannot see.
+  test('static output on Cloudflare emits the corpus into the assets directory', () => {
+    const client = join(fixture('static-cloudflare'), 'dist/client');
+    const config = readJson(join(fixture('static-cloudflare'), 'dist/server/wrangler.json'));
+    expect(config.assets?.directory).toBe('../client');
+
+    for (const name of ['llms.txt', 'llms-full.txt']) {
+      const artifact = join(client, name);
+      expect(nonEmptyFile(artifact), name).toBe(true);
+      const contents = readFileSync(artifact, 'utf8');
+      for (const pathname of ['/items/alpha', '/items/beta', '/about']) {
+        expect(contents, `${name} is missing ${pathname}`).toContain(pathname);
+      }
     }
   });
 

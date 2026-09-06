@@ -133,6 +133,15 @@ export default function aeo(userConfig = {}) {
       config: runtimeConfigProjection(config),
       site: { siteUrl, base, trailingSlash, buildFormat, i18n: localeSnapshot },
       sitemapAvailable,
+      // The build wrote real corpus bytes, so a live render would be a second and
+      // worse answer. Astro exposes injectRoute only in config:setup and has no
+      // removeRoute, so the fallback routes cannot be withdrawn once the project
+      // turns out to be fully prerendered. The runtime declines instead.
+      buildOwnsCorpora: command !== 'dev' && !hasOnDemandProjectPage,
+      // A dynamic route has no concrete pathname, so it never reaches staticPaths
+      // and a live corpus would silently omit its getStaticPaths() results. Without
+      // one, both answers agree and declining would only cost a working response.
+      dynamicPagesUnreachable: hasDynamicProjectPage,
       staticPaths: [...runtimePagePaths],
       projectPaths: [...new Set([...runtimeProjectPaths, ...runtimePublicPaths])],
       projectPatterns: runtimeProjectPatterns,
