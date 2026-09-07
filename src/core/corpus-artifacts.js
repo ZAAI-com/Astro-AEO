@@ -432,6 +432,10 @@ export async function planCorpusArtifacts(input) {
             for (const page of section.pages) {
               const companion = hasMarkdownCompanion(page, input.config);
               const identity = corpusPageIdentity(page);
+              // Page records are stamped with the site origin, and so is the chunk map.
+              // Most pages carry no origin of their own, so the page identity used for
+              // token counts cannot double as the chunk key.
+              const chunkIdentity = corpusPageIdentity({ origin, id: page.id });
               const published = companion ? renderMarkdownDocument(page, input.config) : null;
               pageRecords.push({
                 origin,
@@ -448,7 +452,7 @@ export async function planCorpusArtifacts(input) {
                   : null,
                 sourceStrategy: page.source?.strategy ?? 'rendered',
                 ...(page.lastModified ? { modified: page.lastModified } : {}),
-                chunks: chunksByPage.get(identity) ?? [],
+                chunks: chunksByPage.get(chunkIdentity) ?? [],
                 markdown: published,
               });
             }

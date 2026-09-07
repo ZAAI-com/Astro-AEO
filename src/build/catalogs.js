@@ -167,6 +167,9 @@ export async function loadCatalogPages(catalogs, load, logger, context, diagnost
         if (pathname !== null) {
           const origin = entry?.origin === undefined ? null : normalizeOrigin(entry.origin);
           if (entry?.origin !== undefined && origin === null) {
+            // A dropped page still exists on the site. Reporting a complete inventory
+            // here would let IndexNow read its absence as a removal.
+            inventoryComplete = false;
             reportCatalogDiagnostic(diagnostics, logger, {
               code: 'catalog-invalid-origin',
               message: `astro-aeo: catalog page ${pathname} has an invalid origin and was ignored.`,
@@ -250,6 +253,8 @@ export async function loadCatalogPages(catalogs, load, logger, context, diagnost
             ...(typeof entry.routePattern === 'string' ? { routePattern: entry.routePattern } : {}),
           });
         } else {
+          // Same reasoning as catalog-invalid-origin: the page was silently dropped.
+          inventoryComplete = false;
           reportCatalogDiagnostic(diagnostics, logger, {
             code: 'catalog-invalid-pathname',
             message: `astro-aeo: the page catalog "${catalog.module}" returned an unsafe or non-root-relative pathname, so it was ignored.`,

@@ -70,7 +70,13 @@ function disposableContext({ request, url, locals = {}, render }) {
   };
 }
 
-afterEach(() => vi.unstubAllGlobals());
+// A test that switches the shared mocked command must not be able to leak it into the
+// rest of the file when a setup line throws before its own try block is entered.
+const DEFAULT_COMMAND = RUNTIME.command;
+afterEach(() => {
+  RUNTIME.command = DEFAULT_COMMAND;
+  vi.unstubAllGlobals();
+});
 
 describe('runtime corpus subrequests', () => {
   test('does not serve origin-scoped artifacts on an unknown host', async () => {
@@ -408,7 +414,6 @@ describe('runtime corpus subrequests', () => {
   });
 
   test('surfaces one-argument FetchState construction failures in development', async () => {
-    const previous = RUNTIME.command;
     RUNTIME.command = 'dev';
     const fetchStateSymbol = Symbol.for('astro.fetchState');
     class BrokenOneArgFetchState {
@@ -439,11 +444,7 @@ describe('runtime corpus subrequests', () => {
       [fetchStateSymbol]: outer,
     };
 
-    try {
-      await expect(onRequest(context, vi.fn())).rejects.toThrow('SECRET_CONSTRUCTION_FAILURE');
-    } finally {
-      RUNTIME.command = previous;
-    }
+    await expect(onRequest(context, vi.fn())).rejects.toThrow('SECRET_CONSTRUCTION_FAILURE');
   });
 
   test.each([

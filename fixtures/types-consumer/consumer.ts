@@ -601,6 +601,20 @@ export const corpusManifest: CorpusManifestV1 = {
     hash: 'sha256:page',
     sourceStrategy: 'marker',
     chunks: ['/en/llms/blog-0001.txt'],
+  }, {
+    // A page with no Markdown companion. The manifest emits null here, so the
+    // declaration has to let a consumer read it back.
+    origin: 'https://example.com',
+    id: '/blog/no-companion',
+    canonicalUrl: 'https://example.com/blog/no-companion',
+    markdownUrl: null,
+    locale: 'en',
+    language: 'en',
+    section: 'Blog',
+    tokenCount: null,
+    hash: null,
+    sourceStrategy: 'rendered',
+    chunks: [],
   }],
   artifacts: [{
     origin: 'https://example.com',

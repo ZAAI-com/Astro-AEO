@@ -167,7 +167,7 @@ describe('catalog pathname validation', () => {
       { pathname: '/%252e%252e/outside', markdown: '# Secret' },
       { pathname: '/safe\\..\\outside', markdown: '# Secret' },
     ]);
-    const { pages } = await loadCatalogPages(
+    const { pages, inventoryComplete } = await loadCatalogPages(
       [{ module: './catalog.js' }],
       async () => ({ default: { listPages } }),
       { warn: (message) => warnings.push(message) },
@@ -184,6 +184,43 @@ describe('catalog pathname validation', () => {
     expect(warnings).toHaveLength(3);
     expect(diagnostics).toHaveLength(3);
     expect(diagnostics.every((finding) => finding.code === 'catalog-invalid-pathname')).toBe(true);
+    // A dropped page is still live on the site, so IndexNow must not read its absence
+    // from this build as a removal.
+    expect(inventoryComplete).toBe(false);
+  });
+
+  test('reports incomplete inventory when a catalog page carries an invalid origin', async () => {
+    const diagnostics = [];
+    const listPages = vi.fn(() => [
+      { pathname: '/safe', markdown: '# Safe' },
+      { pathname: '/moved', origin: 'example.test', markdown: '# Moved' },
+    ]);
+    const { pages, inventoryComplete } = await loadCatalogPages(
+      [{ module: './catalog.js' }],
+      async () => ({ default: { listPages } }),
+      { warn() {} },
+      { command: 'build', siteUrl: 'https://example.test', base: '', trailingSlash: 'ignore' },
+      diagnostics,
+    );
+
+    expect(pages).toEqual([{ pathname: '/safe', markdown: '# Safe' }]);
+    expect(diagnostics.map(({ code }) => code)).toEqual(['catalog-invalid-origin']);
+    expect(inventoryComplete).toBe(false);
+  });
+
+  test('keeps inventory complete when every catalog page is accepted', async () => {
+    const diagnostics = [];
+    const listPages = vi.fn(() => [{ pathname: '/safe', markdown: '# Safe' }]);
+    const { inventoryComplete } = await loadCatalogPages(
+      [{ module: './catalog.js' }],
+      async () => ({ default: { listPages } }),
+      { warn() {} },
+      { command: 'build', siteUrl: 'https://example.test', base: '', trailingSlash: 'ignore' },
+      diagnostics,
+    );
+
+    expect(diagnostics).toEqual([]);
+    expect(inventoryComplete).toBe(true);
   });
 
   test('preserves the complete serializable page descriptor shape', async () => {

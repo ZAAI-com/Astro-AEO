@@ -92,6 +92,31 @@ describe('logical corpus artifact planner', () => {
     expect(plan.manifestText.endsWith('\n')).toBe(true);
   });
 
+  // src/build/collect.js only sets `origin` on a page when a catalog descriptor carries
+  // one, so ordinary rendered pages have none. The chunk map keyed on the site origin and
+  // the page records keyed on the page, so the two never met and every page advertised an
+  // empty chunk list while chunk artifacts existed.
+  test('links chunk artifacts to pages that carry no origin of their own', async () => {
+    const config = resolveConfig({
+      corpus: {
+        chunks: { enabled: true, maxTokensPerFile: 1_000 },
+        manifest: { enabled: true },
+      },
+    });
+    const { origin: _origin, ...originless } = page('/guide', 'en');
+    const plan = await planCorpusArtifacts({
+      pages: [originless],
+      config,
+      siteMeta,
+      origin: 'https://example.test',
+      base: '',
+    });
+
+    expect(plan.artifacts.some(({ kind }) => kind === 'chunk')).toBe(true);
+    expect(plan.manifest.pages).toHaveLength(1);
+    expect(plan.manifest.pages[0].chunks.length).toBeGreaterThan(0);
+  });
+
   test('emits byte-copy aliases only in both mode', async () => {
     const config = resolveConfig({
       corpus: { small: { enabled: true, maxTokens: 1_000 } },

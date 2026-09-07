@@ -64,12 +64,15 @@ export interface CorpusManifestPageV1 {
   origin: string;
   id: string;
   canonicalUrl: string;
-  markdownUrl: string;
+  /** Null when the page publishes no Markdown companion. */
+  markdownUrl: string | null;
   locale: string | null;
   language: string | null;
   section: string;
-  tokenCount: number;
-  hash: `sha256:${string}`;
+  /** Null when the page publishes no Markdown companion. */
+  tokenCount: number | null;
+  /** Null when the page publishes no Markdown companion. */
+  hash: `sha256:${string}` | null;
   sourceStrategy: string;
   modified?: string;
   chunks: string[];
