@@ -1,0 +1,38 @@
+src/hooks/build-done.js
+  s_54cc6c42bf0e81::t_1c8ceb5e487fe4 247
+  s_54cc6c42bf0e81::t_c488453a69c881 185-187,733-754
+  s_54cc6c42bf0e81::t_6b85651f55eca2 816-818,820,875,952
+  s_54cc6c42bf0e81::t_9eff7e876c9139 894-915
+  s_54cc6c42bf0e81::t_8ebd9db2089ccc 755
+src/build/indexnow-state.test.js
+  s_54cc6c42bf0e81::t_8c4c2311aacb88 86-138
+src/build/indexnow-state.js
+  s_54cc6c42bf0e81::t_485d8d060a9274 358-359
+  s_54cc6c42bf0e81::t_6475cbe340e9f3 31,145,155-158,171,190,252,322,324-326
+src/build/collect.test.js
+  s_54cc6c42bf0e81::t_e94d2ca5cf2a6c 404-448
+src/hooks/build-done.test.js
+  s_54cc6c42bf0e81::t_ec6e31a9cd7f28 151-200
+CHANGELOG.md
+  s_54cc6c42bf0e81::t_d6fe4750142fd9 60-69
+README.md
+  s_54cc6c42bf0e81::t_d6fe4750142fd9 710-715
+src/build/collect.js
+  s_54cc6c42bf0e81::t_1c8ceb5e487fe4 31,59-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "d99268c7eefff36a9509d2e6097dea1008f310bd",
+  "prompts": {},
+  "sessions": {
+    "s_54cc6c42bf0e81": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c860d25-57ef-4dc0-bd8f-a06bb7008ed7",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
