@@ -28,6 +28,7 @@ export const INDEXNOW_PREPARE_INPUT_FILENAME = 'prepare-input-v1.json';
  *   keyLocation?: string;
  *   origins: IndexNowOriginConfig[];
  *   current: UrlFingerprint[];
+ *   inventoryComplete?: boolean;
  * }} IndexNowPrepareInputV1
  */
 /**
@@ -141,6 +142,7 @@ export function parseIndexNowStateManifest(value, expectedOrigin) {
  *   mode: 'public'|'private'|'stateless';
  *   submit: 'changed'|'all';
  *   priorPending?: IndexNowOperation[];
+ *   inventoryComplete?: boolean;
  * }} input
  */
 export function prepareIndexNowOrigin(input) {
@@ -150,6 +152,10 @@ export function prepareIndexNowOrigin(input) {
     ? []
     : normalizeFingerprints(input.acknowledged ?? [], origin);
   const effectiveSubmit = input.mode === 'stateless' ? 'all' : input.submit;
+  // A removal is inferred purely from absence, so it is only trustworthy when the
+  // build saw every live page. An incomplete inventory withholds removals while
+  // leaving upserts alone: a page this build could not see is not a page that went away.
+  const allowRemovals = input.mode !== 'stateless' && input.inventoryComplete !== false;
   /** @type {Map<string, UrlFingerprint>} */
   const currentByUrl = new Map(current.map((item) => [item.url, item]));
   /** @type {Map<string, UrlFingerprint>} */
@@ -162,7 +168,7 @@ export function prepareIndexNowOrigin(input) {
       operations.push({ url: item.url, operation: 'upsert', fingerprint: item.fingerprint });
     }
   }
-  if (input.mode !== 'stateless') {
+  if (allowRemovals) {
     for (const item of acknowledged) {
       if (!currentByUrl.has(item.url)) operations.push({ url: item.url, operation: 'remove' });
     }
@@ -181,7 +187,7 @@ export function prepareIndexNowOrigin(input) {
       old.fingerprint === now.fingerprint &&
       ack?.fingerprint !== now.fingerprint
     ) desired.set(old.url, old);
-    if (!now && input.mode !== 'stateless' && old.operation === 'remove' && ackByUrl.has(old.url)) desired.set(old.url, old);
+    if (!now && allowRemovals && old.operation === 'remove' && ackByUrl.has(old.url)) desired.set(old.url, old);
   }
   const pending = [...desired.values()].sort(compareOperations);
   return {
@@ -243,6 +249,7 @@ export function prepareIndexNowQueue(input, state = {}) {
       mode: input.mode,
       submit: input.submit,
       priorPending: previousOperations,
+      inventoryComplete: input.inventoryComplete,
     });
     if (prepared.warning) warnings.push(prepared.warning);
     manifests.push(prepared.state);
@@ -312,8 +319,11 @@ export function parseIndexNowPrepareInput(value) {
   if (!isRecord(value) || value.version !== 1) throw new TypeError('IndexNow prepare input has an invalid version');
   assertOnlyKeys(value, [
     'version', 'projectRoot', 'mode', 'submit', 'strict', 'base', 'statePathname',
-    'key', 'keyLocation', 'origins', 'current',
+    'key', 'keyLocation', 'origins', 'current', 'inventoryComplete',
   ], 'IndexNow prepare input');
+  if (value.inventoryComplete !== undefined && typeof value.inventoryComplete !== 'boolean') {
+    throw new TypeError('IndexNow prepare input inventoryComplete must be a boolean');
+  }
   const mode = enumValue(value.mode, ['public', 'private', 'stateless'], 'mode');
   const submit = enumValue(value.submit, ['changed', 'all'], 'submit');
   if (typeof value.projectRoot !== 'string' || !value.projectRoot || value.projectRoot.includes('\0')) {
@@ -345,6 +355,8 @@ export function parseIndexNowPrepareInput(value) {
     ...(value.keyLocation === undefined ? {} : { keyLocation: validateRootPath(value.keyLocation, 'keyLocation') }),
     origins,
     current,
+    // Absent means complete, so state written before this field still parses.
+    ...(value.inventoryComplete === undefined ? {} : { inventoryComplete: value.inventoryComplete }),
   };
 }
 

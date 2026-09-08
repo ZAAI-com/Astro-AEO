@@ -148,6 +148,56 @@ describe('staged build plugin pipeline', () => {
     expect(existsSync(join(files.dist, '.well-known', 'astro-aeo-indexnow-v1.json'))).toBe(false);
   });
 
+  // The false-removal defect. A page dropped after the inventory check left the build
+  // reporting a complete inventory, so a still-live URL was queued for removal.
+  test('withholds removals but still queues additions when a page was silently dropped', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    const resolved = config({
+      discovery: { sitemap: { mode: 'disabled' }, indexNow: { enabled: true, state: 'private' } },
+    });
+    let writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, undefined),
+    );
+    writer.commit();
+    const privateRoot = join(files.root, '.astro', 'aeo-cache', 'indexnow');
+    const firstQueue = JSON.parse(readFileSync(join(privateRoot, 'pending-v1.json'), 'utf8'));
+    const current = firstQueue.origins[0].operations[0];
+    writeFileSync(join(privateRoot, 'ack-v1.json'), `${JSON.stringify({
+      version: 1,
+      origins: [{
+        origin: 'https://example.test',
+        acknowledged: [
+          { url: current.url, fingerprint: current.fingerprint },
+          { url: 'https://example.test/removed', fingerprint: 'sha256:' + 'a'.repeat(64) },
+        ],
+      }],
+    }, null, 2)}\n`);
+
+    // /about is genuinely new. /gone has no built HTML, so this build cannot see it.
+    mkdirSync(join(files.dist, 'about'), { recursive: true });
+    writeFileSync(
+      join(files.dist, 'about', 'index.html'),
+      '<!doctype html><html><head><title>About</title></head><body><main>About</main></body></html>',
+    );
+    const diagnostics = [];
+    writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }, { pathname: '/about' }, { pathname: '/gone' }], logger },
+      environment(files.root, undefined, diagnostics),
+    );
+    writer.commit();
+
+    const secondQueue = JSON.parse(readFileSync(join(privateRoot, 'pending-v1.json'), 'utf8'));
+    const operations = secondQueue.origins[0].operations;
+    expect(operations.some((item) => item.operation === 'remove')).toBe(false);
+    expect(operations.map((item) => item.url)).toContain('https://example.test/about');
+    expect(diagnostics.map(({ code }) => code)).toEqual(
+      expect.arrayContaining(['page-html-unreadable', 'indexnow-inventory-incomplete']),
+    );
+  });
+
   test('does not advance private IndexNow state when its public path is externally owned', async () => {
     const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
     const stateRoute = '/.well-known/astro-aeo-indexnow-v1.json';

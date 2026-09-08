@@ -28,6 +28,7 @@ import { stripMarkersFromHtml } from '../core/extract/marker.js';
  * @property {string} projectRoot          Absolute project root (for git mtime).
  * @property {Map<string, string>} routeEntrypoints  Normalized pathname -> source entrypoint.
  * @property {{ warn: (m: string) => void }} logger
+ * @property {import('../index.js').Diagnostic[]} [diagnostics]  Build diagnostics, for reporting skipped pages.
  * @property {import('../core/markdown-renderers.js').MarkdownRendererEntry[]} [renderers]
  * @property {{ key: (stage: string, inputs: unknown) => string; get: (key: string) => unknown; put: (key: string, value: unknown) => void }} [cache]
  */
@@ -55,6 +56,15 @@ export async function collectPages(rawPages, config, ctx) {
     const authored = authoredSource(raw, pathname, ctx);
     if (!read && authored?.markdown === undefined && authored?.body === undefined) {
       ctx.logger.warn(`astro-aeo: could not read built HTML for ${pathname}, skipping`);
+      // The page is still live, it just could not be read. Report it so consumers of
+      // the diagnostics manifest, and IndexNow, can tell this apart from a deletion.
+      ctx.diagnostics?.push({
+        version: 1,
+        code: 'page-html-unreadable',
+        severity: 'warning',
+        message: `The built HTML for ${pathname} could not be read, so the page was skipped.`,
+        pathname,
+      });
       continue;
     }
 

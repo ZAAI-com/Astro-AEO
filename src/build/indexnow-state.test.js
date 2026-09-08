@@ -83,6 +83,59 @@ describe('IndexNow deterministic state', () => {
     expect(stateless.warning).toMatch(/treated as "all"/u);
   });
 
+  // A removal is inferred from absence alone. When the build could not see every page,
+  // absence stops being evidence, but a page it did see and fingerprint is still news.
+  test('withholds removals but keeps upserts when the inventory is incomplete', () => {
+    const current = [fp('same'), fp('changed'), fp('added')];
+    const acknowledged = [
+      fp('same'),
+      { ...fp('changed'), fingerprint: sha256('old-changed') },
+      fp('removed'),
+    ];
+    const operations = prepareIndexNowOrigin({
+      origin: 'https://example.com',
+      current,
+      acknowledged,
+      mode: 'private',
+      submit: 'changed',
+      inventoryComplete: false,
+    }).operations;
+
+    expect(operations).toEqual([
+      { url: 'https://example.com/added', operation: 'upsert', fingerprint: sha256('added') },
+      { url: 'https://example.com/changed', operation: 'upsert', fingerprint: sha256('changed') },
+    ]);
+    expect(operations.some((item) => item.operation === 'remove')).toBe(false);
+  });
+
+  test('does not resurrect a removal queued by an earlier build while inventory is incomplete', () => {
+    const priorPending = [{ url: 'https://example.com/removed', operation: /** @type {const} */ ('remove') }];
+    const shared = {
+      origin: 'https://example.com',
+      current: [fp('same')],
+      acknowledged: [fp('same'), fp('removed')],
+      mode: /** @type {const} */ ('private'),
+      submit: /** @type {const} */ ('changed'),
+      priorPending,
+    };
+
+    expect(prepareIndexNowOrigin(shared).operations)
+      .toEqual([{ url: 'https://example.com/removed', operation: 'remove' }]);
+    expect(prepareIndexNowOrigin({ ...shared, inventoryComplete: false }).operations).toEqual([]);
+  });
+
+  test('treats an absent inventoryComplete as complete', () => {
+    const shared = {
+      origin: 'https://example.com',
+      current: [fp('same')],
+      acknowledged: [fp('same'), fp('removed')],
+      mode: /** @type {const} */ ('private'),
+      submit: /** @type {const} */ ('changed'),
+    };
+    expect(prepareIndexNowOrigin(shared).operations).toHaveLength(1);
+    expect(prepareIndexNowOrigin({ ...shared, inventoryComplete: true }).operations).toHaveLength(1);
+  });
+
   test('acknowledges successful batches without losing other state', () => {
     const result = acknowledgeIndexNowOperations(
       [fp('keep'), fp('remove')],

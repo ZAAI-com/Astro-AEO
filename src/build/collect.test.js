@@ -401,3 +401,48 @@ describe('catalog origin passthrough', () => {
     expect(pages.find((page) => page.pathname === '/guide')).not.toHaveProperty('origin');
   });
 });
+
+describe('unreadable built HTML', () => {
+  // The page is still live, so its absence from this build is not a deletion. Without a
+  // structured diagnostic the skip is invisible to the diagnostics manifest and to the
+  // IndexNow inventory check, which is how it produced false removals.
+  test('warns and diagnoses instead of vanishing silently', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'aeo-unreadable-'));
+    roots.push(root);
+    const distRoot = join(root, 'dist');
+    mkdirSync(join(distRoot, 'present'), { recursive: true });
+    writeFileSync(
+      join(distRoot, 'present', 'index.html'),
+      '<!doctype html><html><head><title>T</title></head><body><main>Body.</main></body></html>',
+    );
+
+    const warnings = [];
+    /** @type {any[]} */
+    const diagnostics = [];
+    const pages = await collectPages(
+      [{ pathname: '/present' }, { pathname: '/missing' }],
+      resolveConfig(),
+      {
+        distDir: pathToFileURL(`${distRoot}/`),
+        siteUrl: 'https://x.com',
+        base: '',
+        trailingSlash: 'never',
+        buildFormat: 'directory',
+        projectRoot: root,
+        routeEntrypoints: new Map(),
+        logger: { warn: (message) => warnings.push(message) },
+        diagnostics,
+      },
+    );
+
+    expect(pages.map((page) => page.pathname)).toEqual(['/present']);
+    expect(warnings.some((message) => message.includes('could not read built HTML'))).toBe(true);
+    expect(diagnostics).toEqual([{
+      version: 1,
+      code: 'page-html-unreadable',
+      severity: 'warning',
+      message: 'The built HTML for /missing could not be read, so the page was skipped.',
+      pathname: '/missing',
+    }]);
+  });
+});

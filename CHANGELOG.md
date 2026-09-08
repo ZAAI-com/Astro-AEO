@@ -57,9 +57,16 @@ startup, memory, and request ceilings remain enforced.
   `hash`; companion hashes and token counts match the bytes from `renderMarkdownDocument`.
 - Corpus topology: dependent claims (aliases, gzip, manifest) follow ownership decisions; runtime
   fallback routes cover small, manifest, locale, alias, and chunk paths on manifest-based adapters.
-- IndexNow safety: `keyLocation` directory scope is enforced at submit; incomplete catalogs do not
-  queue removals; response limits and queue writes stay compatible with generated state;
-  `IndexNowInvocationError` exits 2.
+- IndexNow safety: `keyLocation` directory scope is enforced at submit; response limits and queue
+  writes stay compatible with generated state; `IndexNowInvocationError` exits 2.
+- IndexNow removals are withheld whenever a build could not see every page, which now covers
+  rejected catalog descriptors, failed plugin hooks, and pages whose built HTML could not be read,
+  not only a catalog that failed to load. Previously such a page was still live but read as a
+  removal, which submitted it and deleted the URL from the acknowledgment ledger. Additions and
+  changes are queued as usual in that build rather than being suppressed alongside the removals,
+  and a build that cannot write its private state no longer publishes a state manifest whose digest
+  the pending queue does not match. An unreadable page now reports `page-html-unreadable` instead
+  of only logging.
 - Locks: stale processing-cache and IndexNow lock reclamation is an atomic claim with ownership
   checks on release.
 - Sitemap: legal non-declaration processing instructions (for example `xml-stylesheet`) validate;

@@ -707,6 +707,12 @@ deployed digest before submission. `private` uses only the transferred CI acknow
 `stateless` sends all current URLs and cannot notify removals. The default queue is
 `.astro/aeo-cache/indexnow/pending-v1.json`.
 
+A removal is inferred from a URL's absence, so it is only trustworthy when the build saw every
+page. When a build cannot, because a catalog entry was rejected, a plugin failed, or a page's built
+HTML could not be read, removals are withheld for that build and a warning names the cause. New and
+changed pages are queued normally, so a broken catalog never stops you announcing new content.
+Removals resume on the next build with a complete inventory.
+
 Submission verifies a same-origin HTTPS key file without redirects, pins public DNS addresses,
 enforces `keyLocation` directory scope before posting (a non-root key authorizes only URLs beneath
 that directory), batches at 10,000 URLs, and retries network errors, `429`, and `5xx` responses

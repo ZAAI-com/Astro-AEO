@@ -176,19 +176,15 @@ async function onBuildDoneLocked(config, options, env, session) {
         env.diagnostics ?? [],
       )
     : { pages: [], inventoryComplete: true };
-  const incompleteInventoryCodes = new Set([
-    'catalog-load-failed',
-    'catalog-missing-list-pages',
-    'catalog-unsupported-module-format',
-  ]);
-  const inventoryComplete = loadedCatalogs.inventoryComplete &&
-    !(env.diagnostics ?? []).some((diagnostic) => incompleteInventoryCodes.has(diagnostic.code));
   const loadedCatalogPages = loadedCatalogs.pages;
   // A descriptor may name any host Astro is configured for, but only those. An
   // unconfigured origin would otherwise reach the corpus planner and invent a
   // locale family for a host this project does not publish.
   const configuredOrigins = new Set([
     ...(env.i18n?.origins ?? []),
+    // An origin named only for IndexNow is still one this project publishes. Dropping
+    // its pages here while keeping its acknowledgments would read as a mass removal.
+    ...config.discovery.indexNow.origins.map((item) => item.origin),
     ...(normalizeOrigin(env.siteUrl) ? [/** @type {string} */ (normalizeOrigin(env.siteUrl))] : []),
   ]);
   const catalogPages = loadedCatalogPages.filter((page) => {
@@ -248,6 +244,7 @@ async function onBuildDoneLocked(config, options, env, session) {
     projectRoot: env.projectRoot,
     routeEntrypoints: env.routeEntrypoints,
     logger,
+    diagnostics: buildDiagnostics,
     renderers: env.markdownRenderers,
     cache: processingCache,
   });
@@ -733,6 +730,29 @@ async function onBuildDoneLocked(config, options, env, session) {
     }
   }
 
+  // Computed here, not next to the catalog load, because most page drops happen after
+  // that point: the descriptor filter above, a plugin that failed rather than isolating
+  // on purpose, and an unreadable built HTML file. `env.diagnostics` is one array for the
+  // whole hook, so every one of those pushes is visible by now.
+  const incompleteInventoryCodes = new Set([
+    // Catalog preflight and load.
+    'catalog-load-failed',
+    'catalog-missing-list-pages',
+    'catalog-unsupported-module-format',
+    // Descriptors this build refused after the catalog produced them.
+    'catalog-owned-artifact-excluded',
+    'catalog-unconfigured-origin',
+    // A page whose built HTML could not be read. Still live, just unseen.
+    'page-html-unreadable',
+    // A plugin failed. An explicit `plugin-scope-isolated` is a deliberate choice and
+    // is excluded, as are the page-model skip reasons, which are user intent.
+    'plugin-hook-failed',
+    'plugin-invalid-result',
+    'plugin-invalid-replacement',
+  ]);
+  const inventoryComplete = loadedCatalogs.inventoryComplete &&
+    !buildDiagnostics.some((diagnostic) => incompleteInventoryCodes.has(diagnostic.code));
+
   if (config.discovery.indexNow.enabled && indexNowPrivate) {
     stageIndexNowBuild({
       config,
@@ -793,10 +813,11 @@ function stageIndexNowBuild(options) {
     return;
   }
 
-  // Incomplete catalog inventory must not authorize removals. Keep prior private
-  // ledgers for fingerprinting, but treat private state as read-only for writes.
+  // An incomplete inventory withholds removals inside the diff itself, so additions
+  // still reach the queue. read-only is now reserved for state this build cannot write
+  // at all: a locked or invalid private ledger, or a read-only processing cache.
   const stateUnavailable = processingReadOnly || privateState.readOnly;
-  const readOnly = stateUnavailable || !inventoryComplete;
+  const readOnly = stateUnavailable;
   /** @type {import('../build/indexnow-state.js').IndexNowAcknowledgmentV1} */
   const priorAck = stateUnavailable ? { version: 1, origins: [] } : privateState.acknowledgment;
   /** @type {import('../build/indexnow-state.js').IndexNowQueueV1} */
@@ -851,6 +872,7 @@ function stageIndexNowBuild(options) {
       : {}),
     origins: originOverrides,
     current: fingerprints.current,
+    inventoryComplete,
   };
   const prepared = prepareIndexNowQueue(input, {
     acknowledgment: {
@@ -868,6 +890,28 @@ function stageIndexNowBuild(options) {
     severity: 'warning',
     message: warning,
   });
+
+  if (!inventoryComplete) {
+    diagnostics.push({
+      version: 1,
+      code: 'indexnow-inventory-incomplete',
+      severity: 'warning',
+      message: 'This build could not see every page, so IndexNow withheld removals. New and changed pages were queued normally.',
+    });
+  }
+
+  // A read-only build must not publish a state manifest either. Its digest would
+  // advance while the pending queue kept the previous target, and `indexnow submit`
+  // rejects that mismatch for the whole origin.
+  if (readOnly) {
+    diagnostics.push({
+      version: 1,
+      code: 'indexnow-state-read-only',
+      severity: 'warning',
+      message: 'IndexNow state was not advanced because reusable build state is locked or invalid.',
+    });
+    return;
+  }
 
   let publicAccepted = true;
   if (stateMode === 'public') {
@@ -905,17 +949,7 @@ function stageIndexNowBuild(options) {
     }
   }
 
-  if (!publicAccepted || readOnly) {
-    if (readOnly) diagnostics.push({
-      version: 1,
-      code: 'indexnow-state-read-only',
-      severity: 'warning',
-      message: !inventoryComplete
-        ? 'IndexNow state preparation is read-only because page catalog inventory is incomplete.'
-        : 'IndexNow state preparation is read-only because reusable build state is locked or invalid.',
-    });
-    return;
-  }
+  if (!publicAccepted) return;
 
   try { ensureIndexNowPrivateDirectory(env.projectRoot); }
   catch {
