@@ -1,0 +1,21 @@
+.conductor/scripts/run-package.sh
+  s_84bf403078ad1d::t_effd39afca940e 1-5
+.conductor/settings.toml
+  s_84bf403078ad1d::t_517929fcb20c99 25-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "03a65bd02c00febe3d83ed37108910a36e4daf02",
+  "prompts": {},
+  "sessions": {
+    "s_84bf403078ad1d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92f8ca7d-ad28-471d-a38a-9404b7b9d52f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
