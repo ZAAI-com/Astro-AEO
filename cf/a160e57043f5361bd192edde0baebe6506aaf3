@@ -1,0 +1,25 @@
+test/adapters/helpers.js
+  s_f25a3ffee81f23::t_4e6395c4e2ccd2 154-156
+.changeset/setext-thematic-break-split.md
+  s_f25a3ffee81f23::t_08ce01aac8e58b 1-5
+src/core/corpus-blocks.js
+  s_f25a3ffee81f23::t_e437151ce7dce4 46-52,64
+src/core/corpus-blocks.test.js
+  s_f25a3ffee81f23::t_d0ab045726e783 44-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "cfa160e57043f5361bd192edde0baebe6506aaf3",
+  "prompts": {},
+  "sessions": {
+    "s_f25a3ffee81f23": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f7a3fc631ffeDmhEXxacHaH96K",
+        "model": "unknown"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
