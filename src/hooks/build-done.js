@@ -1,6 +1,7 @@
 // @ts-check
 import { collectPages } from '../build/collect.js';
 import { createArtifactWriter } from '../build/artifacts.js';
+import { PLUGIN_PAGE_LOSS_CODES } from '../plugins/dispatcher.js';
 import { createDistHtmlSource } from '../sources/dist-html.js';
 import { stripSourceMarkers } from '../build/strip-markers.js';
 import {
@@ -746,9 +747,7 @@ async function onBuildDoneLocked(config, options, env, session) {
     'page-html-unreadable',
     // A plugin failed. An explicit `plugin-scope-isolated` is a deliberate choice and
     // is excluded, as are the page-model skip reasons, which are user intent.
-    'plugin-hook-failed',
-    'plugin-invalid-result',
-    'plugin-invalid-replacement',
+    ...PLUGIN_PAGE_LOSS_CODES,
   ]);
   const inventoryComplete = loadedCatalogs.inventoryComplete &&
     !buildDiagnostics.some((diagnostic) => incompleteInventoryCodes.has(diagnostic.code));

@@ -14,6 +14,18 @@ export const PLUGIN_STAGES = /** @type {const} */ ([
   'build:complete',
 ]);
 
+/**
+ * Isolating a page for one of these means the build lost a page that is still live,
+ * as opposed to `plugin-scope-isolated`, which is a plugin deliberately excluding one.
+ * Consumers that reason about inventory completeness read this rather than restating it.
+ */
+export const PLUGIN_PAGE_LOSS_CODES = Object.freeze([
+  'plugin-hook-failed',
+  'plugin-invalid-result',
+  'plugin-invalid-replacement',
+  'plugin-invalid-diagnostics',
+]);
+
 const STAGE_SET = new Set(PLUGIN_STAGES);
 const CACHEABLE_STAGES = new Set([
   'page:discovered',

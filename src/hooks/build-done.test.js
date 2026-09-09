@@ -198,6 +198,76 @@ describe('staged build plugin pipeline', () => {
     );
   });
 
+  // Same defect class as above, reached through the fourth plugin failure code.
+  test('withholds removals when malformed plugin diagnostics silently drop a page', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    const resolved = config({
+      discovery: { sitemap: { mode: 'disabled' }, indexNow: { enabled: true, state: 'private' } },
+    });
+    async function dispatcher() {
+      return createPluginDispatcher({
+        command: 'build',
+        internalPlugins: [createSemanticPlugin(resolved)],
+        plugins: [{
+          name: 'bad-diagnostics', apiVersion: 1,
+          setup(api) {
+            api.on('page:metadata', ({ pathname }) => {
+              if (pathname !== '/gone') return;
+              return { action: 'keep', diagnostics: [{ code: '', message: 'private' }] };
+            });
+          },
+        }],
+      });
+    }
+    let writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, await dispatcher()),
+    );
+    writer.commit();
+    const privateRoot = join(files.root, '.astro', 'aeo-cache', 'indexnow');
+    const firstQueue = JSON.parse(readFileSync(join(privateRoot, 'pending-v1.json'), 'utf8'));
+    const current = firstQueue.origins[0].operations[0];
+    writeFileSync(join(privateRoot, 'ack-v1.json'), `${JSON.stringify({
+      version: 1,
+      origins: [{
+        origin: 'https://example.test',
+        acknowledged: [
+          { url: current.url, fingerprint: current.fingerprint },
+          { url: 'https://example.test/gone', fingerprint: 'sha256:' + 'a'.repeat(64) },
+        ],
+      }],
+    }, null, 2)}\n`);
+
+    // /about is genuinely new. /gone is isolated by a plugin failure, so this
+    // build cannot see it even though it is still live.
+    mkdirSync(join(files.dist, 'about'), { recursive: true });
+    writeFileSync(
+      join(files.dist, 'about', 'index.html'),
+      '<!doctype html><html><head><title>About</title></head><body><main>About</main></body></html>',
+    );
+    mkdirSync(join(files.dist, 'gone'), { recursive: true });
+    writeFileSync(
+      join(files.dist, 'gone', 'index.html'),
+      '<!doctype html><html><head><title>Gone</title></head><body><main>Gone</main></body></html>',
+    );
+    const diagnostics = [];
+    writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }, { pathname: '/about' }, { pathname: '/gone' }], logger },
+      environment(files.root, await dispatcher(), diagnostics),
+    );
+    writer.commit();
+
+    const secondQueue = JSON.parse(readFileSync(join(privateRoot, 'pending-v1.json'), 'utf8'));
+    const operations = secondQueue.origins[0].operations;
+    expect(operations.some((item) => item.operation === 'remove')).toBe(false);
+    expect(operations.map((item) => item.url)).toContain('https://example.test/about');
+    expect(diagnostics.map(({ code }) => code)).toEqual(
+      expect.arrayContaining(['plugin-invalid-diagnostics', 'indexnow-inventory-incomplete']),
+    );
+  });
+
   test('does not advance private IndexNow state when its public path is externally owned', async () => {
     const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
     const stateRoute = '/.well-known/astro-aeo-indexnow-v1.json';
