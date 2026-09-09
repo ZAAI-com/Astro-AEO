@@ -204,7 +204,7 @@ const indexNowOrigin = {
     origin: {
       type: 'string',
       format: 'uri',
-      pattern: '^https://[^/@?#]+$',
+      pattern: '^https://(?:\\[[^\\]/?#@]+\\]|[^/?#@:]+)(?::443)?/?$',
       description: 'Public HTTPS origin with no path, query, hash, or userinfo. Port must be 443 when present.',
     },
     key: indexNowKeySource,

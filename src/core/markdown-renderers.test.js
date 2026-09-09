@@ -133,6 +133,20 @@ describe('Markdown renderer validation', () => {
       render,
       cache: { pure: true, version: '   ' },
     }, './blank.js')).toThrow(/invalid cache declaration/);
+
+    expect(() => validateMarkdownRendererModule({
+      name: 'array-cache',
+      apiVersion: 1,
+      render,
+      cache: ['pure'],
+    }, './array-cache.js')).toThrow(/invalid cache declaration/);
+
+    expect(() => validateMarkdownRendererModule({
+      name: 'missing-version',
+      apiVersion: 1,
+      render,
+      cache: { pure: true },
+    }, './missing-version.js')).toThrow(/invalid cache declaration/);
   });
 
   test('rejects non-JSON, cyclic, unsafe, and accessor options', () => {
