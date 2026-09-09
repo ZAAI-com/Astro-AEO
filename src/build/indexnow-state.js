@@ -612,7 +612,13 @@ function assertOnlyKeys(value, allowed, label) {
   if (keys.some((key) => !allowed.includes(key))) throw new TypeError(`${label} contains an unknown field`);
 }
 
-/** @param {unknown} value */
+/**
+ * Produce compact canonical JSON with recursively sorted object keys.
+ * Array order is left untouched. Integer-like object keys follow
+ * `JSON.stringify` ordering (spec-deterministic across runtimes), which keeps
+ * IndexNow digests stable; do not replace this with a pure lexicographic sort.
+ * @param {unknown} value
+ */
 export function canonicalJson(value) {
   return JSON.stringify(sortValue(value));
 }

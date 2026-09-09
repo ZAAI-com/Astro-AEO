@@ -29,7 +29,7 @@ describe('runtime plugin module resolution', () => {
   });
 
   test('forwards hookManifest entries from the build manifest', () => {
-    const modules = runtimePluginModules({
+    const manifest = {
       version: 1,
       plugins: [{
         name: 'feed',
@@ -42,7 +42,8 @@ describe('runtime plugin module resolution', () => {
         ],
         claims: [{ id: 'feed', pathname: '/feed.txt' }],
       }],
-    }, '/project');
+    };
+    const modules = runtimePluginModules(manifest, '/project');
 
     expect(modules).toEqual([{
       name: 'feed',
@@ -55,6 +56,9 @@ describe('runtime plugin module resolution', () => {
       ],
       claims: [{ id: 'feed', pathname: '/feed.txt' }],
     }]);
+
+    modules[0].hookManifest[1].cache.version = 'mutated';
+    expect(manifest.plugins[0].hookManifest[1].cache.version).toBe('1');
   });
 
   test('keeps omitted runtime options absent while preserving explicit null', () => {

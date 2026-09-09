@@ -117,6 +117,41 @@ describe('logical corpus artifact planner', () => {
     expect(plan.manifest.pages[0].chunks.length).toBeGreaterThan(0);
   });
 
+  // Chunks are planned per locale group, so the chunk map is scoped by locale as
+  // well as origin. Two pages sharing a pathname across locales (domain-routed
+  // i18n, or catalog pages while the site origin is empty) must each be credited
+  // with only their own locale's chunk artifacts.
+  test('keeps chunk links locale-scoped when two locales share a pathname', async () => {
+    const config = resolveConfig({
+      corpus: {
+        chunks: { enabled: true, maxTokensPerFile: 1_000 },
+        manifest: { enabled: true },
+      },
+    });
+    const plan = await planCorpusArtifacts({
+      pages: [page('/guide', 'en', 'en'), page('/guide', 'fr', 'fr')],
+      config,
+      siteMeta,
+      origin: 'https://example.test',
+      base: '',
+    });
+
+    const englishChunks = plan.artifacts
+      .filter(({ kind, locale }) => kind === 'chunk' && locale === 'en')
+      .map(({ pathname }) => pathname);
+    const frenchChunks = plan.artifacts
+      .filter(({ kind, locale }) => kind === 'chunk' && locale === 'fr')
+      .map(({ pathname }) => pathname);
+    const english = plan.manifest.pages.find((entry) => entry.locale === 'en');
+    const french = plan.manifest.pages.find((entry) => entry.locale === 'fr');
+
+    expect(englishChunks.length).toBeGreaterThan(0);
+    expect(frenchChunks.length).toBeGreaterThan(0);
+    expect(english.chunks).toEqual(englishChunks);
+    expect(french.chunks).toEqual(frenchChunks);
+    expect(english.chunks).not.toEqual(french.chunks);
+  });
+
   test('emits byte-copy aliases only in both mode', async () => {
     const config = resolveConfig({
       corpus: { small: { enabled: true, maxTokens: 1_000 } },

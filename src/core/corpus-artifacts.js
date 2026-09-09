@@ -423,7 +423,7 @@ export async function planCorpusArtifacts(input) {
         const chunksByPage = new Map();
         for (const artifact of planned.result.artifacts.filter((item) => item.kind === 'chunk')) {
           for (const id of artifact.pageIds ?? []) {
-            const key = corpusPageIdentity({ origin, id });
+            const key = `${corpusPageIdentity({ origin, id })}\0${artifact.locale ?? ''}`;
             const paths = chunksByPage.get(key) ?? [];
             paths.push(withBase(artifact.pathname, input.base));
             chunksByPage.set(key, paths);
@@ -438,8 +438,10 @@ export async function planCorpusArtifacts(input) {
               const identity = corpusPageIdentity(page);
               // Page records are stamped with the site origin, and so is the chunk map.
               // Most pages carry no origin of their own, so the page identity used for
-              // token counts cannot double as the chunk key.
-              const chunkIdentity = corpusPageIdentity({ origin, id: page.id });
+              // token counts cannot double as the chunk key. The key is also scoped by
+              // locale: chunks are planned per locale group, so two pages sharing a
+              // pathname across locales must not be credited with each other's chunks.
+              const chunkIdentity = `${corpusPageIdentity({ origin, id: page.id })}\0${locale.locale ?? ''}`;
               const published = companion ? renderMarkdownDocument(page, input.config) : null;
               pageRecords.push({
                 origin,

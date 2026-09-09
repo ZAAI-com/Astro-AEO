@@ -24,7 +24,14 @@ export function runtimePluginModules(manifest, projectRoot) {
       ? { options: plugin.options }
       : {}),
     stages: [...plugin.stages],
-    ...(plugin.hookManifest ? { hookManifest: plugin.hookManifest.map((hook) => ({ ...hook })) } : {}),
+    ...(plugin.hookManifest
+      ? {
+          hookManifest: plugin.hookManifest.map((hook) => ({
+            ...hook,
+            ...(hook.cache ? { cache: { ...hook.cache } } : {}),
+          })),
+        }
+      : {}),
     claims: plugin.claims.map((claim) => ({ ...claim })),
   }));
 }
