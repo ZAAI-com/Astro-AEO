@@ -1,0 +1,90 @@
+src/core/corpus-artifacts.test.js
+  s_a85e1a6d975ecf::t_edc70d13012d04 146-184
+src/build/corpus.js
+  s_a85e1a6d975ecf::t_066d3f36b51010 67-80,102-132
+  s_5a9e4e47ae72fd::t_d9a6595d950766 133
+src/build/private-lock.js
+  s_a85e1a6d975ecf::t_63d2473d5d5df1 1-145
+src/core/sitemap-xml.test.js
+  s_a85e1a6d975ecf::t_68a9b2a3620a47 69-109
+src/core/render/corpus.js
+  s_a85e1a6d975ecf::t_50393d8ffd9bc7 22,24-25,150-154,157
+  s_a85e1a6d975ecf::t_ffaccc2ffcabbc 66,68-69
+  s_a85e1a6d975ecf::t_d57050a584bbec 38,40-41
+  s_a85e1a6d975ecf::t_ce0b26e48f0980 102,106
+src/core/corpus-artifacts.js
+  s_a85e1a6d975ecf::t_614022ca05de5d 169,274
+  s_a85e1a6d975ecf::t_fed269866dc19b 178
+  s_a85e1a6d975ecf::t_6e5489c0fe1c4c 232
+  s_a85e1a6d975ecf::t_3343e64f6b0c82 191
+  s_a85e1a6d975ecf::t_ad94a4eb8df366 248,300
+  s_a85e1a6d975ecf::t_6866833925b76e 201,221
+src/core/corpus-blocks.test.js
+  s_a85e1a6d975ecf::t_9ce6a1fd6301e3 45-56
+src/build/processing-cache.js
+  s_a85e1a6d975ecf::t_2298bb4f10a350 34-35
+  s_a85e1a6d975ecf::t_0d695611d641f3 2,10
+  s_a85e1a6d975ecf::t_3eaf6be3646e87 143,145
+  s_a85e1a6d975ecf::t_78ee5e49a43563 175-179
+src/core/corpus-plan.js
+  s_a85e1a6d975ecf::t_9551e3092e5f05 28,57
+src/core/corpus-plan.test.js
+  s_a85e1a6d975ecf::t_f4771d65097ab2 75-86,100
+  s_a85e1a6d975ecf::t_58d0ca4ddd11f7 88-89
+  s_a85e1a6d975ecf::t_66479ee7d4bd71 87,90-99
+src/build/corpus.test.js
+  s_a85e1a6d975ecf::t_13c7cf46791105 38-40,42-53
+  s_a85e1a6d975ecf::t_3b9e64465e7b9d 151-181
+src/build/private-lock.test.js
+  s_a85e1a6d975ecf::t_55c56d1bfb3e58 3
+  s_a85e1a6d975ecf::t_e76dc91149ce4c 19
+  s_a85e1a6d975ecf::t_416bffa8ecccbc 4
+  s_a85e1a6d975ecf::t_054b934b6ce074 1-2,5-18,20-98
+src/build/indexnow.js
+  s_a85e1a6d975ecf::t_4a389334d619d8 10
+  s_a85e1a6d975ecf::t_9bf45949490f40 50-51,56-60
+src/core/render/corpus.test.js
+  s_a85e1a6d975ecf::t_b9b55ebbe0e071 56-65,79
+  s_a85e1a6d975ecf::t_9f8828f6d69467 66,68,78
+  s_a85e1a6d975ecf::t_b8bf22a45843bb 7,69-77
+  s_a85e1a6d975ecf::t_213c3f4b850fc7 67
+src/core/sitemap-xml.js
+  s_a85e1a6d975ecf::t_8babeb1318824c 364-365,367-370,405
+  s_a85e1a6d975ecf::t_f478a5e6b48dbb 334-344
+  s_a85e1a6d975ecf::t_4ec4f8961d646c 363
+  s_a85e1a6d975ecf::t_b872cf81f1ca11 163,218-220
+CHANGELOG.md
+  s_a85e1a6d975ecf::t_b2fe146e5c4fe2 58-62,73-75
+  s_a85e1a6d975ecf::t_ef106d3ed52891 76-78,111-117
+  s_a85e1a6d975ecf::t_3b99a2074c8f0f 79,118-119
+cli/indexnow-prepare.test.js
+  s_a85e1a6d975ecf::t_8e722d011aff65 154-181,185-218
+  s_a85e1a6d975ecf::t_29b106fe55a52d 182-184
+src/core/corpus-blocks.js
+  s_a85e1a6d975ecf::t_4bb7c8a4b0d6c3 52,56-62
+  s_5a9e4e47ae72fd::t_1e23cb8355a450 63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "c3b7739773d323e3f9a32da658716dcf5dd51880",
+  "prompts": {},
+  "sessions": {
+    "s_5a9e4e47ae72fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08565-fbd2-7eb1-a4ab-d1999c6e68a6",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_a85e1a6d975ecf": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f7a978a5bffeO5CpzMrkhmIxB2",
+        "model": "unknown"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
