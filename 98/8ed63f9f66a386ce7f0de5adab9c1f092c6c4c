@@ -1,0 +1,29 @@
+src/plugins/dispatcher.js
+  s_2c391b9e6ea944::t_1e4fed69e698ef 26
+  s_2c391b9e6ea944::t_43fcf31abef835 17-25,27-28
+src/hooks/build-done.test.js
+  s_2c391b9e6ea944::t_44847963c594b8 201-248,254-270
+  s_2c391b9e6ea944::t_f5fc28a96233ca 249-253
+src/hooks/build-done.js
+  s_2c391b9e6ea944::t_7fe04c24cdc627 4
+  s_2c391b9e6ea944::t_f19ae8d6b0a255 750
+src/plugins/dispatcher.test.js
+  s_2c391b9e6ea944::t_9517e329fe5dc8 2-3,6-10,12-17
+  s_2c391b9e6ea944::t_bddec47fdf73cc 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "988ed63f9f66a386ce7f0de5adab9c1f092c6c4c",
+  "prompts": {},
+  "sessions": {
+    "s_2c391b9e6ea944": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f7a45649bffehk7oGkiCoOvV3o",
+        "model": "unknown"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
