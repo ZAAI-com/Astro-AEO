@@ -1,0 +1,25 @@
+.changeset/indexnow-schema-cache-tests.md
+  s_f25a3ffee81f23::t_2f8fb2a464cb24 1-5
+schema/astro-aeo.schema.json
+  s_f25a3ffee81f23::t_0957b30c7659d0 1
+src/core/markdown-renderers.test.js
+  s_f25a3ffee81f23::t_23c6f29186bf98 136-149
+scripts/schema-definition.mjs
+  s_f25a3ffee81f23::t_27c4790db6b5c8 207
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "7cc3baca4ef885204e644d83ac2ca6e903af3fdb",
+  "prompts": {},
+  "sessions": {
+    "s_f25a3ffee81f23": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f7a3fc631ffeDmhEXxacHaH96K",
+        "model": "unknown"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
