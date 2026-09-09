@@ -5,6 +5,7 @@ import {
   mkdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
@@ -14,6 +15,7 @@ import { resolveConfig } from '../config.js';
 import { createPluginDispatcher } from '../plugins/dispatcher.js';
 import { createSemanticPlugin } from '../semantic/plugin.js';
 import { createGraph } from '../schema.js';
+import { createLocaleSnapshot } from '../core/locale.js';
 import { onBuildDone } from './build-done.js';
 
 const roots = [];
@@ -60,6 +62,235 @@ function environment(root, dispatcher, diagnostics = []) {
 const logger = { info() {}, warn() {} };
 
 describe('staged build plugin pipeline', () => {
+  test('prepares IndexNow state atomically without resolving or submitting a key', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    const resolved = config({
+      discovery: {
+        sitemap: { mode: 'disabled' },
+        indexNow: {
+          enabled: true,
+          state: 'public',
+          key: { source: 'env', name: 'INDEXNOW_BUILD_KEY' },
+        },
+      },
+    });
+    const writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, undefined),
+    );
+    const publicPath = join(files.dist, '.well-known', 'astro-aeo-indexnow-v1.json');
+    const privateRoot = join(files.root, '.astro', 'aeo-cache', 'indexnow');
+    expect(existsSync(publicPath)).toBe(false);
+    expect(existsSync(join(privateRoot, 'pending-v1.json'))).toBe(false);
+
+    writer.commit();
+
+    const state = JSON.parse(readFileSync(publicPath, 'utf8'));
+    const queue = JSON.parse(readFileSync(join(privateRoot, 'pending-v1.json'), 'utf8'));
+    const prepare = JSON.parse(readFileSync(join(privateRoot, 'prepare-input-v1.json'), 'utf8'));
+    expect(state).toMatchObject({ version: 1, origin: 'https://example.test' });
+    expect(state.current.urls).toHaveLength(1);
+    expect(queue.origins[0]).toMatchObject({
+      origin: 'https://example.test',
+      mode: 'public',
+      targetDigest: state.digest,
+      key: { source: 'env', name: 'INDEXNOW_BUILD_KEY' },
+    });
+    expect(queue.origins[0].operations).toEqual([{
+      url: 'https://example.test/',
+      operation: 'upsert',
+      fingerprint: state.current.urls[0].fingerprint,
+    }]);
+    expect(prepare.current).toEqual(state.current.urls);
+    expect(readFileSync(publicPath, 'utf8')).not.toContain('INDEXNOW_BUILD_KEY');
+    expect(statSync(privateRoot).mode & 0o777).toBe(0o700);
+    for (const filename of ['pending-v1.json', 'ack-v1.json', 'prepare-input-v1.json']) {
+      expect(statSync(join(privateRoot, filename)).mode & 0o777).toBe(0o600);
+    }
+  });
+
+  test('uses acknowledged fingerprints to queue removals without resubmitting unchanged pages', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    const resolved = config({
+      discovery: { sitemap: { mode: 'disabled' }, indexNow: { enabled: true, state: 'private' } },
+    });
+    let writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, undefined),
+    );
+    writer.commit();
+    const privateRoot = join(files.root, '.astro', 'aeo-cache', 'indexnow');
+    const firstQueue = JSON.parse(readFileSync(join(privateRoot, 'pending-v1.json'), 'utf8'));
+    const current = firstQueue.origins[0].operations[0];
+    writeFileSync(join(privateRoot, 'ack-v1.json'), `${JSON.stringify({
+      version: 1,
+      origins: [{
+        origin: 'https://example.test',
+        acknowledged: [
+          { url: current.url, fingerprint: current.fingerprint },
+          { url: 'https://example.test/removed', fingerprint: 'sha256:' + 'a'.repeat(64) },
+        ],
+      }],
+    }, null, 2)}\n`);
+
+    writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, undefined),
+    );
+    writer.commit();
+    const secondQueue = JSON.parse(readFileSync(join(privateRoot, 'pending-v1.json'), 'utf8'));
+    expect(secondQueue.origins[0].operations).toEqual([
+      { url: 'https://example.test/removed', operation: 'remove' },
+    ]);
+    expect(existsSync(join(files.dist, '.well-known', 'astro-aeo-indexnow-v1.json'))).toBe(false);
+  });
+
+  // The false-removal defect. A page dropped after the inventory check left the build
+  // reporting a complete inventory, so a still-live URL was queued for removal.
+  test('withholds removals but still queues additions when a page was silently dropped', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    const resolved = config({
+      discovery: { sitemap: { mode: 'disabled' }, indexNow: { enabled: true, state: 'private' } },
+    });
+    let writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, undefined),
+    );
+    writer.commit();
+    const privateRoot = join(files.root, '.astro', 'aeo-cache', 'indexnow');
+    const firstQueue = JSON.parse(readFileSync(join(privateRoot, 'pending-v1.json'), 'utf8'));
+    const current = firstQueue.origins[0].operations[0];
+    writeFileSync(join(privateRoot, 'ack-v1.json'), `${JSON.stringify({
+      version: 1,
+      origins: [{
+        origin: 'https://example.test',
+        acknowledged: [
+          { url: current.url, fingerprint: current.fingerprint },
+          { url: 'https://example.test/removed', fingerprint: 'sha256:' + 'a'.repeat(64) },
+        ],
+      }],
+    }, null, 2)}\n`);
+
+    // /about is genuinely new. /gone has no built HTML, so this build cannot see it.
+    mkdirSync(join(files.dist, 'about'), { recursive: true });
+    writeFileSync(
+      join(files.dist, 'about', 'index.html'),
+      '<!doctype html><html><head><title>About</title></head><body><main>About</main></body></html>',
+    );
+    const diagnostics = [];
+    writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }, { pathname: '/about' }, { pathname: '/gone' }], logger },
+      environment(files.root, undefined, diagnostics),
+    );
+    writer.commit();
+
+    const secondQueue = JSON.parse(readFileSync(join(privateRoot, 'pending-v1.json'), 'utf8'));
+    const operations = secondQueue.origins[0].operations;
+    expect(operations.some((item) => item.operation === 'remove')).toBe(false);
+    expect(operations.map((item) => item.url)).toContain('https://example.test/about');
+    expect(diagnostics.map(({ code }) => code)).toEqual(
+      expect.arrayContaining(['page-html-unreadable', 'indexnow-inventory-incomplete']),
+    );
+  });
+
+  // Same defect class as above, reached through the fourth plugin failure code.
+  test('withholds removals when malformed plugin diagnostics silently drop a page', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    const resolved = config({
+      discovery: { sitemap: { mode: 'disabled' }, indexNow: { enabled: true, state: 'private' } },
+    });
+    async function dispatcher() {
+      return createPluginDispatcher({
+        command: 'build',
+        internalPlugins: [createSemanticPlugin(resolved)],
+        plugins: [{
+          name: 'bad-diagnostics', apiVersion: 1,
+          setup(api) {
+            api.on('page:metadata', ({ pathname }) => {
+              if (pathname !== '/gone') return;
+              return { action: 'keep', diagnostics: [{ code: '', message: 'private' }] };
+            });
+          },
+        }],
+      });
+    }
+    let writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, await dispatcher()),
+    );
+    writer.commit();
+    const privateRoot = join(files.root, '.astro', 'aeo-cache', 'indexnow');
+    const firstQueue = JSON.parse(readFileSync(join(privateRoot, 'pending-v1.json'), 'utf8'));
+    const current = firstQueue.origins[0].operations[0];
+    writeFileSync(join(privateRoot, 'ack-v1.json'), `${JSON.stringify({
+      version: 1,
+      origins: [{
+        origin: 'https://example.test',
+        acknowledged: [
+          { url: current.url, fingerprint: current.fingerprint },
+          { url: 'https://example.test/gone', fingerprint: 'sha256:' + 'a'.repeat(64) },
+        ],
+      }],
+    }, null, 2)}\n`);
+
+    // /about is genuinely new. /gone is isolated by a plugin failure, so this
+    // build cannot see it even though it is still live.
+    mkdirSync(join(files.dist, 'about'), { recursive: true });
+    writeFileSync(
+      join(files.dist, 'about', 'index.html'),
+      '<!doctype html><html><head><title>About</title></head><body><main>About</main></body></html>',
+    );
+    mkdirSync(join(files.dist, 'gone'), { recursive: true });
+    writeFileSync(
+      join(files.dist, 'gone', 'index.html'),
+      '<!doctype html><html><head><title>Gone</title></head><body><main>Gone</main></body></html>',
+    );
+    const diagnostics = [];
+    writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }, { pathname: '/about' }, { pathname: '/gone' }], logger },
+      environment(files.root, await dispatcher(), diagnostics),
+    );
+    writer.commit();
+
+    const secondQueue = JSON.parse(readFileSync(join(privateRoot, 'pending-v1.json'), 'utf8'));
+    const operations = secondQueue.origins[0].operations;
+    expect(operations.some((item) => item.operation === 'remove')).toBe(false);
+    expect(operations.map((item) => item.url)).toContain('https://example.test/about');
+    expect(diagnostics.map(({ code }) => code)).toEqual(
+      expect.arrayContaining(['plugin-invalid-diagnostics', 'indexnow-inventory-incomplete']),
+    );
+  });
+
+  test('does not advance private IndexNow state when its public path is externally owned', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    const stateRoute = '/.well-known/astro-aeo-indexnow-v1.json';
+    const diagnostics = [];
+    const resolved = config({
+      discovery: { sitemap: { mode: 'disabled' }, indexNow: { enabled: true, state: 'public' } },
+    });
+    const env = environment(files.root, undefined, diagnostics);
+    env.resolvedRoutePaths = new Set(['/', stateRoute]);
+    const writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      env,
+    );
+    expect(() => writer.commit()).toThrow(/artifact validation failed/u);
+    expect(diagnostics).toContainEqual(expect.objectContaining({
+      code: 'indexnow-state-unavailable',
+      severity: 'error',
+      pathname: stateRoute,
+    }));
+    expect(existsSync(join(files.root, '.astro', 'aeo-cache', 'indexnow', 'pending-v1.json'))).toBe(false);
+  });
+
   test('recommended validation includes page-local diagnostics at commit time', async () => {
     const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
     const diagnostics = [];
@@ -135,7 +366,7 @@ describe('staged build plugin pipeline', () => {
     }));
   });
 
-  test('reserves adapter runtime corpora and removes an exactly replaced public copy', async () => {
+  test('reserves runtime corpora and removes an exactly replaced public copy', async () => {
     const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
     const publicRoot = join(files.root, 'public');
     mkdirSync(publicRoot);
@@ -849,5 +1080,53 @@ describe('staged build plugin pipeline', () => {
       pathname: '/',
     }));
     expect(JSON.stringify(diagnostics)).not.toContain('private');
+  });
+});
+
+describe('catalog origins', () => {
+  function catalogEnvironment(root, diagnostics, pages, i18n) {
+    return {
+      ...environment(root, undefined, diagnostics),
+      catalogModules: [{
+        module: 'origins',
+        specifier: 'origins',
+        namespace: { default: { listPages: () => pages } },
+      }],
+      ...(i18n ? { i18n } : {}),
+    };
+  }
+
+  test('keeps a descriptor on another configured domain and drops an unconfigured one', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    mkdirSync(join(files.dist, 'fr', 'guide'), { recursive: true });
+    writeFileSync(
+      join(files.dist, 'fr', 'guide', 'index.html'),
+      '<!doctype html><html><head><title>FR</title></head><body><main>FR</main></body></html>',
+    );
+    const diagnostics = [];
+    const writer = await onBuildDone(
+      config(),
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      catalogEnvironment(
+        files.root,
+        diagnostics,
+        [
+          { pathname: '/fr/guide', origin: 'https://fr.example.test' },
+          { pathname: '/elsewhere', origin: 'https://not-configured.example' },
+        ],
+        createLocaleSnapshot(
+          { locales: ['en', 'fr'], defaultLocale: 'en', domains: { fr: 'https://fr.example.test' } },
+          'https://example.test',
+        ),
+      ),
+    );
+    expect(diagnostics.filter(({ severity }) => severity === 'error')).toEqual([]);
+    writer.commit();
+
+    expect(diagnostics.map(({ code }) => code)).toContain('catalog-unconfigured-origin');
+    expect(diagnostics.find(({ code }) => code === 'catalog-unconfigured-origin')?.pathname)
+      .toBe('/elsewhere');
+    expect(diagnostics.some(({ code, pathname }) =>
+      code === 'catalog-unconfigured-origin' && pathname === '/fr/guide')).toBe(false);
   });
 });

@@ -4,7 +4,8 @@ import { defineConfig } from 'vitest/config';
 // default config so the slow, server-bound test is opt-in via `pnpm run test:dev`.
 export default defineConfig({
   test: {
-    include: ['src/runtime/middleware.dev.test.js'],
+    include: ['src/**/*.dev.test.js'],
+    fileParallelism: false,
     testTimeout: 120000,
     hookTimeout: 120000,
   },

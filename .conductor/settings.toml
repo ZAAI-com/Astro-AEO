@@ -22,3 +22,8 @@ icon = "test-tube"
 [scripts.run.typecheck]
 command = "bash .conductor/scripts/run-typecheck.sh"
 icon = "wrench"
+
+# Pack the npm tarball and verify it from a throwaway Astro consumer.
+[scripts.run.package]
+command = "bash .conductor/scripts/run-package.sh"
+icon = "package"

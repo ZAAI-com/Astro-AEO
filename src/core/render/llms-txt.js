@@ -75,34 +75,56 @@ export function groupSections(pages, sections, defaultSection) {
 }
 
 /**
+ * Whether a page publishes a `.md` companion under the current config. Mirrors
+ * `emitDotMd`: global markdown off, `no-dotmd`, `generateMarkdown: false`, and
+ * on-demand pages (no static companion file) all return false.
+ *
+ * @param {{
+ *   aeoTokens?: string[];
+ *   directives?: { generateMarkdown?: boolean };
+ *   rendering?: string;
+ * }} page
+ * @param {import('../../index.js').ResolvedAstroAeoConfig} config
+ * @returns {boolean}
+ */
+export function hasMarkdownCompanion(page, config) {
+  if (!config.markdown.enabled) return false;
+  if (page.aeoTokens?.includes('no-dotmd') || page.directives?.generateMarkdown === false) return false;
+  if (page.rendering === 'on-demand') return false;
+  return true;
+}
+
+/**
  * Whether a page should appear in llms.txt. Pages with `no-llms` are always
- * dropped; pages with `no-dotmd` are dropped unless `corpus.index.includeHtmlOnly`
- * is on (they have no .md companion to link, so by default they are omitted
- * rather than left with a dangling link).
- * @param {{ aeoTokens: string[]; directives?: { includeInLlms: boolean; generateMarkdown: boolean } }} p
+ * dropped. Pages that opt out of a `.md` companion (`no-dotmd`,
+ * `generateMarkdown: false`, or global markdown disabled) are dropped unless
+ * `corpus.index.includeHtmlOnly` is on. On-demand rendering does not opt a page
+ * out: request-time middleware still serves `.md`, so the index may link it.
+ * @param {{ aeoTokens: string[]; directives?: { includeInLlms: boolean; generateMarkdown: boolean }; rendering?: string }} p
  * @param {import('../../index.js').ResolvedAstroAeoConfig} config
  * @returns {boolean}
  */
 export function isLlmsEligible(p, config) {
   if (p.aeoTokens.includes('no-llms') || p.directives?.includeInLlms === false) return false;
-  if (
-    (p.aeoTokens.includes('no-dotmd') || p.directives?.generateMarkdown === false) &&
-    !config.corpus.index.includeHtmlOnly
-  ) return false;
+  const companionOptOut = !config.markdown.enabled ||
+    p.aeoTokens.includes('no-dotmd') ||
+    p.directives?.generateMarkdown === false;
+  if (companionOptOut && !config.corpus.index.includeHtmlOnly) return false;
   return true;
 }
 
 /**
- * The llms.txt link target for a page: its `.md` companion, or (for a `no-dotmd`
- * page listed via `includeHtmlOnly`) its HTML URL.
- * @param {{ aeoTokens: string[]; mdHref: string; url: string; directives?: { generateMarkdown: boolean } }} p
+ * The llms.txt link target for a page: its `.md` companion, or (for a page
+ * without a companion listed via `includeHtmlOnly`) its HTML URL.
+ * @param {{ aeoTokens: string[]; mdHref: string; url: string; directives?: { generateMarkdown: boolean }; rendering?: string }} p
  * @param {import('../../index.js').ResolvedAstroAeoConfig} config
  * @returns {string}
  */
 export function llmsEntryHref(p, config) {
-  return p.aeoTokens.includes('no-dotmd') || p.directives?.generateMarkdown === false
-    ? p.url
-    : p.mdHref;
+  const companionOptOut = !config.markdown.enabled ||
+    p.aeoTokens.includes('no-dotmd') ||
+    p.directives?.generateMarkdown === false;
+  return companionOptOut ? p.url : p.mdHref;
 }
 
 /**
@@ -131,7 +153,7 @@ export function selectFullTxtPages(pages, config) {
  * @param {import('../../index.js').ResolvedAstroAeoConfig} config
  * @returns {string}
  */
-function entryLine(p, config) {
+export function renderLlmsEntryLine(p, config) {
   let line = `- [${p.title}](${llmsEntryHref(p, config)})`;
   if (config.corpus.index.includeDescriptions && p.description) line += `: ${p.description}`;
   if (config.corpus.index.showLastModified && p.lastModified) {
@@ -162,7 +184,7 @@ export function renderLlmsTxt(pages, config, siteMeta, opts = {}) {
 
   for (const group of groups) {
     lines.push(`## ${group.title}`, '');
-    for (const p of group.pages) lines.push(entryLine(p, config));
+    for (const p of group.pages) lines.push(renderLlmsEntryLine(p, config));
     lines.push('');
   }
 

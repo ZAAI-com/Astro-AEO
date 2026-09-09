@@ -15,8 +15,10 @@ vi.mock('./config.js', async () => {
       standaloneSources: {},
     },
     RUNTIME_CATALOG_LOADERS: [],
+    RUNTIME_DYNAMIC_ROUTE_SOURCE: null,
     RUNTIME_MARKDOWN_RENDERER_LOADERS: [],
     RUNTIME_PLUGIN_LOADERS: [],
+    RUNTIME_CORPUS_TOKENIZER_LOADER: undefined,
   };
 });
 
@@ -39,8 +41,17 @@ function context(pathname, accept = 'text/markdown') {
   };
 }
 
+function guardRequestHeaders(ctx) {
+  Object.defineProperty(ctx.request, 'headers', {
+    configurable: true,
+    get() {
+      throw new Error('prerendered request headers were accessed');
+    },
+  });
+}
+
 describe('redirect negotiation', () => {
-  test('redacts AeoHead transport from HTML outside the configured base', async () => {
+  test('redacts AeoHead transport from prerendered HTML without reading headers', async () => {
     const marker =
       '<script type="application/vnd.astro-aeo-head+json" data-astro-aeo-head>{"title":"Private"}</script>';
     const source = new Response(
@@ -51,6 +62,8 @@ describe('redirect negotiation', () => {
       },
     );
     const ctx = context('/outside-base', 'text/html');
+    ctx.isPrerendered = true;
+    guardRequestHeaders(ctx);
     const next = vi.fn(async () => source);
 
     const response = await onRequest(ctx, next);
@@ -150,6 +163,32 @@ describe('redirect negotiation', () => {
     expect(await response.text()).toContain(
       '<link rel="alternate" type="text/markdown" href="/docs/about.md">',
     );
+  });
+
+  test('enriches prerendered HTML without inspecting or varying on Accept', async () => {
+    const ctx = context('/docs/about', 'text/markdown');
+    ctx.isPrerendered = true;
+    guardRequestHeaders(ctx);
+    const marker =
+      '<script data-astro-aeo-marker type="application/vnd.astro-aeo+json">{}</script>';
+    const response = await onRequest(
+      ctx,
+      vi.fn(async () => new Response(
+        `<html><head></head><body>${marker}<main><h1>About</h1></main></body></html>`,
+        { headers: { 'content-type': 'text/html', vary: 'Origin' } },
+      )),
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8');
+    expect(response.headers.get('vary')).toBe('Origin');
+    expect(response.headers.get('etag')).toMatch(/^"[a-f0-9]{64}"$/);
+    expect(body).toContain(
+      '<link rel="alternate" type="text/markdown" href="/docs/about.md">',
+    );
+    expect(body).toContain('data-astro-aeo-graph');
+    expect(body).not.toContain('data-astro-aeo-marker');
   });
 
   test('cancels the unread source branch when generated HTML replaces it', async () => {

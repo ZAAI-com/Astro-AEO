@@ -2,6 +2,161 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## 1.3.0
+
+Astro-AEO 1.3 adds deterministic multilingual discovery and incremental processing while keeping
+ordinary single-locale 1.2 output bytes unchanged.
+
+This release also consumes the stabilized 1.2 patch contracts: canonical URL bases, semantic
+graph reconciliation, aligned artifact ownership, exact-path validation, and corrected public
+schema IDs.
+
+Benchmark regression explanation: The package and integration bundles grow because 1.3 ships a
+dependency-free multilingual planner, strict XML and corpus validators, processing cache, frozen
+crawler registry, and failure-safe IndexNow CLI on top of runtime-safe semantic reconciliation.
+The measured package remains below the updated 1.3 safety ceiling, and all absolute bundle,
+startup, memory, and request ceilings remain enforced.
+
+### Highlights
+
+- Added automatic enumeration of prerendered `getStaticPaths()` routes in development corpora.
+  Stable `startup` discovery uses Astro's public route hooks, while opt-in experimental `hot`
+  discovery also tracks dynamic route-file additions and deletions through Astro's private route
+  module.
+- Added one shared build/runtime corpus planner with `auto`, `global`, `locale`, and `both`
+  multilingual topologies, normalized BCP 47 languages and alternates, small token-budgeted
+  corpora, section chunks, versioned manifests, custom tokenizer fallback, and deterministic
+  static gzip siblings.
+- Added content-addressed processing reuse under `.astro/aeo-cache`, restrictive private-state
+  permissions, process-safe locking, clean-output restoration, and atomic ownership/state commits.
+- Added strict sitemap index and shard validation plus manifest-first `astro-aeo validate` checks
+  for locale families, hashes, token counts, aliases, and gzip bytes.
+- Added frozen crawler classifications, four RFC 9309 policy presets, explicit Content Signals,
+  and two-phase IndexNow prepare/submit commands with public, private, and stateless ledgers.
+- Extended page, catalog, renderer, plugin, tokenizer, manifest, and runtime declarations without
+  changing the frozen `ResolvedAeoConfig` compatibility type.
+
+### Correctness and safety (review backlog)
+
+- Corpus ownership ([#8](https://github.com/ZAAI-com/Astro-AEO/issues/8)): `llms.txt` and
+  `llms-full.txt` are handed to request-time middleware only when one of the project's own page
+  routes renders on demand. Astro-AEO injects `prerender: false` fallback routes for every adapter,
+  which promotes the build to server output, and the previous rule read that promotion back as
+  proof that a server was required. A fully prerendered site with an adapter silently emitted no
+  corpus at all. The `dynamic-routes-unindexed` diagnostic follows the same ownership decision, so
+  it no longer asks a prerendered project for a `pages.catalogs` module it does not need. Once the
+  build owns those paths the runtime declines them, along with the schema graph and map, so a
+  deployment that reaches the application before its static files cannot answer with a shorter
+  corpus than the one on disk. Verified against real workerd through a new static Cloudflare
+  adapter fixture.
+- Request-state diagnostics: the request-time corpus `503` reports an unrecognized Astro request
+  state instead of naming a version range the middleware cannot observe, and the anonymous corpus
+  session derives its runtime mode from the build command rather than from a pipeline field Astro 7
+  removed.
+- Manifest truthfulness: companion-less pages publish nullable `markdownUrl` / `tokenCount` /
+  `hash`; companion hashes and token counts match the bytes from `renderMarkdownDocument`.
+- Corpus topology: dependent claims (aliases, gzip, manifest) follow ownership decisions; the
+  corpus manifest drops artifacts that lost arbitration (and their entries from every page's
+  chunk list) or is skipped with a `corpus-manifest-skipped` warning when a locale canonical
+  artifact was lost; runtime fallback routes cover small, manifest, locale, alias, and chunk
+  paths on manifest-based adapters.
+- IndexNow safety: `keyLocation` directory scope is enforced at submit; response limits and queue
+  writes stay compatible with generated state; `IndexNowInvocationError` exits 2.
+- IndexNow removals are withheld whenever a build could not see every page, which now covers
+  rejected catalog descriptors, failed plugin hooks, and pages whose built HTML could not be read,
+  not only a catalog that failed to load. Previously such a page was still live but read as a
+  removal, which submitted it and deleted the URL from the acknowledgment ledger. Additions and
+  changes are queued as usual in that build rather than being suppressed alongside the removals,
+  and a build that cannot write its private state no longer publishes a state manifest whose digest
+  the pending queue does not match. An unreadable page now reports `page-html-unreadable` instead
+  of only logging.
+- Locks: stale processing-cache and IndexNow lock reclamation runs under a dedicated
+  `${path}.reclaim` mutex, so the validate, unlink, and re-claim sequence is exclusive and two
+  contenders can never both unlink the other's replacement; ownership checks on release remain.
+- Sitemap: legal non-declaration processing instructions (for example `xml-stylesheet`) validate
+  and their targets are name-checked, so `<?1bad?>` or `<?a:b:c?>` are rejected; query strings
+  remain part of sitemap URL identity; XML-only whitespace (space, tab, CR, LF) is the mixed-
+  content standard, so an NBSP inside `<url>` is reported instead of trimmed away.
+- Robots: `Content-Signal` is emitted inside each user-agent group; locale-only indexes do not
+  advertise a root `/llms.txt`.
+- Runtime edges: page lifecycle failures become corpus-plan errors; catalog locale metadata reaches
+  plugin handles; Astro 7.2 one-argument FetchState is supported; loopback origin trust stays
+  development-only (Astro 5 and 6 projects on `@astrojs/node` need
+  `security.allowedDomains` so the deployed request keeps its real `Host`); encoded locale
+  pathnames resolve consistently.
+- Prerendered pages no longer read request headers, which Astro warns about. HTML enrichment and
+  marker redaction still emit fresh ETags, while Accept negotiation and conditional requests remain
+  available for on-demand routes.
+- The development on-demand dynamic-route warning is emitted exactly once. With
+  `pages.devDynamicDiscovery: 'hot'` the generated loader owns the message, because only it sees
+  routes added after the last route resolution, and its guard lives on the development process so a
+  re-executed loader stays quiet.
+- Multi-domain corpus topology: the build filtered its pages by the site origin before handing them
+  to the shared planner, which already applies that filter internally and separately needs the
+  complete set to choose a topology. The build therefore saw one locale under `i18n.domains` and
+  reserved a legacy root `/llms.txt` instead of the locale families and root language directory that
+  middleware serves. Request-time output was never affected; ownership arbitration, stale-output
+  removal, and the recorded claim set were.
+- Catalog origins reach the build: a descriptor naming another configured host kept that host at
+  request time but silently inherited the primary site origin during a build. Descriptor origins now
+  survive collection, and an origin the project is not configured for is excluded with a
+  `catalog-unconfigured-origin` diagnostic, matching the runtime loader.
+- Reachable hreflang canonical conflicts: `hreflang-canonical-conflict` compared a page found by its
+  canonical URL against that same URL, so it could never fire, and an alternate naming a local
+  page's non-canonical URL was reported nowhere. Local pages are now indexed by their served URL as
+  well, and pages that declare no canonical URL are checked through their served URL instead of
+  being skipped. A target that declares no canonical URL is still never called non-canonical.
+  Reciprocity is a map lookup rather than a scan over every page, which removes a quadratic cost
+  from both builds and request-time corpus renders.
+- Development corpora carry the dev-preview banner in every non-single-locale topology. The note
+  previously reached only the legacy root `llms.txt` and `llms-full.txt`; grouped, locale, and
+  small corpora now match those bytes, chunk files stay note-free because they open with a page
+  heading, and the note is budgeted against `corpus.small.maxTokens`.
+- Multi-line Setext headings stay indivisible. A paragraph run whose last line is an `===` or
+  `---` underline is classified as one heading instead of being split at the line the old
+  one-line lookahead stopped scanning.
+- Sitemap namespace maps are copied only on declaration, so a per-element `xmlns:xhtml`
+  declaration no longer leaks into a sibling `<url>` entry.
+
+### Upgrade notes
+
+- Adapter projects whose page routes are all prerendered now receive build-time `llms.txt` and
+  `llms-full.txt` containing every `getStaticPaths()` result, where 1.2 emitted nothing and left
+  the paths to middleware. Projects with at least one on-demand page route are unchanged. If you
+  relied on the request-time corpus for a fully prerendered adapter build, the emitted file is
+  served first by every supported adapter and is strictly more complete. A deployment that mounts
+  the Astro handler ahead of its own static handler, such as `@astrojs/node` in middleware mode,
+  now receives `404` on those paths rather than a silently shorter corpus. Serve static output
+  first.
+- `hreflang-canonical-conflict` is reachable for the first time and is an `error`, so with the
+  default `validation.onBuild: 'artifacts'` and `validation.failOn: 'error'` it can fail a build
+  that previously passed. It fires when a page's `hreflang` alternate names a local page by a URL
+  that is not that page's canonical. Point the alternate at the canonical URL, or lower
+  `validation.failOn`.
+- `pages.devDynamicDiscovery` defaults to `'startup'`; select experimental `'hot'` for route-file
+  HMR or `false` to retain catalog-only development enumeration. Catalogs remain necessary for
+  on-demand and external inventories and can overlay automatic paths with authored metadata.
+- Article documentation now recommends Google-preferred ISO 8601 datetimes with timezone
+  information while clarifying that bare Schema.org dates remain valid and authored values pass
+  through unchanged.
+- New corpus files, gzip, crawler presets, Content Signals, and IndexNow are opt-in. One implicit
+  locale keeps the legacy root corpus bytes. Multilingual `auto` moves canonical locale families
+  under `/<locale>/`; use `global`, `locale`, or `both` for another published topology.
+- Enabled project-root URL maps once again replace their configured output on every successful
+  build, restoring the behavior from before 1.2.0. The replacement remains part of the atomic
+  artifact transaction.
+- `.astro/aeo-cache` may contain derived page content and must remain uncommitted and protected as
+  sensitive build state. CI deployments using IndexNow must transfer the pending and
+  acknowledgment directory between prepare and submit jobs.
+- Runtime serves logical corpus artifacts but does not precompress gzip. Hosting transport remains
+  responsible for runtime compression.
+- Crawler presets and Content Signals express preferences only. They are not access control and do
+  not guarantee crawler compliance.
+- Astro 7.3 needs no code change. Two consumer-facing notes were added to the README: a hand-written
+  `astro/fetch` Cloudflare entrypoint must call `finalize(state, response)` so cookies merged during
+  a direct `.md` rewrite still reach the client, and Astro's `memoryCache()` now skips responses
+  carrying `Vary: Cookie` or `Vary: *`, which negotiated responses do not.
+
 ## 1.2.0
 
 Astro-AEO 1.2 completes the universal representation work and adds deterministic semantic
@@ -91,7 +246,7 @@ secure request-time behavior to development and adapter deployments.
 - Pages built from Markdown can preserve their authored source with
   [`AeoPage` and `defineAeoPage`](README.md#giving-a-page-its-own-source). Standalone Markdown
   routes also carry their original source into server bundles.
-- [Page catalogs](README.md#pages-the-build-cannot-see) can add data-generated routes that Astro's
+- [Page catalogs](README.md#dynamic-routes-and-catalogs) can add data-generated routes that Astro's
   route list cannot discover, so eligible routes receive companions and appear in corpora.
 - [Content negotiation](README.md#content-negotiation) can return Markdown at a page URL or redirect
   to its `.md` companion when Markdown is explicitly preferred on an on-demand route.

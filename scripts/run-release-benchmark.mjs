@@ -28,6 +28,7 @@ const cloudflare = spawnProcessTree(
   [
     resolve(root, 'node_modules/astro/bin/astro.mjs'),
     'preview',
+    '--ignore-lock',
     '--root',
     resolve(root, 'fixtures/adapters/cloudflare'),
     '--host',
@@ -37,7 +38,16 @@ const cloudflare = spawnProcessTree(
   ],
   {
     cwd: root,
-    env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1' },
+    // Keep Astro 7.2's agent-aware preview command attached so the benchmark
+    // can measure readiness and stop the complete process tree. Astro 7.3
+    // refuses to start against a live <root>/.astro/preview.json, so
+    // --ignore-lock keeps the adapter suite from blocking this measurement.
+    env: {
+      ...process.env,
+      ASTRO_PREVIEW_BACKGROUND: '1',
+      FORCE_COLOR: '0',
+      NO_COLOR: '1',
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   },
 );

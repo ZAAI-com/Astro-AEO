@@ -22,10 +22,28 @@ import { join } from 'node:path';
  */
 export function writeDiagnosticsManifest(projectRoot, pages, diagnostics = [], now = new Date()) {
   const directory = join(projectRoot, '.astro', 'aeo-cache');
-  const output = join(directory, 'diagnostics-v1.json');
+  const output = diagnosticsManifestPath(projectRoot);
   const temporary = join(directory, `.diagnostics-v1.${process.pid}.tmp`);
   mkdirSync(directory, { recursive: true });
 
+  const contents = serializeDiagnosticsManifest(pages, diagnostics, now);
+
+  writeFileSync(temporary, contents, { encoding: 'utf8', mode: 0o600 });
+  renameSync(temporary, output);
+  return output;
+}
+
+/** @param {string} projectRoot */
+export function diagnosticsManifestPath(projectRoot) {
+  return join(projectRoot, '.astro', 'aeo-cache', 'diagnostics-v1.json');
+}
+
+/**
+ * @param {import('../core/page-model.js').BuildPage[]} pages
+ * @param {import('../index.js').Diagnostic[]} [diagnostics]
+ * @param {Date} [now]
+ */
+export function serializeDiagnosticsManifest(pages, diagnostics = [], now = new Date()) {
   /** @type {AeoDiagnosticManifestV1} */
   const manifest = {
     version: 1,
@@ -40,9 +58,7 @@ export function writeDiagnosticsManifest(projectRoot, pages, diagnostics = [], n
     diagnostics: sanitizeDiagnostics(diagnostics),
   };
 
-  writeFileSync(temporary, `${JSON.stringify(manifest, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
-  renameSync(temporary, output);
-  return output;
+  return `${JSON.stringify(manifest, null, 2)}\n`;
 }
 
 /** @param {unknown} diagnostics @returns {import('../index.js').Diagnostic[]} */

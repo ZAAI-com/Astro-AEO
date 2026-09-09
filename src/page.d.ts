@@ -1,5 +1,5 @@
 import type { AeoPageProps } from '../components/index.js';
-import type { ExtractionDiagnostics } from './index.js';
+import type { ExtractionDiagnostics, PageAlternate } from './index.js';
 import type { EntityReference, SchemaEntity } from './schema.js';
 
 export type { AeoPageProps };
@@ -50,12 +50,17 @@ export interface PageSource {
 export interface PageDescriptor {
   /** Root-relative path, e.g. `/blog/hello`. */
   pathname: string;
+  /** Optional configured origin used with `pathname` as the cross-domain identity. */
+  origin?: string;
+  /** Normalized Astro locale identity or derived canonical language tag. */
+  locale?: string;
   routePattern?: string;
   rendering?: 'prerendered' | 'on-demand';
   title?: string;
   description?: string;
   image?: string;
   language?: string;
+  alternates?: PageAlternate[];
   markdown?: string;
   dates?: { published?: string; modified?: string };
   authors?: EntityReference[];
@@ -84,11 +89,13 @@ export interface CatalogContext {
 }
 
 /**
- * Lists pages the build cannot discover for itself, which is every route
- * generated from data rather than from a file. Without a catalog such a route is
- * simply absent from the corpus; astro-aeo does not crawl to find them. A module
- * exporting this contract must be compiled to Node-loadable `.js`, `.mjs`, or
- * `.cjs` before it is configured as a catalog entrypoint.
+ * Lists pages that Astro-AEO cannot enumerate from static build output or from a
+ * prerendered development `getStaticPaths()` call. Catalogs remain necessary for
+ * on-demand or SSR, CMS-only, and synthetic routes. A catalog may also overlay a
+ * concrete or automatically discovered path with exact authored source and metadata.
+ * Astro-AEO never crawls to find routes. A module exporting this contract must be
+ * compiled to Node-loadable `.js`, `.mjs`, or `.cjs` before it is configured as a
+ * catalog entrypoint.
  */
 export interface PageCatalog {
   name?: string;

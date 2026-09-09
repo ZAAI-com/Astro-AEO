@@ -9,6 +9,7 @@ import {
  * @property {string} name
  * @property {string} module
  * @property {import('../index.js').JsonValue} [options]
+ * @property {import('../index.js').CacheDeclaration} [cache]
  * @property {() => Promise<unknown>} load
  */
 
@@ -43,12 +44,20 @@ async function loadAll(loaders) {
           `preflight name was "${loader.name}" but the runtime module is "${implementation.name}"`,
         );
       }
+      if (
+        Boolean(implementation.cache) !== Boolean(loader.cache) ||
+        (implementation.cache && loader.cache &&
+          (implementation.cache.pure !== loader.cache.pure || implementation.cache.version !== loader.cache.version))
+      ) {
+        throw new TypeError('runtime renderer cache declaration changed after preflight');
+      }
       renderers.push({
         name: implementation.name,
         module: loader.module,
         ...(loader.options === undefined
           ? {}
           : { options: rendererOptions(loader.options, `${loader.name} runtime options`) }),
+        ...(implementation.cache ? { cache: implementation.cache } : {}),
         render: implementation.render,
       });
     } catch {

@@ -4,6 +4,7 @@ import {
   ASTRO_BIN,
   buildAdapter,
   executableAvailable,
+  fetchWithHost,
   fixture,
   startProcess,
   stopProcess,
@@ -91,16 +92,22 @@ const runtimes = [
     base: 'http://127.0.0.1:4572/docs',
     available: executableAvailable(process.execPath),
     start() {
+      // Keep Astro 7.2's agent-aware preview command in the foreground so the
+      // test owns the server process and can stop it during teardown.
+      // Astro 7.3 refuses to start when <root>/.astro/preview.json names a
+      // live server, so --ignore-lock keeps a concurrent or stale preview of
+      // this fixture from failing the suite before it boots.
       return startProcess(process.execPath, [
         ASTRO_BIN,
         'preview',
+        '--ignore-lock',
         '--root',
         fixture('cloudflare'),
         '--host',
         '127.0.0.1',
         '--port',
         '4572',
-      ]);
+      ], { env: { ASTRO_PREVIEW_BACKGROUND: '1' } });
     },
   },
   {
@@ -293,7 +300,9 @@ for (const runtime of runtimes) {
     }
 
     test('loads catalog source without recursing through owned artifacts', async () => {
-      const response = await fetch(`${runtime.base}/llms-full.txt`);
+      // Production must not trust Host: localhost. Send the configured public
+      // host against the loopback listener (Node's fetch forbids overriding Host).
+      const response = await fetchWithHost(`${runtime.base}/llms-full.txt`, 'adapter.example.com');
       expect(response.status).toBe(200);
       expect(response.headers.get('etag')).toMatch(/^"[0-9a-f]{64}"$/);
       const body = await response.text();

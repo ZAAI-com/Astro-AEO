@@ -1,6 +1,7 @@
 // @ts-check
 import { collectPages } from '../build/collect.js';
 import { createArtifactWriter } from '../build/artifacts.js';
+import { PLUGIN_PAGE_LOSS_CODES } from '../plugins/dispatcher.js';
 import { createDistHtmlSource } from '../sources/dist-html.js';
 import { stripSourceMarkers } from '../build/strip-markers.js';
 import {
@@ -11,10 +12,30 @@ import {
 } from '../build/catalogs.js';
 import { resolveSiteMeta } from '../config.js';
 import { emitDotMd } from '../generators/dotmd.js';
-import { emitLlmsTxt, emitLlmsFullTxt } from '../generators/llms-txt.js';
+import { stageCorpusArtifacts } from '../build/corpus.js';
 import { emitDomainProfile } from '../generators/domain-profile.js';
 import { emitUrlMap } from '../generators/url-map.js';
-import { writeDiagnosticsManifest } from '../build/diagnostics.js';
+import {
+  diagnosticsManifestPath,
+  serializeDiagnosticsManifest,
+  writeDiagnosticsManifest,
+} from '../build/diagnostics.js';
+import { openProcessingCache } from '../build/processing-cache.js';
+import {
+  INDEXNOW_PUBLIC_PATH,
+  collectIndexNowFingerprints,
+  ensureIndexNowPrivateDirectory,
+  indexNowStatePathname,
+  readIndexNowPrivateState,
+} from '../build/indexnow.js';
+import {
+  prepareIndexNowQueue,
+  serializeIndexNowAcknowledgment,
+  serializeIndexNowPrepareInput,
+  serializeIndexNowQueue,
+  serializeIndexNowStateManifest,
+} from '../build/indexnow-state.js';
+import { normalizeOrigin, normalizePageAlternates, resolvePageLocale } from '../core/locale.js';
 import { isOwnedArtifactPath } from '../core/owned-artifacts.js';
 import { renderSchemaCorpus, validateCollectedSchemaGraphs } from '../core/schema-corpus.js';
 import { siteScopeUrl, stableCanonical } from '../core/canonical.js';
@@ -47,10 +68,12 @@ import {
  *   Dynamic project routes, for collision checks.
  * @property {URL} [publicDir]                   Astro's publicDir, for collision checks.
  * @property {import('../index.js').Diagnostic[]} [diagnostics]
- * @property {boolean} [runtimeCorpora]            Leave corpus paths to middleware.
+ * @property {boolean} [runtimeCorpora]            A page renders on demand, so middleware owns the corpus paths.
  * @property {{ module: string; specifier: string; namespace: any }[]} [catalogModules]
  * @property {import('../core/markdown-renderers.js').MarkdownRendererEntry[]} [markdownRenderers]
  * @property {Awaited<ReturnType<typeof import('../plugins/dispatcher.js').createPluginDispatcher>>} [pluginDispatcher]
+ * @property {import('../core/locale.js').LocaleSnapshot} [i18n]
+ * @property {import('../index.js').CorpusTokenizerModule} [corpusTokenizer]
  */
 
 /**
@@ -63,14 +86,79 @@ import {
 export async function onBuildDone(config, options, env) {
   const { dir, pages: rawPages, logger } = options;
   const buildDiagnostics = env.diagnostics ?? (env.diagnostics = []);
+  const buildStarted = Date.now();
+  const processingCache = openProcessingCache(env.projectRoot, {
+    enabled: config.cache?.enabled !== false,
+    diagnostics: buildDiagnostics,
+    logger,
+  });
+  const indexNowPrivate = config.discovery.indexNow.enabled
+    ? readIndexNowPrivateState(env.projectRoot)
+    : undefined;
+  if (indexNowPrivate) buildDiagnostics.push(...indexNowPrivate.diagnostics);
 
-  // Routes generated from data are invisible to Astro's own page list, so a
-  // catalog is the only way they can appear in the corpus.
+  let locksReleased = false;
+  const releaseLocks = () => {
+    if (locksReleased) return;
+    locksReleased = true;
+    processingCache.close();
+    indexNowPrivate?.close();
+  };
+
+  try {
+    return await onBuildDoneLocked(config, options, env, {
+      rawPages,
+      logger,
+      dir,
+      buildDiagnostics,
+      buildStarted,
+      processingCache,
+      indexNowPrivate,
+      releaseLocks,
+    });
+  } catch (error) {
+    // Writer onSettled only runs after commit. Release immediately when setup or
+    // staging throws so locks cannot leak across builds.
+    releaseLocks();
+    throw error;
+  }
+}
+
+/**
+ * @param {import('../index.js').ResolvedAstroAeoConfig} config
+ * @param {{ dir: URL; pages: { pathname: string }[]; logger: { info: (m: string) => void; warn: (m: string) => void } }} options
+ * @param {BuildEnv} env
+ * @param {{
+ *   rawPages: { pathname: string }[];
+ *   logger: { info: (m: string) => void; warn: (m: string) => void };
+ *   dir: URL;
+ *   buildDiagnostics: import('../index.js').Diagnostic[];
+ *   buildStarted: number;
+ *   processingCache: ReturnType<typeof openProcessingCache>;
+ *   indexNowPrivate: ReturnType<typeof readIndexNowPrivateState> | undefined;
+ *   releaseLocks: () => void;
+ * }} session
+ */
+async function onBuildDoneLocked(config, options, env, session) {
+  const {
+    rawPages,
+    logger,
+    dir,
+    buildDiagnostics,
+    buildStarted,
+    processingCache,
+    indexNowPrivate,
+    releaseLocks,
+  } = session;
+
+  // Astro includes concrete prerendered `getStaticPaths()` results in this build
+  // page list. Catalogs add request-time or external inventory and may enrich a
+  // matching concrete descriptor with exact source and metadata.
   const catalogModules = env.catalogModules;
   const buildCatalogs = catalogModules
     ? catalogModules.map(({ module }) => ({ module }))
     : config.pages.catalogs;
-  const loadedCatalogPages = buildCatalogs.length
+  const loadedCatalogs = buildCatalogs.length
     ? await loadCatalogPages(
         buildCatalogs,
         (/** @type {string} */ module) => {
@@ -88,18 +176,43 @@ export async function onBuildDone(config, options, env) {
         },
         env.diagnostics ?? [],
       )
-    : [];
+    : { pages: [], inventoryComplete: true };
+  const loadedCatalogPages = loadedCatalogs.pages;
+  // A descriptor may name any host Astro is configured for, but only those. An
+  // unconfigured origin would otherwise reach the corpus planner and invent a
+  // locale family for a host this project does not publish.
+  const configuredOrigins = new Set([
+    ...(env.i18n?.origins ?? []),
+    // An origin named only for IndexNow is still one this project publishes. Dropping
+    // its pages here while keeping its acknowledgments would read as a mass removal.
+    ...config.discovery.indexNow.origins.map((item) => item.origin),
+    ...(normalizeOrigin(env.siteUrl) ? [/** @type {string} */ (normalizeOrigin(env.siteUrl))] : []),
+  ]);
   const catalogPages = loadedCatalogPages.filter((page) => {
-    if (!isOwnedArtifactPath(page.pathname, config)) return true;
-    env.diagnostics?.push({
-      version: 1,
-      code: 'catalog-owned-artifact-excluded',
-      severity: 'warning',
-      message: `Catalog page ${page.pathname} was excluded because Astro-AEO owns that artifact path.`,
-      pathname: page.pathname,
-      ...(page.sourcePath ? { sourcePath: page.sourcePath } : {}),
-    });
-    return false;
+    if (isOwnedArtifactPath(page.pathname, config)) {
+      env.diagnostics?.push({
+        version: 1,
+        code: 'catalog-owned-artifact-excluded',
+        severity: 'warning',
+        message: `Catalog page ${page.pathname} was excluded because Astro-AEO owns that artifact path.`,
+        pathname: page.pathname,
+        ...(page.sourcePath ? { sourcePath: page.sourcePath } : {}),
+      });
+      return false;
+    }
+    const origin = page.origin === undefined ? null : normalizeOrigin(page.origin);
+    if (origin && !configuredOrigins.has(origin)) {
+      env.diagnostics?.push({
+        version: 1,
+        code: 'catalog-unconfigured-origin',
+        severity: 'warning',
+        message: `Catalog page ${page.pathname} names an origin this project is not configured for and was excluded.`,
+        pathname: page.pathname,
+        ...(page.sourcePath ? { sourcePath: page.sourcePath } : {}),
+      });
+      return false;
+    }
+    return true;
   });
   if (catalogPages.length) {
     logger.info(`astro-aeo: ${catalogPages.length} page(s) contributed by catalogs`);
@@ -132,7 +245,9 @@ export async function onBuildDone(config, options, env) {
     projectRoot: env.projectRoot,
     routeEntrypoints: env.routeEntrypoints,
     logger,
+    diagnostics: buildDiagnostics,
     renderers: env.markdownRenderers,
+    cache: processingCache,
   });
 
   if (env.pluginDispatcher) {
@@ -204,9 +319,14 @@ export async function onBuildDone(config, options, env) {
     failOn: config.validation?.failOn ?? 'error',
     validationOnBuild: config.validation?.onBuild ?? 'artifacts',
     diagnosticsProvider: () => pages.flatMap((page) => page.diagnostics),
-    onDiagnostics: () =>
-      writeDiagnosticsManifest(env.projectRoot, pages, env.diagnostics ?? []),
+    onDiagnostics: () => writeDiagnosticsManifest(env.projectRoot, pages, env.diagnostics ?? []),
+    onSettled: releaseLocks,
   });
+  /** @type {any} */ (writer).stagePrivateWrite?.(
+    diagnosticsManifestPath(env.projectRoot),
+    () => serializeDiagnosticsManifest(pages, env.diagnostics ?? []),
+    { mode: 0o600, confineTo: env.projectRoot },
+  );
 
   /** @type {{ page: import('../index.js').AeoPageRecord; graph: import('../schema.js').AeoGraph }[]} */
   const semanticPages = [];
@@ -438,6 +558,49 @@ export async function onBuildDone(config, options, env) {
     }
   }
 
+  let localizedPages = pages.map((page) => {
+    const result = resolvePageLocale(page, env.i18n ?? {
+      locales: [],
+      origins: env.siteUrl ? [env.siteUrl] : [],
+      ...(env.siteUrl ? { primaryOrigin: env.siteUrl } : {}),
+      prefixDefaultLocale: false,
+      manual: false,
+    }, {
+      unresolvedLanguage: config.i18n?.unresolvedLanguage ?? 'default',
+      siteDefaultLocale: config.site.defaultLocale,
+    });
+    buildDiagnostics.push(...result.diagnostics);
+    return result.excluded ? { ...result.page, corpusExcluded: true } : result.page;
+  });
+  // Preserve the ordinary pre-i18n project shape when one rendered language
+  // is present and catalog pages carry no language declaration. The sole
+  // observed language is the deterministic project default for this build.
+  if ((env.i18n?.locales.length ?? 0) === 0) {
+    const concrete = [...new Set(localizedPages.flatMap((page) =>
+      !page.corpusExcluded && page.language && page.locale ? [page.language] : [],
+    ))];
+    if (concrete.length === 1) {
+      localizedPages = localizedPages.map((page) => page.corpusExcluded || page.locale != null
+        ? page
+        : { ...page, locale: concrete[0], language: concrete[0] });
+    }
+  }
+  const alternates = normalizePageAlternates(localizedPages);
+  buildDiagnostics.push(...alternates.diagnostics);
+  pages = alternates.pages;
+  if (
+    (config.i18n?.indexes === 'locale' || config.i18n?.indexes === 'both') &&
+    pages.some((page) => !page.corpusExcluded && page.locale == null)
+  ) {
+    buildDiagnostics.push({
+      version: 1,
+      code: 'corpus-locale-required',
+      severity: 'error',
+      message: `i18n.indexes "${config.i18n.indexes}" requires every corpus page to resolve to a concrete locale.`,
+    });
+    pages = pages.map((page) => page.locale == null ? { ...page, corpusExcluded: true } : page);
+  }
+
   if (!config.schema.corpus.enabled && semanticPages.length > 0) {
     const stableSite = stableCanonical(env.siteUrl);
     if (stableSite) {
@@ -530,19 +693,22 @@ export async function onBuildDone(config, options, env) {
   const written = emitDotMd(pages, config, writer);
   if (config.markdown.enabled) logger.info(`astro-aeo: emitted ${written} .md companion files`);
 
-  if (!env.runtimeCorpora) {
-    emitLlmsTxt(pages, dir, config, siteName, siteDescription, writer);
-    emitLlmsFullTxt(pages, dir, config, siteName, siteDescription, writer);
-    if (config.corpus.index.enabled) logger.info('astro-aeo: emitted /llms.txt');
-    if (config.corpus.full.enabled) logger.info('astro-aeo: emitted /llms-full.txt');
-  } else if (config.corpus.index.enabled || config.corpus.full.enabled) {
-    if (config.corpus.index.enabled) {
-      writer.write({ route: '/llms.txt', owner: { kind: 'core', name: 'llmsTxt' }, runtime: true });
-    }
-    if (config.corpus.full.enabled) {
-      writer.write({ route: '/llms-full.txt', owner: { kind: 'core', name: 'llmsFullTxt' }, runtime: true });
-    }
-    logger.info('astro-aeo: request-time middleware owns the corpus paths for on-demand routes');
+  const corpus = await stageCorpusArtifacts(pages, config, {
+    siteUrl: env.siteUrl,
+    base: env.base,
+    siteMeta: { name: siteName, description: siteDescription },
+    writer,
+    runtime: Boolean(env.runtimeCorpora),
+    tokenizer: env.corpusTokenizer,
+    i18n: env.i18n,
+    diagnostics: buildDiagnostics,
+  });
+  if (corpus.artifacts.length > 0) {
+    logger.info(
+      env.runtimeCorpora
+        ? 'astro-aeo: request-time middleware owns the configured corpus paths'
+        : `astro-aeo: planned ${corpus.artifacts.length} corpus artifact(s)`,
+    );
   }
 
   emitDomainProfile(dir, config, env.siteUrl, writer);
@@ -565,16 +731,268 @@ export async function onBuildDone(config, options, env) {
     }
   }
 
-  // Persist the collection attempt even if a later integration prevents the
-  // finalizer from running. Ownership resolution refreshes this same sanitized
-  // manifest with its complete findings before applying the threshold.
-  writeDiagnosticsManifest(env.projectRoot, pages, env.diagnostics ?? []);
+  // Computed here, not next to the catalog load, because most page drops happen after
+  // that point: the descriptor filter above, a plugin that failed rather than isolating
+  // on purpose, and an unreadable built HTML file. `env.diagnostics` is one array for the
+  // whole hook, so every one of those pushes is visible by now.
+  const incompleteInventoryCodes = new Set([
+    // Catalog preflight and load.
+    'catalog-load-failed',
+    'catalog-missing-list-pages',
+    'catalog-unsupported-module-format',
+    // Descriptors this build refused after the catalog produced them.
+    'catalog-owned-artifact-excluded',
+    'catalog-unconfigured-origin',
+    // A page whose built HTML could not be read. Still live, just unseen.
+    'page-html-unreadable',
+    // A plugin failed. An explicit `plugin-scope-isolated` is a deliberate choice and
+    // is excluded, as are the page-model skip reasons, which are user intent.
+    ...PLUGIN_PAGE_LOSS_CODES,
+  ]);
+  const inventoryComplete = loadedCatalogs.inventoryComplete &&
+    !buildDiagnostics.some((diagnostic) => incompleteInventoryCodes.has(diagnostic.code));
+
+  if (config.discovery.indexNow.enabled && indexNowPrivate) {
+    stageIndexNowBuild({
+      config,
+      env,
+      pages,
+      semanticPages,
+      writer,
+      privateState: indexNowPrivate,
+      processingReadOnly: processingCache.readOnly,
+      inventoryComplete,
+      diagnostics: buildDiagnostics,
+    });
+  }
 
   if (env.pluginDispatcher) {
     await runBuildComplete(env.pluginDispatcher, pages, env.diagnostics ?? []);
   }
 
+  processingCache.stage(/** @type {any} */ (writer));
+  // Keep diagnostics observable for integrations and test harnesses that call
+  // only the primary build hook. The late finalizer writes the same sanitized
+  // payload again inside the artifact transaction for normal Astro builds.
+  writeDiagnosticsManifest(env.projectRoot, pages, env.diagnostics ?? []);
+  logger.info(
+    `astro-aeo: processing cache ${processingCache.stats.hits} hit(s), ` +
+      `${processingCache.stats.misses} miss(es), ${Date.now() - buildStarted}ms collection time`,
+  );
+
   return writer;
+}
+
+/**
+ * Stage IndexNow public and private state without resolving a secret or sending
+ * a request. Every byte joins the same deferred transaction as build artifacts.
+ * @param {{
+ *   config: import('../index.js').ResolvedAstroAeoConfig;
+ *   env: BuildEnv;
+ *   pages: import('../core/page-model.js').AeoPageRecord[];
+ *   semanticPages: { page: import('../index.js').AeoPageRecord; graph: import('../schema.js').AeoGraph }[];
+ *   writer: ReturnType<typeof createArtifactWriter>;
+ *   privateState: ReturnType<typeof readIndexNowPrivateState>;
+ *   processingReadOnly: boolean;
+ *   inventoryComplete: boolean;
+ *   diagnostics: import('../index.js').Diagnostic[];
+ * }} options
+ */
+function stageIndexNowBuild(options) {
+  const { config, env, writer, privateState, processingReadOnly, inventoryComplete, diagnostics } = options;
+  let primaryOrigin;
+  try { primaryOrigin = normalizeIndexNowOrigin(env.siteUrl); }
+  catch {
+    diagnostics.push({
+      version: 1,
+      code: 'indexnow-site-required',
+      severity: 'error',
+      message: 'IndexNow requires Astro site to be a public HTTPS origin.',
+    });
+    return;
+  }
+
+  // An incomplete inventory withholds removals inside the diff itself, so additions
+  // still reach the queue. read-only is now reserved for state this build cannot write
+  // at all: a locked or invalid private ledger, or a read-only processing cache.
+  const stateUnavailable = processingReadOnly || privateState.readOnly;
+  const readOnly = stateUnavailable;
+  /** @type {import('../build/indexnow-state.js').IndexNowAcknowledgmentV1} */
+  const priorAck = stateUnavailable ? { version: 1, origins: [] } : privateState.acknowledgment;
+  /** @type {import('../build/indexnow-state.js').IndexNowQueueV1} */
+  const priorQueue = stateUnavailable ? { version: 1, origins: [] } : privateState.queue;
+  const stateMode = config.discovery.indexNow.state;
+  const configuredOrigins = new Set([primaryOrigin]);
+  if (stateMode !== 'public') {
+    for (const value of env.i18n?.origins ?? []) {
+      try { configuredOrigins.add(normalizeIndexNowOrigin(value)); } catch {}
+    }
+    for (const value of config.discovery.indexNow.origins) configuredOrigins.add(value.origin);
+  }
+  const eligiblePages = stateMode === 'public'
+    ? options.pages.filter((page) => {
+        try { return new URL(page.canonicalUrl ?? page.url).origin === primaryOrigin; }
+        catch { return true; }
+      })
+    : options.pages;
+  const semanticGraphs = new Map(options.semanticPages.map((entry) => [
+    `${entry.page.origin ?? primaryOrigin}\u0000${entry.page.id}`,
+    entry.graph,
+  ]));
+  const acknowledged = priorAck.origins
+    .filter((item) => configuredOrigins.has(item.origin))
+    .flatMap((item) => item.acknowledged);
+  const fingerprints = collectIndexNowFingerprints(eligiblePages, {
+    acknowledged,
+    origins: configuredOrigins,
+    graphFor(page) {
+      return semanticGraphs.get(`${page.origin ?? primaryOrigin}\u0000${page.id}`) ?? null;
+    },
+  });
+  diagnostics.push(...fingerprints.diagnostics);
+
+  const originOverrides = config.discovery.indexNow.origins
+    .filter((item) => stateMode !== 'public' || item.origin === primaryOrigin)
+    .map((item) => ({ ...item }));
+  if (!originOverrides.some((item) => item.origin === primaryOrigin)) {
+    originOverrides.push({ origin: primaryOrigin });
+  }
+  const input = {
+    version: /** @type {const} */ (1),
+    projectRoot: env.projectRoot,
+    mode: stateMode,
+    submit: config.discovery.indexNow.submit,
+    strict: config.discovery.indexNow.strict,
+    base: env.base,
+    statePathname: indexNowStatePathname(env.base),
+    key: config.discovery.indexNow.key,
+    ...(config.discovery.indexNow.keyLocation
+      ? { keyLocation: config.discovery.indexNow.keyLocation }
+      : {}),
+    origins: originOverrides,
+    current: fingerprints.current,
+    inventoryComplete,
+  };
+  const prepared = prepareIndexNowQueue(input, {
+    acknowledgment: {
+      version: 1,
+      origins: priorAck.origins.filter((item) => configuredOrigins.has(item.origin)),
+    },
+    priorQueue: {
+      version: 1,
+      origins: priorQueue.origins.filter((item) => configuredOrigins.has(item.origin)),
+    },
+  });
+  for (const warning of prepared.warnings) diagnostics.push({
+    version: 1,
+    code: 'indexnow-state-mode-adjusted',
+    severity: 'warning',
+    message: warning,
+  });
+
+  if (!inventoryComplete) {
+    diagnostics.push({
+      version: 1,
+      code: 'indexnow-inventory-incomplete',
+      severity: 'warning',
+      message: 'This build could not see every page, so IndexNow withheld removals. New and changed pages were queued normally.',
+    });
+  }
+
+  // A read-only build must not publish a state manifest either. Its digest would
+  // advance while the pending queue kept the previous target, and `indexnow submit`
+  // rejects that mismatch for the whole origin.
+  if (readOnly) {
+    diagnostics.push({
+      version: 1,
+      code: 'indexnow-state-read-only',
+      severity: 'warning',
+      message: 'IndexNow state was not advanced because reusable build state is locked or invalid.',
+    });
+    return;
+  }
+
+  let publicAccepted = true;
+  if (stateMode === 'public') {
+    const manifest = prepared.manifests.find((item) => item.origin === primaryOrigin);
+    if (!manifest) {
+      diagnostics.push({
+        version: 1,
+        code: 'indexnow-state-unavailable',
+        severity: 'error',
+        message: 'IndexNow could not create a host-local public state manifest.',
+      });
+      return;
+    }
+    writer.write({
+      route: INDEXNOW_PUBLIC_PATH,
+      owner: { kind: 'core', name: 'indexNowState' },
+      representation: {
+        body: serializeIndexNowStateManifest(manifest),
+        contentType: 'application/json; charset=utf-8',
+      },
+    });
+    const deployedPath = indexNowStatePathname(env.base);
+    const preview = /** @type {any} */ (writer).preview?.();
+    publicAccepted = Boolean(preview?.manifestEntries?.some((/** @type {any} */ entry) =>
+      entry.pathname === deployedPath && entry.status === 'emitted'
+    ));
+    if (!publicAccepted) {
+      diagnostics.push({
+        version: 1,
+        code: 'indexnow-state-unavailable',
+        severity: 'error',
+        message: 'The public IndexNow state path is owned by the project or another artifact; notification state was not advanced.',
+        pathname: deployedPath,
+      });
+    }
+  }
+
+  if (!publicAccepted) return;
+
+  try { ensureIndexNowPrivateDirectory(env.projectRoot); }
+  catch {
+    diagnostics.push({
+      version: 1,
+      code: 'indexnow-state-unavailable',
+      severity: 'error',
+      message: 'The private IndexNow state directory could not be prepared safely.',
+    });
+    return;
+  }
+  const targets = new Map(prepared.manifests.map((item) => [item.origin, item.digest]));
+  const stagedInput = {
+    ...input,
+    origins: input.origins.map((item) => ({
+      ...item,
+      ...(targets.get(item.origin) ? { targetDigest: targets.get(item.origin) } : {}),
+    })),
+  };
+  const deferred = /** @type {any} */ (writer);
+  deferred.stagePrivateWrite(
+    privateState.paths.prepareInput,
+    serializeIndexNowPrepareInput(stagedInput),
+    { mode: 0o600, confineTo: env.projectRoot },
+  );
+  deferred.stagePrivateWrite(
+    privateState.paths.pending,
+    serializeIndexNowQueue(prepared.queue),
+    { mode: 0o600, confineTo: env.projectRoot },
+  );
+  deferred.stagePrivateWrite(
+    privateState.paths.acknowledgment,
+    serializeIndexNowAcknowledgment(prepared.acknowledgment),
+    { mode: 0o600, confineTo: env.projectRoot },
+  );
+}
+
+/** @param {string} value */
+function normalizeIndexNowOrigin(value) {
+  const url = new URL(value);
+  if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash || url.port) {
+    throw new TypeError('unsafe origin');
+  }
+  return url.origin;
 }
 
 /**

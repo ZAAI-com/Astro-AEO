@@ -14,6 +14,7 @@ const PORT = 4462;
 // The adapter binds `localhost`, which can resolve to ::1 while the server listens
 // on IPv4. HOST pins it, and the tests use the same literal.
 const BASE = `http://127.0.0.1:${PORT}`;
+const SITE_HOST = 'ssr.example.com';
 
 const astroPkg = JSON.parse(readFileSync(join(REPO, 'node_modules/astro/package.json'), 'utf8'));
 const astroBin = join(REPO, 'node_modules/astro', typeof astroPkg.bin === 'string' ? astroPkg.bin : astroPkg.bin.astro);
@@ -47,6 +48,11 @@ function rawRequest(path, headers) {
     request.on('error', reject);
     request.end();
   });
+}
+
+/** Origin-scoped corpus artifacts require the configured public Host in production. */
+function siteRequest(path, headers = {}) {
+  return rawRequest(path, { host: SITE_HOST, ...headers });
 }
 
 beforeAll(async () => {
@@ -306,9 +312,9 @@ describe('response contract', () => {
   });
 
   test('runtime catalogs contribute exact source and cannot recurse through owned artifacts', async () => {
-    const response = await fetch(`${BASE}/llms-full.txt`);
+    const response = await siteRequest('/llms-full.txt');
     expect(response.status).toBe(200);
-    const body = await response.text();
+    const body = response.body;
     expect(body).toContain('# Catalog Dynamic');
     expect(body).toContain('Exact catalog source.');
     expect(body).toContain('# Catalog Secondary');
@@ -333,8 +339,14 @@ describe('response contract', () => {
       const address = trap.address();
       expect(address && typeof address === 'object').toBe(true);
       const forgedHost = `127.0.0.1:${address.port}`;
-      const corpus = await rawRequest('/llms-full.txt', {
+      // Production must not treat a forged loopback Host as the configured site.
+      const rejected = await rawRequest('/llms-full.txt', {
         host: forgedHost,
+        authorization: 'Bearer caller-secret',
+      });
+      expect(rejected.status).toBe(404);
+
+      const corpus = await siteRequest('/llms-full.txt', {
         accept: 'text/markdown',
         'accept-encoding': 'gzip',
         authorization: 'Bearer caller-secret',

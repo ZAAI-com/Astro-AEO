@@ -1,7 +1,7 @@
 // @ts-check
 import { fileURLToPath } from 'node:url';
-import { isAbsolute, resolve } from 'node:path';
-import { readdirSync } from 'node:fs';
+import { isAbsolute, relative, resolve } from 'node:path';
+import { lstatSync, readFileSync, readdirSync } from 'node:fs';
 import sitemap from '@astrojs/sitemap';
 import { resolveConfig } from './config.js';
 import {
@@ -28,6 +28,19 @@ import { createPluginDispatcher } from './plugins/dispatcher.js';
 import { runtimePluginModules } from './plugins/runtime-modules.js';
 import { createSemanticPlugin } from './semantic/plugin.js';
 import { exactPathnameIdentity } from './core/artifact-path.js';
+import { absoluteUrl } from './core/page-model.js';
+import { chunkTopology } from './core/corpus-artifacts.js';
+import { createLocaleSnapshot } from './core/locale.js';
+import {
+  preloadCorpusTokenizer,
+  runtimeCorpusTokenizerModule,
+} from './build/corpus-tokenizer.js';
+import {
+  INDEXNOW_PREPARE_PROVIDER,
+  indexNowPaths,
+  indexNowStatePathname,
+} from './build/indexnow.js';
+import { parseIndexNowPrepareInput } from './build/indexnow-state.js';
 
 const FALLBACK_ENTRYPOINT = fileURLToPath(new URL('./runtime/fallback.js', import.meta.url));
 
@@ -45,10 +58,14 @@ export default function aeo(userConfig = {}) {
   /** @type {'directory'|'file'} */
   let buildFormat = 'directory';
   let projectRoot = '';
+  let pagesDir = '';
+  let localeSnapshot = createLocaleSnapshot(undefined);
   /** @type {URL | undefined} */
   let publicDir;
   /** @type {'dev'|'build'|'preview'} */
   let command = 'build';
+  /** @type {'dev'|'build'|'preview'|'sync'} */
+  let astroLifecycleCommand = 'build';
   const sitemapState = {
     expected: false,
     siteUrl: '',
@@ -71,16 +88,31 @@ export default function aeo(userConfig = {}) {
   let serverOutput = false;
   let adapterFallbacks = false;
   let hasOnDemandProjectPage = false;
+  let hasDynamicProjectPage = false;
+  let hasOnDemandDynamicProjectPage = false;
+  let hasPrerenderedCustom404 = false;
+  let developmentDynamicWarningEmitted = false;
+  let initialDynamicRoutesCaptured = false;
+  /** @type {{ entrypoint: string; pattern: string; params: string[]; segments: Array<Array<{ content: string; dynamic: boolean; spread: boolean }>> }[]} */
+  let initialDynamicRoutes = [];
   /** @type {import('./index.js').Diagnostic[]} */
   const buildDiagnostics = [];
   /** @type {import('./index.js').Diagnostic[]} */
   const catalogDiagnostics = [];
   /** @type {import('./index.js').Diagnostic[]} */
   const rendererDiagnostics = [];
+  /** Live diagnostics bag passed to the artifact writer and sitemap finalizer. */
+  /** @type {import('./index.js').Diagnostic[]} */
+  let activeDiagnostics = [];
+  /** Absolute canonical URLs accepted by sitemap validation for runtime pages. */
+  /** @type {Set<string>} */
+  const runtimeCanonicalUrls = new Set();
   /** @type {{ module: string; specifier: string; namespace: any }[]} */
   let catalogModules = [];
   /** @type {import('./build/markdown-renderers.js').LoadedMarkdownRenderer[]} */
   let markdownRenderers = [];
+  /** @type {import('./build/corpus-tokenizer.js').LoadedCorpusTokenizer | undefined} */
+  let corpusTokenizer;
   /** @type {{ warn: (message: string) => void } | undefined} */
   let integrationLogger;
   /** @type {ReturnType<typeof createArtifactWriter> | undefined} */
@@ -99,8 +131,17 @@ export default function aeo(userConfig = {}) {
     return {
       command,
       config: runtimeConfigProjection(config),
-      site: { siteUrl, base, trailingSlash, buildFormat },
+      site: { siteUrl, base, trailingSlash, buildFormat, i18n: localeSnapshot },
       sitemapAvailable,
+      // The build wrote real corpus bytes, so a live render would be a second and
+      // worse answer. Astro exposes injectRoute only in config:setup and has no
+      // removeRoute, so the fallback routes cannot be withdrawn once the project
+      // turns out to be fully prerendered. The runtime declines instead.
+      buildOwnsCorpora: command !== 'dev' && !hasOnDemandProjectPage,
+      // A dynamic route has no concrete pathname, so it never reaches staticPaths
+      // and a live corpus would silently omit its getStaticPaths() results. Without
+      // one, both answers agree and declining would only cost a working response.
+      dynamicPagesUnreachable: hasDynamicProjectPage,
       staticPaths: [...runtimePagePaths],
       projectPaths: [...new Set([...runtimeProjectPaths, ...runtimePublicPaths])],
       projectPatterns: runtimeProjectPatterns,
@@ -109,12 +150,53 @@ export default function aeo(userConfig = {}) {
     };
   }
 
-  return {
+  /** @returns {import('./virtual/plugin.js').DynamicRouteModuleConfig | null} */
+  function dynamicRouteModuleConfig() {
+    if (
+      astroLifecycleCommand !== 'dev' ||
+      !config ||
+      config.pages.devDynamicDiscovery === false
+    ) {
+      return null;
+    }
+    if (config.pages.devDynamicDiscovery === 'hot') {
+      const relativePagesDir = projectRoot && pagesDir ? relative(projectRoot, pagesDir) : '..';
+      const safeRelative = relativePagesDir &&
+        !isAbsolute(relativePagesDir) &&
+        relativePagesDir !== '..' &&
+        !/^\.\.(?:[\\/]|$)/.test(relativePagesDir);
+      return {
+        mode: 'hot',
+        routes: [],
+        projectRoot,
+        // Hot discovery owns this warning: only the loader sees routes that appear
+        // after the last astro:routes:resolved, and a single owner keeps the
+        // message from being emitted twice when the two orders interleave.
+        warnOnDemand: config.pages.catalogs.length === 0,
+        ...(safeRelative
+          ? { pagesGlob: `/${escapeViteGlobPath(relativePagesDir)}/**/*` }
+          : {}),
+      };
+    }
+    return {
+      mode: 'startup',
+      routes: initialDynamicRoutes.map((route) => ({
+        ...route,
+        specifier: resolveRouteEntrypoint(route.entrypoint, projectRoot),
+      })),
+    };
+  }
+
+  const integration = {
     name: 'astro-aeo',
     hooks: {
       'astro:config:setup': async ({ config: astroConfig, command: astroCommand, addMiddleware, injectRoute, updateConfig, logger }) => {
         config = resolveConfig(userConfig, logger);
         integrationLogger = logger;
+        astroLifecycleCommand = astroCommand;
+        developmentDynamicWarningEmitted = false;
+        initialDynamicRoutesCaptured = false;
+        initialDynamicRoutes = [];
         if (astroConfig.root) projectRoot = fileURLToPath(astroConfig.root);
         const nonSerializable = findNonSerializable(runtimeConfigProjection(config));
         if (nonSerializable.length > 0) logger.warn(nonSerializableWarning(nonSerializable));
@@ -151,8 +233,14 @@ export default function aeo(userConfig = {}) {
           sitemapFinalizerIntegration(
             config,
             sitemapState,
-            () => ({ routePaths: resolvedRoutePaths, routeMatchers: resolvedRouteMatchers, publicDir }),
+            () => ({
+              routePaths: resolvedRoutePaths,
+              routeMatchers: resolvedRouteMatchers,
+              publicDir,
+              runtimeUrls: runtimeCanonicalUrls,
+            }),
             () => artifactWriter,
+            (diagnostic) => activeDiagnostics.push(diagnostic),
           ),
         );
         updateConfig({
@@ -168,6 +256,8 @@ export default function aeo(userConfig = {}) {
                   pluginDispatcher?.runtimeManifest ?? { version: 1, plugins: [] },
                   projectRoot,
                 ),
+                () => runtimeCorpusTokenizerModule(corpusTokenizer),
+                dynamicRouteModuleConfig,
               ),
             ],
           },
@@ -182,8 +272,12 @@ export default function aeo(userConfig = {}) {
         base = astroConfig.base && astroConfig.base !== '/' ? astroConfig.base : '';
         trailingSlash = astroConfig.trailingSlash ?? 'ignore';
         buildFormat = astroConfig.build?.format === 'file' ? 'file' : 'directory';
+        localeSnapshot = createLocaleSnapshot(astroConfig.i18n, siteUrl);
         serverOutput = buildOutput === 'server' || astroConfig.output === 'server' || adapterFallbacks;
         projectRoot = fileURLToPath(astroConfig.root);
+        pagesDir = astroConfig.srcDir
+          ? fileURLToPath(new URL('pages/', astroConfig.srcDir))
+          : resolve(projectRoot, 'src/pages');
         publicDir = astroConfig.publicDir;
         runtimePublicPaths.clear();
         if (publicDir) {
@@ -201,6 +295,12 @@ export default function aeo(userConfig = {}) {
         rendererDiagnostics.length = 0;
         markdownRenderers = await preloadMarkdownRenderers(
           config.markdown.renderers ?? [],
+          projectRoot,
+          logger,
+          rendererDiagnostics,
+        );
+        corpusTokenizer = await preloadCorpusTokenizer(
+          config.corpus.tokenizer,
           projectRoot,
           logger,
           rendererDiagnostics,
@@ -240,10 +340,15 @@ export default function aeo(userConfig = {}) {
         runtimeProjectPatterns.length = 0;
         runtimePagePaths.clear();
         hasOnDemandProjectPage = false;
+        hasDynamicProjectPage = false;
+        hasOnDemandDynamicProjectPage = false;
+        hasPrerenderedCustom404 = false;
         artifactWriter = undefined;
         buildDiagnostics.length = 0;
-        let hasUncatalogedDynamicPage = false;
-        let hasPrerenderedCustom404 = false;
+        activeDiagnostics = [];
+        runtimeCanonicalUrls.clear();
+        /** @type {typeof initialDynamicRoutes} */
+        const currentDynamicRoutes = [];
         for (const route of routes) {
           const pathname = /** @type {string | undefined} */ (route.pathname);
           const normalizedPathname = pathname ? normalize(pathname) : undefined;
@@ -300,8 +405,30 @@ export default function aeo(userConfig = {}) {
           if (projectRoute && type === 'page' && prerendered === false) {
             hasOnDemandProjectPage = true;
           }
-          if (projectRoute && !pathname && type !== 'endpoint' && type !== 'redirect') {
-            hasUncatalogedDynamicPage = true;
+          const dynamicProjectPage = projectRoute && type === 'page' && pathname == null;
+          if (dynamicProjectPage) {
+            hasDynamicProjectPage = true;
+            if (prerendered === false) hasOnDemandDynamicProjectPage = true;
+            if (
+              prerendered === true &&
+              typeof entrypoint === 'string' &&
+              typeof routePattern === 'string' &&
+              Array.isArray(route.params) &&
+              Array.isArray(route.segments)
+            ) {
+              currentDynamicRoutes.push({
+                entrypoint,
+                pattern: routePattern,
+                params: route.params.filter((value) => typeof value === 'string'),
+                segments: route.segments.map((segment) => Array.isArray(segment)
+                  ? segment.map((part) => ({
+                    content: typeof part?.content === 'string' ? part.content : '',
+                    dynamic: part?.dynamic === true,
+                    spread: part?.spread === true,
+                  }))
+                  : []),
+              });
+            }
           }
           if (projectRoute && normalizedPathname === '/404' && prerendered === true) {
             hasPrerenderedCustom404 = true;
@@ -312,32 +439,26 @@ export default function aeo(userConfig = {}) {
           serverOutput,
           hasOnDemandPage: hasOnDemandProjectPage,
         });
-        if (hasUncatalogedDynamicPage && config.pages.catalogs.length === 0) {
-          const diagnostic = {
-            version: /** @type {const} */ (1),
-            code: 'dynamic-routes-unindexed',
-            severity: /** @type {const} */ ('warning'),
-            message:
-              'Dynamic page routes cannot be enumerated for corpus indexes without pages.catalogs.',
-          };
-          buildDiagnostics.push(diagnostic);
-          integrationLogger?.warn(
-            'astro-aeo: dynamic page routes are not included in llms.txt because no pages.catalogs module is configured.',
-          );
+        if (astroLifecycleCommand === 'dev' && !initialDynamicRoutesCaptured) {
+          initialDynamicRoutes = currentDynamicRoutes;
+          initialDynamicRoutesCaptured = true;
         }
-        if (hasPrerenderedCustom404 && config.markdown.negotiation !== 'off') {
-          const diagnostic = {
-            version: /** @type {const} */ (1),
-            code: 'prerendered-custom-404-negotiation',
-            severity: /** @type {const} */ ('warning'),
-            pathname: '/404',
-            message:
-              'A prerendered custom 404 cannot inspect Accept headers; direct .md requests remain available.',
-          };
-          buildDiagnostics.push(diagnostic);
-          integrationLogger?.warn(
-            'astro-aeo: the custom /404 route is prerendered and cannot negotiate Markdown. Keep direct .md companions, or render the 404 on demand.',
-          );
+        if (
+          astroLifecycleCommand === 'dev' &&
+          !developmentDynamicWarningEmitted &&
+          config.pages.catalogs.length === 0
+        ) {
+          if (hasOnDemandDynamicProjectPage && config.pages.devDynamicDiscovery !== 'hot') {
+            developmentDynamicWarningEmitted = true;
+            integrationLogger?.warn(
+              'astro-aeo: on-demand dynamic page routes require pages.catalogs for development corpus enumeration.',
+            );
+          } else if (config.pages.devDynamicDiscovery === false && hasDynamicProjectPage) {
+            developmentDynamicWarningEmitted = true;
+            integrationLogger?.warn(
+              'astro-aeo: the development corpus is incomplete because pages.devDynamicDiscovery is false and no pages.catalogs module is configured.',
+            );
+          }
         }
       },
 
@@ -346,11 +467,69 @@ export default function aeo(userConfig = {}) {
         // these hooks in the opposite order. Merge here, after catalog preflight
         // is guaranteed to have completed, and keep the route array catalog-free
         // so the newer hook order cannot add the same diagnostics twice.
+
+        // An on-demand page route is the only thing that puts pages outside the
+        // build's reach. Adapter presence is not evidence: injectRuntimeFallbackRoutes
+        // marks its own routes `prerender: false`, which promotes this build to server
+        // output, so reading `buildOutput` back would be self-fulfilling.
+        const corpusOwnedByRuntime = hasOnDemandProjectPage;
+        /** @type {import('./index.js').Diagnostic[]} */
+        const routeDiagnostics = [];
+        if (
+          corpusOwnedByRuntime &&
+          hasDynamicProjectPage &&
+          config.pages.catalogs.length === 0
+        ) {
+          routeDiagnostics.push({
+            version: 1,
+            code: 'dynamic-routes-unindexed',
+            severity: 'warning',
+            message:
+              'Request-time middleware owns the corpus for this build, so dynamic page routes cannot be enumerated without a pages.catalogs module.',
+          });
+          integrationLogger?.warn(
+            'astro-aeo: this build renders a page on demand, so request-time middleware owns the corpus. Dynamic page routes need pages.catalogs to appear in llms.txt and llms-full.txt.',
+          );
+        }
+        if (hasPrerenderedCustom404 && config.markdown.negotiation !== 'off') {
+          routeDiagnostics.push({
+            version: 1,
+            code: 'prerendered-custom-404-negotiation',
+            severity: 'warning',
+            pathname: '/404',
+            message:
+              'A prerendered custom 404 cannot inspect Accept headers; direct .md requests remain available.',
+          });
+          integrationLogger?.warn(
+            'astro-aeo: the custom /404 route is prerendered and cannot negotiate Markdown. Keep direct .md companions, or render the 404 on demand.',
+          );
+        }
         const diagnostics = [
           ...catalogDiagnostics,
           ...rendererDiagnostics,
           ...buildDiagnostics,
+          ...routeDiagnostics,
         ];
+        activeDiagnostics = diagnostics;
+        runtimeCanonicalUrls.clear();
+        if (siteUrl) {
+          for (const pathname of runtimePagePaths) {
+            try {
+              runtimeCanonicalUrls.add(absoluteUrl(siteUrl, base, pathname, trailingSlash));
+            } catch {
+              // Skip paths that cannot form a canonical absolute URL.
+            }
+          }
+          for (const page of options.pages ?? []) {
+            const pathname = typeof page?.pathname === 'string' ? page.pathname : null;
+            if (!pathname) continue;
+            try {
+              runtimeCanonicalUrls.add(absoluteUrl(siteUrl, base, pathname, trailingSlash));
+            } catch {
+              // Skip paths that cannot form a canonical absolute URL.
+            }
+          }
+        }
         artifactWriter = await onBuildDone(config, /** @type {any} */ (options), {
           siteUrl,
           base,
@@ -362,14 +541,60 @@ export default function aeo(userConfig = {}) {
           resolvedRouteMatchers,
           publicDir,
           diagnostics,
-          runtimeCorpora: serverOutput || hasOnDemandProjectPage,
+          runtimeCorpora: corpusOwnedByRuntime,
           catalogModules,
           markdownRenderers,
+          corpusTokenizer: corpusTokenizer?.implementation,
           pluginDispatcher,
+          i18n: localeSnapshot,
         });
       },
     },
   };
+  Object.defineProperty(integration, INDEXNOW_PREPARE_PROVIDER, {
+    enumerable: false,
+    value: ({ root, astroConfig }) => {
+      const resolved = resolveConfig(userConfig);
+      if (!resolved.discovery.indexNow.enabled) {
+        throw new Error('astro-aeo: discovery.indexNow.enabled is false in the loaded config');
+      }
+      const path = indexNowPaths(root).prepareInput;
+      const stat = lstatSync(path);
+      if (!stat.isFile() || stat.isSymbolicLink()) {
+        throw new Error('astro-aeo: the cached IndexNow prepare input is not a safe regular file');
+      }
+      const cached = parseIndexNowPrepareInput(JSON.parse(readFileSync(path, 'utf8')));
+      const nextBase = astroConfig?.base && astroConfig.base !== '/' ? astroConfig.base : '';
+      const configured = new Map(resolved.discovery.indexNow.origins.map((item) => [item.origin, item]));
+      const origins = cached.origins.map((item) => {
+        const override = configured.get(item.origin);
+        return {
+          origin: item.origin,
+          ...(override?.key ? { key: override.key } : {}),
+          ...(override?.keyLocation ? { keyLocation: override.keyLocation } : {}),
+          ...(item.targetDigest ? { targetDigest: item.targetDigest } : {}),
+        };
+      });
+      for (const item of resolved.discovery.indexNow.origins) {
+        if (!origins.some((candidate) => candidate.origin === item.origin)) origins.push({ ...item });
+      }
+      return {
+        ...cached,
+        projectRoot: root,
+        mode: resolved.discovery.indexNow.state,
+        submit: resolved.discovery.indexNow.submit,
+        strict: resolved.discovery.indexNow.strict,
+        base: nextBase,
+        statePathname: indexNowStatePathname(nextBase),
+        key: resolved.discovery.indexNow.key,
+        ...(resolved.discovery.indexNow.keyLocation
+          ? { keyLocation: resolved.discovery.indexNow.keyLocation }
+          : { keyLocation: undefined }),
+        origins,
+      };
+    },
+  });
+  return integration;
 }
 
 /**
@@ -399,6 +624,30 @@ function runtimeMarkdownSourceEntries(routeEntrypoints, projectRoot) {
 }
 
 /**
+ * @param {string} entrypoint
+ * @param {string} projectRoot
+ * @returns {string}
+ */
+function resolveRouteEntrypoint(entrypoint, projectRoot) {
+  const cleaned = entrypoint.replace(/[?#].*$/, '');
+  if (cleaned.startsWith('file:')) return fileURLToPath(cleaned);
+  return isAbsolute(cleaned) ? cleaned : resolve(projectRoot, cleaned);
+}
+
+/**
+ * Escape the literal directory portion of a root-relative Vite glob. The
+ * appended globstar remains active so every page extension stays eligible.
+ *
+ * @param {string} value
+ * @returns {string}
+ */
+function escapeViteGlobPath(value) {
+  return value
+    .replaceAll('\\', '/')
+    .replace(/(?<!\\)([()[\]{}*?|]|^!|[!+@](?=\())/g, '\\$&');
+}
+
+/**
  * Give adapters concrete manifest routes that reach pre-middleware before the
  * provider's status-404 fallback. The endpoint itself succeeds at nothing: it
  * returns 404 only after Astro-AEO declines the request.
@@ -415,26 +664,53 @@ function injectRuntimeFallbackRoutes(config, injectRoute, pluginClaims = []) {
     });
   }
 
+  const mode = config.i18n.indexes;
+  const topology = chunkTopology(mode);
   const artifacts = new Set();
   if (config.discovery.robots.enabled) artifacts.add('/robots.txt');
   if (config.site.profile.enabled) artifacts.add('/.well-known/domain-profile.json');
-  if (config.corpus.index.enabled) artifacts.add('/llms.txt');
-  if (config.corpus.full.enabled) artifacts.add('/llms-full.txt');
+  if (config.corpus.index.enabled && mode !== 'locale') artifacts.add('/llms.txt');
+  if (config.corpus.full.enabled && mode !== 'locale') artifacts.add('/llms-full.txt');
+  if (config.corpus.small.enabled && mode !== 'locale') artifacts.add('/llms-small.txt');
+  if (config.corpus.manifest.enabled) artifacts.add('/llms/manifest.json');
   if (config.schema?.corpus.enabled) {
     artifacts.add(config.schema.corpus.graphPath);
     artifacts.add(config.schema.corpus.mapPath);
   }
   for (const claim of pluginClaims) artifacts.add(claim.pathname);
+
+  /** @type {string[]} */
+  const patterns = [];
   for (const pathname of artifacts) {
     // Astro decodes concrete request pathnames before applying its generated
     // route regex. Inject the decoded identity while retaining the canonical
     // encoded spelling everywhere that is public or persisted.
-    const pattern = exactPathnameIdentity(pathname, 'runtime artifact pathname').key
-      // Brackets are Astro's dynamic-route syntax. Its parser recognizes their
-      // encoded spelling as literal brackets while still decoding ordinary URL
-      // bytes before matching the generated regex.
-      .replace(/\[/g, '%5B')
-      .replace(/\]/g, '%5D');
+    patterns.push(
+      exactPathnameIdentity(pathname, 'runtime artifact pathname').key
+        // Brackets are Astro's dynamic-route syntax. Its parser recognizes their
+        // encoded spelling as literal brackets while still decoding ordinary URL
+        // bytes before matching the generated regex.
+        .replace(/\[/g, '%5B')
+        .replace(/\]/g, '%5D'),
+    );
+  }
+
+  if (mode === 'locale' || mode === 'both' || mode === 'auto') {
+    if (config.corpus.index.enabled) patterns.push('/[astroAeoLocale]/llms.txt');
+    if (config.corpus.full.enabled) patterns.push('/[astroAeoLocale]/llms-full.txt');
+    if (config.corpus.small.enabled) patterns.push('/[astroAeoLocale]/llms-small.txt');
+  }
+  if (config.corpus.chunks.enabled) {
+    if (topology.root) patterns.push('/llms/[astroAeoChunk].txt');
+    if (topology.locale) patterns.push('/[astroAeoLocale]/llms/[astroAeoChunk].txt');
+  }
+  if (mode === 'both') {
+    if (config.corpus.index.enabled) patterns.push('/llms-[astroAeoAlias].txt');
+    if (config.corpus.full.enabled) patterns.push('/llms-full-[astroAeoAlias].txt');
+    if (config.corpus.small.enabled) patterns.push('/llms-small-[astroAeoAlias].txt');
+  }
+
+  for (const pattern of patterns) {
     injectRoute({ pattern, entrypoint: FALLBACK_ENTRYPOINT, prerender: false });
   }
 }
@@ -491,11 +767,12 @@ function isRuntimeFallbackEntrypoint(entrypoint, projectRoot) {
 /**
  * @param {ReturnType<typeof resolveConfig>} config
  * @param {{ expected: boolean; siteUrl: string; base: string }} state
- * @param {() => { routePaths: Set<string>; routeMatchers: { pattern: RegExp; prerendered: boolean }[]; publicDir: URL | undefined }} collisionInputs
+ * @param {() => { routePaths: Set<string>; routeMatchers: { pattern: RegExp; prerendered: boolean }[]; publicDir: URL | undefined; runtimeUrls?: Iterable<string> }} collisionInputs
  * @param {() => ReturnType<typeof createArtifactWriter> | undefined} retainedWriter
+ * @param {(diagnostic: import('./index.js').Diagnostic) => void} [onDiagnostic]
  * @returns {import('astro').AstroIntegration}
  */
-function sitemapFinalizerIntegration(config, state, collisionInputs, retainedWriter) {
+function sitemapFinalizerIntegration(config, state, collisionInputs, retainedWriter, onDiagnostic) {
   return {
     name: 'astro-aeo/sitemap-finalizer',
     hooks: {
@@ -517,6 +794,7 @@ function sitemapFinalizerIntegration(config, state, collisionInputs, retainedWri
           logger,
           ...inputs,
           writer,
+          onDiagnostic,
         });
         writer.report();
       },

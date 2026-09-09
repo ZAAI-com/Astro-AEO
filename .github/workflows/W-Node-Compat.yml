@@ -22,8 +22,12 @@ jobs:
           - astro: 6.3.0
             adapter: 10.1.0
             node: 22.13.1
+          # Pin the one-argument FetchState boundary that 7.2 introduced.
           - astro: 7.2.0
             adapter: 11.1.0
+            node: 24
+          - astro: 7.3.1
+            adapter: 11.1.5
             node: 24
     steps:
       - uses: actions/checkout@v7

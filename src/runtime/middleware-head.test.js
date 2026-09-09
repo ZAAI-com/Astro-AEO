@@ -18,8 +18,10 @@ vi.mock('./config.js', async () => {
       standaloneSources: {},
     },
     RUNTIME_CATALOG_LOADERS: [],
+    RUNTIME_DYNAMIC_ROUTE_SOURCE: null,
     RUNTIME_MARKDOWN_RENDERER_LOADERS: [],
     RUNTIME_PLUGIN_LOADERS: [],
+    RUNTIME_CORPUS_TOKENIZER_LOADER: undefined,
   };
 });
 
@@ -44,6 +46,15 @@ const contextFor = (pathname = '/page', init = {}) => {
     isPrerendered: false,
     rewrite: vi.fn(),
   };
+};
+
+const guardRequestHeaders = (context) => {
+  Object.defineProperty(context.request, 'headers', {
+    configurable: true,
+    get() {
+      throw new Error('prerendered request headers were accessed');
+    },
+  });
 };
 
 beforeEach(() => {
@@ -131,6 +142,30 @@ describe('runtime semantic head enrichment', () => {
     expect(body).not.toContain('data-astro-aeo-graph');
   });
 
+  test('redacts prerendered head markers without inspecting conditional headers', async () => {
+    RUNTIME.config = resolveConfig({
+      markdown: { enabled: false, alternateLink: 'never' },
+      pages: { include: ['/other'] },
+      schema: { autoInject: false },
+    });
+    const marker = headMarker({ title: 'Must not leak' });
+    const source = html(marker);
+    const redacted = html();
+    const context = contextFor('/page', {
+      headers: { 'if-none-match': await etagFor(redacted) },
+    });
+    context.isPrerendered = true;
+    guardRequestHeaders(context);
+
+    const response = await onRequest(context, async () => new Response(source, {
+      headers: { 'content-type': 'text/html', etag: '"stale"' },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('etag')).toBe(await etagFor(redacted));
+    expect(await response.text()).toBe(redacted);
+  });
+
   test('rehashes transformed bodies for conditional GET and bodyless HEAD', async () => {
     const render = () => new Response(html(), {
       headers: { 'content-type': 'text/html', 'x-application': 'preserved' },
@@ -155,6 +190,35 @@ describe('runtime semantic head enrichment', () => {
     expect(head.headers.get('x-application')).toBe('preserved');
     expect(head.headers.get('etag')).toBe(etag);
     expect(await head.text()).toBe('');
+  });
+
+  test('rewrites prerendered HEAD without cloning request headers', async () => {
+    const render = () => new Response(html(), {
+      headers: { 'content-type': 'text/html', 'x-application': 'preserved' },
+    });
+    const context = contextFor('/page', {
+      method: 'HEAD',
+      headers: { authorization: 'Bearer private', 'if-none-match': '"stale"' },
+    });
+    context.isPrerendered = true;
+    let rewrittenRequest;
+    context.rewrite.mockImplementation(async (target) => {
+      rewrittenRequest = target;
+      return render();
+    });
+    guardRequestHeaders(context);
+
+    const response = await onRequest(context, async () => new Response(null, {
+      headers: { 'content-type': 'text/html', 'x-application': 'preserved' },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(rewrittenRequest.headers.get('accept')).toBe('text/html, application/xhtml+xml');
+    expect(rewrittenRequest.headers.get('authorization')).toBeNull();
+    expect(rewrittenRequest.headers.get('if-none-match')).toBeNull();
+    expect(response.headers.get('x-application')).toBe('preserved');
+    expect(response.headers.get('etag')).toMatch(/^"[a-f0-9]{64}"$/);
+    expect(await response.text()).toBe('');
   });
 
   test('redacts transport markers from non-GET HTML without changing application status', async () => {
