@@ -4,6 +4,7 @@ import {
   renderGroupedLlmsFullTxt,
   renderGroupedLlmsTxt,
   renderLanguageDirectory,
+  renderSectionedCorpus,
 } from './corpus.js';
 
 const siteMeta = { name: 'Site', description: 'A site.' };
@@ -51,5 +52,29 @@ describe('locale corpus render helpers', () => {
     expect(out).toContain('## en');
     expect(out).toContain('## fr');
     expect(out).toContain('URL: https://example.com/guide');
+  });
+
+  test('places the dev-preview note after the H1 and blockquote, byte for byte', () => {
+    const note = '<!-- dev preview -->';
+    const expectedHead = ['# Site', '', '> A site.', '', note, ''];
+    expect(renderLanguageDirectory(siteMeta, [
+      { language: 'en', href: '/en/llms.txt' },
+    ], { note })).toBe([...expectedHead, '## Languages', '', '- [en](/en/llms.txt)', ''].join('\n'));
+
+    const config = resolveConfig();
+    const grouped = [{ language: 'en', pages: [page('/', 'Home')] }];
+    const head = expectedHead.join('\n');
+    expect(renderGroupedLlmsTxt(grouped, config, siteMeta, { note }).startsWith(`${head}\n## en\n`)).toBe(true);
+    expect(renderGroupedLlmsFullTxt(grouped, config, siteMeta, { note }).startsWith(`${head}\n## en\n`)).toBe(true);
+
+    const sectioned = renderSectionedCorpus({
+      siteMeta,
+      note,
+      locales: [{
+        language: 'en',
+        sections: [{ title: 'Home', selections: [{ page: page('/', 'Home'), blocks: ['Home body.'], includeDescription: true }] }],
+      }],
+    });
+    expect(sectioned.startsWith(`${head}\n## Home\n`)).toBe(true);
   });
 });

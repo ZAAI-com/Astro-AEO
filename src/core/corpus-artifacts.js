@@ -166,7 +166,7 @@ export async function planCorpusArtifacts(input) {
         const grouped = locales.map((locale) => ({ language: locale.language ?? 'und', pages: locale.pages }));
         if (input.config.corpus.index.enabled) {
           await addText('/llms.txt', 'index', null, null, null,
-            renderGroupedLlmsTxt(grouped, input.config, input.siteMeta));
+            renderGroupedLlmsTxt(grouped, input.config, input.siteMeta, { note: input.note }));
         }
         if (input.config.corpus.full.enabled) {
           await addText(
@@ -175,7 +175,7 @@ export async function planCorpusArtifacts(input) {
             null,
             null,
             null,
-            renderGroupedLlmsFullTxt(grouped, input.config, input.siteMeta),
+          renderGroupedLlmsFullTxt(grouped, input.config, input.siteMeta, { note: input.note }),
             null,
             grouped.flatMap((locale) => selectFullTxtPages(locale.pages, input.config).map(pageId)),
           );
@@ -188,7 +188,7 @@ export async function planCorpusArtifacts(input) {
           const prefix = `/${encodeURIComponent(/** @type {string} */ (locale.locale))}`;
           if (input.config.corpus.index.enabled) {
             await addText(`${prefix}/llms.txt`, 'index', locale.locale, null, null,
-              renderLlmsTxt(locale.pages, input.config, input.siteMeta));
+              renderLlmsTxt(locale.pages, input.config, input.siteMeta, { note: input.note }));
           }
           if (input.config.corpus.full.enabled) {
             const selected = selectFullTxtPages(locale.pages, input.config);
@@ -198,7 +198,7 @@ export async function planCorpusArtifacts(input) {
               locale.locale,
               null,
               null,
-              renderLlmsFullTxt(locale.pages, input.config, input.siteMeta),
+              renderLlmsFullTxt(locale.pages, input.config, input.siteMeta, { note: input.note }),
               null,
               selected.map(pageId),
             );
@@ -218,6 +218,7 @@ export async function planCorpusArtifacts(input) {
               `/${encodeURIComponent(/** @type {string} */ (locale.locale))}/llms.txt`,
             ),
           })),
+          { note: input.note },
         ));
       }
       if (mode === 'both' && input.config.corpus.full.enabled) {
@@ -228,7 +229,7 @@ export async function planCorpusArtifacts(input) {
           null,
           null,
           null,
-          renderGroupedLlmsFullTxt(grouped, input.config, input.siteMeta),
+          renderGroupedLlmsFullTxt(grouped, input.config, input.siteMeta, { note: input.note }),
           null,
           grouped.flatMap((locale) => selectFullTxtPages(locale.pages, input.config).map(pageId)),
         );
@@ -244,6 +245,7 @@ export async function planCorpusArtifacts(input) {
               sections: planSections(fullSections(locale.pages, input.config)),
             })),
             groupLanguages: !legacyRoot && locales.length > 1,
+            note: input.note,
             maxTokens: input.config.corpus.small.maxTokens,
             count,
           });
@@ -269,6 +271,7 @@ export async function planCorpusArtifacts(input) {
                 sections: planSections(fullSections(locale.pages, input.config)),
               }],
               groupLanguages: false,
+              note: input.note,
               maxTokens: input.config.corpus.small.maxTokens,
               count,
             });
@@ -294,6 +297,7 @@ export async function planCorpusArtifacts(input) {
               sections: planSections(fullSections(locale.pages, input.config)),
             })),
             groupLanguages: true,
+            note: input.note,
             maxTokens: input.config.corpus.small.maxTokens,
             count,
           });

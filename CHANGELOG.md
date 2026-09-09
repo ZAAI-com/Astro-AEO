@@ -55,8 +55,11 @@ startup, memory, and request ceilings remain enforced.
   removed.
 - Manifest truthfulness: companion-less pages publish nullable `markdownUrl` / `tokenCount` /
   `hash`; companion hashes and token counts match the bytes from `renderMarkdownDocument`.
-- Corpus topology: dependent claims (aliases, gzip, manifest) follow ownership decisions; runtime
-  fallback routes cover small, manifest, locale, alias, and chunk paths on manifest-based adapters.
+- Corpus topology: dependent claims (aliases, gzip, manifest) follow ownership decisions; the
+  corpus manifest drops artifacts that lost arbitration (and their entries from every page's
+  chunk list) or is skipped with a `corpus-manifest-skipped` warning when a locale canonical
+  artifact was lost; runtime fallback routes cover small, manifest, locale, alias, and chunk
+  paths on manifest-based adapters.
 - IndexNow safety: `keyLocation` directory scope is enforced at submit; response limits and queue
   writes stay compatible with generated state; `IndexNowInvocationError` exits 2.
 - IndexNow removals are withheld whenever a build could not see every page, which now covers
@@ -67,10 +70,13 @@ startup, memory, and request ceilings remain enforced.
   and a build that cannot write its private state no longer publishes a state manifest whose digest
   the pending queue does not match. An unreadable page now reports `page-html-unreadable` instead
   of only logging.
-- Locks: stale processing-cache and IndexNow lock reclamation is an atomic claim with ownership
-  checks on release.
-- Sitemap: legal non-declaration processing instructions (for example `xml-stylesheet`) validate;
-  query strings remain part of sitemap URL identity.
+- Locks: stale processing-cache and IndexNow lock reclamation runs under a dedicated
+  `${path}.reclaim` mutex, so the validate, unlink, and re-claim sequence is exclusive and two
+  contenders can never both unlink the other's replacement; ownership checks on release remain.
+- Sitemap: legal non-declaration processing instructions (for example `xml-stylesheet`) validate
+  and their targets are name-checked, so `<?1bad?>` or `<?a:b:c?>` are rejected; query strings
+  remain part of sitemap URL identity; XML-only whitespace (space, tab, CR, LF) is the mixed-
+  content standard, so an NBSP inside `<url>` is reported instead of trimmed away.
 - Robots: `Content-Signal` is emitted inside each user-agent group; locale-only indexes do not
   advertise a root `/llms.txt`.
 - Runtime edges: page lifecycle failures become corpus-plan errors; catalog locale metadata reaches
@@ -102,6 +108,15 @@ startup, memory, and request ceilings remain enforced.
   being skipped. A target that declares no canonical URL is still never called non-canonical.
   Reciprocity is a map lookup rather than a scan over every page, which removes a quadratic cost
   from both builds and request-time corpus renders.
+- Development corpora carry the dev-preview banner in every non-single-locale topology. The note
+  previously reached only the legacy root `llms.txt` and `llms-full.txt`; grouped, locale, and
+  small corpora now match those bytes, chunk files stay note-free because they open with a page
+  heading, and the note is budgeted against `corpus.small.maxTokens`.
+- Multi-line Setext headings stay indivisible. A paragraph run whose last line is an `===` or
+  `---` underline is classified as one heading instead of being split at the line the old
+  one-line lookahead stopped scanning.
+- Sitemap namespace maps are copied only on declaration, so a per-element `xmlns:xhtml`
+  declaration no longer leaks into a sibling `<url>` entry.
 
 ### Upgrade notes
 

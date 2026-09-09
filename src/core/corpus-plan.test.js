@@ -72,6 +72,32 @@ describe('allocateSmallCorpus', () => {
     expect(result).toMatchObject({ text: '', tokenCount: 0 });
     expect(result.diagnostics[0].code).toBe('small-corpus-preamble-over-budget');
   });
+
+  test('counts the dev-preview note against the token budget', async () => {
+    const note = '<!-- dev preview -->';
+    const result = await allocateSmallCorpus({
+      siteMeta,
+      locales: [],
+      note,
+      maxTokens: 10_000,
+      count: countCharacters,
+    });
+    expect(result.text).toContain(note);
+    const bare = await allocateSmallCorpus({ siteMeta, locales: [], maxTokens: 10_000, count: countCharacters });
+    expect(result.tokenCount).toBeGreaterThan(bare.tokenCount);
+    // The note adds itself plus the blank separator line that follows it.
+    expect(result.tokenCount - bare.tokenCount).toBe(note.length + 2);
+
+    const tight = await allocateSmallCorpus({
+      siteMeta,
+      locales: [],
+      note,
+      maxTokens: bare.tokenCount,
+      count: countCharacters,
+    });
+    expect(tight).toMatchObject({ text: '', tokenCount: 0 });
+    expect(tight.diagnostics[0].code).toBe('small-corpus-preamble-over-budget');
+  });
 });
 
 describe('planSectionChunks', () => {

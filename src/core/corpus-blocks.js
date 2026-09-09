@@ -43,30 +43,23 @@ export function scanMarkdownBlocks(markdown) {
       continue;
     }
 
-    if (
-      index + 1 < lines.length &&
-      lines[index].trim() !== '' &&
-      !isListItem(lines[index]) &&
-      isSetextUnderline(lines[index + 1])
-    ) {
-      index += 2;
-      blocks.push(block('heading', lines, start, index));
-      continue;
-    }
-
     index++;
     while (
       index < lines.length &&
       lines[index].trim() !== '' &&
       !isHeading(lines[index]) &&
       !openingFence(lines[index]) &&
-      !(
-        index + 1 < lines.length &&
-        !isListItem(lines[index]) &&
-        isSetextUnderline(lines[index + 1])
-      )
+      !isSetextUnderline(lines[index])
     ) {
       index++;
+    }
+    // A setext underline after run content closes the run as a heading whose
+    // title may span several lines. A leading underline is a thematic break,
+    // and a run beginning with a list item stays prose.
+    if (index < lines.length && isSetextUnderline(lines[index]) && index > start) {
+      index++;
+      blocks.push(block(isListItem(lines[start]) ? 'paragraph' : 'heading', lines, start, index));
+      continue;
     }
     blocks.push(block('paragraph', lines, start, index));
   }

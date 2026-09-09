@@ -42,6 +42,18 @@ describe('scanMarkdownBlocks', () => {
       { kind: 'paragraph', text: 'Next.', startLine: 4, endLine: 4 },
     ]);
   });
+
+  test('keeps multi-line setext headings indivisible', () => {
+    expect(scanMarkdownBlocks('Line one\nline two\n===\n\nBody.')).toEqual([
+      { kind: 'heading', text: 'Line one\nline two\n===', startLine: 1, endLine: 3 },
+      { kind: 'paragraph', text: 'Body.', startLine: 5, endLine: 5 },
+    ]);
+    expect(scanMarkdownBlocks('Intro\n\nA\nB\n---\n\nEnd.')).toEqual([
+      { kind: 'paragraph', text: 'Intro', startLine: 1, endLine: 1 },
+      { kind: 'heading', text: 'A\nB\n---', startLine: 3, endLine: 5 },
+      { kind: 'paragraph', text: 'End.', startLine: 7, endLine: 7 },
+    ]);
+  });
 });
 
 describe('section slugs and chunk paths', () => {

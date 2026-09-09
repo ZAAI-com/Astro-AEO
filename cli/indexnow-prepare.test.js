@@ -151,6 +151,71 @@ describe('indexnow prepare', () => {
     expect(queue.origins[0].targetDigest).toBe(built.digest);
   });
 
+  test('adopts deployed acknowledgments when the private entry is empty', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-indexnow-'));
+    roots.push(root);
+    const cache = join(root, '.astro', 'aeo-cache', 'indexnow');
+    writePrivateFile(join(cache, 'prepare-input-v1.json'), serializeIndexNowPrepareInput({
+      version: 1,
+      projectRoot: root,
+      mode: 'public', submit: 'changed', strict: false, base: '',
+      statePathname: '/.well-known/astro-aeo-indexnow-v1.json',
+      key: { source: 'env' }, origins: [{ origin: 'https://example.com' }],
+      current: [fp('same'), fp('added')],
+    }));
+    writePrivateFile(join(cache, 'ack-v1.json'), `${JSON.stringify({
+      version: 1,
+      origins: [{ origin: 'https://example.com', acknowledged: [] }],
+    }, null, 2)}\n`);
+    const deployed = createIndexNowStateManifest('https://example.com', [fp('same')], [fp('same')]);
+
+    const result = await prepareIndexNow(join(root, 'dist'), {
+      projectRoot: root,
+      fetch: async () => new Response(JSON.stringify(deployed), { status: 200 }),
+    });
+    const queue = parseIndexNowQueue(JSON.parse(readFileSync(result.queuePath, 'utf8')));
+    expect(queue.origins[0].operations).toEqual([
+      { url: 'https://example.com/added', operation: 'upsert', fingerprint: sha256('added') },
+    ]);
+    const ack = parseIndexNowAcknowledgment(JSON.parse(readFileSync(result.acknowledgmentPath, 'utf8')));
+    expect(ack.origins).toHaveLength(1);
+    // The public acknowledgment is adopted: only the deployed entry, the queued
+    // upsert is acknowledged later after a successful submit.
+    expect(ack.origins[0].acknowledged.map((item) => item.url)).toEqual(['https://example.com/same']);
+  });
+
+  test('keeps an unresolved empty acknowledgment unresolved when the fetch fails', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-indexnow-'));
+    roots.push(root);
+    const cache = join(root, '.astro', 'aeo-cache', 'indexnow');
+    writePrivateFile(join(cache, 'prepare-input-v1.json'), serializeIndexNowPrepareInput({
+      version: 1,
+      projectRoot: root,
+      mode: 'public', submit: 'changed', strict: false, base: '',
+      statePathname: '/.well-known/astro-aeo-indexnow-v1.json',
+      key: { source: 'env' }, origins: [{ origin: 'https://example.com' }],
+      current: [fp('same'), fp('added')],
+    }));
+    writePrivateFile(join(cache, 'ack-v1.json'), `${JSON.stringify({
+      version: 1,
+      origins: [{ origin: 'https://example.com', acknowledged: [] }],
+    }, null, 2)}\n`);
+
+    const result = await prepareIndexNow(join(root, 'dist'), {
+      projectRoot: root,
+      fetch: async () => { throw new Error('offline'); },
+    });
+    expect(result.warnings[0]).toMatch(/could not use deployed state/u);
+    const queue = parseIndexNowQueue(JSON.parse(readFileSync(result.queuePath, 'utf8')));
+    expect(queue.origins[0].operations).toEqual([
+      { url: 'https://example.com/added', operation: 'upsert', fingerprint: sha256('added') },
+      { url: 'https://example.com/same', operation: 'upsert', fingerprint: sha256('same') },
+    ]);
+    // The origin stays unresolved rather than being persisted as an empty acknowledgment.
+    const ack = parseIndexNowAcknowledgment(JSON.parse(readFileSync(result.acknowledgmentPath, 'utf8')));
+    expect(ack.origins).toEqual([]);
+  });
+
   test('keeps public fetch failure safe by queueing every current URL', async () => {
     const root = mkdtempSync(join(tmpdir(), 'astro-aeo-indexnow-'));
     roots.push(root);

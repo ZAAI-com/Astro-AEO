@@ -25,6 +25,7 @@ import { renderChunkFragments, renderSectionedCorpus } from './render/corpus.js'
  *     sections: readonly { title: string; pages: readonly PlanPage[] }[];
  *   }[];
  *   groupLanguages?: boolean;
+ *   note?: string;
  *   maxTokens: number;
  *   count: (text: string) => Promise<number>;
  * }} input
@@ -53,6 +54,7 @@ export async function allocateSmallCorpus(input) {
   const render = () => renderSectionedCorpus({
     siteMeta: input.siteMeta,
     groupLanguages: input.groupLanguages,
+    note: input.note,
     locales: locales.map((locale) => ({
       language: locale.language,
       sections: locale.sections.map((section) => ({

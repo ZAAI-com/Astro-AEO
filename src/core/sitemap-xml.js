@@ -160,7 +160,7 @@ function parseXml(raw) {
     if (!text) return;
     const value = cdata ? text : decodeXmlEntities(text);
     if (stack.length === 0) {
-      if (value.trim()) fail(position, 'Text is not allowed outside the document element.');
+      if (!xmlWhitespaceOnly(value)) fail(position, 'Text is not allowed outside the document element.');
       if (value) mayDeclare = false;
       return;
     }
@@ -215,6 +215,9 @@ function parseXml(raw) {
       } else if (/^xml$/i.test(target)) {
         fail(position, 'The XML declaration target must be lowercase "xml".');
       } else {
+        if (!validXmlName(target)) {
+          fail(position, 'A processing instruction has an invalid XML target name.');
+        }
         // Non-xml PIs (e.g. xml-stylesheet from xslURL) are valid anywhere.
         mayDeclare = false;
       }
@@ -328,6 +331,17 @@ function decodeXmlEntities(value) {
   });
 }
 
+/**
+ * XML 1.0 whitespace is limited to space, tab, carriage return, and line feed.
+ * JavaScript `trim()` also strips characters such as NBSP, which are not XML
+ * whitespace and must be rejected as mixed content.
+ *
+ * @param {string} value
+ */
+function xmlWhitespaceOnly(value) {
+  return !/[^ \t\r\n]/.test(value);
+}
+
 /** @param {number} value */
 function validXmlCodePoint(value) {
   return value === 0x9 || value === 0xa || value === 0xd ||
@@ -346,12 +360,14 @@ function validXmlName(name) {
  * @param {Map<string, string>} [parent]
  */
 function namespaceMap(node, parent) {
-  const namespaces = parent
-    ? new Map(parent)
-    : new Map([['xml', 'http://www.w3.org/XML/1998/namespace']]);
+  let namespaces = parent ?? new Map([['xml', 'http://www.w3.org/XML/1998/namespace']]);
+  // Copy-on-declare: every caller treats the returned map as read-only, so the
+  // parent map can be shared until this node actually declares a namespace.
   for (const [name, value] of node.attrs) {
-    if (name === 'xmlns') namespaces.set('', value);
-    else if (name.startsWith('xmlns:')) namespaces.set(name.slice(6), value);
+    if (name === 'xmlns' || name.startsWith('xmlns:')) {
+      if (namespaces === parent) namespaces = new Map(parent);
+      namespaces.set(name === 'xmlns' ? '' : name.slice(6), value);
+    }
   }
   return namespaces;
 }
@@ -386,7 +402,7 @@ function nodeText(node) {
 function rejectMixedContent(node, findings) {
   if (!ELEMENT_ONLY.has(localName(node.name))) return;
   for (const child of node.children) {
-    if (typeof child === 'string' && child.trim()) {
+    if (typeof child === 'string' && !xmlWhitespaceOnly(child)) {
       findings.push({
         code: 'sitemap-mixed-content',
         message: `<${localName(node.name)}> must not contain non-whitespace text.`,

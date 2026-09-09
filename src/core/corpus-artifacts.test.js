@@ -143,6 +143,45 @@ describe('logical corpus artifact planner', () => {
     }
   });
 
+  test('carries the dev-preview note into every non-chunk artifact', async () => {
+    const note = '<!-- dev preview -->';
+    const config = resolveConfig({
+      corpus: {
+        small: { enabled: true, maxTokens: 1_000 },
+        chunks: { enabled: true, maxTokensPerFile: 1_000 },
+        manifest: { enabled: true },
+      },
+      i18n: { indexes: 'both' },
+    });
+    const plan = await planCorpusArtifacts({
+      pages: [page('/en/guide', 'en', 'en'), page('/fr/guide', 'fr-FR', 'fr')],
+      config,
+      siteMeta,
+      origin: 'https://example.test',
+      base: '',
+      note,
+      i18n: createLocaleSnapshot({
+        locales: ['en', 'fr'],
+        defaultLocale: 'en',
+        routing: { prefixDefaultLocale: true },
+      }, 'https://example.test'),
+    });
+
+    expect(plan.artifacts.length).toBeGreaterThan(0);
+    for (const artifact of plan.artifacts) {
+      if (artifact.kind === 'chunk') {
+        expect(artifact.contents).not.toContain(note);
+      } else {
+        expect(artifact.contents).toContain(note);
+      }
+      expect(artifact.contents.split('\n')[0].startsWith('# ')).toBe(true);
+    }
+    for (const alias of plan.artifacts.filter(({ kind }) => kind === 'alias')) {
+      const source = plan.artifacts.find(({ pathname }) => pathname === alias.sourcePathname);
+      expect(alias.contents).toBe(source.contents);
+    }
+  });
+
   test('keeps domain plans host-local while linking every active language', async () => {
     const config = resolveConfig({ corpus: { manifest: { enabled: true } } });
     const i18n = createLocaleSnapshot({

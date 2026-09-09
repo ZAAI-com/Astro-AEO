@@ -1,19 +1,13 @@
 // @ts-check
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import {
-  closeSync,
-  constants,
-  linkSync,
   lstatSync,
   mkdirSync,
-  openSync,
   readdirSync,
   readFileSync,
-  rmSync,
-  writeFileSync,
 } from 'node:fs';
-import { hostname } from 'node:os';
 import { join } from 'node:path';
+import { acquirePrivateLock } from './private-lock.js';
 
 export const PROCESSING_CACHE_VERSION = 1;
 export const PROCESSING_CACHE_DIRECTORY = 'processing-v1';
@@ -37,8 +31,8 @@ export function openProcessingCache(projectRoot, options) {
   const statePath = join(root, 'state.json');
   const lockPath = join(root, 'lock');
   let lockOwned = false;
-  /** @type {string | undefined} */
-  let lockNonce;
+  /** @type {(() => void) | undefined} */
+  let releaseLock;
   let readOnly = false;
   /** @type {CacheState} */
   let state = { version: 1, entries: {} };
@@ -146,21 +140,9 @@ export function openProcessingCache(projectRoot, options) {
     },
 
     close() {
-      if (!lockOwned || lockNonce === undefined) return;
+      if (!lockOwned || releaseLock === undefined) return;
       lockOwned = false;
-      try {
-        const current = readLock(lockPath);
-        if (
-          current?.nonce === lockNonce &&
-          current.pid === process.pid &&
-          current.hostname === hostname()
-        ) {
-          const stat = lstatSync(lockPath);
-          if (stat.isFile() && !stat.isSymbolicLink()) rmSync(lockPath, { force: true });
-        }
-      } catch {
-        // A retained lock fails closed on the next build.
-      }
+      releaseLock();
     },
   };
 
@@ -190,51 +172,12 @@ export function openProcessingCache(projectRoot, options) {
 
   /** Acquire or safely reclaim a same-host dead-process lock. */
   function acquireLock() {
-    const nonce = randomUUID();
-    const record = { version: 1, hostname: hostname(), pid: process.pid, nonce };
-    const temporary = `${lockPath}.${process.pid}.${nonce}.tmp`;
-    const writeTemporary = () => {
-      const fd = openSync(temporary, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600);
-      try { writeFileSync(fd, `${JSON.stringify(record)}\n`); }
-      finally { closeSync(fd); }
-    };
-    const claim = () => {
-      try {
-        linkSync(temporary, lockPath);
-        return true;
-      } catch (error) {
-        if (/** @type {any} */ (error)?.code !== 'EEXIST') throw error;
-        return false;
-      }
-    };
-
-    writeTemporary();
-    try {
-      if (!claim()) {
-        const prior = readLock(lockPath);
-        if (!prior || prior.hostname !== hostname() || processExists(prior.pid)) {
-          throw new Error('processing cache is locked');
-        }
-        const before = lstatSync(lockPath);
-        if (!before.isFile() || before.isSymbolicLink()) throw new Error('processing cache lock is unsafe');
-        const confirmed = readLock(lockPath);
-        const after = lstatSync(lockPath);
-        if (
-          !confirmed ||
-          confirmed.nonce !== prior.nonce ||
-          before.dev !== after.dev ||
-          before.ino !== after.ino
-        ) {
-          throw new Error('processing cache lock changed during inspection');
-        }
-        rmSync(lockPath, { force: true });
-        if (!claim()) throw new Error('processing cache is locked');
-      }
-    } finally {
-      rmSync(temporary, { force: true });
-    }
+    releaseLock = acquirePrivateLock(lockPath, {
+      busy: 'processing cache is locked',
+      unsafe: 'processing cache lock is unsafe',
+      changed: 'processing cache lock changed during inspection',
+    });
     lockOwned = true;
-    lockNonce = nonce;
   }
 
   return api;
@@ -289,34 +232,6 @@ function fileExists(path) {
   } catch (error) {
     if (/** @type {any} */ (error)?.code === 'ENOENT') return false;
     throw error;
-  }
-}
-
-/** @param {string} path */
-function readLock(path) {
-  try {
-    const stat = lstatSync(path);
-    if (!stat.isFile() || stat.isSymbolicLink()) return null;
-    const value = JSON.parse(readFileSync(path, 'utf8'));
-    return value?.version === 1 &&
-      typeof value.hostname === 'string' &&
-      Number.isSafeInteger(value.pid) &&
-      value.pid > 0 &&
-      typeof value.nonce === 'string'
-      ? value
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-/** @param {number} pid */
-function processExists(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return /** @type {any} */ (error)?.code !== 'ESRCH';
   }
 }
 

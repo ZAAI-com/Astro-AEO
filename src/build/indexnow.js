@@ -1,19 +1,13 @@
 // @ts-check
 import {
   chmodSync,
-  closeSync,
-  constants,
-  linkSync,
   lstatSync,
   mkdirSync,
-  openSync,
   readFileSync,
   rmSync,
-  writeFileSync,
 } from 'node:fs';
-import { randomUUID } from 'node:crypto';
-import { hostname } from 'node:os';
 import { join } from 'node:path';
+import { acquirePrivateLock } from './private-lock.js';
 import {
   INDEXNOW_ACK_FILENAME,
   INDEXNOW_PENDING_FILENAME,
@@ -53,70 +47,17 @@ export function ensureIndexNowPrivateDirectory(projectRoot) {
 /**
  * Hold an exclusive notification-state lock across a build, prepare, or submit
  * transaction. Only a well-formed same-host lock with a PID proven absent can
- * be reclaimed. The returned release function verifies its nonce before
- * removing anything.
+ * be reclaimed, and reclamation is atomic under the shared private-lock mutex.
+ * The returned release function verifies its nonce before removing anything.
  * @param {string} projectRoot
  */
 export function acquireIndexNowLock(projectRoot) {
   ensureIndexNowPrivateDirectory(projectRoot);
-  const path = indexNowPaths(projectRoot).lock;
-  const nonce = randomUUID();
-  const record = { version: 1, hostname: hostname(), pid: process.pid, nonce };
-  const temporary = `${path}.${process.pid}.${nonce}.tmp`;
-  const writeTemporary = () => {
-    const fd = openSync(temporary, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600);
-    try { writeFileSync(fd, `${JSON.stringify(record)}\n`); }
-    finally { closeSync(fd); }
-  };
-  const claim = () => {
-    try {
-      linkSync(temporary, path);
-      return true;
-    } catch (error) {
-      if (/** @type {any} */ (error)?.code !== 'EEXIST') throw error;
-      return false;
-    }
-  };
-
-  writeTemporary();
-  try {
-    if (!claim()) {
-      const prior = readIndexNowLock(path);
-      if (!prior || prior.hostname !== hostname() || processExists(prior.pid)) {
-        throw new Error('IndexNow notification state is locked');
-      }
-      const before = lstatSync(path);
-      if (!before.isFile() || before.isSymbolicLink()) throw new Error('IndexNow notification lock is unsafe');
-      const confirmed = readIndexNowLock(path);
-      const after = lstatSync(path);
-      if (
-        !confirmed ||
-        confirmed.nonce !== prior.nonce ||
-        before.dev !== after.dev ||
-        before.ino !== after.ino
-      ) {
-        throw new Error('IndexNow notification lock changed during inspection');
-      }
-      rmSync(path, { force: true });
-      if (!claim()) throw new Error('IndexNow notification state is locked');
-    }
-  } finally {
-    rmSync(temporary, { force: true });
-  }
-
-  let held = true;
-  return () => {
-    if (!held) return;
-    held = false;
-    try {
-      const current = readIndexNowLock(path);
-      if (current?.nonce === nonce && current.pid === process.pid && current.hostname === hostname()) {
-        rmSync(path, { force: true });
-      }
-    } catch {
-      // A retained or replaced lock fails closed for the next session.
-    }
-  };
+  return acquirePrivateLock(indexNowPaths(projectRoot).lock, {
+    busy: 'IndexNow notification state is locked',
+    unsafe: 'IndexNow notification lock is unsafe',
+    changed: 'IndexNow notification lock changed during inspection',
+  });
 }
 
 /**
@@ -269,34 +210,6 @@ function safeEntryExists(path) {
   } catch (error) {
     if (/** @type {any} */ (error)?.code === 'ENOENT') return false;
     return true;
-  }
-}
-
-/** @param {string} path */
-function readIndexNowLock(path) {
-  try {
-    const stat = lstatSync(path);
-    if (!stat.isFile() || stat.isSymbolicLink()) return null;
-    const value = JSON.parse(readFileSync(path, 'utf8'));
-    return value?.version === 1 &&
-      typeof value.hostname === 'string' && value.hostname &&
-      Number.isSafeInteger(value.pid) && value.pid > 0 &&
-      typeof value.nonce === 'string' && /^[A-Za-z0-9-]{8,128}$/u.test(value.nonce) &&
-      Object.keys(value).every((key) => ['version', 'hostname', 'pid', 'nonce'].includes(key))
-      ? value
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-/** @param {number} pid */
-function processExists(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return /** @type {any} */ (error)?.code !== 'ESRCH';
   }
 }
 

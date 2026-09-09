@@ -64,6 +64,20 @@ export async function stageCorpusArtifacts(inputPages, config, env) {
     });
   }
 
+  /**
+   * A preview only sees claims registered so far. Every plausible competitor
+   * for a corpus path (plugin artifacts, `.md` companions) is registered
+   * before `stageCorpusArtifacts` runs in `astro:build:done`, so this preview
+   * is complete for corpus destinations. `preview()` is `resolveClaims(false)`
+   * and never finalizes.
+   */
+  /** @type {Set<string> | null} */
+  const accepted = typeof /** @type {any} */ (env.writer).preview === 'function'
+    ? new Set(/** @type {any} */ (env.writer).preview().manifestEntries
+      ?.filter((/** @type {any} */ entry) => entry.status === 'emitted' || entry.status === 'runtime')
+      .map((/** @type {any} */ entry) => entry.pathname) ?? [])
+    : null;
+
   let manifest = plan.manifest;
   if (manifest && config.corpus.compression.gzip && !env.runtime) {
     const gzipRecords = await Promise.all(artifacts
@@ -84,6 +98,38 @@ export async function stageCorpusArtifacts(inputPages, config, env) {
       ...manifest,
       artifacts: [...manifest.artifacts, ...gzipRecords],
     });
+  }
+  if (manifest && accepted) {
+    const isAccepted = (/** @type {string} */ pathname) => accepted.has(pathname);
+    const canonicalPaths = new Set(manifest.locales.map((/** @type {any} */ locale) => locale.canonicalArtifact));
+    if (
+      manifest.artifacts.length === 0 ||
+      manifest.artifacts.every((/** @type {any} */ artifact) => !isAccepted(artifact.pathname)) ||
+      [...canonicalPaths].some((pathname) => !isAccepted(pathname))
+    ) {
+      env.diagnostics.push(/** @type {import('../index.js').Diagnostic} */ ({
+        version: 1,
+        code: 'corpus-manifest-skipped',
+        severity: 'warning',
+        message: 'The corpus manifest was skipped because a canonical corpus artifact lost ownership arbitration.',
+      }));
+      manifest = undefined;
+    } else {
+      const kept = manifest.artifacts.filter((/** @type {any} */ artifact) => isAccepted(artifact.pathname));
+      if (kept.length < manifest.artifacts.length) {
+        const dropped = new Set(manifest.artifacts
+          .filter((/** @type {any} */ artifact) => !isAccepted(artifact.pathname))
+          .map((/** @type {any} */ artifact) => artifact.pathname));
+        manifest = normalizeCorpusManifest({
+          ...manifest,
+          artifacts: kept,
+          pages: manifest.pages.map((/** @type {any} */ page) => ({
+            ...page,
+            chunks: (page.chunks ?? []).filter((/** @type {string} */ chunk) => !dropped.has(chunk)),
+          })),
+        });
+      }
+    }
   }
   if (manifest) {
     env.writer.write({

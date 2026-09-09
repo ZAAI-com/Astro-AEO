@@ -35,9 +35,22 @@ function page(pathname, locale, origin = SITE) {
 }
 
 // stageCorpusArtifacts ignores write()'s return value and never passes `path`.
-function fakeWriter() {
+// `preview()` mirrors the transactional writer: every registered claim appears
+// with its ownership status, overridable per served pathname.
+function fakeWriter(rejections = new Map()) {
   const writes = [];
-  return { writes, write(artifact) { writes.push(artifact); return true; } };
+  return {
+    writes,
+    write(artifact) { writes.push(artifact); return true; },
+    preview() {
+      return {
+        manifestEntries: writes.map(({ route }) => ({
+          pathname: route,
+          status: rejections.get(route) ?? 'emitted',
+        })),
+      };
+    },
+  };
 }
 
 function environment(overrides = {}) {
@@ -134,5 +147,36 @@ describe('stageCorpusArtifacts', () => {
 
     expect(index.contents).toContain('/en/guide');
     expect(index.contents).not.toContain('/en/secret');
+  });
+
+  test('drops artifacts that lost ownership from the manifest and page chunks', async () => {
+    const config = resolveConfig({
+      corpus: { chunks: { enabled: true, maxTokensPerFile: 1_000 }, manifest: { enabled: true } },
+    });
+    const env = environment();
+    const result = await stageCorpusArtifacts([page('/en/guide', 'en')], config, env);
+    const chunkPathnames = result.artifacts.filter(({ kind }) => kind === 'chunk').map(({ pathname }) => pathname);
+    expect(chunkPathnames.length).toBeGreaterThan(0);
+
+    const rejected = new Map([[chunkPathnames[0], 'group-skipped']]);
+    const filteredEnv = environment({ writer: fakeWriter(rejected) });
+    const filtered = await stageCorpusArtifacts([page('/en/guide', 'en')], config, filteredEnv);
+
+    expect(filtered.manifest.artifacts.map(({ pathname }) => pathname)).not.toContain(chunkPathnames[0]);
+    expect(filtered.manifest.artifacts.map(({ pathname }) => pathname)).toContain(chunkPathnames[1] ?? '/llms.txt');
+    for (const entry of filtered.manifest.pages) {
+      expect(entry.chunks).not.toContain(chunkPathnames[0]);
+    }
+    expect(filteredEnv.diagnostics.filter(({ code }) => code === 'corpus-manifest-skipped')).toEqual([]);
+  });
+
+  test('skips the manifest with a warning when a locale canonical artifact was preserved', async () => {
+    const config = resolveConfig({ corpus: { manifest: { enabled: true } } });
+    const env = environment({ writer: fakeWriter(new Map([['/en/llms.txt', 'preserved']])) });
+    const result = await stageCorpusArtifacts(twoDomains(), config, env);
+
+    expect(env.writer.writes.map(({ route }) => route)).not.toContain('/llms/manifest.json');
+    expect(result.manifest).toBeUndefined();
+    expect(env.diagnostics.filter(({ code }) => code === 'corpus-manifest-skipped')).toHaveLength(1);
   });
 });

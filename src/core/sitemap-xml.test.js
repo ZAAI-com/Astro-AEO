@@ -66,6 +66,47 @@ describe('parseSitemapXml', () => {
     expect(parsed.findings.map((entry) => entry.code)).toContain('sitemap-mixed-content');
   });
 
+  test('rejects NBSP but accepts XML whitespace in element-only containers', () => {
+    const nbsp = parseSitemapXml(
+      `<urlset xmlns="${NS}"><url>&#160;<loc>https://example.test/</loc></url></urlset>`,
+    );
+    expect(nbsp.findings.map((entry) => entry.code)).toContain('sitemap-mixed-content');
+
+    const whitespace = parseSitemapXml(
+      `<urlset xmlns="${NS}"><url>\n \t<loc>https://example.test/</loc></url></urlset>`,
+    );
+    expect(whitespace.findings).toEqual([]);
+  });
+
+  test('rejects processing instructions with invalid XML target names', () => {
+    for (const xml of [
+      `<?bad/target href="x"?><urlset xmlns="${NS}"/>`,
+      `<?1bad?><urlset xmlns="${NS}"/>`,
+      `<?a:b:c?><urlset xmlns="${NS}"/>`,
+    ]) {
+      expect(parseSitemapXml(xml).findings.map((entry) => entry.code)).toContain('sitemap-xml-malformed');
+    }
+  });
+
+  test('does not inherit per-element namespace declarations into siblings', () => {
+    const parsed = parseSitemapXml(
+      `<urlset xmlns="${NS}">` +
+        `<url xmlns:xhtml="${XHTML}">` +
+        '<loc>https://example.test/en/</loc>' +
+        `<xhtml:link rel="alternate" hreflang="fr" href="https://example.test/fr/"/>` +
+        '</url>' +
+        `<url><loc>https://example.test/plain/</loc>` +
+        `<xhtml:link rel="alternate" hreflang="fr" href="https://example.test/fr/"/>` +
+        '</url></urlset>',
+    );
+    // The second <url> does not declare xmlns:xhtml, so its xhtml:link is an
+    // unknown extension element rather than an alternate.
+    expect(parsed.urls).toEqual([
+      { loc: 'https://example.test/en/', alternates: [{ language: 'fr', url: 'https://example.test/fr/' }] },
+      { loc: 'https://example.test/plain/', alternates: [] },
+    ]);
+  });
+
   test('rejects mismatched tags, DTDs, bare ampersands, and repaired-looking XML', () => {
     for (const xml of [
       `<urlset xmlns="${NS}"><url></urlset>`,

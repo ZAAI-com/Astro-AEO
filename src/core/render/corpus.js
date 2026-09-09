@@ -19,9 +19,10 @@ import {
  * absolute URLs so this helper never guesses an origin or Astro base.
  * @param {{ name: string; description: string }} siteMeta
  * @param {readonly { language: string; href: string }[]} locales
+ * @param {{ note?: string }} [opts]  `note` is the dev-preview banner; the build passes none.
  */
-export function renderLanguageDirectory(siteMeta, locales) {
-  const lines = sitePreamble(siteMeta);
+export function renderLanguageDirectory(siteMeta, locales, opts = {}) {
+  const lines = sitePreamble(siteMeta, opts.note);
   lines.push('## Languages', '');
   for (const locale of locales) lines.push(`- [${locale.language}](${locale.href})`);
   lines.push('');
@@ -34,9 +35,10 @@ export function renderLanguageDirectory(siteMeta, locales) {
  * @param {readonly { language: string; pages: any[] }[]} locales
  * @param {any} config
  * @param {{ name: string; description: string }} siteMeta
+ * @param {{ note?: string }} [opts]  `note` is the dev-preview banner; the build passes none.
  */
-export function renderGroupedLlmsTxt(locales, config, siteMeta) {
-  const lines = sitePreamble(siteMeta);
+export function renderGroupedLlmsTxt(locales, config, siteMeta, opts = {}) {
+  const lines = sitePreamble(siteMeta, opts.note);
   for (const locale of locales) {
     const eligible = locale.pages.filter((page) => isLlmsEligible(page, config));
     const sections = groupSections(
@@ -61,9 +63,10 @@ export function renderGroupedLlmsTxt(locales, config, siteMeta) {
  * @param {readonly { language: string; pages: any[] }[]} locales
  * @param {any} config
  * @param {{ name: string; description: string }} siteMeta
+ * @param {{ note?: string }} [opts]  `note` is the dev-preview banner; the build passes none.
  */
-export function renderGroupedLlmsFullTxt(locales, config, siteMeta) {
-  const lines = sitePreamble(siteMeta);
+export function renderGroupedLlmsFullTxt(locales, config, siteMeta, opts = {}) {
+  const lines = sitePreamble(siteMeta, opts.note);
   for (const locale of locales) {
     const selected = selectFullTxtPages(locale.pages, config);
     if (selected.length === 0) continue;
@@ -96,10 +99,11 @@ export function renderGroupedLlmsFullTxt(locales, config, siteMeta) {
  *     sections: readonly { title: string; selections: readonly { page: CorpusFragmentPage; blocks: readonly string[]; includeDescription?: boolean }[] }[];
  *   }[];
  *   groupLanguages?: boolean;
+ *   note?: string;
  * }} input
  */
 export function renderSectionedCorpus(input) {
-  const lines = sitePreamble(input.siteMeta);
+  const lines = sitePreamble(input.siteMeta, input.note);
   for (const locale of input.locales) {
     const sections = locale.sections.filter((section) => section.selections.length > 0);
     if (sections.length === 0) continue;
@@ -143,9 +147,13 @@ function pageRecordLines(fragment) {
   return lines;
 }
 
-/** @param {{ name: string; description: string }} siteMeta */
-function sitePreamble(siteMeta) {
+/**
+ * @param {{ name: string; description: string }} siteMeta
+ * @param {string} [note]  Dev-preview banner; the build passes none.
+ */
+function sitePreamble(siteMeta, note) {
   const lines = [`# ${siteMeta.name}`, ''];
   if (siteMeta.description) lines.push(`> ${siteMeta.description}`, '');
+  if (note) lines.push(note, '');
   return lines;
 }
