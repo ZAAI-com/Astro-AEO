@@ -1,0 +1,28 @@
+src/plugins/runtime-modules.js
+  s_a8902dba461748::t_20dd13d6115dc5 27-34
+src/build/indexnow-state.js
+  s_a8902dba461748::t_fbd0270528bdea 615-621
+src/core/corpus-artifacts.test.js
+  s_a8902dba461748::t_631a009da0a3ea 120-154
+src/core/corpus-artifacts.js
+  s_a8902dba461748::t_5230d68c4fca57 426,444
+  s_a8902dba461748::t_7164b5bc9fd75d 441-443
+src/plugins/runtime-modules.test.js
+  s_a8902dba461748::t_92305b0082d0f6 32,45-46,59-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "150d61b8d7250c3e613560ce1d9f0bcd6e23a18e",
+  "prompts": {},
+  "sessions": {
+    "s_a8902dba461748": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f798dc68dffeWQ4zw4RjWlPIYc",
+        "model": "unknown"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
