@@ -151,6 +151,9 @@ export function fetchWithHost(urlString, host) {
       });
     });
     req.on('error', reject);
+    req.setTimeout(10_000, () => {
+      req.destroy(new Error('fetchWithHost timed out'));
+    });
     req.end();
   });
 }

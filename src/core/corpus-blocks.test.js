@@ -41,6 +41,10 @@ describe('scanMarkdownBlocks', () => {
       { kind: 'paragraph', text: '- item\n-----', startLine: 1, endLine: 2 },
       { kind: 'paragraph', text: 'Next.', startLine: 4, endLine: 4 },
     ]);
+    expect(scanMarkdownBlocks('---\nTitle\n===')).toEqual([
+      { kind: 'paragraph', text: '---', startLine: 1, endLine: 1 },
+      { kind: 'heading', text: 'Title\n===', startLine: 2, endLine: 3 },
+    ]);
   });
 
   test('keeps multi-line setext headings indivisible', () => {
