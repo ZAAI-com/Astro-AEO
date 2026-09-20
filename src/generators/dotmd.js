@@ -3,6 +3,7 @@ import { writeFileSync, readFileSync } from 'node:fs';
 import { renderMarkdownDocument } from '../core/render/markdown-doc.js';
 import { hasMarkdownCompanion } from '../core/render/llms-txt.js';
 import { mdPathnameFor } from '../core/page-model.js';
+import { normalizeOrigin } from '../core/locale.js';
 import {
   hasMarkdownAlternateLink,
   matchMarkdownAlternateLinks,
@@ -18,15 +19,36 @@ export { hasMarkdownAlternateLink, matchMarkdownAlternateLinks };
  * @param {import('../build/collect.js').PageInfo[]} pages
  * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @param {ReturnType<typeof import('../build/artifacts.js').createArtifactWriter>} writer
+ * @param {{ siteUrl?: string; diagnostics?: import('../index.js').Diagnostic[] }} [options]
  * @returns {number} count of .md files written
  */
-export function emitDotMd(pages, config, writer) {
+export function emitDotMd(pages, config, writer, options = {}) {
   if (!config.markdown.enabled) return 0;
   const { alternateLink } = config.markdown;
+  const buildOrigin = options.siteUrl ? normalizeOrigin(options.siteUrl) : null;
   let written = 0;
 
   for (const page of pages) {
     if (!hasMarkdownCompanion(page, config)) continue;
+
+    // A companion is written into this build's own namespace at `page.mdPath`, and
+    // only catalog descriptors ever carry an explicit origin. Two of them naming
+    // different origins can share a pathname, and both would claim the same file
+    // under the same owner, which the duplicate-writer warning cannot see, so the
+    // later one silently replaced the earlier. The corpus planner already excludes
+    // foreign-origin pages, so skipping keeps the companion set consistent with it.
+    if (buildOrigin && page.origin && normalizeOrigin(page.origin) !== buildOrigin) {
+      options.diagnostics?.push({
+        version: 1,
+        code: 'catalog-foreign-origin-companion',
+        severity: 'warning',
+        message:
+          `Catalog page ${page.pathname} is published on ${page.origin}, so no .md companion was ` +
+          'written into this origin\'s output.',
+        pathname: page.pathname,
+      });
+      continue;
+    }
 
     const wrote = writer.write({
       path: page.mdPath,

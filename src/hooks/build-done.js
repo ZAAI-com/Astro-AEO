@@ -690,7 +690,10 @@ async function onBuildDoneLocked(config, options, env, session) {
     );
   }
 
-  const written = emitDotMd(pages, config, writer);
+  const written = emitDotMd(pages, config, writer, {
+    siteUrl: env.siteUrl,
+    diagnostics: buildDiagnostics,
+  });
   if (config.markdown.enabled) logger.info(`astro-aeo: emitted ${written} .md companion files`);
 
   const corpus = await stageCorpusArtifacts(pages, config, {
