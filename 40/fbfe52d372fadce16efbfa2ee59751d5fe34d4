@@ -1,0 +1,40 @@
+cli/validate.js
+  s_1ef061f9f9c11e::t_1bcfa5262c9e75 190
+  s_1ef061f9f9c11e::t_db72a06dee4192 237
+  s_1ef061f9f9c11e::t_eecfb588fb1da4 251-253,259
+src/generators/sitemap-finalize.js
+  s_1ef061f9f9c11e::t_869ef3f2a415bf 40-45
+  s_1ef061f9f9c11e::t_f06f2924e0c672 122
+  s_1ef061f9f9c11e::t_60f7ed11e85004 142-162
+  s_1ef061f9f9c11e::t_cba86eb9ab5de4 141
+cli/validate.test.js
+  s_1ef061f9f9c11e::t_f459aea56aa7a1 362-382
+  s_1ef061f9f9c11e::t_0fac539565bc70 257
+  s_1ef061f9f9c11e::t_651d4cbb985a44 233-240
+  s_1ef061f9f9c11e::t_684302871f19e3 383-409
+src/generators/sitemap-finalize.test.js
+  s_1ef061f9f9c11e::t_1d4b442965e446 324-352
+cli/validate-corpus.js
+  s_1ef061f9f9c11e::t_e0b3638f7deeff 71-79
+  s_1ef061f9f9c11e::t_9004dbce7428b7 530-534,537-538
+src/core/sitemap-xml.js
+  s_1ef061f9f9c11e::t_337f763ffdb152 183-185
+src/core/sitemap-xml.test.js
+  s_1ef061f9f9c11e::t_7d8e02c371a1b3 47-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "40fbfe52d372fadce16efbfa2ee59751d5fe34d4",
+  "prompts": {},
+  "sessions": {
+    "s_1ef061f9f9c11e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4143971cffebdIlfro8BoAuF6",
+        "model": "unknown"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
