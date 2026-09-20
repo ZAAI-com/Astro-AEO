@@ -1,0 +1,22 @@
+docs/release-evidence/1.3.1-semantic-validation.md
+  s_ac1a1981b22f43::t_63283b6440fe78 15,17,29,37,39
+  s_ac1a1981b22f43::t_04bbe13f38084a 36
+src/runtime/middleware-corpus-auth.test.js
+  s_ac1a1981b22f43::t_b09eabc0124048 490-494
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "46a64a681d2fa3c1b12beb5892bff7194bf318b5",
+  "prompts": {},
+  "sessions": {
+    "s_ac1a1981b22f43": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d5946da5-291c-4ebc-b9ae-8d907ccf39f0",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
