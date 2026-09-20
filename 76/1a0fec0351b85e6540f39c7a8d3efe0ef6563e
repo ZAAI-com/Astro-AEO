@@ -1,0 +1,20 @@
+docs/release-evidence/1.3.0-semantic-validation.md
+  s_6ae390086d15b6::t_15f4bfb85cdab9 19-84
+  s_6ae390086d15b6::t_1c4e92e9a72fd6 1-18,85-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "761a0fec0351b85e6540f39c7a8d3efe0ef6563e",
+  "prompts": {},
+  "sessions": {
+    "s_6ae390086d15b6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0b9f6-f152-78e3-8c2e-a0995bb83fe3",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
