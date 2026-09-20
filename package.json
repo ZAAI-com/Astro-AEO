@@ -141,6 +141,7 @@
     "benchmark": "node --expose-gc benchmarks/run.mjs",
     "benchmark:check": "node --expose-gc benchmarks/run.mjs --enforce",
     "benchmark:baseline": "node scripts/update-benchmark-baseline.mjs",
+    "indexnow:smoke": "node scripts/indexnow-network-smoke.mjs",
     "package:smoke": "node scripts/package-smoke.mjs",
     "release:check": "node scripts/release-check.mjs",
     "demo:dev": "cd fixtures/demo && astro dev",

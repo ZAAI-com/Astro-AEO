@@ -21,11 +21,22 @@ features and no configuration changes. Every fix below lands with a test that fa
 - A URL map whose `outputFilepath` lands inside `public/` warns again before overwriting the
   committed file. The warning was lost in 1.2 when the deferred writer became the production
   path, and the overwrite happened silently.
+- IndexNow submission never ran in 1.3.0 on Node 20 or newer, which is every supported
+  environment. The DNS-pinning transport answered Node's lookup with the legacy single-address
+  signature, and the happy-eyeballs connect path (`autoSelectFamily`, on by default since Node 20)
+  rejected it, so every HTTPS call in the IndexNow path failed. Under the default non-strict
+  policy `astro-aeo indexnow submit` warned and exited 0 without submitting, so the command looked
+  like it succeeded. If you enabled IndexNow on 1.3.0, assume no submission ever landed: after
+  upgrading, run prepare and submit again to notify the engines about everything published since.
+  Any `NODE_OPTIONS=--no-network-family-autoselection` workaround can be removed.
 
 ### Correctness
 
-- Reserve singleton and generated section slugs globally, so a crafted section title can no
-  longer produce two chunks at one pathname.
+- Answer both lookup contracts from the IndexNow DNS-pinning transport. Node's happy-eyeballs
+  path asks with `all` set and expects an array of `{ address, family }`; the legacy path expects
+  `(address, family)`. The transport now replies in whichever form was requested. Which address is
+  resolved, vetted, and pinned is unchanged, so the SSRF protection is untouched, and the transport
+  is now covered end to end through Node's real connect path instead of only through fakes.
 - Keep IndexNow state advancing when the processing cache is merely disabled. `cache.enabled:
   false` previously reported the cache as read-only and silently stopped IndexNow entirely.
 - Reject an unresolved locale group that shares `auto` mode with concrete locales instead of

@@ -215,8 +215,15 @@ export function createSafeHttpsTransport(dependencies = {}) {
         const request = requestImpl(url, {
           method: options.method ?? 'GET',
           headers: options.headers,
-          lookup(_hostname, _options, callback) {
-            callback(null, pinned.address, pinned.family);
+          lookup(_hostname, lookupOptions, callback) {
+            // Node's happy-eyeballs path (autoSelectFamily, default since Node 20) sets
+            // `all` and expects an array of { address, family }. The legacy single-address
+            // path expects (address, family). Answer whichever one was asked for.
+            if (lookupOptions?.all) {
+              callback(null, [{ address: pinned.address, family: pinned.family }]);
+            } else {
+              callback(null, pinned.address, pinned.family);
+            }
           },
         }, (response) => {
           /** @type {Buffer[]} */

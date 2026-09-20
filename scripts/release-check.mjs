@@ -61,6 +61,7 @@ if (!quick) {
     ['Adapter local-runtime matrix', 'pnpm', ['run', 'test:adapters:runtime']],
     ['Adapter bundle baselines', 'node', ['scripts/build-benchmark-baselines.mjs']],
     ['Packed tarball install and Astro build', 'node', ['scripts/package-smoke.mjs']],
+    ['IndexNow live transport smoke', 'node', ['scripts/indexnow-network-smoke.mjs']],
   );
   if (!skipPerformance) {
     steps.push([
