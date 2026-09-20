@@ -49,6 +49,12 @@ import {
 } from './serve.js';
 import { RuntimeDynamicRouteDiscoveryError } from './dynamic-routes.js';
 import {
+  companionRewriteWarning,
+  createFetchFailureSink,
+  warnDevCompanionRewriteFailure,
+  warnDevCorpusRewriteFailure,
+} from './rewrite-diagnostics.js';
+import {
   createRuntimePluginPageHandles,
   runtimePluginArtifactFor,
   serveRuntimePluginArtifact,
@@ -131,6 +137,9 @@ export const onRequest = async (context, next) => {
   const companionAvailable = RUNTIME.config.markdown.enabled &&
     mdPagePath !== null &&
     (!projectOwned || coreReplacementAuthorized);
+  // One sink per request. Every fetcher below records into it, so a failed
+  // internal rewrite can be named instead of silently shortening the corpus.
+  const fetchFailures = createFetchFailureSink();
   /** @type {ReturnType<typeof serveMarkdown> | undefined} */
   let markdownResolution;
   /** @param {boolean} [failClosed] */
@@ -142,11 +151,13 @@ export const onRequest = async (context, next) => {
         rewritePathname,
         collect: false,
         requestHeadersAvailable,
+        failures: fetchFailures,
       });
       const collected = htmlFetcher(context, next, {
         preserveQuery: true,
         rewritePathname,
         requestHeadersAvailable,
+        failures: fetchFailures,
       });
       const fetcher = async (sourcePathname) => {
         const safe = await probe(sourcePathname);
@@ -262,7 +273,7 @@ export const onRequest = async (context, next) => {
       const { body, contentType } = await serveSchemaCorpus(
         artifact,
         RUNTIME,
-        htmlFetcher(context, next, { sanitizeCredentials: true }),
+        htmlFetcher(context, next, { sanitizeCredentials: true, failures: fetchFailures }),
         {
           catalogLoaders: RUNTIME_CATALOG_LOADERS,
           dynamicRouteSource: RUNTIME_DYNAMIC_ROUTE_SOURCE,
@@ -271,6 +282,7 @@ export const onRequest = async (context, next) => {
           origin: context.url.origin,
         },
       );
+      warnDevCorpusRewriteFailure(fetchFailures, RUNTIME.command);
       return textResponse({ body, contentType, request: context.request, requestHeadersAvailable });
     } catch (error) {
       const limited = error instanceof RuntimeCorpusLimitError;
@@ -304,7 +316,7 @@ export const onRequest = async (context, next) => {
       });
     }
     try {
-      const planned = await serveCorpusArtifact(pathname, RUNTIME, htmlFetcher(context, next, { sanitizeCredentials: true }), {
+      const planned = await serveCorpusArtifact(pathname, RUNTIME, htmlFetcher(context, next, { sanitizeCredentials: true, failures: fetchFailures }), {
         note: RUNTIME.command === 'dev' ? DEV_NOTE : undefined,
         concurrency: 1,
         catalogLoaders: RUNTIME_CATALOG_LOADERS,
@@ -314,6 +326,7 @@ export const onRequest = async (context, next) => {
         tokenizerLoader: RUNTIME_CORPUS_TOKENIZER_LOADER,
         origin: activeArtifactOrigin ?? context.url.origin,
       });
+      warnDevCorpusRewriteFailure(fetchFailures, RUNTIME.command);
       if (!planned) {
         return redactAeoHeadMarkers(await next(), context.request, requestHeadersAvailable);
       }
@@ -358,7 +371,24 @@ export const onRequest = async (context, next) => {
         }, encodedMdPagePath ?? mdPagePath);
       }
       cancelResponseBody(source);
-      return new Response(null, { status: source && !source.ok ? source.status : 404 });
+      const status = source && !source.ok ? source.status : 404;
+      // A companion that 404s because an internal rewrite threw is a bug the
+      // developer cannot see. Name it in the terminal, and in development
+      // answer with the reason rather than an empty body. Production keeps the
+      // bare response.
+      if (RUNTIME.command === 'dev' && source === null && fetchFailures.count > 0) {
+        const pagePath = encodedMdPagePath ?? mdPagePath ?? pathname;
+        warnDevCompanionRewriteFailure(pagePath, fetchFailures, RUNTIME.command);
+        return textResponse({
+          body: `${companionRewriteWarning(pagePath, fetchFailures)}\n`,
+          contentType: 'text/plain; charset=utf-8',
+          request: context.request,
+          requestHeadersAvailable,
+          status,
+          headers: { 'cache-control': 'no-store' },
+        });
+      }
+      return new Response(null, { status });
     }
     return textResponse({
       body,
@@ -752,7 +782,7 @@ function configuredPathKey(pathname) {
 /**
  * @param {import('astro').APIContext} context
  * @param {import('astro').MiddlewareNext} next
- * @param {{ preserveQuery?: boolean; sanitizeCredentials?: boolean; rewritePathname?: string; collect?: boolean; requestHeadersAvailable?: boolean }} [opts]
+ * @param {{ preserveQuery?: boolean; sanitizeCredentials?: boolean; rewritePathname?: string; collect?: boolean; requestHeadersAvailable?: boolean; failures?: import('./rewrite-diagnostics.js').FetchFailureSink }} [opts]
  * @returns {import('./serve.js').HtmlFetcher}
  */
 function htmlFetcher(context, next, opts = {}) {
@@ -769,36 +799,51 @@ function htmlFetcher(context, next, opts = {}) {
   const loadOne = async (pathname) => {
     const sourcePathname = opts.rewritePathname ?? pathname;
     const target = `${basePrefix(RUNTIME.site.base)}${withTrailingSlash(sourcePathname)}${opts.preserveQuery ? search : ''}`;
+    const corpus = Boolean(opts.sanitizeCredentials);
+    const collect = opts.collect !== false;
+    /** @type {{ targetUrl: URL; rewriteTarget: Request } | null} */
+    let prepared = null;
     try {
       const targetUrl = new URL(target, origin);
-      const headers = opts.sanitizeCredentials || !headersAvailable
+      const headers = corpus || !headersAvailable
         ? new Headers()
         : new Headers(sourceRequest.headers);
       sanitizeSourceHeaders(headers);
-      if (opts.sanitizeCredentials) {
+      if (corpus) {
         headers.set(INTERNAL_PURPOSE_HEADER, CORPUS_PURPOSE);
       }
       headers.set('cache-control', 'no-store');
       const cacheInit = supportsRequestCacheOption()
         ? /** @type {const} */ ({ cache: 'no-store' })
         : {};
-      const rewriteTarget = new Request(targetUrl, {
-        method: 'GET',
-        headers,
-        ...cacheInit,
-      });
-      const corpus = Boolean(opts.sanitizeCredentials);
-      const collect = opts.collect !== false;
-      const state = disposableCorpusStateFor(context);
-      const directOuterCookies = !corpus ? state?.cookies : null;
+      prepared = {
+        targetUrl,
+        rewriteTarget: new Request(targetUrl, { method: 'GET', headers, ...cacheInit }),
+      };
+    } catch (error) {
+      opts.failures?.record(sourcePathname, error);
+      return null;
+    }
+    const { targetUrl, rewriteTarget } = prepared;
 
-      if (corpus) {
-        // Never run an anonymous corpus render through a shared RenderContext.
-        // Astro 5 and Astro 6.0-6.2 do not expose the closure-held caller IP,
-        // cookies, or session for safe replacement. The public artifact handler
-        // fails closed before reaching this defense-in-depth guard.
-        return state ? renderFreshCorpusState(state, rewriteTarget, collect) : null;
-      }
+    if (corpus) {
+      // Never run an anonymous corpus render through a shared RenderContext.
+      // Astro 5 and Astro 6.0-6.2 do not expose the closure-held caller IP,
+      // cookies, or session for safe replacement. The public artifact handler
+      // fails closed before reaching this defense-in-depth guard.
+      //
+      // Deliberately outside a catch: renderFreshCorpusState rethrows a
+      // construction failure in development, and that must keep reaching the
+      // caller instead of being recorded as an ordinary missing page.
+      const state = disposableCorpusStateFor(context);
+      return state
+        ? renderFreshCorpusState(state, rewriteTarget, collect, opts.failures, sourcePathname)
+        : null;
+    }
+
+    try {
+      const state = disposableCorpusStateFor(context);
+      const directOuterCookies = state?.cookies;
 
       const legacyPipeline = legacyPipelineFor(context);
       const restoreRewriteState = await prepareRewriteState(
@@ -853,12 +898,16 @@ function htmlFetcher(context, next, opts = {}) {
         const settled = bodylessResponse(response);
         restore();
         return { response: settled, html: null };
-      } catch {
+      } catch (error) {
+        opts.failures?.record(sourcePathname, error);
         cancelResponseBody(response);
         restore();
         return null;
       }
-    } catch { return null; }
+    } catch (error) {
+      opts.failures?.record(sourcePathname, error);
+      return null;
+    }
   };
 
   return (pathname) => {
@@ -875,12 +924,18 @@ function htmlFetcher(context, next, opts = {}) {
  * @param {any} outerState
  * @param {Request} request
  * @param {boolean} collect
+ * @param {import('./rewrite-diagnostics.js').FetchFailureSink} [failures]
+ * @param {string} [sourcePathname]
  * @returns {Promise<Awaited<ReturnType<import('./serve.js').HtmlFetcher>>>}
  */
-async function renderFreshCorpusState(outerState, request, collect) {
+async function renderFreshCorpusState(outerState, request, collect, failures, sourcePathname) {
+  const pathname = sourcePathname ?? new URL(request.url).pathname;
   const pipeline = outerState.pipeline;
   const manifest = outerState.manifest;
-  if ((!pipeline && !manifest) || typeof outerState.constructor !== 'function') return null;
+  if ((!pipeline && !manifest) || typeof outerState.constructor !== 'function') {
+    failures?.record(pathname, new Error(UNRECOGNIZED_CORPUS_STATE.trim()));
+    return null;
+  }
   const renderOptions = {
     addCookieHeader: false,
     clientAddress: undefined,
@@ -896,12 +951,14 @@ async function renderFreshCorpusState(outerState, request, collect) {
     // Construction failures for Astro 7.2's public one-argument FetchState must
     // surface in development instead of silently emptying the corpus.
     if (RUNTIME.command === 'dev') throw error;
+    failures?.record(pathname, error);
     return null;
   }
   try {
     await provideFreshSession(outerState, state);
     await provideFreshCache(outerState, state);
-  } catch {
+  } catch (error) {
+    failures?.record(pathname, error);
     return null;
   }
 
@@ -910,7 +967,8 @@ async function renderFreshCorpusState(outerState, request, collect) {
   let response;
   try {
     response = await state.rewrite(request);
-  } catch {
+  } catch (error) {
+    failures?.record(pathname, error);
     return null;
   } finally {
     if (previous) INTERNAL_REWRITES.set(state.locals, previous);
@@ -921,7 +979,8 @@ async function renderFreshCorpusState(outerState, request, collect) {
   if (transformable) {
     try {
       return { response, html: await response.text() };
-    } catch {
+    } catch (error) {
+      failures?.record(pathname, error);
       cancelResponseBody(response);
       return null;
     }

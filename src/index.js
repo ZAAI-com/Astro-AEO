@@ -91,7 +91,11 @@ export default function aeo(userConfig = {}) {
   let hasDynamicProjectPage = false;
   let hasOnDemandDynamicProjectPage = false;
   let hasPrerenderedCustom404 = false;
-  let developmentDynamicWarningEmitted = false;
+  // Two independent latches. One shared flag let whichever message fired first
+  // suppress the other, so a project with both an on-demand dynamic page and
+  // `devDynamicDiscovery: false` never heard about the second problem.
+  let developmentOnDemandWarningEmitted = false;
+  let developmentDiscoveryWarningEmitted = false;
   let initialDynamicRoutesCaptured = false;
   /** @type {{ entrypoint: string; pattern: string; params: string[]; segments: Array<Array<{ content: string; dynamic: boolean; spread: boolean }>> }[]} */
   let initialDynamicRoutes = [];
@@ -194,7 +198,8 @@ export default function aeo(userConfig = {}) {
         config = resolveConfig(userConfig, logger);
         integrationLogger = logger;
         astroLifecycleCommand = astroCommand;
-        developmentDynamicWarningEmitted = false;
+        developmentOnDemandWarningEmitted = false;
+        developmentDiscoveryWarningEmitted = false;
         initialDynamicRoutesCaptured = false;
         initialDynamicRoutes = [];
         if (astroConfig.root) projectRoot = fileURLToPath(astroConfig.root);
@@ -443,18 +448,25 @@ export default function aeo(userConfig = {}) {
           initialDynamicRoutes = currentDynamicRoutes;
           initialDynamicRoutesCaptured = true;
         }
-        if (
-          astroLifecycleCommand === 'dev' &&
-          !developmentDynamicWarningEmitted &&
-          config.pages.catalogs.length === 0
-        ) {
-          if (hasOnDemandDynamicProjectPage && config.pages.devDynamicDiscovery !== 'hot') {
-            developmentDynamicWarningEmitted = true;
+        if (astroLifecycleCommand === 'dev' && config.pages.catalogs.length === 0) {
+          // Both conditions can hold at once, and they describe different gaps,
+          // so neither message shadows the other.
+          if (
+            hasOnDemandDynamicProjectPage &&
+            config.pages.devDynamicDiscovery !== 'hot' &&
+            !developmentOnDemandWarningEmitted
+          ) {
+            developmentOnDemandWarningEmitted = true;
             integrationLogger?.warn(
               'astro-aeo: on-demand dynamic page routes require pages.catalogs for development corpus enumeration.',
             );
-          } else if (config.pages.devDynamicDiscovery === false && hasDynamicProjectPage) {
-            developmentDynamicWarningEmitted = true;
+          }
+          if (
+            config.pages.devDynamicDiscovery === false &&
+            hasDynamicProjectPage &&
+            !developmentDiscoveryWarningEmitted
+          ) {
+            developmentDiscoveryWarningEmitted = true;
             integrationLogger?.warn(
               'astro-aeo: the development corpus is incomplete because pages.devDynamicDiscovery is false and no pages.catalogs module is configured.',
             );
