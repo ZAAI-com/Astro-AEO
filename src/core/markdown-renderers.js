@@ -147,6 +147,19 @@ export async function resolveMarkdownWithRenderers(renderers, input) {
 }
 
 /**
+ * Raised when a renderer module imports cleanly but does not satisfy the renderer
+ * contract. Distinct from an arbitrary import failure so callers can safely surface
+ * the message: it is authored here and carries only the source name and the reason.
+ */
+export class MarkdownRendererShapeError extends TypeError {
+  /** @param {string} message */
+  constructor(message) {
+    super(message);
+    this.name = 'MarkdownRendererShapeError';
+  }
+}
+
+/**
  * Validate the public default export without retaining the module namespace.
  * @param {unknown} value
  * @param {string} source
@@ -154,16 +167,16 @@ export async function resolveMarkdownWithRenderers(renderers, input) {
  */
 export function validateMarkdownRendererModule(value, source) {
   if (!isPlainObject(value)) {
-    throw new TypeError(`Markdown renderer "${source}" must default-export an object.`);
+    throw new MarkdownRendererShapeError(`Markdown renderer "${source}" must default-export an object.`);
   }
   if (typeof value.name !== 'string' || value.name.trim() === '') {
-    throw new TypeError(`Markdown renderer "${source}" must have a non-empty name.`);
+    throw new MarkdownRendererShapeError(`Markdown renderer "${source}" must have a non-empty name.`);
   }
   if (value.apiVersion !== 1) {
-    throw new TypeError(`Markdown renderer "${source}" must declare apiVersion: 1.`);
+    throw new MarkdownRendererShapeError(`Markdown renderer "${source}" must declare apiVersion: 1.`);
   }
   if (typeof value.render !== 'function') {
-    throw new TypeError(`Markdown renderer "${source}" must provide render().`);
+    throw new MarkdownRendererShapeError(`Markdown renderer "${source}" must provide render().`);
   }
   let cache;
   if (value.cache !== undefined) {
@@ -171,7 +184,7 @@ export function validateMarkdownRendererModule(value, source) {
       !isPlainObject(value.cache) || value.cache.pure !== true ||
       typeof value.cache.version !== 'string' || !value.cache.version.trim()
     ) {
-      throw new TypeError(`Markdown renderer "${source}" has an invalid cache declaration.`);
+      throw new MarkdownRendererShapeError(`Markdown renderer "${source}" has an invalid cache declaration.`);
     }
     cache = Object.freeze({ pure: /** @type {const} */ (true), version: value.cache.version.trim() });
   }

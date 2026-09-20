@@ -136,7 +136,7 @@ describe('emitUrlMap', () => {
     expect(writer.write).not.toHaveBeenCalled();
   });
 
-  test('atomically replaces a configured public output in deferred builds', () => {
+  test('warns before replacing a configured public output in deferred builds', () => {
     const projectRoot = mkdtempSync(join(tmpdir(), 'aeo-url-map-public-'));
     const publicDir = join(projectRoot, 'public');
     const output = join(publicDir, 'Url-Map.md');
@@ -163,7 +163,7 @@ describe('emitUrlMap', () => {
       expect(readFileSync(output, 'utf8')).toBe('committed');
       writer.commit();
       expect(readFileSync(output, 'utf8')).toContain('# Url Map');
-      expect(warnings).toEqual([]);
+      expect(warnings.some((warning) => warning.includes('also exists in public/'))).toBe(true);
     } finally {
       rmSync(projectRoot, { recursive: true, force: true });
     }

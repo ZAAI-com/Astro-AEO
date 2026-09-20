@@ -1,4 +1,5 @@
 // @ts-check
+import { canonicalLanguage } from './locale.js';
 
 const SITEMAP_NAMESPACE = 'http://www.sitemaps.org/schemas/sitemap/0.9';
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
@@ -411,18 +412,6 @@ function rejectMixedContent(node, findings) {
       });
       return;
     }
-  }
-}
-
-/** @param {unknown} value */
-function canonicalLanguage(value) {
-  if (typeof value !== 'string' || !value.trim()) return null;
-  const candidate = value.trim().replace(/_/g, '-');
-  if (candidate.toLowerCase() === 'x-default') return 'x-default';
-  try {
-    return Intl.getCanonicalLocales(candidate)[0] ?? null;
-  } catch {
-    return null;
   }
 }
 

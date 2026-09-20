@@ -1,5 +1,11 @@
 // @ts-check
 import { createHash } from 'node:crypto';
+// One canonicalizer for the whole package. The core implementation is Node-free and
+// additionally rejects non-finite numbers, cycles, accessors, and non-plain prototypes,
+// so IndexNow digests cannot be computed over a value it would silently pass through.
+import { canonicalJson } from '../core/corpus-manifest.js';
+
+export { canonicalJson };
 
 export const INDEXNOW_STATE_VERSION = 1;
 export const INDEXNOW_QUEUE_VERSION = 1;
@@ -610,27 +616,6 @@ function isRecord(value) {
 function assertOnlyKeys(value, allowed, label) {
   const keys = Object.keys(value);
   if (keys.some((key) => !allowed.includes(key))) throw new TypeError(`${label} contains an unknown field`);
-}
-
-/**
- * Produce compact canonical JSON with recursively sorted object keys.
- * Array order is left untouched. Integer-like object keys follow
- * `JSON.stringify` ordering (spec-deterministic across runtimes), which keeps
- * IndexNow digests stable; do not replace this with a pure lexicographic sort.
- * @param {unknown} value
- */
-export function canonicalJson(value) {
-  return JSON.stringify(sortValue(value));
-}
-
-/** @param {unknown} value @returns {unknown} */
-function sortValue(value) {
-  if (Array.isArray(value)) return value.map(sortValue);
-  if (!isRecord(value)) return value;
-  /** @type {Record<string, unknown>} */
-  const output = Object.create(null);
-  for (const key of Object.keys(value).sort(codeUnitCompare)) output[key] = sortValue(value[key]);
-  return output;
 }
 
 /** @param {string | Uint8Array} value @returns {`sha256:${string}`} */

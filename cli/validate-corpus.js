@@ -5,6 +5,9 @@ import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { countApproximateTokens, normalizePublishedText } from '../src/core/corpus-tokenizer.js';
 import { normalizeCorpusManifest } from '../src/core/corpus-manifest.js';
+// Share the producer's BCP 47 normalization so the validator cannot disagree with
+// the build and runtime about what a canonical language tag is.
+import { canonicalLanguage } from '../src/core/locale.js';
 
 const HASH = /^sha256:[a-f\d]{64}$/;
 const ARTIFACT_KINDS = new Set(['index', 'full', 'small', 'chunk', 'alias']);
@@ -573,16 +576,6 @@ function isOrigin(value) {
 function validBase(value) {
   if (value === '/') return true;
   return typeof value === 'string' && safePathname(value) && value.length > 1 && !value.endsWith('/') && !value.includes('//');
-}
-
-/** @param {unknown} value */
-function canonicalLanguage(value) {
-  if (typeof value !== 'string' || !value) return null;
-  try {
-    return Intl.getCanonicalLocales(value.replace(/_/g, '-'))[0] ?? null;
-  } catch {
-    return null;
-  }
 }
 
 /** @param {unknown} value */
