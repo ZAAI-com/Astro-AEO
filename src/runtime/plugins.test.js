@@ -185,6 +185,33 @@ describe('runtime plugin artifacts', () => {
     expect(read).toHaveBeenCalledTimes(1);
   });
 
+  test('includes catalog descriptor identity on fixed runtime handles', () => {
+    const pages = createRuntimePluginPageHandles([
+      {
+        pathname: '/guide',
+        origin: 'https://fr.example.com',
+        locale: 'fr',
+        alternates: [{ language: 'en', url: 'https://example.com/guide/' }],
+      },
+      {
+        pathname: '/plain',
+        descriptor: {
+          origin: 'https://ignored.example',
+          locale: 'de',
+        },
+      },
+    ], async () => null);
+
+    expect(pages[0]).toMatchObject({
+      pathname: '/guide',
+      origin: 'https://fr.example.com',
+      locale: 'fr',
+      alternates: [{ language: 'en', url: 'https://example.com/guide/' }],
+    });
+    expect(pages[1]).not.toHaveProperty('origin');
+    expect(pages[1]).not.toHaveProperty('locale');
+  });
+
   test('includes the root page in fixed runtime handles', async () => {
     const read = vi.fn(async (page) => ({
       id: page.pathname,

@@ -11,12 +11,15 @@ vi.mock('./config.js', async () => {
       standaloneSources: {},
     },
     RUNTIME_CATALOG_LOADERS: [],
+    RUNTIME_DYNAMIC_ROUTE_SOURCE: null,
     RUNTIME_MARKDOWN_RENDERER_LOADERS: [],
     RUNTIME_PLUGIN_LOADERS: [],
+    RUNTIME_CORPUS_TOKENIZER_LOADER: undefined,
   };
 });
 
 const { onRequest } = await import('./middleware.js');
+const { RUNTIME } = await import('./config.js');
 const FETCH_STATE = Symbol.for('astro.fetchState');
 
 function disposableContext({ request, url, locals = {}, render }) {
@@ -67,11 +70,31 @@ function disposableContext({ request, url, locals = {}, render }) {
   };
 }
 
-afterEach(() => vi.unstubAllGlobals());
+// A test that switches the shared mocked command must not be able to leak it into the
+// rest of the file when a setup line throws before its own try block is entered.
+const DEFAULT_COMMAND = RUNTIME.command;
+afterEach(() => {
+  RUNTIME.command = DEFAULT_COMMAND;
+  vi.unstubAllGlobals();
+});
 
 describe('runtime corpus subrequests', () => {
-  test('serializes rewrites without making a forged-Host network request', async () => {
-    const url = new URL('https://forged-host.invalid/llms-full.txt');
+  test('does not serve origin-scoped artifacts on an unknown host', async () => {
+    const url = new URL('https://unknown.example/llms.txt');
+    const fallback = new Response('project fallback', { status: 404 });
+    const next = vi.fn(async () => fallback);
+
+    const response = await onRequest(
+      { request: new Request(url), url, locals: {}, isPrerendered: false },
+      next,
+    );
+
+    expect(response).toBe(fallback);
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  test('serializes rewrites without making a network request', async () => {
+    const url = new URL('https://example.test/llms-full.txt');
     const request = new Request(url, {
       headers: {
         accept: 'text/markdown',
@@ -96,7 +119,7 @@ describe('runtime corpus subrequests', () => {
         active++;
         peak = Math.max(peak, active);
         expect(target).toBeInstanceOf(Request);
-        expect(new URL(target.url).origin).toBe('https://forged-host.invalid');
+        expect(new URL(target.url).origin).toBe('https://example.test');
         expect(target.method).toBe('GET');
         expect(target.headers.get('authorization')).toBeNull();
         expect(target.headers.get('cookie')).toBeNull();
@@ -263,20 +286,24 @@ describe('runtime corpus subrequests', () => {
     expect(await response.text()).toContain('# Page');
   });
 
-  test('uses a fresh Astro request state for every corpus page', async () => {
+  test.each([
+    ['Astro 6.3-7.1 pipeline', 'pipeline'],
+    ['Astro 7.2 manifest', 'manifest'],
+  ])('uses a fresh %s request state for every corpus page', async (_label, ownerKey) => {
     const fetchStateSymbol = Symbol.for('astro.fetchState');
     const instances = [];
-    const pipeline = { manifest: {} };
+    const owner = {};
     class FakeCookies {
       constructor(request) { this.request = request; }
     }
     class FakeState {
-      constructor(statePipeline, request, options = {}) {
-        this.pipeline = statePipeline;
+      constructor(stateOwner, request, options = {}, hooks = {}) {
+        this[ownerKey] = stateOwner;
         this.request = request;
         this.renderOptions = options;
         this.locals = options.locals ?? {};
         this.cookies = new FakeCookies(request);
+        this.hooks = hooks;
         instances.push(this);
       }
       async rewrite(request) {
@@ -301,9 +328,12 @@ describe('runtime corpus subrequests', () => {
     }
 
     const url = new URL('https://example.test/llms-full.txt');
-    const outer = new FakeState(pipeline, new Request(url), {
+    const outer = new FakeState(owner, new Request(url), {
       locals: { callerUser: 'private' },
     });
+    outer.streaming = false;
+    outer.renderError = vi.fn();
+    outer.logRequest = vi.fn();
     const context = {
       request: outer.request,
       url,
@@ -320,6 +350,101 @@ describe('runtime corpus subrequests', () => {
     expect(instances).toHaveLength(3);
     expect(instances[1]).not.toBe(instances[2]);
     expect(outer.locals).toEqual({ callerUser: 'private' });
+    expect(instances[1][ownerKey]).toBe(owner);
+    expect(instances[1].hooks).toEqual(ownerKey === 'manifest'
+      ? {
+          streaming: false,
+          renderError: outer.renderError,
+          logRequest: outer.logRequest,
+        }
+      : {});
+  });
+
+  test('constructs Astro 7.2 one-argument FetchState subclasses with only the request', async () => {
+    const fetchStateSymbol = Symbol.for('astro.fetchState');
+    const instances = [];
+    const manifest = {};
+    class OneArgFetchState {
+      constructor(request) {
+        expect(arguments.length).toBe(1);
+        this.manifest = manifest;
+        this.request = request;
+        this.renderOptions = { locals: {} };
+        this.locals = this.renderOptions.locals;
+        this.cookies = { request };
+        instances.push(this);
+      }
+      async rewrite(request) {
+        const url = new URL(request.url);
+        return onRequest(
+          {
+            request,
+            url,
+            locals: this.locals,
+            isPrerendered: false,
+            rewrite: this.rewrite.bind(this),
+            [fetchStateSymbol]: this,
+          },
+          vi.fn(async () => new Response(
+            `<html><head><title>${url.pathname}</title></head><body><main><h1>${url.pathname}</h1></main></body></html>`,
+            { headers: { 'content-type': 'text/html' } },
+          )),
+        );
+      }
+    }
+
+    const url = new URL('https://example.test/llms-full.txt');
+    const outer = new OneArgFetchState(new Request(url));
+    outer.locals = { callerUser: 'private' };
+    const context = {
+      request: outer.request,
+      url,
+      locals: outer.locals,
+      isPrerendered: false,
+      rewrite: vi.fn(),
+      [fetchStateSymbol]: outer,
+    };
+
+    const response = await onRequest(context, vi.fn());
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain('# /public/');
+    expect(instances).toHaveLength(3);
+    expect(instances[1]).toBeInstanceOf(OneArgFetchState);
+    expect(instances[1]).not.toBe(instances[0]);
+  });
+
+  test('surfaces one-argument FetchState construction failures in development', async () => {
+    RUNTIME.command = 'dev';
+    const fetchStateSymbol = Symbol.for('astro.fetchState');
+    class BrokenOneArgFetchState {
+      constructor(request) {
+        if (BrokenOneArgFetchState.calls++ > 0) {
+          throw new Error('SECRET_CONSTRUCTION_FAILURE');
+        }
+        this.manifest = {};
+        this.request = request;
+        this.renderOptions = { locals: {} };
+        this.locals = this.renderOptions.locals;
+        this.cookies = { request };
+      }
+      async rewrite() {
+        throw new Error('rewrite should not run after construction failure');
+      }
+    }
+    BrokenOneArgFetchState.calls = 0;
+
+    const url = new URL('https://example.test/llms-full.txt');
+    const outer = new BrokenOneArgFetchState(new Request(url));
+    const context = {
+      request: outer.request,
+      url,
+      locals: outer.locals,
+      isPrerendered: false,
+      rewrite: vi.fn(),
+      [fetchStateSymbol]: outer,
+    };
+
+    await expect(onRequest(context, vi.fn())).rejects.toThrow('SECRET_CONSTRUCTION_FAILURE');
   });
 
   test.each([
@@ -359,7 +484,7 @@ describe('runtime corpus subrequests', () => {
     expect(response.status).toBe(503);
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(response.headers.get('set-cookie')).toBeNull();
-    expect(await response.text()).toContain('require Astro 6.3 or newer');
+    expect(await response.text()).toContain('request state was not recognized');
     expect(next).not.toHaveBeenCalled();
     expect(context.rewrite).not.toHaveBeenCalled();
     expect(readCookie).not.toHaveBeenCalled();

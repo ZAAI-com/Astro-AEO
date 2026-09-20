@@ -703,14 +703,28 @@ describe('deferred ownership and transaction', () => {
     expect(readFileSync(path, 'utf8')).toBe('plugin');
   });
 
-  test('never replaces a project-root artifact that has no served pathname', () => {
+  test('replaces a project-root artifact with an explicit overwrite policy', () => {
+    const path = join(dir, 'docs', 'Url-Map.md');
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, 'project owned');
+    const diagnostics = [];
+    const writer = deferredWriter({ diagnostics });
+    writer.write({ path, owner: 'urlMap', contents: 'generated', onConflict: 'overwrite' });
+
+    expect(writer.commit()).toEqual({ total: 1, byOwner: { urlMap: 1 } });
+    expect(readFileSync(path, 'utf8')).toBe('generated');
+    expect(diagnostics).toEqual([]);
+    expect(warnings).toEqual([]);
+  });
+
+  test('preserves a project-root artifact without an overwrite policy', () => {
     const path = join(dir, 'docs', 'Url-Map.md');
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, 'project owned');
     const writer = deferredWriter({ replacePaths: ['/docs/Url-Map.md'] });
     writer.write({ path, owner: 'urlMap', contents: 'generated' });
 
-    writer.commit();
+    expect(writer.commit()).toEqual({ total: 0, byOwner: {} });
     expect(readFileSync(path, 'utf8')).toBe('project owned');
     expect(warnings).toEqual([
       expect.stringContaining('Choose a different output path'),

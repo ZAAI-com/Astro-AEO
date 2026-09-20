@@ -105,7 +105,8 @@ aeo({
     exclude: [],                     // path globs to exclude, e.g. ['/drafts/**']
     respectNoindex: true,            // skip pages with <meta name="robots" content="noindex">
     stripTitleSuffix: false,         // strip " | Your Brand" from titles: string | string[] | RegExp
-    catalogs: [],                    // modules listing data-generated routes
+    devDynamicDiscovery: 'startup',  // 'startup' | 'hot' (experimental) | false
+    catalogs: [],                    // request-time inventory and exact descriptor modules
   },
 
   markdown: {                        // the .md companions
@@ -140,15 +141,28 @@ aeo({
       mode: 'all',                   // 'all' | 'index' | 'first-page-only'
     },
 
+    small: { enabled: false, maxTokens: 20_000 },
+    chunks: { enabled: false, maxTokensPerFile: 100_000, by: 'section' },
+    manifest: { enabled: false },    // /llms/manifest.json
+    tokenizer: undefined,            // { module, options? }; local importable module only
+    compression: { gzip: false },    // deterministic static .gz siblings
+
     urlMap: {
       enabled: false,
-      outputFilepath: 'docs/Url-Map.md',
+      outputFilepath: 'docs/Url-Map.md', // replaced on each enabled, successful build
     },
 
     runtime: {
       maxPages: 50,                  // positive integer | 'unlimited'; refuses larger live corpora
     },
   },
+
+  i18n: {
+    indexes: 'auto',                 // 'auto' | 'global' | 'locale' | 'both'
+    unresolvedLanguage: 'default',  // 'default' | 'error' | 'exclude'
+  },
+
+  cache: { enabled: true },
 
   discovery: {
     sitemap: {
@@ -164,6 +178,7 @@ aeo({
 
     robots: {
       enabled: false,
+      policy: 'custom',                  // custom | open | search-open-training-closed | retrieval-only | closed
       universalAllow: true,              // lead with "User-agent: * / Allow: /" (suppressed if '*' is named below)
       allow: [],                          // e.g. ['Googlebot', 'OAI-SearchBot', 'Claude-SearchBot']
       disallow: [],                       // e.g. ['GPTBot', 'ClaudeBot', 'Google-Extended']
@@ -171,6 +186,17 @@ aeo({
       sitemapPath: '/sitemap-index.xml',  // defaults to the @astrojs/sitemap output name (tracks filenameBase)
       includeLlmsTxt: true,
       extraLines: [],
+      // contentSignals: { search: true, aiInput: true, aiTrain: false },
+    },
+
+    indexNow: {
+      enabled: false,
+      submit: 'changed',              // 'changed' | 'all'
+      state: 'public',                // 'public' | 'private' | 'stateless'
+      strict: false,
+      key: { source: 'env', name: 'ASTRO_AEO_INDEXNOW_KEY' },
+      // keyLocation: '/indexnow-key.txt',
+      origins: [],
     },
   },
 
@@ -203,8 +229,29 @@ aeo({
 });
 ```
 
-Only these 1.2 groups are active. Configuration for later roadmap releases, including i18n,
-chunking, caching, IndexNow, analytics, and audit output, is not accepted as a placeholder.
+All 1.3 corpus, i18n, cache, crawler, and IndexNow outputs shown above are implemented. New corpus
+families, gzip, crawler presets, Content Signals, and IndexNow remain disabled until configured.
+The 1.4 audit, doctor, provider-fix, SARIF, and static edge-negotiation roadmap remains out of scope.
+
+### Migrating to 1.3
+
+Ordinary projects with one implicit locale keep the 1.2 root `llms.txt`, `llms-full.txt`,
+Markdown, profile, and custom `robots.txt` bytes. Multilingual projects can choose a topology with
+`i18n.indexes`. In `auto`, one active locale remains at the root while multiple locales receive
+canonical families under `/<locale>/` and a root language directory. `locale` emits no root
+corpus, `global` groups languages at the root, and `both` adds locale families plus flat byte-copy
+aliases such as `/llms-en.txt`.
+
+Astro string locale values are the directory identity. Locale objects use `path` as the directory
+and `codes[0]` as the primary BCP 47 language. Page language resolves after semantic enrichment.
+Invalid explicit declarations are errors; unresolved pages follow `i18n.unresolvedLanguage`.
+External public HTTPS `hreflang` links are allowed but never fetched.
+
+The private `.astro/aeo-cache` directory can contain normalized derived page content and IndexNow
+notification state. Keep `.astro` uncommitted, transfer the `indexnow` pending and acknowledgment
+directory between separate CI prepare/submit jobs, and protect it as sensitive build data. Cache
+files use restrictive permissions where supported. `cache.enabled: false` disables payload reuse,
+not artifact ownership or IndexNow safety ledgers.
 
 ### Migrating to 1.2
 
@@ -221,9 +268,10 @@ Version 1.2 deliberately changes three defaults or public contracts:
   1.x. The smaller `AeoPage` used by section match predicates is unchanged.
 - Project routes and `public/` files now own their served path by default. Astro-AEO will not
   overwrite them unless the exact normalized served pathname appears in `artifacts.replace`.
-  Globs are rejected. Duplicate generated claims emit neither claimant, and project-root URL-map
-  files are never replaced. This ownership flip is the other intentional 1.x compatibility
-  exception.
+  Globs are rejected, and duplicate generated claims emit neither claimant. Version 1.2.0 also
+  preserved existing project-root URL-map files; 1.3 restores the pre-1.2 behavior and regenerates
+  the configured URL map on every successful build when enabled. The served-path ownership flip
+  is the other intentional 1.x compatibility exception.
 
 For example, a project that deliberately replaces its own `/docs/llms.txt` under an Astro base of
 `/docs` must authorize that exact browser-visible pathname:
@@ -362,10 +410,40 @@ Standalone `.md` page routes need no marker: Astro-AEO reads their source direct
 removes only leading YAML frontmatter, and embeds on-demand sources through a Vite
 `?raw` registry in the server bundle. The release bundle-size gate measures this cost.
 
-### Pages the build cannot see
+### Dynamic routes and catalogs
 
-Routes generated from data rather than from a file are invisible to Astro's page
-list, so they are absent from `llms.txt` and get no `.md`. A catalog lists them:
+Static builds already give Astro-AEO every concrete pathname returned by a prerendered
+route's `getStaticPaths()`. Those pages receive the same `.md`, `llms.txt`,
+`llms-full.txt`, schema corpus, and URL-map treatment as file-based pages without a
+catalog.
+
+In `astro dev`, `pages.devDynamicDiscovery` controls how aggregate live corpora find
+prerendered dynamic paths:
+
+- `'startup'` (default) uses Astro's public route hook to remember the dynamic route
+  modules present when the server starts. Astro-AEO imports those modules lazily only
+  when an aggregate corpus is requested, then calls their `getStaticPaths()` functions.
+  Changes to an existing route module or its content dependencies appear on the next
+  corpus request. Adding or deleting an entire dynamic route file requires a restart.
+- `'hot'` also tracks dynamic route-file additions and deletions. This mode is
+  experimental because it relies on Astro's private `virtual:astro:routes` module,
+  whose shape may change between Astro releases. If it becomes incompatible, switch
+  back to `'startup'`.
+- `false` preserves catalog-only development enumeration. Astro-AEO warns when a
+  dynamic page is consequently missing from the development corpus.
+
+Discovery loads only page modules that Astro has resolved as project-owned,
+prerendered dynamic routes. Astro-AEO never crawls the site and never parses project
+content directories. Props returned with `getStaticPaths()` entries are discarded
+immediately and are never placed in a virtual module or corpus. Keep
+`getStaticPaths()` deterministic and safe to evaluate during an aggregate corpus
+request.
+
+Catalogs remain necessary for on-demand or SSR routes, external CMS-only inventory,
+synthetic pages, and any other request-time path that Astro cannot enumerate. They are
+also useful when an automatic pathname needs exact authored Markdown or metadata. A
+catalog descriptor overlays a matching concrete or automatically discovered path, so
+its authored source and metadata win:
 
 ```js
 // astro.config.mjs
@@ -394,8 +472,7 @@ A catalog that cannot resolve, import, evaluate, or run `listPages()` warns and
 contributes nothing rather than failing the build or server startup. Catalogs run in
 configured order in both builds and server bundles; the first descriptor wins when
 two catalogs name the same normalized path. `context` contains the command, site URL,
-base path, and trailing-slash policy. Astro-AEO does not crawl your site to discover
-routes.
+base path, and trailing-slash policy.
 
 Catalog entrypoints must be JavaScript that Node's native module loader can execute:
 `.js`, `.mjs`, or `.cjs`. This keeps build preflight identical on every supported Node
@@ -406,7 +483,19 @@ built-in TypeScript support is not a portable substitute: it is unavailable on N
 handles only erasable syntax by default, and ignores `tsconfig.json` behavior. See the
 [Node TypeScript documentation](https://nodejs.org/api/typescript.html).
 
-Request-time `llms.txt` and `llms-full.txt` render each known route through the
+Request-time middleware owns `llms.txt` and `llms-full.txt` when at least one project page
+route renders on demand, because those pages are outside the build's reach. When every page
+route is prerendered the build emits both files even if an adapter is installed, and they
+contain every `getStaticPaths()` result.
+
+In that case the middleware declines those paths, along with the schema corpus, rather than
+answering with a second and shorter list: a request-time render cannot expand
+`getStaticPaths()`. Every supported adapter serves static assets before the application, so
+the emitted file answers. A deployment that reaches the application first, such as
+`@astrojs/node` in middleware mode mounted ahead of its own static handler, receives `404`
+instead. Serve your static output before the Astro handler.
+
+Once middleware owns them, both files render each known route through the
 application so page markers behave normally. Each route is rendered serially through
 Astro's in-process rewrite pipeline: no network destination is derived from the Host
 header, the trusted rewrite capability exists only in process, and caller credentials
@@ -415,10 +504,14 @@ corpus returns `503` with `Cache-Control: no-store`, without partial output. Rai
 limit or select `'unlimited'` only when the deployment can safely absorb that work.
 Astro 5 and Astro 6.0-6.2 receive `503` for request-time corpora because those
 versions do not expose a disposable request state. Their closure-held client address,
-cookies, and session cannot be replaced securely for an anonymous corpus render.
+cookies, and session cannot be replaced securely for an anonymous corpus render. The
+response reports an unrecognized request state rather than an Astro version, because the
+middleware can only observe the shape it was handed.
 Build-time corpus artifacts and authenticated direct `.md` requests are unaffected.
 Astro 6.3 and newer use a separate disposable request state for every serialized
-corpus render, including streams whose cancellation never settles.
+corpus render, including streams whose cancellation never settles. This requirement
+also applies when a live corpus uses automatic dynamic-route discovery. Ordinary HTML
+and direct `.md` requests remain independent of aggregate discovery.
 
 ### Content negotiation
 
@@ -438,6 +531,10 @@ bytes but currently still calculates the Markdown representation. A source `304`
 re-evaluated with a sanitized GET only when Markdown is strictly preferred; otherwise
 it passes through unchanged. Redirects, API responses, negotiated error pages, and
 `204`/`205` responses retain the application's original behavior.
+Astro 7.3's `memoryCache()` skips caching a response that carries `Vary: Cookie` or
+`Vary: *`. Negotiated responses vary on `Accept`, so they stay cacheable; a drop in
+hit rate comes from cookie-varying responses your own site emits, not from
+content negotiation.
 An explicit `.md` request may convert an HTML error body while preserving its status.
 Encoded and partial (`206`) HTML responses are not transformed.
 
@@ -551,9 +648,78 @@ corpus: {
 
 Globs are segment-aware: `*` stays inside one path segment, `**` crosses segments and matches the base (`/blog/**` matches `/blog` and `/blog/post`). `/error` matches `/error` but not `/error-log`.
 
+### Small corpora, chunks, manifests, and gzip
+
+`corpus.small` builds a strict token-budgeted `llms-small.txt` from contiguous leading source
+blocks. It uses stable round-robin allocation across locales, sections, and pages, counts wrappers
+against the limit, and never summarizes or rewrites content. `corpus.chunks` splits full-corpus
+content at page, heading, paragraph, and fenced-code boundaries. Fences remain indivisible and an
+oversized unit is emitted with a diagnostic rather than silently truncated.
+
+The built-in `astro-aeo-approx@1` counter is deterministic and explicitly approximate. A custom
+local tokenizer module must default-export API version 1 with stable `name`, `version`,
+`approximate`, and `count()` fields. It is probed twice. Any load or count failure restarts the
+whole plan with the built-in tokenizer so a manifest never mixes identities.
+
+When enabled, `/llms/manifest.json` records locales, canonical artifacts, pages, and exact SHA-256
+byte hashes of published companions. Pages without a `.md` companion (Markdown disabled, `no-dotmd`,
+or `generateMarkdown: false`) keep a page record with `markdownUrl`, `tokenCount`, and `hash` set to
+`null`. When a companion exists, `hash` and `tokenCount` match the emitted `.md` bytes after
+`renderMarkdownDocument` (frontmatter, trailing newline, and last-modified footer included). Static
+`corpus.compression.gzip` adds deterministic level-9 siblings for text corpus artifacts. Runtime
+middleware serves every logical artifact except precompressed gzip and relies on provider transport
+compression.
+
+### Incremental processing cache
+
+Build extraction results and core artifact payloads are content-addressed under
+`.astro/aeo-cache/processing-v1`. An exclusive same-host process lock protects reusable state;
+invalid, foreign, or active locks force a cold read-only build with no stale deletion authority.
+Project routes and `public/` files still win. A stale file is deleted only when the prior ledger
+names Astro-AEO, the path is confined, the file is regular and not a symlink, and its bytes still
+match the prior emitted hash.
+
 ### The universal robots.txt group
 
 `discovery.robots.universalAllow` (default `true`) makes `robots.txt` lead with a `User-agent: *` / `Allow: /` group, so unlisted crawlers see an explicit open policy even when you also name specific bots in `allow`/`disallow`. It is suppressed automatically if you already declare a `User-agent: *` group yourself (via `allow`, `disallow`, or `extraLines`), so there is no duplicate group. Set it to `false` for a named-bots-only policy.
+
+The `custom` policy preserves this renderer. Presets use a frozen, first-party-documented crawler
+registry: `open`, `search-open-training-closed`, `retrieval-only`, and `closed`. Per-token
+`allow`/`disallow` overrides are case-insensitive and cannot overlap. Content Signals are emitted
+only when all three booleans are supplied, and each `Content-Signal` line is placed inside every
+applicable `User-agent` group (Cloudflare treats it as a group directive). When
+`i18n.indexes` is `locale`, robots does not advertise a root `# llms.txt:` hint because no root
+`/llms.txt` is emitted or served. Robots policies and experimental Content Signals state
+preferences, not access control or guaranteed crawler compliance.
+
+### IndexNow prepare and submit
+
+An enabled build prepares notification state but never submits it. Keys are resolved only by the
+submit command from an environment variable or local secret file; literal keys are rejected.
+
+```bash
+npx astro-aeo indexnow prepare dist
+npx astro-aeo indexnow submit
+```
+
+`public` state publishes a key-free `/.well-known/astro-aeo-indexnow-v1.json` and verifies its
+deployed digest before submission. `private` uses only the transferred CI acknowledgment ledger.
+`stateless` sends all current URLs and cannot notify removals. The default queue is
+`.astro/aeo-cache/indexnow/pending-v1.json`.
+
+A removal is inferred from a URL's absence, so it is only trustworthy when the build saw every
+page. When a build cannot, because a catalog entry was rejected, a plugin failed, or a page's built
+HTML could not be read, removals are withheld for that build and a warning names the cause. New and
+changed pages are queued normally, so a broken catalog never stops you announcing new content.
+Removals resume on the next build with a complete inventory.
+
+Submission verifies a same-origin HTTPS key file without redirects, pins public DNS addresses,
+enforces `keyLocation` directory scope before posting (a non-root key authorizes only URLs beneath
+that directory), batches at 10,000 URLs, and retries network errors, `429`, and `5xx` responses
+three total times. Successful batches update acknowledgment state atomically; failed work remains
+pending. Remote failures warn with exit 0 unless `strict` is enabled. `IndexNowInvocationError`
+(malformed invocation, origins, credentials, key responses, lock failures, or scope violations)
+always exits 2. Keys, secret-derived paths, and POST bodies are never logged or persisted.
 
 ### Profile email
 
@@ -567,7 +733,9 @@ and its authentication apply to a `.md` request exactly as they do to the HTML.
 
 Configuring an adapter authorizes Astro-AEO to inject on-demand fallback routes for catch-all
 `.md` requests and every enabled runtime artifact. This can turn an otherwise static adapter
-build into server or hybrid output. The endpoints return `404` when pre-middleware declines and
+build into server or hybrid output. That promotion does not move the corpus: `llms.txt` and
+`llms-full.txt` are still emitted at build time unless one of your own page routes renders on
+demand. The endpoints return `404` when pre-middleware declines and
 exist so provider routing reaches that middleware before a custom-404 fallback. Literal project
 `.md` routes retain ownership unless their exact served pathname is listed in
 `artifacts.replace`.
@@ -577,6 +745,30 @@ contracts run locally for Node, Cloudflare in workerd, Deno, and the emitted Ver
 handlers. Separate assertions verify that Vercel routes runtime artifacts to `_render` before its
 status-404 fallback and that Netlify does not short-circuit `.md` through bundled custom-404
 content.
+
+The stock `@astrojs/cloudflare()` adapter needs no extra wiring. If you replace its worker
+entrypoint with a hand-written `astro/fetch` handler, wrap the app response in
+`finalize(state, response)` from `@astrojs/cloudflare/fetch` (Astro 7.3 and newer). Without it
+cookies set during the request, including the ones Astro-AEO merges when it rewrites a direct
+`.md` request into your route, may never reach the client. The `@astrojs/cloudflare/hono`
+middleware applies those headers already.
+
+Origin-scoped runtime artifacts (`llms.txt`, `llms-full.txt`, the corpus paths, and
+`/.well-known/domain-profile.json`) are served only when the request origin matches the configured
+`site` or one of the configured i18n domains. `astro dev` and `astro preview` additionally accept
+their loopback origin; a deployed server does not, so a spoofed `Host: localhost` cannot claim the
+configured site. On Astro 5 and Astro 6 the Node adapter rewrites the request host to `localhost`
+unless the domain is allowed, so those projects need Astro's own host trust for the artifacts to be
+reachable:
+
+```js
+export default defineConfig({
+  site: 'https://example.com',
+  security: { allowedDomains: [{ hostname: 'example.com' }] },
+});
+```
+
+Astro 7 keeps the request `Host` header without that setting.
 
 On static hosting the companions are plain files, and many hosts serve unknown
 extensions as `text/plain`, `application/octet-stream`, or a download. To keep answer
@@ -649,6 +841,8 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
 const article = createArticle({
   '@id': createId('#article', canonical),
   headline: 'A stable semantic page',
+  datePublished: '2026-08-11T09:30:00+02:00',
+  dateModified: '2026-08-18T12:00:00Z',
 });
 const graph = createGraph([article]);
 ---
@@ -663,6 +857,13 @@ const graph = createGraph([article]);
   />
 </head>
 ```
+
+For Article rich results, [Google prefers](https://developers.google.com/search/docs/appearance/structured-data/article)
+ISO 8601 datetimes with timezone information for `datePublished` and `dateModified`, such as an
+explicit offset or a `Z` suffix. A bare ISO date such as `2026-08-11` remains a valid
+[Schema.org `Date`](https://schema.org/datePublished), but Google's Rich Results Test may report
+non-critical date warnings. These warnings do not affect eligibility. Astro-AEO passes each
+authored value through unchanged without normalizing it or adding a timezone.
 
 Its typed props cover `title`, `description`, `canonical`, `robots`, `openGraph`, `twitter`,
 `locale`, `hreflang`, `feeds`, `pagination`, `markdownAlternate`, `themeColor`, `authors` (`author`
@@ -744,8 +945,8 @@ slash. Cross-page reference validation is scoped to the configured Astro site an
 
 Runtime schema corpora use the same anonymous, serial, in-process renderer as the text corpora,
 including `GET`, `HEAD`, ETags, and conditional requests. Astro 5 and Astro 6.0 through 6.2 return
-`503` with `Cache-Control: no-store` for full request-time corpora. Astro 6.3 or newer is required
-for disposable per-page request state.
+`503` with `Cache-Control: no-store` for full request-time corpora, reported as an unrecognized
+request state. Astro 6.3 or newer is required for disposable per-page request state.
 
 ## Plugin API
 
@@ -797,7 +998,7 @@ import { FaqJsonLd, BreadcrumbJsonLd, ArticleJsonLd } from 'astro-aeo/components
 | `BreadcrumbJsonLd` | `items?`, `labels?`, `includeHome?` | Auto-derives the trail from the URL when `items` is omitted |
 | `OrganizationJsonLd` | `name`, `url?`, `logo?`, `sameAs?`, `contactEmail?` | `url` defaults to `site`. Place once, e.g. the homepage |
 | `SpeakableJsonLd` | `cssSelector?` (default `['main']`), `url?` | Drop-in with no props |
-| `ArticleJsonLd` | `headline`, `datePublished?`, `dateModified?`, `author?`, `image?`, `description?` | For posts and dated content |
+| `ArticleJsonLd` | `headline`, `datePublished?`, `dateModified?`, `author?`, `image?`, `description?` | For posts and dated content. Google prefers ISO 8601 datetimes with an offset or `Z`; values pass through unchanged |
 
 Each compatibility component renders a single, XSS-safe `<script type="application/ld+json">`.
 They use the graph builders internally while preserving their established props and serialized
@@ -810,7 +1011,11 @@ npx astro-aeo validate            # validates ./dist
 npx astro-aeo validate dist --strict --json
 ```
 
-Checks: `llms.txt` follows the spec and every referenced `.md` exists; `llms-full.txt` is present and separated; each page has exactly one Markdown alternate link; page titles, image alt attributes, robots meta tags, Open Graph previews, and Twitter card type pass basic crawler checks; `robots.txt` parses and its `Sitemap` is absolute; `domain-profile.json` is valid and has `@context`, `@type`, and `name`.
+Checks: corpus topology is discovered from its manifest or the filesystem; locale families,
+canonical selections, page/chunk/artifact hashes, token counts, aliases, and gzip siblings are
+verified. The validator also checks strict sitemap indexes and confined shards, Markdown links,
+alternate metadata, robots references, page metadata, and domain profiles. Standalone validation
+does not import arbitrary project tokenizer code.
 
 Exit codes: `0` pass, `1` validation errors (or warnings with `--strict`), `2` usage or IO error.
 
@@ -822,7 +1027,7 @@ On `astro build`, generated files and targeted HTML enrichments are buffered unt
 ownership checks finish, then committed atomically. No separate package build step, external
 service, or network self-fetch is required. Redirect stubs and non-HTML outputs are skipped.
 
-In `astro dev`, a middleware serves `robots.txt`, `domain-profile.json`, and `.md` companions live, and builds `llms.txt` from your static routes. Dev is best-effort: dynamic and content-collection routes are only fully enumerated by a build, so the dev `llms.txt` carries a note to that effect and the build output remains the source of truth.
+In `astro dev`, a middleware serves `robots.txt`, `domain-profile.json`, and `.md` companions live, and renders the aggregate corpora on request. `pages.devDynamicDiscovery` defaults to `'startup'`, so prerendered dynamic routes are enumerated in development as well; see "Dynamic routes and catalogs" for what each mode does and when a restart is needed. On-demand, CMS-only, and other externally inventoried paths still need a `pages.catalogs` module, and the build output remains the source of truth.
 
 Last-modified dates come from `<meta property="article:modified_time">` when present, otherwise from the git commit history of a static route's source file. Emit `article:modified_time` for precise dates on content-collection pages.
 

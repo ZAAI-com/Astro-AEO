@@ -13,6 +13,11 @@ export default defineConfig({
   trailingSlash,
   output: 'server',
   adapter: node({ mode: 'standalone' }),
+  // Astro 5 and 6 run the Node adapter request through `validateHost`, which
+  // rewrites the request host to `localhost` unless the domain is allowed. The
+  // compatibility gate sends `Host: adapter.example.com` to a loopback listener
+  // so production host scoping is exercised on every pinned Astro version.
+  security: { allowedDomains: [{ hostname: 'adapter.example.com' }] },
   integrations: [
     aeo({
       markdown: { negotiation: 'response' },

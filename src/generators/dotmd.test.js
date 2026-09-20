@@ -134,4 +134,79 @@ describe('emitDotMd', () => {
     expect(emitDotMd([page], resolveConfig(), writer)).toBe(1);
     expect(transforms).toBe(0);
   });
+
+  // Only catalog descriptors carry an explicit origin. Two naming different origins
+  // can share a pathname, and both resolve to the same mdPath under the same owner,
+  // so the duplicate-writer warning never fired and the later write won silently.
+  test('skips companions for catalog pages published on another origin', () => {
+    /** @type {string[]} */
+    const paths = [];
+    const writer = /** @type {any} */ ({
+      isDeferred: true,
+      write(claim) { paths.push(claim.path); return true; },
+      stageTransform() {},
+    });
+    const base = {
+      mdHref: '/shared.md',
+      title: 'Shared',
+      description: '',
+      markdown: '# Shared',
+      rendering: 'prerendered',
+      aeoTokens: [],
+      directives: { generateMarkdown: true },
+      htmlPath: '',
+      mdPath: join(root, 'dist', 'shared.md'),
+    };
+    const own = { ...base, pathname: '/shared', url: 'https://example.test/shared/' };
+    const foreign = {
+      ...base,
+      pathname: '/shared',
+      origin: 'https://other.example.test',
+      url: 'https://other.example.test/shared/',
+    };
+    /** @type {any[]} */
+    const diagnostics = [];
+
+    const written = emitDotMd([own, foreign], resolveConfig(), writer, {
+      siteUrl: 'https://example.test',
+      diagnostics,
+    });
+
+    expect(written).toBe(1);
+    expect(paths).toEqual([join(root, 'dist', 'shared.md')]);
+    expect(diagnostics).toEqual([{
+      version: 1,
+      code: 'catalog-foreign-origin-companion',
+      severity: 'warning',
+      message:
+        "Catalog page /shared is published on https://other.example.test, so no .md companion "
+        + "was written into this origin's output.",
+      pathname: '/shared',
+    }]);
+  });
+
+  test('still writes companions for pages that carry no origin of their own', () => {
+    const writer = /** @type {any} */ ({ isDeferred: true, write() { return true; }, stageTransform() {} });
+    const page = {
+      pathname: '/plain',
+      url: 'https://example.test/plain/',
+      mdHref: '/plain.md',
+      title: 'Plain',
+      description: '',
+      markdown: '# Plain',
+      rendering: 'prerendered',
+      aeoTokens: [],
+      directives: { generateMarkdown: true },
+      htmlPath: '',
+      mdPath: join(root, 'dist', 'plain.md'),
+    };
+    /** @type {any[]} */
+    const diagnostics = [];
+
+    expect(emitDotMd([page], resolveConfig(), writer, {
+      siteUrl: 'https://example.test',
+      diagnostics,
+    })).toBe(1);
+    expect(diagnostics).toEqual([]);
+  });
 });

@@ -2,7 +2,9 @@
 import { extname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { normalizeCatalogPathname, normalizePath } from '../core/match.js';
+import { pageCatalogIdentity } from '../core/page-identity.js';
 import { toIsoTimestamp } from '../core/page-model.js';
+import { normalizeOrigin } from '../core/locale.js';
 
 /**
  * Loading the page catalogs a project configured.
@@ -129,26 +131,29 @@ function localCatalogExtension(module, specifier) {
 /**
  * Load the configured page catalogs.
  *
- * A catalog lists pages the build cannot see for itself, which is every route
- * generated from data rather than from a file. Without one, a dynamic route is
- * simply absent from the corpus; astro-aeo does not crawl to find them.
+ * Astro supplies concrete `getStaticPaths()` results to static builds, and the
+ * development runtime can enumerate prerendered dynamic routes. Catalogs cover
+ * on-demand, CMS-only, synthetic, and otherwise external inventory, or overlay
+ * concrete paths with exact authored source and metadata. Astro-AEO never crawls.
  *
  * @param {{ module: string }[]} catalogs
  * @param {(specifier: string) => Promise<any>} load
  * @param {{ warn: (m: string) => void }} logger
  * @param {import('../page.js').CatalogContext} context
  * @param {import('../index.js').Diagnostic[]} [diagnostics]
- * @returns {Promise<import('../page.js').PageDescriptor[]>}
+ * @returns {Promise<{ pages: import('../page.js').PageDescriptor[]; inventoryComplete: boolean }>}
  */
 export async function loadCatalogPages(catalogs, load, logger, context, diagnostics = []) {
   /** @type {import('../page.js').PageDescriptor[]} */
   const pages = [];
   const seen = new Set();
+  let inventoryComplete = true;
   for (const catalog of catalogs) {
     try {
       const mod = await load(catalog.module);
       const impl = mod?.default ?? mod;
       if (typeof impl?.listPages !== 'function') {
+        inventoryComplete = false;
         reportCatalogDiagnostic(diagnostics, logger, {
           code: 'catalog-missing-list-pages',
           message: `astro-aeo: the page catalog "${catalog.module}" has no listPages() export, so it contributed nothing.`,
@@ -160,7 +165,21 @@ export async function loadCatalogPages(catalogs, load, logger, context, diagnost
       for (const entry of Array.isArray(listed) ? listed : []) {
         const pathname = normalizeCatalogPathname(entry?.pathname);
         if (pathname !== null) {
-          if (seen.has(pathname)) {
+          const origin = entry?.origin === undefined ? null : normalizeOrigin(entry.origin);
+          if (entry?.origin !== undefined && origin === null) {
+            // A dropped page still exists on the site. Reporting a complete inventory
+            // here would let IndexNow read its absence as a removal.
+            inventoryComplete = false;
+            reportCatalogDiagnostic(diagnostics, logger, {
+              code: 'catalog-invalid-origin',
+              message: `astro-aeo: catalog page ${pathname} has an invalid origin and was ignored.`,
+              pathname,
+              sourcePath: catalog.module,
+            });
+            continue;
+          }
+          const identity = pageCatalogIdentity(origin, pathname);
+          if (seen.has(identity)) {
             reportCatalogDiagnostic(diagnostics, logger, {
               code: 'catalog-path-conflict',
               message: `astro-aeo: more than one page catalog described ${pathname}; the first descriptor wins.`,
@@ -169,7 +188,7 @@ export async function loadCatalogPages(catalogs, load, logger, context, diagnost
             });
             continue;
           }
-          seen.add(pathname);
+          seen.add(identity);
           const lastModified = toIsoTimestamp(entry.lastModified);
           const published = toIsoTimestamp(entry.dates?.published);
           const modified = toIsoTimestamp(entry.dates?.modified);
@@ -203,6 +222,9 @@ export async function loadCatalogPages(catalogs, load, logger, context, diagnost
             : undefined;
           pages.push({
             pathname,
+            ...(origin ? { origin } : {}),
+            ...(typeof entry.locale === 'string' ? { locale: entry.locale } : {}),
+            ...(entry.alternates !== undefined ? { alternates: entry.alternates } : {}),
             ...(typeof entry.title === 'string' ? { title: entry.title } : {}),
             ...(typeof entry.description === 'string' ? { description: entry.description } : {}),
             ...(typeof entry.image === 'string' ? { image: entry.image } : {}),
@@ -231,6 +253,8 @@ export async function loadCatalogPages(catalogs, load, logger, context, diagnost
             ...(typeof entry.routePattern === 'string' ? { routePattern: entry.routePattern } : {}),
           });
         } else {
+          // Same reasoning as catalog-invalid-origin: the page was silently dropped.
+          inventoryComplete = false;
           reportCatalogDiagnostic(diagnostics, logger, {
             code: 'catalog-invalid-pathname',
             message: `astro-aeo: the page catalog "${catalog.module}" returned an unsafe or non-root-relative pathname, so it was ignored.`,
@@ -239,6 +263,7 @@ export async function loadCatalogPages(catalogs, load, logger, context, diagnost
         }
       }
     } catch (err) {
+      inventoryComplete = false;
       reportCatalogDiagnostic(diagnostics, logger, {
         code: 'catalog-load-failed',
         message: `astro-aeo: the page catalog "${catalog.module}" failed to load, so it contributed nothing: ${
@@ -248,7 +273,7 @@ export async function loadCatalogPages(catalogs, load, logger, context, diagnost
       });
     }
   }
-  return pages;
+  return { pages, inventoryComplete };
 }
 
 /**
@@ -272,12 +297,16 @@ export function mergeCatalogPages(concrete, catalog) {
   const merged = new Map();
   for (const page of concrete) {
     const pathname = normalizePath(page.pathname || '/');
-    if (!merged.has(pathname)) merged.set(pathname, { ...page, pathname });
+    const origin = /** @type {{ origin?: string }} */ (page).origin;
+    const identity = pageCatalogIdentity(origin === undefined ? null : normalizeOrigin(origin), pathname);
+    if (!merged.has(identity)) merged.set(identity, { ...page, pathname });
   }
   for (const descriptor of catalog) {
     const pathname = normalizeCatalogPathname(descriptor.pathname);
     if (pathname === null) continue;
-    merged.set(pathname, { ...(merged.get(pathname) ?? {}), ...descriptor, pathname });
+    const origin = descriptor.origin === undefined ? null : normalizeOrigin(descriptor.origin);
+    const identity = pageCatalogIdentity(origin, pathname);
+    merged.set(identity, { ...(merged.get(identity) ?? {}), ...descriptor, pathname });
   }
   return [...merged.values()];
 }

@@ -17,6 +17,12 @@ export default defineConfig({
         ],
         defaultSection: 'Pages',
       },
+      corpus: {
+        urlMap: {
+          enabled: true,
+          outputFilepath: '.astro/test-url-map.md',
+        },
+      },
       dotmd: { frontmatter: true },
       robotsTxt: {
         enabled: true,

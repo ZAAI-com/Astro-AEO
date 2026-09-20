@@ -49,16 +49,21 @@ export function normalizeCatalogPathname(value) {
  * Repeated validation catches nested encodings, while the fixed pass limit keeps
  * adversarial input linear with a small constant factor.
  * @param {unknown} value
+ * @param {{ allowEncodedReserved?: boolean }} [options]
  * @returns {{ decoded: string } | null}
  */
-export function inspectRootPathname(value) {
+export function inspectRootPathname(value, options = {}) {
   if (typeof value !== 'string' || !value.startsWith('/')) return null;
+  const allowEncodedReserved = options.allowEncodedReserved === true;
   let current = value;
   let decodedOnce = value;
   for (let pass = 0; pass < MAX_PATHNAME_FORMS; pass++) {
+    const unsafeCharacters = allowEncodedReserved && pass > 0
+      ? /[\\\0-\x1f\x7f]/
+      : /[\\?#\0-\x1f\x7f]/;
     if (
       current.startsWith('//') ||
-      /[\\?#\0-\x1f\x7f]/.test(current) ||
+      unsafeCharacters.test(current) ||
       current.split('/').some((segment) => segment === '.' || segment === '..')
     ) {
       return null;

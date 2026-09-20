@@ -1,11 +1,15 @@
 import { describe, expect, test, vi } from 'vitest';
 import { resolveConfig } from '../config.js';
 import {
+  buildRuntimePageInventory,
   collectConcurrently,
   enrichRuntimePageGraph,
   pageFromHtml,
   renderStandaloneArtifact,
   RuntimeCorpusLimitError,
+  RuntimeCorpusPlanError,
+  runtimeArtifactOrigin,
+  serveCorpusArtifact,
   RuntimeSchemaCorpusError,
   serveLlmsIndex,
   serveMarkdown,
@@ -13,6 +17,7 @@ import {
 } from './serve.js';
 import mdxRenderer from '../adapters/mdx.js';
 import { createGraph } from '../schema.js';
+import { createLocaleSnapshot } from '../core/locale.js';
 
 const html = (title = 'Page') =>
   `<!doctype html><html><head><title>${title}</title></head><body><main><h1>${title}</h1></main></body></html>`;
@@ -671,6 +676,112 @@ describe('request-time corpus limits', () => {
   );
 });
 
+describe('locale-aware request-time corpus planning', () => {
+  test('serves locale families, chunks, and the manifest from one semantic plan', async () => {
+    const requestRuntime = runtime(['/en/guide', '/fr/guide'], 50);
+    requestRuntime.config = resolveConfig({
+      corpus: {
+        small: { enabled: true, maxTokens: 1_000 },
+        chunks: { enabled: true, maxTokensPerFile: 1_000 },
+        manifest: { enabled: true },
+      },
+    });
+    requestRuntime.site.i18n = createLocaleSnapshot({
+      locales: ['en', 'fr'],
+      defaultLocale: 'en',
+      routing: { prefixDefaultLocale: true },
+    }, requestRuntime.site.siteUrl);
+    const fetcher = async (pathname) => loaded(
+      html(pathname).replace('<html>', `<html lang="${pathname.startsWith('/fr') ? 'fr' : 'en'}">`),
+    );
+
+    const root = await serveCorpusArtifact('/llms.txt', requestRuntime, fetcher);
+    const french = await serveCorpusArtifact('/fr/llms-full.txt', requestRuntime, fetcher);
+    const manifest = await serveCorpusArtifact('/llms/manifest.json', requestRuntime, fetcher);
+    const parsed = JSON.parse(manifest.body);
+
+    expect(root.body).toContain('## Languages');
+    expect(french.body).toContain('URL: https://example.com/fr/guide/');
+    expect(french.body).not.toContain('/en/guide/');
+    expect(parsed.locales.map(({ locale }) => locale)).toEqual(['en', 'fr']);
+    expect(parsed.artifacts.some(({ pathname }) => pathname.startsWith('/fr/llms/'))).toBe(true);
+    expect(manifest.contentType).toBe('application/json; charset=utf-8');
+  });
+
+  test('selects configured domain origins exactly and rejects unknown hosts', async () => {
+    const requestRuntime = runtime([], 50);
+    requestRuntime.site.i18n = createLocaleSnapshot({
+      locales: ['en', 'fr'],
+      defaultLocale: 'en',
+      domains: { fr: 'https://fr.example.com' },
+    }, requestRuntime.site.siteUrl);
+
+    expect(runtimeArtifactOrigin(requestRuntime, 'https://example.com')).toBe('https://example.com');
+    expect(runtimeArtifactOrigin(requestRuntime, 'https://fr.example.com')).toBe('https://fr.example.com');
+    expect(runtimeArtifactOrigin(requestRuntime, 'https://unknown.example')).toBeNull();
+    expect(runtimeArtifactOrigin({ ...requestRuntime, command: 'dev' }, 'http://localhost:4321'))
+      .toBe('https://example.com');
+    expect(runtimeArtifactOrigin({ ...requestRuntime, command: 'preview' }, 'http://127.0.0.1:4321'))
+      .toBe('https://example.com');
+    expect(runtimeArtifactOrigin({ ...requestRuntime, command: 'build' }, 'http://localhost:4321'))
+      .toBeNull();
+    expect(runtimeArtifactOrigin({ ...requestRuntime, command: 'build' }, 'http://example.com'))
+      .toBe('https://example.com');
+  });
+
+  test('lets the Astro route locale outrank site.defaultLocale', async () => {
+    const requestRuntime = runtime(['/fr/guide'], 50);
+    requestRuntime.config = resolveConfig({
+      site: { defaultLocale: 'en' },
+      corpus: { manifest: { enabled: true } },
+    });
+    requestRuntime.site.i18n = createLocaleSnapshot({
+      locales: ['en', 'fr'],
+      defaultLocale: 'en',
+      routing: { prefixDefaultLocale: true },
+    }, requestRuntime.site.siteUrl);
+
+    const manifest = await serveCorpusArtifact(
+      '/llms/manifest.json',
+      requestRuntime,
+      async () => loaded(html('French guide')),
+    );
+
+    expect(JSON.parse(manifest.body).locales).toMatchObject([
+      { locale: 'fr', language: 'fr' },
+    ]);
+  });
+
+  test('fails closed when a page lifecycle hook throws during corpus collection', async () => {
+    const requestRuntime = runtime(['/page']);
+    requestRuntime.config = resolveConfig({
+      corpus: { full: { enabled: true } },
+    });
+    const pluginLoaders = [{
+      name: 'throwing-metadata',
+      module: './throwing-metadata.js',
+      stages: ['page:metadata'],
+      claims: [],
+      load: async () => ({
+        name: 'throwing-metadata',
+        apiVersion: 1,
+        setup(api) {
+          api.on('page:metadata', () => {
+            throw new Error('private lifecycle details');
+          });
+        },
+      }),
+    }];
+
+    await expect(serveCorpusArtifact(
+      '/llms-full.txt',
+      requestRuntime,
+      async () => loaded(),
+      { pluginLoaders },
+    )).rejects.toBeInstanceOf(RuntimeCorpusPlanError);
+  });
+});
+
 describe('request-time schema corpus', () => {
   test('renders a deterministic graph and XML map from anonymous serial rewrites', async () => {
     const schemaRuntime = runtime(['/zeta', '/alpha']);
@@ -919,6 +1030,7 @@ describe('serveMarkdown', () => {
 
   test('passes the effective request site to catalogs with a bounded last-origin cache', async () => {
     const requestRuntime = runtime([], 50);
+    requestRuntime.command = 'preview';
     requestRuntime.site.siteUrl = '';
     const listPages = vi.fn(({ siteUrl }) => [{
       pathname: '/dynamic',
@@ -953,6 +1065,7 @@ describe('serveMarkdown', () => {
 
   test('uses one stable catalog cache entry when the site is configured', async () => {
     const requestRuntime = runtime([], 50);
+    requestRuntime.command = 'preview';
     const listPages = vi.fn(() => [{ pathname: '/dynamic', markdown: '# Dynamic' }]);
     const loaders = [catalogLoader({ listPages })];
 
@@ -1000,6 +1113,7 @@ describe('serveMarkdown', () => {
 
   test('caches a rejected runtime catalog loader and warns once', async () => {
     const requestRuntime = runtime();
+    requestRuntime.command = 'preview';
     const load = vi.fn(async () => {
       throw new Error('SECRET runtime-only failure');
     });
@@ -1023,6 +1137,95 @@ describe('serveMarkdown', () => {
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain('./runtime-broken.js');
     expect(warnings[0]).not.toContain('SECRET');
+  });
+
+  test('re-evaluates runtime catalogs during development', async () => {
+    const requestRuntime = runtime();
+    let revision = 0;
+    const listPages = vi.fn(() => [{
+      pathname: '/dynamic',
+      markdown: `# Revision ${++revision}`,
+    }]);
+    const loaders = [catalogLoader({ listPages })];
+
+    const first = await serveLlmsIndex('llms-full', requestRuntime, async () => loaded(), {
+      catalogLoaders: loaders,
+    });
+    const second = await serveLlmsIndex('llms-full', requestRuntime, async () => loaded(), {
+      catalogLoaders: loaders,
+    });
+
+    expect(first).toContain('Revision 1');
+    expect(second).toContain('Revision 2');
+    expect(listPages).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('runtime page inventory', () => {
+  test('merges static, automatic, and catalog pages with catalog precedence', async () => {
+    const requestRuntime = runtime(['/static', '/products/catalog'], 10);
+    const dynamicRouteSource = {
+      mode: 'startup',
+      load: async () => ({
+        list: () => [{
+          entrypoint: 'src/pages/products/[slug].astro',
+          pattern: '/products/[slug]',
+          params: ['slug'],
+          segments: [
+            [{ content: 'products', dynamic: false, spread: false }],
+            [{ content: 'slug', dynamic: true, spread: false }],
+          ],
+          load: async () => ({
+            getStaticPaths: () => [
+              { params: { slug: 'automatic' } },
+              { params: { slug: 'catalog' } },
+              { params: { slug: 'why?' } },
+            ],
+          }),
+        }],
+      }),
+    };
+    const catalogLoaders = [catalogLoader({
+      listPages: () => [
+        { pathname: '/products/catalog', title: 'Catalog title', markdown: '# Catalog' },
+        { pathname: '/catalog-only', markdown: '# Only' },
+      ],
+    })];
+
+    const inventory = await buildRuntimePageInventory(requestRuntime, {
+      catalogLoaders,
+      dynamicRouteSource,
+    });
+
+    expect(inventory.targets.map((target) => target.pathname)).toEqual([
+      '/static',
+      '/products/catalog',
+      '/products/automatic',
+      '/products/why%3F',
+      '/catalog-only',
+    ]);
+    expect(inventory.targets[1].descriptor).toMatchObject({ title: 'Catalog title' });
+    expect(inventory.targets[3].publicPathname).toBe('/products/why%3F');
+  });
+
+  test('enforces the page limit after cross-source deduplication', async () => {
+    const requestRuntime = runtime(['/same'], 1);
+    const dynamicRouteSource = {
+      mode: 'startup',
+      load: async () => ({
+        list: () => [{
+          entrypoint: 'src/pages/[slug].astro',
+          pattern: '/[slug]',
+          params: ['slug'],
+          segments: [[{ content: 'slug', dynamic: true, spread: false }]],
+          load: async () => ({
+            getStaticPaths: () => [{ params: { slug: 'same' } }],
+          }),
+        }],
+      }),
+    };
+    const result = await buildRuntimePageInventory(requestRuntime, { dynamicRouteSource });
+    expect(result.targets).toHaveLength(1);
   });
 });
 

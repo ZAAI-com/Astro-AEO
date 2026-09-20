@@ -11,8 +11,9 @@ plain ESM with no package build step.
 
 - At build time it turns eligible rendered pages into `.md` companions and can emit `llms.txt`,
   `llms-full.txt`, `robots.txt`, `/.well-known/domain-profile.json`, a URL map, and a sitemap
-  alias. When a build contains server output or an on-demand page, middleware owns the corpus
-  paths so request-time pages can be included.
+  alias. When a project page route renders on demand, middleware owns the corpus paths so
+  request-time pages can be included. Adapter presence alone does not transfer ownership:
+  Astro-AEO's own injected fallback routes promote the build to server output.
 - At request time its pre-middleware serves eligible `.md` companions, content negotiation, and
   enabled text artifacts. Static sites still receive ordinary files for their build-time output.
 
@@ -29,8 +30,11 @@ plain ESM with no package build step.
   `public/`, and existing destinations. Keep its policies and user-visible messages stable.
 - Catalog modules are preflighted in `astro:config:done`, before Vite creates the server graph.
   A catalog that cannot load is omitted, warns, and records a diagnostic instead of breaking the
-  consumer build or server startup. Catalogs enumerate data-generated routes that Astro cannot
-  list; the integration never crawls the site to discover them.
+  consumer build or server startup. Static builds receive concrete prerendered
+  `getStaticPaths()` paths from Astro. Development corpora lazily evaluate those route modules.
+  Catalogs remain necessary for on-demand, CMS-only, synthetic, and other externally inventoried
+  paths, and overlay matching automatic descriptors with exact source and metadata. The
+  integration never crawls the site or parses content directories to discover routes.
 - `src/build/collect.js` normalizes rendered build output after concrete routes and catalog
   descriptors are merged.
   `src/build/diagnostics.js` writes the versioned, sanitized
@@ -40,8 +44,10 @@ plain ESM with no package build step.
   `extract/`, `page-meta.js`, `match.js`, and `render/` own extraction, metadata, matching,
   and output strings.
 - `src/virtual/` transports the runtime snapshot because middleware cannot close over integration
-  state. It also creates lazy catalog loaders and a `?raw` registry that carries standalone
-  Markdown source into server bundles after stripping only leading frontmatter.
+  state. It creates lazy catalog and development dynamic-route loaders plus a `?raw` registry that
+  carries standalone Markdown source into server bundles after stripping only leading
+  frontmatter. Startup discovery uses the public route snapshot; experimental hot discovery uses
+  Astro's private route module and must never enter production or adapter bundles.
 - `src/runtime/middleware.js` and `src/runtime/serve.js` implement request-time artifacts. A
   direct `.md` request rewrites into the underlying project route, so application middleware and
   authentication apply as they do to HTML. Preserve the project's status, redirects, cookies,
@@ -50,7 +56,9 @@ plain ESM with no package build step.
   credentials removed. They are anonymous fan-out requests, bounded by `corpus.runtime.maxPages`,
   and require Astro 6.3 or newer for disposable per-page request state. Astro 5 and 6.0 through
   6.2 must fail closed with `503`; build corpora and direct authenticated `.md` requests remain
-  supported.
+  supported. Their shared inventory merges concrete paths, automatically discovered development
+  paths, then catalog overlays. Dynamic discovery is aggregate-corpus-only, never cached between
+  development requests, and discards `getStaticPaths()` props immediately.
 - `components/AeoPage.astro` lets a page provide exact authored Markdown and metadata from
   `defineAeoPage`. Its internal marker is emitted only during collection. Marker removal is an
   unconditional pass independent of generators at build time. Collected responses are also
@@ -69,8 +77,20 @@ plain ESM with no package build step.
 - The middleware entrypoint stays the bare specifier `astro-aeo/middleware`, registered with
   `order: 'pre'`. Vite resolves it. `addMiddleware` itself must not introduce an adapter
   requirement.
+- Astro exposes `injectRoute` only in `astro:config:setup` and has no `removeRoute`, so the
+  injected fallback routes are unavoidably a superset of what a build turns out to need. When the
+  build owns the corpus, the runtime declines the inventory-derived artifacts (`llms.txt`,
+  `llms-full.txt`, the corpus paths, and the schema graph and map) instead of shadowing the
+  emitted bytes with a shorter live render. It declines only when a dynamic page route exists,
+  because otherwise both answers agree and declining would only cost a working response.
+  `robots.txt` and the domain profile are pure functions of configuration, so they never diverge
+  and are never declined.
 - Runtime configuration must remain serializable. Function options apply during builds but cannot
   cross the virtual-module boundary; keep warnings and fallbacks explicit.
+- Development dynamic-route records carry only route mechanics and lazy module imports. Never
+  serialize route props, content bodies, exception details, environment values, or secrets.
+  `getStaticPaths()` evaluation must remain deterministic, path-safe, and isolated from ordinary
+  HTML, direct `.md`, robots, and domain-profile requests.
 
 ## Package conventions
 

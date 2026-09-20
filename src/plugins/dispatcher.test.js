@@ -1,7 +1,20 @@
 import { describe, expect, test } from 'vitest';
-import { createPluginDispatcher } from './dispatcher.js';
+import { readFileSync } from 'node:fs';
+import { createPluginDispatcher, PLUGIN_PAGE_LOSS_CODES } from './dispatcher.js';
 
 describe('plugin dispatcher', () => {
+  test('exports every isolating failure code the dispatcher emits as a page loss', () => {
+    // Read the codes from the emission sites rather than restating them, so a
+    // failure code added later fails here instead of silently weakening
+    // consumers such as the IndexNow inventory completeness check.
+    const source = readFileSync(new URL('./dispatcher.js', import.meta.url), 'utf8');
+    const emitted = new Set([...source.matchAll(/failure\([^)]*'(plugin-[a-z-]+)'\)/g)].map((match) => match[1]));
+    emitted.delete('plugin-scope-isolated');
+    expect([...PLUGIN_PAGE_LOSS_CODES].sort()).toEqual([...emitted].sort());
+    expect(PLUGIN_PAGE_LOSS_CODES.includes('plugin-scope-isolated')).toBe(false);
+  });
+
+
   test('runs hooks sequentially with frozen replacement values', async () => {
     const seen = [];
     const plugins = [

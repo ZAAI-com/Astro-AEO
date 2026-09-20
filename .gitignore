@@ -24,3 +24,6 @@ fixtures/demo/node_modules/
 coverage/
 fixtures/ssr-node/dist/
 fixtures/ssr-node/.astro/
+
+# Local Mantic index cache
+.mantic/

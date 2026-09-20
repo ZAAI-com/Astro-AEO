@@ -1,0 +1,14 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+export function getStaticPaths({ paginate }) {
+  return paginate(['one', 'two', 'three'], { pageSize: 2 });
+}
+
+const { page } = Astro.props;
+---
+
+<Layout title={`Paged ${page.currentPage} | Demo Site`} description="Paginated dynamic fixture page.">
+  <h1>Paged {page.currentPage}</h1>
+  <p>Items: {page.data.join(', ')}.</p>
+</Layout>

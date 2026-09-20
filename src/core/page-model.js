@@ -25,7 +25,12 @@ import { sourceKindFor } from './source-kind.js';
  * @property {string} url            Absolute URL, honouring base and trailingSlash.
  * @property {string} [canonicalUrl]
  * @property {string} [markdownUrl]
+ * @property {string} [origin]
+ * @property {string} [locale]
  * @property {string} [language]
+ * @property {{ language: string; url: string }[]} [alternates]
+ * @property {boolean} [corpusExcluded] Internal corpus-planning exclusion marker.
+ * @property {{ initial?: string; declared?: string; rendered?: string; siteDefault?: string }} [languageSources] Internal precedence inputs.
  * @property {{ title: string; description?: string; image?: string; canonicalSource?: 'authored'|'inferred' }} metadata
  * @property {{ html?: string; markdown?: string; plainText?: string }} representations
  * @property {{ published?: string; modified?: string }} [dates]
@@ -207,8 +212,9 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
   const title = marker?.title || authored?.title || meta.title;
   const description = marker?.description || authored?.description || meta.description;
   const image = marker?.image || authored?.image || extractMetaContent(cleanHtml, { property: 'og:image' });
-  const language = marker?.language || authored?.language ||
-    document.documentElement?.getAttribute('lang') || config.site.defaultLocale;
+  const declaredLanguage = marker?.language || authored?.language || undefined;
+  const renderedLanguage = document.documentElement?.getAttribute('lang') || undefined;
+  const language = declaredLanguage || renderedLanguage || config.site.defaultLocale;
   const published = toIsoTimestamp(marker?.published) ?? toIsoTimestamp(authored?.published);
   const modified =
     toIsoTimestamp(marker?.lastModified) ??
@@ -252,6 +258,12 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
       ...(canonicalUrl ? { canonicalUrl } : {}),
       ...(markdownUrl ? { markdownUrl } : {}),
       ...(language ? { language } : {}),
+      languageSources: {
+        ...(language ? { initial: language } : {}),
+        ...(declaredLanguage ? { declared: declaredLanguage } : {}),
+        ...(renderedLanguage ? { rendered: renderedLanguage } : {}),
+        ...(config.site.defaultLocale ? { siteDefault: config.site.defaultLocale } : {}),
+      },
       metadata: {
         title,
         ...(description ? { description } : {}),

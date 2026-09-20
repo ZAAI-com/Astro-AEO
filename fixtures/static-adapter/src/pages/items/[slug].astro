@@ -1,0 +1,17 @@
+---
+export function getStaticPaths() {
+  return [{ params: { slug: 'alpha' } }, { params: { slug: 'beta' } }];
+}
+
+const { slug } = Astro.params;
+---
+<html lang="en">
+  <head>
+    <title>Item {slug}</title>
+    <meta name="description" content={`Prerendered item ${slug}.`} />
+  </head>
+  <body>
+    <h1>Item {slug}</h1>
+    <p>Prerendered through getStaticPaths.</p>
+  </body>
+</html>

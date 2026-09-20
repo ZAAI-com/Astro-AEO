@@ -30,9 +30,11 @@ jobs:
       - name: Require a Changeset or an already-versioned release
         if: matrix.astro == '7' && github.event_name == 'pull_request'
         run: node scripts/check-changesets.mjs --since "origin/${{ github.base_ref }}"
+      # Astro 6 requires Vite 7 and says so at startup, but the lockfile resolves
+      # Vite 8 for Astro 7. Pin the pair so this leg tests a combination users have.
       - name: Pin Astro version for this leg
         if: matrix.astro != '7'
-        run: pnpm add -D astro@${{ matrix.astro }}
+        run: pnpm add -D astro@${{ matrix.astro }} ${{ matrix.astro == '6' && 'vite@7' || '' }}
       - name: Typecheck
         run: pnpm run typecheck
       # The published .d.ts files are hand-written and only ever seen by this
@@ -42,11 +44,11 @@ jobs:
         run: pnpm run test:types
       - name: Unit, CLI and build e2e tests
         run: pnpm test
-      - name: Dev-server e2e (astro 7 leg only)
-        if: matrix.astro == '7'
+      - name: Dev-server e2e (astro 6 and 7 legs)
+        if: matrix.astro != '5'
         run: pnpm run test:dev
       # The on-demand contract needs a real adapter, so it cannot run against a
-      # static build or the dev server. Newest Astro only, matching test:dev.
+      # static build or the dev server. Keep this adapter-backed suite on newest Astro.
       - name: Adapter e2e (astro 7 leg only)
         if: matrix.astro == '7'
         run: pnpm run test:ssr

@@ -1,10 +1,10 @@
 // @ts-check
 import { createArtifactWriter } from '../build/artifacts.js';
-import { buildRobotsTxt } from '../core/render/robots-txt.js';
-
-export { buildRobotsTxt } from '../core/render/robots-txt.js';
+import { buildRobotsTxt, rootLlmsAvailable } from '../core/render/robots-txt.js';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+export { buildRobotsTxt, rootLlmsAvailable } from '../core/render/robots-txt.js';
 
 /**
  * Write /robots.txt. Warns (but still overwrites) when one already exists in the
@@ -17,15 +17,25 @@ import { fileURLToPath } from 'node:url';
  * @param {string} [base]  Astro base path, prefixed onto the emitted URLs.
  * @param {boolean} [sitemapAvailable]  Whether to emit the Sitemap line.
  * @param {ReturnType<typeof createArtifactWriter>} [writer]  Shared writer, when one exists.
+ * @param {boolean} [llmsAvailable] Whether an accepted root llms.txt claim exists.
  */
-export function emitRobotsTxt(distDir, config, siteUrl, logger, base = '', sitemapAvailable = true, writer = undefined) {
+export function emitRobotsTxt(
+  distDir,
+  config,
+  siteUrl,
+  logger,
+  base = '',
+  sitemapAvailable = true,
+  writer = undefined,
+  llmsAvailable = rootLlmsAvailable(config),
+) {
   if (!config.discovery.robots.enabled) return;
   const write = writer ?? createArtifactWriter({ distDir, logger: toLogger(logger) });
   write.write({
     path: join(fileURLToPath(distDir), 'robots.txt'),
     owner: 'robotsTxt',
     route: '/robots.txt',
-    contents: buildRobotsTxt(config, siteUrl, base, sitemapAvailable),
+    contents: buildRobotsTxt(config, siteUrl, base, sitemapAvailable, llmsAvailable),
     onConflict: 'warn-overwrite',
     conflictMessage: 'astro-aeo: overwriting an existing robots.txt in the build output',
   });

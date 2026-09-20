@@ -7,6 +7,11 @@ export default defineConfig({
   base: '/docs',
   output: 'server',
   adapter: cloudflare(),
+  server: {
+    // Adapter runtime tests send Host: adapter.example.com to the loopback
+    // preview listener so production host scoping can be exercised.
+    allowedHosts: ['adapter.example.com'],
+  },
   integrations: [
     aeo({
       markdown: { negotiation: 'response' },

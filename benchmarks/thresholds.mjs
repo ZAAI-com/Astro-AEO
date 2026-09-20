@@ -1,6 +1,9 @@
 export const RELEASE_THRESHOLDS = Object.freeze({
-  packagePackedBytes: 190_000,
-  packageUnpackedBytes: 740_000,
+  // 1.3 measured 272,377 packed and 1,106,331 unpacked bytes after adding the
+  // dependency-free planner, validator, cache, crawler registry, and IndexNow,
+  // then correcting the review backlog.
+  packagePackedBytes: 280_000,
+  packageUnpackedBytes: 1_150_000,
   parse100KbP95Ms: 50,
   convert100KbP95Ms: 150,
   requestP95OverheadMs: 10,

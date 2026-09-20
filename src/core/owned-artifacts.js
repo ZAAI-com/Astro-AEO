@@ -1,5 +1,6 @@
 // @ts-check
 import { matchesExactPathname } from './artifact-path.js';
+import { isPotentialCorpusArtifactPath } from './corpus-artifacts.js';
 
 /**
  * @param {string} pathname
@@ -7,9 +8,13 @@ import { matchesExactPathname } from './artifact-path.js';
  * @returns {boolean}
  */
 export function isOwnedArtifactPath(pathname, config) {
-  if (pathname === '/llms.txt' && config.corpus.index.enabled) return true;
-  if (pathname === '/llms-full.txt' && config.corpus.full.enabled) return true;
+  if (isPotentialCorpusArtifactPath(pathname, config)) return true;
   if (pathname === '/robots.txt' && config.discovery.robots.enabled) return true;
+  if (
+    pathname === '/.well-known/astro-aeo-indexnow-v1.json' &&
+    config.discovery.indexNow.enabled &&
+    config.discovery.indexNow.state === 'public'
+  ) return true;
   if (pathname === '/.well-known/domain-profile.json' && config.site.profile.enabled) return true;
   if (
     config.schema.corpus.enabled &&

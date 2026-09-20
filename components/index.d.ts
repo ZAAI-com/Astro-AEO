@@ -124,7 +124,17 @@ export interface ArticleAuthor {
 }
 export interface ArticleJsonLdProps {
   headline: string;
+  /**
+   * Google prefers an ISO 8601 datetime with an offset or `Z`. Bare Schema.org dates remain valid
+   * but may trigger non-critical Rich Results warnings. Astro-AEO passes the value through unchanged
+   * without normalization.
+   */
   datePublished?: string;
+  /**
+   * Google prefers an ISO 8601 datetime with an offset or `Z`. Bare Schema.org dates remain valid
+   * but may trigger non-critical Rich Results warnings. Astro-AEO passes the value through unchanged
+   * without normalization.
+   */
   dateModified?: string;
   author?: ArticleAuthor;
   image?: string;

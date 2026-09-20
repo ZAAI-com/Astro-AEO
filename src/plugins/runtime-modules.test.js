@@ -18,14 +18,47 @@ describe('runtime plugin module resolution', () => {
       }],
     }, '/project');
 
-    expect(modules).toEqual([expect.objectContaining({
+    expect(modules).toEqual([{
       name: 'feed',
       module: './plugins/feed.js',
       specifier: 'file:///project/plugins/feed.js',
       options: { format: 'text' },
       stages: ['artifact:generate'],
       claims: [{ id: 'feed', pathname: '/feed.txt' }],
-    })]);
+    }]);
+  });
+
+  test('forwards hookManifest entries from the build manifest', () => {
+    const manifest = {
+      version: 1,
+      plugins: [{
+        name: 'feed',
+        apiVersion: 1,
+        entrypoint: './plugins/feed.js',
+        stages: ['artifact:generate'],
+        hookManifest: [
+          { stage: 'artifact:generate', ordinal: 0 },
+          { stage: 'artifact:validate', ordinal: 0, cache: { version: '1' } },
+        ],
+        claims: [{ id: 'feed', pathname: '/feed.txt' }],
+      }],
+    };
+    const modules = runtimePluginModules(manifest, '/project');
+
+    expect(modules).toEqual([{
+      name: 'feed',
+      module: './plugins/feed.js',
+      specifier: 'file:///project/plugins/feed.js',
+      stages: ['artifact:generate'],
+      hookManifest: [
+        { stage: 'artifact:generate', ordinal: 0 },
+        { stage: 'artifact:validate', ordinal: 0, cache: { version: '1' } },
+      ],
+      claims: [{ id: 'feed', pathname: '/feed.txt' }],
+    }]);
+
+    modules[0].hookManifest[1].cache.version = 'mutated';
+    expect(manifest.plugins[0].hookManifest[1].cache.version).toBe('1');
   });
 
   test('keeps omitted runtime options absent while preserving explicit null', () => {

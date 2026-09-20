@@ -146,18 +146,19 @@ describe('loadCatalogPages', () => {
 
   test('collects pages from every catalog', async () => {
     const log = logger();
-    const pages = await loadCatalogPages(
+    const { pages, inventoryComplete } = await loadCatalogPages(
       [{ module: 'a' }, { module: 'b' }],
       async (spec) => ({ default: { listPages: () => [{ pathname: `/${spec}` }] } }),
       log,
     );
     expect(pages).toEqual([{ pathname: '/a' }, { pathname: '/b' }]);
+    expect(inventoryComplete).toBe(true);
     expect(log.warnings).toEqual([]);
   });
 
   test('a catalog that throws warns and contributes nothing, rather than failing the build', async () => {
     const log = logger();
-    const pages = await loadCatalogPages(
+    const { pages, inventoryComplete } = await loadCatalogPages(
       [{ module: 'broken' }],
       async () => {
         throw new Error('boom');
@@ -165,19 +166,21 @@ describe('loadCatalogPages', () => {
       log,
     );
     expect(pages).toEqual([]);
+    expect(inventoryComplete).toBe(false);
     expect(log.warnings[0]).toContain('failed to load');
     expect(log.warnings[0]).toContain('boom');
   });
 
   test('a module with no listPages warns by name', async () => {
     const log = logger();
-    await loadCatalogPages([{ module: 'empty' }], async () => ({ default: {} }), log);
+    const { inventoryComplete } = await loadCatalogPages([{ module: 'empty' }], async () => ({ default: {} }), log);
+    expect(inventoryComplete).toBe(false);
     expect(log.warnings[0]).toContain('no listPages()');
   });
 
   test('entries that are not root-relative paths are dropped', async () => {
     const log = logger();
-    const pages = await loadCatalogPages(
+    const { pages } = await loadCatalogPages(
       [{ module: 'a' }],
       async () => ({ listPages: () => [{ pathname: 'relative' }, { pathname: '/ok' }, {}] }),
       log,
@@ -193,7 +196,7 @@ describe('loadCatalogPages', () => {
       base: '/docs',
       trailingSlash: 'always',
     };
-    const pages = await loadCatalogPages(
+    const { pages } = await loadCatalogPages(
       [{ module: 'a' }],
       async () => ({
         listPages(received) {
@@ -212,7 +215,7 @@ describe('loadCatalogPages', () => {
   test('the first catalog wins duplicate descriptors', async () => {
     const log = logger();
     const diagnostics = [];
-    const pages = await loadCatalogPages(
+    const { pages } = await loadCatalogPages(
       [{ module: 'a' }, { module: 'b' }],
       async (module) => ({ listPages: () => [{ pathname: '/same', title: module }] }),
       log,
