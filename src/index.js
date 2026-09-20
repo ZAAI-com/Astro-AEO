@@ -38,8 +38,10 @@ import {
 } from './build/corpus-tokenizer.js';
 import {
   INDEXNOW_PREPARE_PROVIDER,
+  eligibleIndexNowOrigins,
   indexNowPaths,
   indexNowStatePathname,
+  normalizeIndexNowOrigin,
 } from './build/indexnow.js';
 import { parseIndexNowPrepareInput } from './build/indexnow-state.js';
 
@@ -626,6 +628,20 @@ export default function aeo(userConfig = {}) {
       const cached = parseIndexNowPrepareInput(JSON.parse(readFileSync(path, 'utf8')));
       const nextBase = astroConfig?.base && astroConfig.base !== '/' ? astroConfig.base : '';
       const configured = new Map(resolved.discovery.indexNow.origins.map((item) => [item.origin, item]));
+      // The cached input records the origins the build could notify. Configuration
+      // may have retired one since, including an Astro i18n domain that never
+      // carried an override, and retained cache state is scoped against this set.
+      // Recompute it from the config just loaded; keep the cached set only when
+      // this config names no usable site to recompute from.
+      let eligibleOrigins;
+      try {
+        eligibleOrigins = [...eligibleIndexNowOrigins({
+          primaryOrigin: normalizeIndexNowOrigin(String(astroConfig?.site ?? '')),
+          i18nOrigins: createLocaleSnapshot(astroConfig?.i18n, String(astroConfig?.site ?? '')).origins,
+          overrides: resolved.discovery.indexNow.origins,
+          mode: resolved.discovery.indexNow.state,
+        })].sort();
+      } catch { eligibleOrigins = cached.eligibleOrigins; }
       const origins = cached.origins.map((item) => {
         const override = configured.get(item.origin);
         return {
@@ -650,6 +666,7 @@ export default function aeo(userConfig = {}) {
         ...(resolved.discovery.indexNow.keyLocation
           ? { keyLocation: resolved.discovery.indexNow.keyLocation }
           : { keyLocation: undefined }),
+        ...(eligibleOrigins ? { eligibleOrigins } : { eligibleOrigins: undefined }),
         origins,
       };
     },

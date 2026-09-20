@@ -300,11 +300,18 @@ describe('resolveConfig', () => {
     expect(() => resolveConfig({ discovery: { indexNow: {
       origins: [{ origin: 'https://example.com' }, { origin: 'https://EXAMPLE.com/' }],
     } } })).toThrow(/duplicate origin/);
-    for (const localOrigin of ['https://localhost', 'https://app.localhost', 'https://127.0.0.1', 'https://[::1]', 'https://192.168.0.10']) {
+    // A single trailing dot is the fully qualified spelling of the same name.
+    for (const localOrigin of [
+      'https://localhost', 'https://app.localhost', 'https://127.0.0.1', 'https://[::1]',
+      'https://192.168.0.10', 'https://localhost.', 'https://app.localhost.',
+    ]) {
       expect(() => resolveConfig({ discovery: { indexNow: {
         origins: [{ origin: localOrigin }],
       } } }), localOrigin).toThrow(/public/);
     }
+    expect(resolveConfig({ discovery: { indexNow: {
+      origins: [{ origin: 'https://example.com.' }],
+    } } }).discovery.indexNow.origins[0].origin).toBe('https://example.com.');
   });
 
   test('page catalog descriptors require a non-empty module', () => {

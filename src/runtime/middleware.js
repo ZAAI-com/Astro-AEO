@@ -861,7 +861,7 @@ function htmlFetcher(context, next, opts = {}) {
       // Only a rewrite that actually threw earns the fallback. A page that
       // legitimately produced no HTML must stay absent.
       if ((opts.failures?.count ?? 0) === before) return null;
-      return devLoopbackHtml(targetUrl.pathname, collect);
+      return devLoopbackHtml(`${targetUrl.pathname}${targetUrl.search}`, collect);
     }
 
     try {
@@ -932,7 +932,9 @@ function htmlFetcher(context, next, opts = {}) {
         // bug this fallback exists for, which only `getStaticPaths()` routes
         // produce and those never see request headers either way.
         if (!headersAvailable || isNoMatchingStaticPathError(error)) {
-          return devLoopbackHtml(targetUrl.pathname, collect);
+          // The loopback URL must be the rewrite target, query included, so a
+          // preserved query cannot change meaning between the two paths.
+          return devLoopbackHtml(`${targetUrl.pathname}${targetUrl.search}`, collect);
         }
         return null;
       }

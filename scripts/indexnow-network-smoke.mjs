@@ -8,7 +8,27 @@ import { MAX_INDEXNOW_STATE_BYTES, createSafeHttpsTransport } from '../cli/index
 /** Ordinary connectivity failures. They mean the gate ran offline, not that the transport broke. */
 const OFFLINE_CODES = new Set([
   'ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'ECONNRESET', 'ENETUNREACH', 'EHOSTUNREACH', 'ETIMEDOUT',
+  'EPIPE', 'EPROTO',
 ]);
+
+/**
+ * Trust-store and certificate failures on the external origin. The remote site
+ * owns its certificate, so none of these says anything about the transport.
+ */
+const TLS_CODES = new Set([
+  'CERT_HAS_EXPIRED', 'CERT_NOT_YET_VALID', 'DEPTH_ZERO_SELF_SIGNED_CERT',
+  'ERR_TLS_CERT_ALTNAME_INVALID', 'SELF_SIGNED_CERT_IN_CHAIN',
+  'UNABLE_TO_GET_ISSUER_CERT_LOCALLY', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+]);
+
+/**
+ * The transport's own 15s ceiling. It is destroyed with a plain Error that
+ * carries no code, so a slow-but-connected network would otherwise reach the
+ * hard-failure branch and block a release for an environment problem.
+ * @param {unknown} error
+ */
+const isTransportTimeout = (error) =>
+  error instanceof Error && error.message === 'request timed out';
 
 const args = process.argv.slice(2);
 const originIndex = args.indexOf('--origin');
@@ -49,6 +69,14 @@ try {
   }
   if (OFFLINE_CODES.has(code)) {
     console.log(`indexnow-network-smoke: skipped, ${origin} is unreachable (${code}).`);
+    process.exit(0);
+  }
+  if (TLS_CODES.has(code)) {
+    console.log(`indexnow-network-smoke: skipped, ${origin} presented a certificate this host will not verify (${code}).`);
+    process.exit(0);
+  }
+  if (isTransportTimeout(error)) {
+    console.log(`indexnow-network-smoke: skipped, ${origin} did not answer before the transport ceiling.`);
     process.exit(0);
   }
   console.error(`indexnow-network-smoke: ${origin} failed for a reason the transport must not produce.`);

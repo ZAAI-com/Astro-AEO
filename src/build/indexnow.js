@@ -233,3 +233,40 @@ function indexNowStateDiagnostic(code, message) {
 function pageDiagnostic(code, page, message) {
   return { version: /** @type {const} */ (1), code, severity: /** @type {const} */ ('error'), message, pathname: page.pathname };
 }
+
+/**
+ * Normalize one IndexNow origin. Only a bare public HTTPS origin is usable as a
+ * notification target, so anything carrying credentials, a path, a query, a
+ * fragment, or a port is rejected rather than trimmed.
+ * @param {string} value
+ */
+export function normalizeIndexNowOrigin(value) {
+  const url = new URL(value);
+  if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash || url.port) {
+    throw new TypeError('unsafe origin');
+  }
+  return url.origin;
+}
+
+/**
+ * Every origin the current configuration may notify, including Astro i18n
+ * domains that carry no explicit per-origin override. Retained cache state is
+ * scoped against this set, so it must be derived from configuration that is
+ * loaded now rather than from a set cached by an earlier build.
+ * @param {{
+ *   primaryOrigin: string;
+ *   i18nOrigins?: readonly string[];
+ *   overrides?: readonly { origin: string }[];
+ *   mode: string;
+ * }} options
+ */
+export function eligibleIndexNowOrigins({ primaryOrigin, i18nOrigins = [], overrides = [], mode }) {
+  const origins = new Set([primaryOrigin]);
+  // Public state lives at one origin, so only the primary origin is notifiable.
+  if (mode === 'public') return origins;
+  for (const value of i18nOrigins) {
+    try { origins.add(normalizeIndexNowOrigin(value)); } catch {}
+  }
+  for (const item of overrides) origins.add(item.origin);
+  return origins;
+}

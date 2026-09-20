@@ -9,6 +9,19 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
+/**
+ * A project root whose `.astro` entry is a symlink to a directory outside it.
+ * Every confinement test needs the same pair, and both roots must be registered
+ * for cleanup, so it is created in one place.
+ */
+function redirectedRoot() {
+  const root = mkdtempSync(join(tmpdir(), 'astro-aeo-io-'));
+  const outsideRoot = mkdtempSync(join(tmpdir(), 'astro-aeo-io-'));
+  roots.push(root, outsideRoot);
+  symlinkSync(outsideRoot, join(root, '.astro'));
+  return { root, outsideRoot };
+}
+
 describe('indexnow private state IO', () => {
   test('rejects a symlinked state file on read', () => {
     const root = mkdtempSync(join(tmpdir(), 'astro-aeo-io-'));
@@ -22,10 +35,7 @@ describe('indexnow private state IO', () => {
   });
 
   test('rejects private writes redirected through a symlinked ancestor', () => {
-    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-io-'));
-    const outsideRoot = mkdtempSync(join(tmpdir(), 'astro-aeo-io-'));
-    roots.push(root, outsideRoot);
-    symlinkSync(outsideRoot, join(root, '.astro'));
+    const { root, outsideRoot } = redirectedRoot();
 
     expect(() => writePrivateFile(
       join(root, '.astro', 'aeo-cache', 'indexnow', 'pending-v1.json'),
@@ -37,10 +47,7 @@ describe('indexnow private state IO', () => {
   });
 
   test('creates no directory outside the project through a symlinked ancestor', () => {
-    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-io-'));
-    const outsideRoot = mkdtempSync(join(tmpdir(), 'astro-aeo-io-'));
-    roots.push(root, outsideRoot);
-    symlinkSync(outsideRoot, join(root, '.astro'));
+    const { root, outsideRoot } = redirectedRoot();
 
     expect(() => writePrivateFile(
       join(root, '.astro', 'aeo-cache', 'indexnow', 'pending-v1.json'),
@@ -54,11 +61,8 @@ describe('indexnow private state IO', () => {
   });
 
   test('refuses to read private state through a symlinked ancestor', () => {
-    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-io-'));
-    const outsideRoot = mkdtempSync(join(tmpdir(), 'astro-aeo-io-'));
-    roots.push(root, outsideRoot);
+    const { root, outsideRoot } = redirectedRoot();
     writeFileSync(join(outsideRoot, 'pending-v1.json'), '{"version":1}');
-    symlinkSync(outsideRoot, join(root, '.astro'));
 
     // The final entry is an ordinary file, so the lstat check alone accepts it.
     // Only canonical confinement of the directory chain rejects the redirect.

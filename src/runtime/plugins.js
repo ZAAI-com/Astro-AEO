@@ -133,7 +133,7 @@ export async function serveRuntimePluginArtifact(target, request, loaders, pages
 
   try {
     const runtime = await loadRuntimePlugins(loaders, command);
-    if (runtime.failed.has(target.plugin)) return failureResponse(request);
+    if (runtime.failed.has(target.plugin)) return failureResponse(request, requestHeadersAvailable);
 
     const claim = immutableJsonValue(target.claim, 'runtime plugin artifact claim');
     const generated = await runtime.run('artifact:generate', {
@@ -141,7 +141,7 @@ export async function serveRuntimePluginArtifact(target, request, loaders, pages
       representation: null,
     }, { pathname: target.pathname, pages });
     if (generated.isolated || !isArtifactEnvelope(generated.value, target.claim, true)) {
-      return failureResponse(request);
+      return failureResponse(request, requestHeadersAvailable);
     }
 
     const validated = await runtime.run('artifact:validate', generated.value, {

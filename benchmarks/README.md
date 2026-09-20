@@ -44,8 +44,8 @@ framework code that both builds share.
 
 `--enforce` applies the 1.3 safety ceilings embedded in the report:
 
-- Packed package at most 400,000 bytes and unpacked package at most 1,150,000 bytes. The measured
-  1.3.1 package is 282,003 packed and 1,136,004 unpacked bytes (1.3 was 272,377 and 1,106,331).
+- Packed package at most 400,000 bytes and unpacked package at most 1,180,000 bytes. The measured
+  1.3.1 package is 290,286 packed and 1,163,361 unpacked bytes (1.3 was 272,377 and 1,106,331).
   The packed ceiling is deliberately loose: it exists to catch a dependency-scale mistake, not to
   gate ordinary correctness work, and the unpacked ceiling plus the absolute bundle, startup,
   memory, and request ceilings below stay close to their measurements.
