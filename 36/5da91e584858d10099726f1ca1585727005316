@@ -1,0 +1,61 @@
+src/runtime/middleware.js
+  s_87b2cae6ffba7f::t_72e423b1b3e09b 220
+  s_87b2cae6ffba7f::t_084e39ac034b52 234,245,256,274,286,301,320-325,337,367,464
+cli/indexnow-prepare.test.js
+  s_87b2cae6ffba7f::t_220cb4f4d7847e 295-324
+src/build/indexnow-state.js
+  s_87b2cae6ffba7f::t_e15f5cd1faf39c 36,329,331-344,378
+src/core/render/llms-txt.js
+  s_87b2cae6ffba7f::t_507f81c50ff3cd 34-41
+src/hooks/build-done.js
+  s_87b2cae6ffba7f::t_e15f5cd1faf39c 878-881
+cli/indexnow-io.test.js
+  s_87b2cae6ffba7f::t_d1174b7a0e1f88 1,39-68
+  s_87b2cae6ffba7f::t_0ab8d0e7e89ba0 69
+src/core/sitemap-xml.test.js
+  s_87b2cae6ffba7f::t_1ddf7d71f176c5 157-160
+src/static-adapter-corpus.ssr.test.js
+  s_87b2cae6ffba7f::t_1ddf7d71f176c5 35-36
+cli/indexnow-submit.js
+  s_87b2cae6ffba7f::t_d1174b7a0e1f88 77,82,394-395,399,437
+  s_87b2cae6ffba7f::t_dc8eec74fb62d2 279-282
+benchmarks/README.md
+  s_87b2cae6ffba7f::t_53cb7debcd631a 47-51
+docs/release-evidence/1.3.1-semantic-validation.md
+  s_87b2cae6ffba7f::t_d1174b7a0e1f88 17
+src/runtime/plugins.js
+  s_87b2cae6ffba7f::t_72e423b1b3e09b 127,130,132,152,156,161,164,550-551,558
+src/generators/url-map.test.js
+  s_87b2cae6ffba7f::t_f72096441f5018 144-147,158-162,175-177
+src/config.js
+  s_87b2cae6ffba7f::t_dc8eec74fb62d2 515,518-520
+cli/indexnow-io.js
+  s_87b2cae6ffba7f::t_d1174b7a0e1f88 17-26,52-57,82-98
+  s_87b2cae6ffba7f::t_55dc1569820d25 99-100
+src/core/corpus-artifacts.js
+  s_87b2cae6ffba7f::t_df6ca0caaa00e9 92-96,98
+src/core/corpus-artifacts.test.js
+  s_87b2cae6ffba7f::t_f613d8ddc047eb 9-10,16,23,70-87
+  s_87b2cae6ffba7f::t_48ef6f9734ecd2 88-92
+cli/indexnow-prepare.js
+  s_87b2cae6ffba7f::t_d1174b7a0e1f88 71-72,183-184,186,190-191,193
+  s_87b2cae6ffba7f::t_e15f5cd1faf39c 210-214
+CHANGELOG.md
+  s_87b2cae6ffba7f::t_e1662e66756835 55-58,64-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "365da91e584858d10099726f1ca1585727005316",
+  "prompts": {},
+  "sessions": {
+    "s_87b2cae6ffba7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "48f8ae8c-3b45-4ef2-acd2-500558006840",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
