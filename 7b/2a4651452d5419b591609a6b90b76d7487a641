@@ -1,0 +1,28 @@
+CHANGELOG.md
+  s_54cc6c42bf0e81::t_3d5730b57298c5 45-53
+  s_6ae390086d15b6::t_73801fcdea8d1d 41-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7b2a4651452d5419b591609a6b90b76d7487a641",
+  "prompts": {},
+  "sessions": {
+    "s_54cc6c42bf0e81": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c860d25-57ef-4dc0-bd8f-a06bb7008ed7",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_6ae390086d15b6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0b9f6-f152-78e3-8c2e-a0995bb83fe3",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
