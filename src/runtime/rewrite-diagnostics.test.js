@@ -12,7 +12,7 @@ import {
 } from './rewrite-diagnostics.js';
 
 /** The shape Astro throws: an AstroError carrying a stable `title`. */
-function noMatchingStaticPath(pathname = '/clean-autofill/') {
+function noMatchingStaticPath(pathname = '/alpha/') {
   const error = new Error(
     'A `getStaticPaths()` route pattern was matched, but no matching static path ' +
       `was found for requested path \`${pathname}\`.`,
@@ -75,15 +75,15 @@ describe('warnDevCorpusRewriteFailure', () => {
   test('names the first path, counts the rest, and warns once per process', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const sink = createFetchFailureSink();
-    sink.record('/clean-autofill/', noMatchingStaticPath());
-    sink.record('/c5h/', noMatchingStaticPath('/c5h/'));
+    sink.record('/alpha/', noMatchingStaticPath());
+    sink.record('/beta/', noMatchingStaticPath('/beta/'));
 
     warnDevCorpusRewriteFailure(sink, 'dev');
     warnDevCorpusRewriteFailure(sink, 'dev');
 
     expect(warn).toHaveBeenCalledTimes(1);
     const message = String(warn.mock.calls[0][0]);
-    expect(message).toContain('/clean-autofill/');
+    expect(message).toContain('/alpha/');
     expect(message).toContain('1 other page(s)');
     expect(message).toContain('astro build && astro preview');
   });
@@ -91,7 +91,7 @@ describe('warnDevCorpusRewriteFailure', () => {
   test('stays silent outside development and when nothing failed', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const sink = createFetchFailureSink();
-    sink.record('/clean-autofill/', noMatchingStaticPath());
+    sink.record('/alpha/', noMatchingStaticPath());
 
     warnDevCorpusRewriteFailure(sink, 'build');
     warnDevCorpusRewriteFailure(sink, 'preview');
@@ -104,13 +104,13 @@ describe('warnDevCorpusRewriteFailure', () => {
   test('the companion latch is independent of the corpus latch', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const sink = createFetchFailureSink();
-    sink.record('/clean-autofill/', noMatchingStaticPath());
+    sink.record('/alpha/', noMatchingStaticPath());
 
     warnDevCorpusRewriteFailure(sink, 'dev');
-    warnDevCompanionRewriteFailure('/clean-autofill/', sink, 'dev');
+    warnDevCompanionRewriteFailure('/alpha/', sink, 'dev');
 
     expect(warn).toHaveBeenCalledTimes(2);
-    expect(String(warn.mock.calls[1][0])).toContain('Markdown companion for /clean-autofill/');
+    expect(String(warn.mock.calls[1][0])).toContain('Markdown companion for /alpha/');
   });
 });
 

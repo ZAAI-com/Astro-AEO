@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 // Astro's `findRouteToRewrite` commits to the first route whose pattern matches,
 // and its only rejection branch reads `route.distURL`, which a development
-// server never populates. `/[year]` therefore shadows `/[...slug]` for every
+// server never populates. `/[category]` therefore shadows `/[...slug]` for every
 // path the latter owns, and every in-process rewrite to one of them throws.
 // The build is unaffected, which is what the parity assertion below protects.
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -51,16 +51,16 @@ export default defineConfig({
 <html><head><title>Home</title></head><body><h1>Home</h1></body></html>
 `);
   // Sorted ahead of the catch-all and owns nothing: the candidate Astro picks.
-  write(root, 'src/pages/[year]/index.astro', `---
+  write(root, 'src/pages/[category]/index.astro', `---
 export function getStaticPaths() {
   return [];
 }
 ---
-<html><head><title>Year</title></head><body><h1>Year</h1></body></html>
+<html><head><title>Category</title></head><body><h1>Category</h1></body></html>
 `);
   write(root, 'src/pages/[...slug].astro', `---
 export function getStaticPaths() {
-  return [{ params: { slug: 'clean-autofill' } }, { params: { slug: 'c5h' } }];
+  return [{ params: { slug: 'alpha' } }, { params: { slug: 'beta' } }];
 }
 const { slug } = Astro.params;
 ---
@@ -168,20 +168,20 @@ describe.sequential('development rewrite fallback for overlapping dynamic routes
 
     // Positive control: the ordinary request path never had this problem, so a
     // failure here would mean the fixture, not the fallback, is broken.
-    const page = await fetch(`${running.base}/clean-autofill/`);
+    const page = await fetch(`${running.base}/alpha/`);
     expect(page.status).toBe(200);
 
     const llms = await (await fetch(`${running.base}/llms.txt`)).text();
-    expect(llms).toContain('/clean-autofill.md');
-    expect(llms).toContain('/c5h.md');
+    expect(llms).toContain('/alpha.md');
+    expect(llms).toContain('/beta.md');
 
     const full = await (await fetch(`${running.base}/llms-full.txt`)).text();
-    expect(full).toContain('Body for clean-autofill.');
+    expect(full).toContain('Body for alpha.');
 
-    const companion = await fetch(`${running.base}/clean-autofill.md`);
+    const companion = await fetch(`${running.base}/alpha.md`);
     expect(companion.status).toBe(200);
     expect(companion.headers.get('content-type')).toContain('text/markdown');
-    expect(await companion.text()).toContain('Body for clean-autofill.');
+    expect(await companion.text()).toContain('Body for alpha.');
 
     await stopServer(running);
   });
@@ -190,10 +190,10 @@ describe.sequential('development rewrite fallback for overlapping dynamic routes
     const root = createFixture();
     await build(root);
     const llms = readFileSync(join(root, 'dist', 'llms.txt'), 'utf8');
-    expect(llms).toContain('/clean-autofill.md');
-    expect(llms).toContain('/c5h.md');
-    expect(readFileSync(join(root, 'dist', 'clean-autofill.md'), 'utf8')).toContain(
-      'Body for clean-autofill.',
+    expect(llms).toContain('/alpha.md');
+    expect(llms).toContain('/beta.md');
+    expect(readFileSync(join(root, 'dist', 'alpha.md'), 'utf8')).toContain(
+      'Body for alpha.',
     );
   });
 });

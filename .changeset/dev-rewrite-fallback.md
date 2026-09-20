@@ -10,7 +10,7 @@ path, and its only way to reject a route that matches without producing the path
 can never run, so a dynamic route that owns nothing shadows the route that owns the path and
 every in-process rewrite to it throws.
 
-A `src/pages/[year]/` route with no entries alongside `src/pages/[...slug].astro` is the common
+A `src/pages/[category]/` route with no entries alongside `src/pages/[...slug].astro` is the common
 shape. Ordinary requests were unaffected and so was the build, but every page behind the
 shadowed route silently vanished from `llms.txt`, `llms-full.txt` and the schema corpus, and its
 `.md` companion returned an empty 404 with nothing written to the terminal.

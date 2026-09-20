@@ -436,7 +436,7 @@ prerendered dynamic paths:
 Enumeration is only half the job: a discovered path still has to render. When two dynamic
 route patterns both match a path and the one Astro sorts first does not produce it,
 Astro's development server cannot reach the right route through an internal rewrite. A
-`src/pages/[year]/` route with no entries alongside `src/pages/[...slug].astro` is the
+`src/pages/[category]/` route with no entries alongside `src/pages/[...slug].astro` is the
 common shape. Ordinary requests are unaffected, and so is the build.
 
 Astro-AEO recovers in development by re-requesting that one page from the address the
