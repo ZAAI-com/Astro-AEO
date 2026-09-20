@@ -1,0 +1,30 @@
+src/runtime/markdown-renderers.test.js
+  s_87b2cae6ffba7f::t_46f06e37f0d0a6 39-89
+src/static-adapter-corpus.ssr.test.js
+  s_87b2cae6ffba7f::t_0bd5deb90c633f 26-30,34-35
+  s_87b2cae6ffba7f::t_d2d4a82b50a10d 2
+src/core/sitemap-xml.test.js
+  s_87b2cae6ffba7f::t_839d17e37d6d49 143-200
+src/generators/sitemap-finalize.test.js
+  s_87b2cae6ffba7f::t_d50494a67616a4 15-21,204,211
+test/adapters/helpers.js
+  s_87b2cae6ffba7f::t_6faafd82b7f0e6 145-149
+cli/indexnow-submit.test.js
+  s_87b2cae6ffba7f::t_2db743b9ec3fbd 144-190
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "dbaca81fdc71df1a0bfdf06ff9fdc04d89398aae",
+  "prompts": {},
+  "sessions": {
+    "s_87b2cae6ffba7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "48f8ae8c-3b45-4ef2-acd2-500558006840",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
