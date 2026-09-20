@@ -1,0 +1,21 @@
+.gitignore
+  s_87b2cae6ffba7f::t_054f0004cff835 30-33
+.github/workflows/W1-Test.yml
+  s_87b2cae6ffba7f::t_054f0004cff835 35-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "82ecbb9b1c8cf25f01969940b2775608842b270c",
+  "prompts": {},
+  "sessions": {
+    "s_87b2cae6ffba7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "48f8ae8c-3b45-4ef2-acd2-500558006840",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
