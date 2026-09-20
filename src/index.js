@@ -472,7 +472,13 @@ export default function aeo(userConfig = {}) {
         // build's reach. Adapter presence is not evidence: injectRuntimeFallbackRoutes
         // marks its own routes `prerender: false`, which promotes this build to server
         // output, so reading `buildOutput` back would be self-fulfilling.
-        const corpusOwnedByRuntime = hasOnDemandProjectPage;
+        //
+        // More than one configured origin also keeps the runtime authoritative: one
+        // static file cannot be correct for every host it answers on. Astro rejects
+        // prerendered routes under i18n.domains, so this only reaches a domains
+        // project whose pages all come from catalogs.
+        const corpusOwnedByRuntime = hasOnDemandProjectPage ||
+          (localeSnapshot?.origins?.length ?? 0) > 1;
         /** @type {import('./index.js').Diagnostic[]} */
         const routeDiagnostics = [];
         if (

@@ -59,6 +59,7 @@ async function runtimeConfigSource(options = {}) {
  *   configFirst?: boolean;
  *   repeatRoutes?: boolean;
  *   srcDir?: string;
+ *   i18n?: any;
  *   userConfig?: any;
  *   routes?: any[];
  *   secondRoutes?: any[];
@@ -114,6 +115,7 @@ async function runRouteLifecycle(options = {}) {
         srcDir: new URL(options.srcDir ?? 'src/', rootUrl),
         publicDir: pathToFileURL(`${publicRoot}/`),
         output: options.output ?? 'static',
+        ...(options.i18n ? { i18n: options.i18n } : {}),
         ...(options.adapter ? { adapter: { name: 'test-adapter' } } : {}),
       },
       logger,
@@ -648,6 +650,27 @@ describe('integration diagnostics and declarations', () => {
       routes: [prerenderedHome, dynamicRoute()],
     });
     expect(result.runtimeSource).toContain('"buildOwnsCorpora": false');
+  });
+
+  // Astro rejects prerendered routes under i18n.domains, so a domains project normally
+  // has an on-demand page and the runtime already owns the corpus. A project whose pages
+  // all come from catalogs has none, and one static file cannot be right for both hosts.
+  test('leaves the corpus to middleware when more than one origin is configured', async () => {
+    const result = await runRouteLifecycle({
+      adapter: true,
+      output: 'server',
+      buildOutput: 'server',
+      userConfig: corpusConfig,
+      i18n: {
+        locales: ['en', 'fr'],
+        defaultLocale: 'en',
+        domains: { fr: 'https://fr.example.test' },
+      },
+      routes: [prerenderedHome],
+    });
+    expect(result.infos).toContainEqual(
+      expect.stringContaining('request-time middleware owns the configured corpus paths'),
+    );
   });
 
   test('builds the corpus for a catalog-only server project with no on-demand page', async () => {
