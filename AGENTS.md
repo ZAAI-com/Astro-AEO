@@ -20,8 +20,9 @@ plain ESM with no package build step.
 ## Architecture
 
 - `src/index.js` is the integration entry. It retains resolved configuration and site facts and
-  wires exactly these hooks: `astro:config:setup`, `astro:config:done`,
-  `astro:routes:resolved`, and `astro:build:done`.
+  wires exactly these hooks: `astro:config:setup`, `astro:server:start`, `astro:config:done`,
+  `astro:routes:resolved`, and `astro:build:done`. `astro:server:start` exists only to
+  record the development server's bound address for the development rewrite fallback.
 - `src/config.js` resolves defaults, validates nested keys through `CONFIG_SHAPE`, and resolves
   site metadata. `src/lib/config-migrate.js` owns all 1.0 to 1.1 moves through `LEGACY_MOVES`,
   including warnings, conflicts, the migration printer, and migration-doc checks.
@@ -48,6 +49,14 @@ plain ESM with no package build step.
   carries standalone Markdown source into server bundles after stripping only leading
   frontmatter. Startup discovery uses the public route snapshot; experimental hot discovery uses
   Astro's private route module and must never enter production or adapter bundles.
+- Astro's `findRouteToRewrite` commits to the first route whose pattern matches and can
+  only reject a wrong candidate through `route.distURL`, which a build populates and a
+  development server does not. Overlapping dynamic route patterns therefore break
+  in-process rewrites in `astro dev`. `src/runtime/dev-loopback.js` re-requests the
+  affected page from the address Astro reported at `astro:server:start`, and
+  `src/runtime/rewrite-diagnostics.js` names the failure when that is unavailable. Both
+  are development-only and must never reach a production or adapter bundle; the adapter
+  build test asserts their sentinels are absent.
 - `src/runtime/middleware.js` and `src/runtime/serve.js` implement request-time artifacts. A
   direct `.md` request rewrites into the underlying project route, so application middleware and
   authentication apply as they do to HTML. Preserve the project's status, redirects, cookies,
