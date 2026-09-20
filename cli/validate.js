@@ -187,7 +187,7 @@ function validateRobotsReferences(robots, distDir, base, corpusPaths, localOrigi
         out.errors.push({ level: 'error', code: 'robots-sitemap-url-invalid', message: `robots.txt has an invalid Sitemap URL: ${sitemap[1].trim()}`, file: 'robots.txt' });
         continue;
       }
-      if (localOrigin && url.origin !== localOrigin) {
+      if (!localOrigin || url.origin !== localOrigin) {
         out.warnings.push({
           level: 'warn',
           code: 'sitemap-external-unchecked',
@@ -234,7 +234,7 @@ function validateRobotsReferences(robots, distDir, base, corpusPaths, localOrigi
       out.errors.push({ level: 'error', code: 'robots-corpus-url-invalid', message: `robots.txt has an invalid corpus URL: ${corpus[1]}`, file: 'robots.txt' });
       continue;
     }
-    if (localOrigin && corpusUrl.origin !== localOrigin) {
+    if (!localOrigin || corpusUrl.origin !== localOrigin) {
       out.warnings.push({ level: 'warn', code: 'robots-corpus-external', message: `external corpus reference was not fetched: ${corpusUrl.origin}${corpusUrl.pathname}`, file: 'robots.txt' });
       continue;
     }
@@ -248,21 +248,15 @@ function validateRobotsReferences(robots, distDir, base, corpusPaths, localOrigi
 
 /** @param {string} distDir @param {string} robots */
 function validationOrigin(distDir, robots) {
+  // Only the domain profile can prove the local origin. Deriving it from a
+  // robots corpus hint would trust the very reference under validation and
+  // turn an external URL into a spurious local missing-path failure.
   const profile = join(distDir, '.well-known', 'domain-profile.json');
   try {
     const value = JSON.parse(readFileSync(profile, 'utf8'))?.url;
     if (typeof value === 'string') return new URL(value).origin;
   } catch {
-    // Fall through to the non-standard corpus hint.
-  }
-  for (const line of robots.split('\n')) {
-    const match = line.match(/^\s*#\s*llms(?:\.txt)?\s*:\s*(\S+)\s*$/i);
-    if (!match) continue;
-    try {
-      return new URL(match[1]).origin;
-    } catch {
-      return undefined;
-    }
+    // No profile: the local origin stays unknown.
   }
   return undefined;
 }

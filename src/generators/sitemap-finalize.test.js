@@ -321,6 +321,35 @@ describe('finalizeSitemapOutputs', () => {
     expect(readFileSync(join(dir, 'robots.txt'), 'utf8')).toContain('Sitemap:');
   });
 
+  test('accepts @astrojs/sitemap customPages URLs without project routes', () => {
+    writeFileSync(
+      join(dir, 'sitemap-index.xml'),
+      '<?xml version="1.0" encoding="UTF-8"?>' +
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' +
+        '<url><loc>https://example.com/custom/page</loc></url></urlset>',
+    );
+    const diagnostics = [];
+    const result = finalizeSitemapOutputs(
+      distDir,
+      resolveConfig({
+        robotsTxt: { enabled: true },
+        discovery: { sitemap: { options: { customPages: ['https://example.com/custom/page'] } } },
+      }),
+      {
+        siteUrl: 'https://example.com',
+        base: '',
+        sitemapExpected: true,
+        logger,
+        routePaths: new Set(['/']),
+        onDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
+      },
+    );
+
+    expect(result.sitemapAdvertised).toBe(true);
+    expect(diagnostics.map((entry) => entry.code)).not.toContain('sitemap-route-missing');
+    expect(readFileSync(join(dir, 'robots.txt'), 'utf8')).toContain('Sitemap:');
+  });
+
   test('does not advertise root llms.txt under locale-only indexes', () => {
     const result = finalize({
       i18n: { indexes: 'locale' },

@@ -180,7 +180,9 @@ function parseXml(raw) {
     if (source.startsWith('<!--', position)) {
       const end = source.indexOf('-->', position + 4);
       if (end === -1) fail(position, 'An XML comment is not closed.');
-      if (source.slice(position + 4, end).includes('--')) fail(position, 'An XML comment contains "--".');
+      const comment = source.slice(position + 4, end);
+      if (comment.includes('--')) fail(position, 'An XML comment contains "--".');
+      if (comment.endsWith('-')) fail(position, 'An XML comment ends with "-".');
       mayDeclare = false;
       position = end + 3;
       continue;

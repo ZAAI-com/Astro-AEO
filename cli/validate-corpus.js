@@ -68,8 +68,15 @@ export function validateCorpusArtifacts(distDir, requestedBase, out) {
     manifest,
     origin: manifest?.origin,
     base: manifestBase,
-    corpusPaths: new Set(corpusFiles.map((entry) =>
-      withBase(`/${relative(distDir, entry.path).split(sep).join('/')}`, manifestBase))),
+    // Robots corpus references use the served URL spelling, so each physical
+    // path segment is percent-encoded before it joins the comparison set.
+    corpusPaths: new Set(corpusFiles.map((entry) => {
+      const encoded = relative(distDir, entry.path)
+        .split(sep)
+        .map((segment) => encodeURIComponent(segment))
+        .join('/');
+      return withBase(`/${encoded}`, manifestBase);
+    })),
   };
 }
 
@@ -520,9 +527,15 @@ function digest(bytes) {
 }
 
 /** @param {Buffer} bytes */
+/**
+ * The exact header the deterministic producer emits: no flags, zero MTIME,
+ * the level-9 XFL marker, and the unknown OS value.
+ * @param {Buffer} bytes
+ */
 function normalizedGzipHeader(bytes) {
   return bytes.length >= 10 && bytes[0] === 0x1f && bytes[1] === 0x8b && bytes[2] === 8 &&
-    (bytes[3] & 0x1c) === 0 && bytes[4] === 0 && bytes[5] === 0 && bytes[6] === 0 && bytes[7] === 0;
+    bytes[3] === 0 && bytes[4] === 0 && bytes[5] === 0 && bytes[6] === 0 && bytes[7] === 0 &&
+    bytes[8] === 2 && bytes[9] === 255;
 }
 
 /** @param {string} path */

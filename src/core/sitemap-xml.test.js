@@ -44,6 +44,20 @@ describe('parseSitemapXml', () => {
     }
   });
 
+  test('rejects comment content ending with a hyphen', () => {
+    for (const xml of [
+      `<?xml version="1.0"?><urlset xmlns="${NS}"><!--bad---><url><loc>https://example.test/</loc></url></urlset>`,
+      `<?xml version="1.0"?><urlset xmlns="${NS}"><!-- -><url><loc>https://example.test/</loc></url></urlset>`,
+    ]) {
+      const parsed = parseSitemapXml(xml);
+      expect(parsed.findings.map((entry) => entry.code), xml).toContain('sitemap-xml-malformed');
+    }
+    const accepted = parseSitemapXml(
+      `<?xml version="1.0"?><urlset xmlns="${NS}"><!-- fine --><url><loc>https://example.test/</loc></url></urlset>`,
+    );
+    expect(accepted.findings).toEqual([]);
+  });
+
   test('resolves per-element xmlns:xhtml declarations', () => {
     const parsed = parseSitemapXml(
       `<urlset xmlns="${NS}">` +
