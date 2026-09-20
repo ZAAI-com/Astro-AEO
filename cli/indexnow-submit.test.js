@@ -141,6 +141,53 @@ describe('indexnow submit', () => {
     expect(retryDelay('Thu, 01 Jan 1970 00:01:00 GMT', 0, 0)).toBe(30_000);
   });
 
+  test('retries a transport network error and succeeds on a later attempt', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-submit-'));
+    roots.push(root);
+    const queuePath = fixtureQueue(root);
+    let posts = 0;
+    const delays = [];
+    const result = await submitIndexNow(queuePath, {
+      projectRoot: root,
+      env: { INDEXNOW_TEST_KEY: KEY },
+      sleep: async (delay) => { delays.push(delay); },
+      now: () => 0,
+      transport: { async request(url) {
+        if (url !== INDEXNOW_ENDPOINT) return { status: 200, headers: {}, body: KEY, url };
+        posts += 1;
+        if (posts === 1) throw new Error('network down');
+        return { status: 200, headers: {}, body: '', url };
+      } },
+    });
+    expect(posts).toBe(2);
+    expect(delays).toEqual([1_000]);
+    expect(result).toMatchObject({ submitted: 1, pending: 0 });
+  });
+
+  test('gives up after three transport network errors and leaves the batch pending', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-submit-'));
+    roots.push(root);
+    const queuePath = fixtureQueue(root);
+    let posts = 0;
+    const delays = [];
+    const result = await submitIndexNow(queuePath, {
+      projectRoot: root,
+      env: { INDEXNOW_TEST_KEY: KEY },
+      sleep: async (delay) => { delays.push(delay); },
+      now: () => 0,
+      transport: { async request(url) {
+        if (url !== INDEXNOW_ENDPOINT) return { status: 200, headers: {}, body: KEY, url };
+        posts += 1;
+        throw new Error('network down');
+      } },
+    });
+    expect(posts).toBe(3);
+    expect(delays).toEqual([1_000, 2_000]);
+    expect(result).toMatchObject({ submitted: 0, pending: 1 });
+    expect(result.warnings.join('\n')).toContain('network request failed');
+    expect(result.warnings.join('\n')).not.toContain(KEY);
+  });
+
   test('does not retry terminal 4xx and leaves the failed batch pending', async () => {
     const root = mkdtempSync(join(tmpdir(), 'astro-aeo-submit-'));
     roots.push(root);

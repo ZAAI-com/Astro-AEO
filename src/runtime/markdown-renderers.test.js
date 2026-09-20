@@ -36,4 +36,55 @@ describe('runtime Markdown renderer loading', () => {
     expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('rendered HTML extraction was retained'));
     expect(console.warn).not.toHaveBeenCalledWith(expect.stringContaining('preflight name'));
   });
+
+  test('carries a matching cache declaration onto the loaded entry', async () => {
+    const render = () => ({ status: 'rendered', markdown: '# Cached' });
+    const loaders = [{
+      name: 'pure',
+      module: './pure.js',
+      cache: { pure: true, version: '1' },
+      load: async () => ({ name: 'pure', apiVersion: 1, render, cache: { pure: true, version: '1' } }),
+    }];
+    const [renderer] = await loadRuntimeMarkdownRenderers(loaders);
+    expect(renderer.cache).toEqual({ pure: true, version: '1' });
+    expect(renderer.render).toBe(render);
+  });
+
+  test.each([
+    [
+      'version drift',
+      { pure: true, version: '1' },
+      { name: 'pure', apiVersion: 1, render() {}, cache: { pure: true, version: '2' } },
+    ],
+    [
+      'a declaration the preflight did not see',
+      undefined,
+      { name: 'pure', apiVersion: 1, render() {}, cache: { pure: true, version: '1' } },
+    ],
+    [
+      'a declaration dropped since the preflight',
+      { pure: true, version: '1' },
+      { name: 'pure', apiVersion: 1, render() {} },
+    ],
+  ])('isolates the renderer on %s', async (_label, declared, exported) => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const loaders = [{
+      name: 'pure',
+      module: './pure.js',
+      ...(declared ? { cache: declared } : {}),
+      load: async () => exported,
+    }];
+    const [renderer] = await loadRuntimeMarkdownRenderers(loaders);
+    expect(renderer.cache).toBeUndefined();
+    expect(renderer.render()).toMatchObject({
+      status: 'continue',
+      diagnostics: [{ code: 'markdown-renderer-runtime-load-failed', severity: 'warning' }],
+    });
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('rendered HTML extraction was retained'),
+    );
+    expect(console.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining('cache declaration changed'),
+    );
+  });
 });

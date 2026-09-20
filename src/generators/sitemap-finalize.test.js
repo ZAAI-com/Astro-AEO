@@ -12,6 +12,13 @@ const VALID_SITEMAP =
   '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' +
   '<url><loc>https://example.com/</loc></url></urlset>';
 
+// Byte-distinct from VALID_SITEMAP, same route, still a valid urlset. Preservation
+// assertions must compare against this so they cannot pass on an overwrite.
+const EXISTING_SITEMAP =
+  '<?xml version="1.0" encoding="UTF-8"?>' +
+  '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' +
+  '<url><loc>https://example.com/</loc><lastmod>2026-01-02</lastmod></url></urlset>';
+
 describe('finalizeSitemapOutputs', () => {
   /** @type {string} */
   let dir;
@@ -194,14 +201,14 @@ describe('finalizeSitemapOutputs', () => {
 
   test('an existing alias target is preserved and can be advertised', () => {
     writeFileSync(join(dir, 'sitemap-index.xml'), VALID_SITEMAP);
-    writeFileSync(join(dir, 'sitemap.xml'), VALID_SITEMAP);
+    writeFileSync(join(dir, 'sitemap.xml'), EXISTING_SITEMAP);
     const result = finalize(
       { robotsTxt: { enabled: true, sitemapPath: '/sitemap.xml' } },
       { sitemapExpected: true },
     );
 
     expect(result).toEqual({ aliasEmitted: false, sitemapAdvertised: true });
-    expect(readFileSync(join(dir, 'sitemap.xml'), 'utf8')).toBe(VALID_SITEMAP);
+    expect(readFileSync(join(dir, 'sitemap.xml'), 'utf8')).toBe(EXISTING_SITEMAP);
     expect(warnings.some((warning) => warning.includes('already exists'))).toBe(true);
     expect(readFileSync(join(dir, 'robots.txt'), 'utf8')).toContain(
       'Sitemap: https://example.com/sitemap.xml',

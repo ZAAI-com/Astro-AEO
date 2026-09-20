@@ -142,6 +142,11 @@ export function fetchWithHost(urlString, host) {
     }, (res) => {
       /** @type {Buffer[]} */
       const chunks = [];
+      // A reset after the headers arrive surfaces on the request on current Node, but
+      // handle it on the response too: an unhandled 'error' there would throw out of the
+      // stream rather than settle this promise.
+      res.on('error', reject);
+      res.on('aborted', () => reject(new Error('fetchWithHost response aborted')));
       res.on('data', (chunk) => chunks.push(chunk));
       res.on('end', () => {
         resolve(new Response(Buffer.concat(chunks), {
