@@ -1,0 +1,19 @@
+src/generators/llms-txt.test.js
+  s_977125af27853e::t_83b61fe3de9af9 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "400dd41625887bcc35c57374040244022bfae967",
+  "prompts": {},
+  "sessions": {
+    "s_977125af27853e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e843a899-0d4e-40a4-add8-ed9bb60276b5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
