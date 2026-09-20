@@ -1,0 +1,31 @@
+scripts/indexnow-network-smoke.mjs
+  s_049c1d0c8cd613::t_708ea520787b19 1-5,7-33,39-64
+  s_049c1d0c8cd613::t_4dc130ff19315a 6,34-38
+cli/indexnow-submit.test.js
+  s_049c1d0c8cd613::t_ed7013eab6a233 2-3,15-21,291-420
+  s_049c1d0c8cd613::t_7008835e5e64e3 421
+CHANGELOG.md
+  s_049c1d0c8cd613::t_334263cf1433e6 24-31,35-39
+package.json
+  s_049c1d0c8cd613::t_55b14ca6c57af6 144
+scripts/release-check.mjs
+  s_049c1d0c8cd613::t_55b14ca6c57af6 64
+cli/indexnow-submit.js
+  s_049c1d0c8cd613::t_bd7f8dd24aee9d 218-226
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "17879493541ed5ce1058953cda5ca627ad16de43",
+  "prompts": {},
+  "sessions": {
+    "s_049c1d0c8cd613": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "137ea4a3-a79b-4ca5-9c57-47e6a0e4f01c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
