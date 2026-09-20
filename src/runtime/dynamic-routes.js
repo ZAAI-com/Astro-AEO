@@ -106,11 +106,16 @@ export async function discoverRuntimeDynamicPaths(runtime, source) {
       throw new RuntimeDynamicRouteDiscoveryError(route, 'the page module has no getStaticPaths() export');
     }
 
+    let site;
+    if (runtime.site.siteUrl) {
+      try { site = new URL(runtime.site.siteUrl); } catch { site = undefined; }
+    }
     let result;
     try {
       result = await Reflect.apply(getStaticPaths, namespace, [{
         routePattern: loader.pattern,
         paginate: createPaginate(loader, runtime.site),
+        ...(site ? { site } : {}),
       }]);
     } catch {
       throw new RuntimeDynamicRouteDiscoveryError(route, 'getStaticPaths() could not be evaluated');

@@ -763,7 +763,9 @@ async function onBuildDoneLocked(config, options, env, session) {
       semanticPages,
       writer,
       privateState: indexNowPrivate,
-      processingReadOnly: processingCache.readOnly,
+      // A disabled cache opted out of reuse, not out of private-state writes;
+      // only an enabled cache that failed to open may withhold IndexNow state.
+      processingReadOnly: processingCache.enabled ? processingCache.readOnly : false,
       inventoryComplete,
       diagnostics: buildDiagnostics,
     });

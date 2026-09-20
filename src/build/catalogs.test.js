@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { loadCatalogPages, preloadCatalogModules, resolveCatalogSpecifier } from './catalogs.js';
+import { loadCatalogPages, mergeCatalogPages, preloadCatalogModules, resolveCatalogSpecifier } from './catalogs.js';
 
 describe('catalog module preflight', () => {
   test('keeps successful modules and reports import failures once', async () => {
@@ -340,5 +340,17 @@ describe('catalog pathname validation', () => {
       expect.objectContaining({ code: 'catalog-invalid-date', pathname: '/dated' }),
       expect.objectContaining({ code: 'catalog-invalid-date', pathname: '/dated' }),
     ]);
+  });
+});
+
+describe('catalog overlay merging', () => {
+  test('overlays an encoded catalog spelling onto its decoded concrete route', () => {
+    const merged = mergeCatalogPages(
+      [{ pathname: '/café' }],
+      [{ pathname: '/caf%C3%A9', title: 'Authored title', markdown: '# Authored' }],
+    );
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({ title: 'Authored title', markdown: '# Authored' });
   });
 });

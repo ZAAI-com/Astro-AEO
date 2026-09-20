@@ -141,8 +141,13 @@ export const onRequest = async (context, next) => {
         preserveQuery: true,
         rewritePathname,
         collect: false,
+        requestHeadersAvailable,
       });
-      const collected = htmlFetcher(context, next, { preserveQuery: true, rewritePathname });
+      const collected = htmlFetcher(context, next, {
+        preserveQuery: true,
+        rewritePathname,
+        requestHeadersAvailable,
+      });
       const fetcher = async (sourcePathname) => {
         const safe = await probe(sourcePathname);
         if (safe === null || safe.html === null || !safe.response.ok) return safe;
@@ -350,6 +355,7 @@ export const onRequest = async (context, next) => {
       request: context.request,
       status: source?.status ?? 200,
       headers: representationHeaders(source, encodedMdPagePath ?? mdPagePath, context, false),
+      requestHeadersAvailable,
     });
   }
 
@@ -741,6 +747,9 @@ function htmlFetcher(context, next, opts = {}) {
   const origin = context.url.origin;
   const search = context.url.search;
   const outerLocals = snapshotLocals(context.locals);
+  // Astro blanks request headers for prerendered routes. Every fetcher that
+  // does not explicitly carry caller headers must treat them as unavailable.
+  const headersAvailable = opts.requestHeadersAvailable ?? !context.isPrerendered;
   let tail = Promise.resolve();
 
   /** @param {string} pathname */
@@ -749,7 +758,7 @@ function htmlFetcher(context, next, opts = {}) {
     const target = `${basePrefix(RUNTIME.site.base)}${withTrailingSlash(sourcePathname)}${opts.preserveQuery ? search : ''}`;
     try {
       const targetUrl = new URL(target, origin);
-      const headers = opts.sanitizeCredentials || opts.requestHeadersAvailable === false
+      const headers = opts.sanitizeCredentials || !headersAvailable
         ? new Headers()
         : new Headers(sourceRequest.headers);
       sanitizeSourceHeaders(headers);

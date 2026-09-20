@@ -94,7 +94,15 @@ export function createRuntimePluginPageHandles(pages, readPage) {
       pathname: page.pathname,
       ...(typeof page.origin === 'string' ? { origin: page.origin } : {}),
       ...(typeof page.locale === 'string' ? { locale: page.locale } : {}),
-      ...(Array.isArray(page.alternates) ? { alternates: page.alternates.map((item) => ({ ...item })) } : {}),
+      // Alternates metadata crosses the plugin boundary frozen: a runtime
+      // hook must not rewrite or append entries later hooks then observe.
+      ...(Array.isArray(page.alternates)
+        ? {
+          alternates: Object.freeze(
+            page.alternates.map((item) => Object.freeze({ ...item })),
+          ),
+        }
+        : {}),
       read() {
         pending ??= Promise.resolve(readPage(page)).then(sanitizeRuntimePage);
         return pending;
@@ -331,11 +339,15 @@ async function loadAll(loaders, command) {
 /** @param {unknown} left @param {unknown} right */
 function sameCacheDeclaration(left, right) {
   if (left === undefined && right === undefined) return true;
-  return Boolean(
-    left && right &&
-    /** @type {any} */ (left).pure === true && /** @type {any} */ (right).pure === true &&
-    /** @type {any} */ (left).version === /** @type {any} */ (right).version,
-  );
+  if (!left || !right) return false;
+  const declared = /** @type {any} */ (left);
+  const registered = /** @type {any} */ (right);
+  if (declared.pure !== true || registered.pure !== true) return false;
+  // The build manifest stores the trimmed version; the runtime declaration
+  // may still carry its surrounding whitespace.
+  const declaredVersion = typeof declared.version === 'string' ? declared.version.trim() : declared.version;
+  const registeredVersion = typeof registered.version === 'string' ? registered.version.trim() : registered.version;
+  return declaredVersion === registeredVersion;
 }
 
 /**

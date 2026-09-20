@@ -64,6 +64,20 @@ describe('discoverRuntimeDynamicPaths', () => {
     expect(paths).toEqual(['/products/first', '/products/second', '/archive/2026/launch']);
   });
 
+  test('passes the configured site into the getStaticPaths() context', async () => {
+    const paths = await discoverRuntimeDynamicPaths(
+      runtime('dev', { siteUrl: 'https://example.com' }),
+      source([
+        loader({
+          getStaticPaths: (context) => context.site?.href === 'https://example.com/'
+            ? [{ params: { slug: 'sited' } }]
+            : [],
+        }),
+      ]),
+    );
+    expect(paths).toEqual(['/products/sited']);
+  });
+
   test('supports optional spread params and deduplicates exact generated paths', async () => {
     const optional = loader({
       pattern: '/docs/[...path]',

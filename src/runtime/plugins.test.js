@@ -212,6 +212,17 @@ describe('runtime plugin artifacts', () => {
     expect(pages[1]).not.toHaveProperty('locale');
   });
 
+  test('freezes exposed alternates metadata against hook tampering', () => {
+    const pages = createRuntimePluginPageHandles([
+      { pathname: '/guide', alternates: [{ language: 'en', url: 'https://example.com/guide/' }] },
+    ], async () => null);
+
+    expect(Object.isFrozen(pages[0].alternates)).toBe(true);
+    expect(Object.isFrozen(pages[0].alternates[0])).toBe(true);
+    expect(() => pages[0].alternates.push({ language: 'x', url: 'https://x.example/' })).toThrow();
+    expect(() => { pages[0].alternates[0].language = 'x'; }).toThrow();
+  });
+
   test('includes the root page in fixed runtime handles', async () => {
     const read = vi.fn(async (page) => ({
       id: page.pathname,
@@ -259,6 +270,27 @@ describe('runtime plugin artifacts', () => {
     const runtime = await loadRuntimePlugins([trimmed]);
     expect(runtime.failed).not.toContain(' feed ');
     expect(seenOptions).toBeUndefined();
+  });
+
+  test('accepts a hook cache version with surrounding whitespace as the build did', async () => {
+    const padded = loader({
+      hookManifest: [
+        { stage: 'artifact:generate', ordinal: 0, cache: { pure: true, version: 'v1' } },
+        { stage: 'artifact:validate', ordinal: 0 },
+      ],
+      load: async () => ({
+        name: 'feed',
+        apiVersion: 1,
+        setup(api) {
+          api.claimArtifact({ id: 'feed', pathname: '/feed.txt' });
+          api.on('artifact:generate', () => undefined, { cache: { pure: true, version: ' v1 ' } });
+          api.on('artifact:validate', () => undefined);
+        },
+      }),
+    });
+
+    const runtime = await loadRuntimePlugins([padded]);
+    expect(runtime.failed).not.toContain('feed');
   });
 
   test('rejects invalid runtime modules and hook failures with a generic no-store response', async () => {

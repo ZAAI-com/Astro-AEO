@@ -251,7 +251,11 @@ export async function pageFromHtml(pathname, html, runtime, opts = {}) {
     ...result.page,
     ...(descriptor?.origin ? { origin: descriptor.origin } : {}),
     ...(descriptor?.locale ? { locale: descriptor.locale } : {}),
-    ...(descriptor?.alternates ? { alternates: descriptor.alternates.map((alternate) => ({ ...alternate })) } : {}),
+    // A truthy non-array must not throw here; alternate normalization is the
+    // authority on invalid entries.
+    ...(Array.isArray(descriptor?.alternates)
+      ? { alternates: descriptor.alternates.map((alternate) => ({ ...alternate })) }
+      : {}),
   };
   if (!plugins) return page;
 
@@ -550,7 +554,7 @@ export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {
         ...(target.descriptor?.locale ? { locale: target.descriptor.locale } : {}),
         ...(headAlternates.present
           ? { alternates: headAlternates.value }
-          : target.descriptor?.alternates
+          : Array.isArray(target.descriptor?.alternates)
             ? { alternates: target.descriptor.alternates }
             : {}),
         representations: {
@@ -609,6 +613,11 @@ export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {
     }
   }
   const alternates = normalizePageAlternates(localized);
+  // The build fails on hreflang validation errors; the runtime corpus must not
+  // silently drop invalid or non-reciprocal links and serve a shorter plan.
+  if (alternates.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
+    throw new RuntimeCorpusPlanError('Runtime hreflang alternates failed validation.');
+  }
   const home = alternates.pages.find((page) => page.pathname === '/');
   const siteMeta = resolveSiteMeta(
     runtime.config,
