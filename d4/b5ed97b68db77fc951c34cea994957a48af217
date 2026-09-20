@@ -1,0 +1,25 @@
+.changeset/dev-rewrite-fallback.md
+  s_977125af27853e::t_b5554abf5b93a8 1-30
+AGENTS.md
+  s_977125af27853e::t_f97ef1256298ea 23-25,52-59
+README.md
+  s_977125af27853e::t_61b189b4ec081b 432-450,519-522,1052
+benchmarks/thresholds.mjs
+  s_977125af27853e::t_699b02e5f7c299 6-11,13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d4b5ed97b68db77fc951c34cea994957a48af217",
+  "prompts": {},
+  "sessions": {
+    "s_977125af27853e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e843a899-0d4e-40a4-add8-ed9bb60276b5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
