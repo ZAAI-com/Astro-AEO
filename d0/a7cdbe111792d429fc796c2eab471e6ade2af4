@@ -1,0 +1,26 @@
+src/runtime/rewrite-diagnostics.test.js
+  s_977125af27853e::t_a56c85b7ea5674 1-132
+src/runtime/rewrite-diagnostics.js
+  s_977125af27853e::t_648f13aa912e21 1-138
+src/runtime/middleware.js
+  s_977125af27853e::t_4e1047cd2ce604 52-56,140-142,154,160,276,285,319,329,374-391,785,802-805,808,812,819-837,839-842,844-846,901-902,907-910,927-928,931-932,935-938,954,960-961,970-971,982-983
+  s_977125af27853e::t_c9cd214795b78b 51
+src/index.js
+  s_977125af27853e::t_4e1047cd2ce604 94-98,201-202,451-459,463-469
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d0a7cdbe111792d429fc796c2eab471e6ade2af4",
+  "prompts": {},
+  "sessions": {
+    "s_977125af27853e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e843a899-0d4e-40a4-add8-ed9bb60276b5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
