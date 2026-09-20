@@ -447,6 +447,53 @@ describe('runtime corpus subrequests', () => {
     await expect(onRequest(context, vi.fn())).rejects.toThrow('SECRET_CONSTRUCTION_FAILURE');
   });
 
+  // The development test above only proves the throwing half. Production takes the
+  // other branch in renderFreshCorpusState, and a swallowed error must still fail
+  // closed: no throw, no construction detail in the body, and no page rendered
+  // through the caller-bound outer state.
+  test('fails closed without leaking the failure when the same construction breaks in production', async () => {
+    const fetchStateSymbol = Symbol.for('astro.fetchState');
+    const rewrites = vi.fn();
+    class BrokenOneArgFetchState {
+      constructor(request) {
+        if (BrokenOneArgFetchState.calls++ > 0) {
+          throw new Error('SECRET_CONSTRUCTION_FAILURE');
+        }
+        this.manifest = {};
+        this.request = request;
+        this.renderOptions = { locals: {} };
+        this.locals = this.renderOptions.locals;
+        this.cookies = { request };
+      }
+      async rewrite(target) {
+        rewrites(target);
+        throw new Error('rewrite should not run after construction failure');
+      }
+    }
+    BrokenOneArgFetchState.calls = 0;
+
+    const url = new URL('https://example.test/llms-full.txt');
+    const outer = new BrokenOneArgFetchState(new Request(url));
+    outer.locals = { callerUser: 'private' };
+    const context = {
+      request: outer.request,
+      url,
+      locals: outer.locals,
+      isPrerendered: false,
+      rewrite: vi.fn(),
+      [fetchStateSymbol]: outer,
+    };
+
+    const response = await onRequest(context, vi.fn());
+    const body = await response.text();
+    expect(RUNTIME.command).not.toBe('dev');
+    expect(body).not.toContain('SECRET_CONSTRUCTION_FAILURE');
+    expect(body).not.toContain('# /public/');
+    expect(rewrites).not.toHaveBeenCalled();
+    expect(context.rewrite).not.toHaveBeenCalled();
+    expect(context.locals).toEqual({ callerUser: 'private' });
+  });
+
   test.each([
     ['Astro 5', Symbol.for('context.routes')],
     ['Astro 6.0-6.2', Symbol.for('astro.pipeline')],

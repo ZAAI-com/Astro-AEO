@@ -39,6 +39,20 @@ jobs:
       - name: Pin Astro version for this leg
         if: matrix.astro != '7'
         run: pnpm add -D astro@${{ matrix.astro }} ${{ matrix.astro == '6' && 'vite@7' || '' }}
+      # Print the pairing this leg actually resolved rather than reasoning about it
+      # from the lockfile. Astro 5 is expected to report its own nested Vite 6 here,
+      # not the root-level Vite that the Astro 7 leg locks.
+      - name: Report the Astro and Vite pairing under test
+        run: |
+          node -e "
+          const { createRequire } = require('node:module');
+          const req = createRequire(process.cwd() + '/x.js');
+          const astro = req('astro/package.json');
+          const vite = createRequire(req.resolve('astro/package.json'))('vite/package.json');
+          let root = 'none';
+          try { root = req('vite/package.json').version; } catch {}
+          console.log('astro ' + astro.version + ' resolves vite ' + vite.version + '; root vite: ' + root);
+          "
       - name: Typecheck
         run: pnpm run typecheck
       # The published .d.ts files are hand-written and only ever seen by this
