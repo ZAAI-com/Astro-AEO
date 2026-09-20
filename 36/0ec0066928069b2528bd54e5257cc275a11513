@@ -1,0 +1,76 @@
+src/runtime/dynamic-routes.js
+  s_1ef061f9f9c11e::t_2f3fa07f324c78 109-112,118
+src/runtime/plugins.test.js
+  s_1ef061f9f9c11e::t_89f4d61db0efab 275-295
+  s_1ef061f9f9c11e::t_f124868ff150bf 215-225
+src/core/render/llms-txt.test.js
+  s_1ef061f9f9c11e::t_3946a7effb325a 157-191
+src/core/page-identity.js
+  s_1ef061f9f9c11e::t_1ce0a1c7749083 3-4,15,28-38
+  s_1ef061f9f9c11e::t_d88b77a6551bab 39
+src/runtime/plugins.js
+  s_1ef061f9f9c11e::t_441362a00f7fb2 97-105
+  s_1ef061f9f9c11e::t_b8066e1507ff76 342-350
+src/core/render/llms-txt.js
+  s_1ef061f9f9c11e::t_a213173c580c52 18,23-40,43,50,54
+  s_1ef061f9f9c11e::t_8e36441e2343af 168-172
+src/runtime/respond.js
+  s_1ef061f9f9c11e::t_ea50a3544a624c 150,153,160-163
+src/core/locale.test.js
+  s_1ef061f9f9c11e::t_1a80962b8b6ce7 114-129
+src/build/catalogs.test.js
+  s_1ef061f9f9c11e::t_0f3e9e5465e152 4
+  s_1ef061f9f9c11e::t_4e29bfb4be90e3 345-356
+src/runtime/middleware-head.test.js
+  s_1ef061f9f9c11e::t_3b8711a3e033bc 224-239
+src/runtime/serve.test.js
+  s_1ef061f9f9c11e::t_9f1a2bc0a5862d 118-126
+  s_1ef061f9f9c11e::t_3a13daf609ecf2 764-779
+src/core/corpus-artifacts.test.js
+  s_1ef061f9f9c11e::t_d9a0f3ebd7eb33 272-327
+  s_1ef061f9f9c11e::t_6f6123db812f56 53-69
+src/hooks/build-done.test.js
+  s_1ef061f9f9c11e::t_f984a53ff47be4 113-132
+src/core/corpus-artifacts.js
+  s_1ef061f9f9c11e::t_7a9727150cfa12 376-378
+  s_1ef061f9f9c11e::t_a04c488eb42d44 469
+  s_1ef061f9f9c11e::t_c980ddf7519fd6 88-95
+  s_1ef061f9f9c11e::t_18375f6eebf012 409-411,416
+src/core/corpus-blocks.js
+  s_1ef061f9f9c11e::t_67d657dc03e541 91-94,109-114,130-132,135-139,142-143
+src/core/locale.js
+  s_1ef061f9f9c11e::t_87e30e58f44db3 215-218
+  s_1ef061f9f9c11e::t_c5b25d8e0ecde3 220
+src/runtime/middleware.js
+  s_1ef061f9f9c11e::t_35d3b40516be38 144-149
+  s_1ef061f9f9c11e::t_f2f448f49bb30f 750-752,761
+  s_1ef061f9f9c11e::t_fc220e49808a5b 358
+src/core/corpus-blocks.test.js
+  s_1ef061f9f9c11e::t_72939ecb2c4ee6 78-83,86-90
+  s_1ef061f9f9c11e::t_92a2c1d9e5f468 84-85
+  s_1ef061f9f9c11e::t_460ec7990db6a1 2
+src/runtime/serve.js
+  s_1ef061f9f9c11e::t_70e4ffba110415 254-258
+  s_1ef061f9f9c11e::t_75b37db262ad23 557
+  s_1ef061f9f9c11e::t_8a6a0634946044 616-620
+src/runtime/dynamic-routes.test.js
+  s_1ef061f9f9c11e::t_3e93327e91c3f3 67-80
+src/hooks/build-done.js
+  s_1ef061f9f9c11e::t_5523114de4e127 766-768
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "360ec0066928069b2528bd54e5257cc275a11513",
+  "prompts": {},
+  "sessions": {
+    "s_1ef061f9f9c11e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4143971cffebdIlfro8BoAuF6",
+        "model": "unknown"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
