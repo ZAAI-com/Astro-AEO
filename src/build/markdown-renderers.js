@@ -3,6 +3,7 @@ import { isAbsolute, resolve, win32 } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { AeoConfigError } from '../lib/errors.js';
 import {
+  MarkdownRendererShapeError,
   rendererOptions,
   validateMarkdownRendererModule,
 } from '../core/markdown-renderers.js';
@@ -100,12 +101,17 @@ export async function preloadMarkdownRenderers(
         ...(implementation.cache ? { cache: implementation.cache } : {}),
         render: implementation.render,
       });
-    } catch {
+    } catch (error) {
+      // An import failure and a malformed export are both caught here. Only our own
+      // shape error carries a message authored in this package, so only that one is safe
+      // to surface; an arbitrary import failure can embed paths or secrets and stays
+      // suppressed. Build-side only; the runtime path leaks nothing either way.
+      const reason = error instanceof MarkdownRendererShapeError ? ` ${error.message}` : '';
       reportRendererFailure(diagnostics, logger, {
         code: 'markdown-renderer-load-failed',
         message:
-          `astro-aeo: Markdown renderer "${module}" failed to load and was omitted; ` +
-          'rendered HTML extraction remains available.',
+          `astro-aeo: Markdown renderer "${module}" failed to load and was omitted;` +
+          `${reason} rendered HTML extraction remains available.`,
         sourcePath: module,
       });
     }

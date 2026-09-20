@@ -115,6 +115,15 @@ describe('request-time Markdown renderers', () => {
       hash: 'sha256:catalog-source',
     });
   });
+
+  test('ignores a truthy non-array catalog alternates value', async () => {
+    const result = await pageFromHtml('/guide', html('Guide'), runtime(), {
+      descriptor: { pathname: '/guide', alternates: 'https://example.com/en/' },
+    });
+
+    expect(result).not.toBeNull();
+    expect(result.alternates).toBeUndefined();
+  });
 });
 
 describe('request-time catalog breadcrumb ancestry', () => {
@@ -750,6 +759,22 @@ describe('locale-aware request-time corpus planning', () => {
     expect(JSON.parse(manifest.body).locales).toMatchObject([
       { locale: 'fr', language: 'fr' },
     ]);
+  });
+
+  test('fails the corpus plan on invalid hreflang data as the build path does', async () => {
+    const requestRuntime = runtime(['/guide'], 50);
+    const catalog = {
+      listPages: () => [{
+        pathname: '/guide',
+        title: 'Guide',
+        alternates: [{ language: 'not a language', url: 'https://example.com/guide/' }],
+      }],
+    };
+    const fetcher = async () => loaded(html('Guide'));
+
+    await expect(serveCorpusArtifact('/llms.txt', requestRuntime, fetcher, {
+      catalogLoaders: [catalogLoader(catalog)],
+    })).rejects.toBeInstanceOf(RuntimeCorpusPlanError);
   });
 
   test('fails closed when a page lifecycle hook throws during corpus collection', async () => {

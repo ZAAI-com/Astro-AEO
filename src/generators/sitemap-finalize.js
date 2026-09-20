@@ -37,6 +37,12 @@ export function finalizeSitemapOutputs(
   // before @astrojs/sitemap remain visible here.
   const activeWriter =
     writer ?? createArtifactWriter({ distDir, logger, routePaths, routeMatchers, publicDir });
+  // @astrojs/sitemap `customPages` are legitimate sitemap entries without
+  // project routes; the validator accepts them alongside runtime URLs.
+  const acceptedUrls = [
+    ...(runtimeUrls ?? []),
+    ...customPageUrls(config.discovery.sitemap.options?.customPages, siteUrl),
+  ];
   // Resolved from the optional `includeSitemap` tri-state in resolveConfig, so the
   // omitted-versus-false distinction never has to be recovered from raw user input.
   const sitemapPolicy = config.discovery.robots.sitemapPolicy;
@@ -113,7 +119,7 @@ export function finalizeSitemapOutputs(
       siteUrl,
       base,
       routePaths,
-      runtimeUrls,
+      runtimeUrls: acceptedUrls,
     });
     validationCache.set(pathname, result.valid);
     for (const finding of result.findings) {
@@ -130,6 +136,28 @@ export function finalizeSitemapOutputs(
     }
     return result.valid;
   }
+}
+
+/**
+ * Resolve configured `customPages` values to absolute URLs against the site.
+ * @param {unknown} value
+ * @param {string} siteUrl
+ * @returns {string[]}
+ */
+function customPageUrls(value, siteUrl) {
+  const list = Array.isArray(value) ? value : typeof value === 'string' ? [value] : [];
+  /** @type {string[]} */
+  const urls = [];
+  for (const entry of list) {
+    if (typeof entry !== 'string' || entry === '') continue;
+    try {
+      urls.push(new URL(entry, siteUrl || undefined).href);
+    } catch {
+      // An unresolvable customPage cannot be matched; the sitemap validator
+      // reports the URL it was built from.
+    }
+  }
+  return urls;
 }
 
 /**

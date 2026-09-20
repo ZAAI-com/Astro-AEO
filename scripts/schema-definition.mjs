@@ -190,7 +190,11 @@ const indexNowKeySource = {
       required: ['source', 'path'],
       properties: {
         source: { const: 'file' },
-        path: { type: 'string', minLength: 1 },
+        path: {
+          type: 'string',
+          pattern: '^(?=\\s*\\S)[^\\u0000]*$',
+          description: 'Non-empty local file path with no NUL bytes; whitespace-only paths are rejected.',
+        },
       },
       additionalProperties: false,
     },

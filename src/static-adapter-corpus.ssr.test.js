@@ -1,5 +1,5 @@
 import { test, expect, describe, beforeAll } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,11 +23,18 @@ const astroBin = join(
 let buildOutput = '';
 
 beforeAll(() => {
-  buildOutput = execFileSync('node', [astroBin, 'build', '--root', FIXTURE], {
+  // Astro's node logger routes everything below `error` to stdout, so the info and warn
+  // lines asserted below do arrive on stdout. Capture both streams anyway, as
+  // src/index.e2e.test.js does, so a message that moves to stderr cannot turn a negative
+  // assertion vacuous, and surface a non-zero exit instead of throwing a bare status.
+  const result = spawnSync('node', [astroBin, 'build', '--root', FIXTURE], {
     cwd: REPO,
     encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
   });
+  buildOutput = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+  // A spawn failure carries its reason on `error`, and leaves `status` null.
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(buildOutput || `astro build exited ${result.status}`);
 }, 180000);
 
 describe('static output with an adapter', () => {

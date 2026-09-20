@@ -111,6 +111,22 @@ describe('hreflang normalization', () => {
 
     expect(result.diagnostics).toEqual([]);
   });
+
+  test('resolves rendered hreflang against the served URL, not the canonical', () => {
+    const served = {
+      ...page('/en/'),
+      url: 'https://example.test/en/',
+      canonicalUrl: 'https://www.example.test/en/',
+      representations: {
+        html: '<html><head><link rel="alternate" hreflang="fr" href="/fr/"></head><body></body></html>',
+      },
+    };
+    const result = normalizePageAlternates([served]);
+
+    expect(result.pages[0].alternates).toEqual([
+      { language: 'fr', url: 'https://example.test/fr/' },
+    ]);
+  });
 });
 
 describe('resolvePageLocale', () => {

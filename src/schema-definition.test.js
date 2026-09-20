@@ -171,6 +171,9 @@ describe('published configuration schema', () => {
       { discovery: { robots: { contentSignals: { search: true, aiInput: false } } } },
       { discovery: { indexNow: { key: { source: 'literal', value: 'secret' } } } },
       { discovery: { indexNow: { key: { source: 'env', name: 'NOT VALID' } } } },
+      { discovery: { indexNow: { key: { source: 'file', path: '   ' } } } },
+      { discovery: { indexNow: { key: { source: 'file', path: 'key\0file' } } } },
+      { discovery: { indexNow: { origins: [{ origin: 'https://example.com', key: { source: 'file', path: '\0' } }] } } },
       { discovery: { indexNow: { keyLocation: '/key.txt?secret=yes' } } },
     ]) {
       expect(conforms(invalid), JSON.stringify(invalid)).toBe(false);

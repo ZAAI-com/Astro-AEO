@@ -1,4 +1,5 @@
 // @ts-check
+import { isIP } from 'node:net';
 import { isPlainObject, mergeLegacy, printMigration } from './lib/config-migrate.js';
 import { AeoConfigError } from './lib/errors.js';
 import { resolveSitemapPolicy } from './lib/sitemap.js';
@@ -6,6 +7,7 @@ import { parseDocument } from './core/html-document.js';
 import { assertValidExtractionOptions } from './core/extract/index.js';
 import { cloneJsonValue } from './core/json-value.js';
 import { assertExactPathname } from './core/artifact-path.js';
+import { isPublicIp } from './build/public-ip.js';
 
 /** @type {import('./index.js').SectionRule[]} */
 const DEFAULT_SECTIONS = [{ title: 'Home', match: '/' }];
@@ -506,6 +508,19 @@ function validateIndexNowOrigin(value, label) {
     (parsed.port && parsed.port !== '443')
   ) {
     throw new AeoConfigError(`astro-aeo: ${label} must contain only an HTTPS host on port 443.`);
+  }
+  // IndexNow only serves public origins. Localhost names and any literal
+  // loopback, link-local, or private address are rejected up front; DNS names
+  // are re-checked against their resolved addresses by the submit transport.
+  const bracketed = parsed.hostname.startsWith('[') && parsed.hostname.endsWith(']')
+    ? parsed.hostname.slice(1, -1)
+    : parsed.hostname;
+  // A single trailing dot is the fully qualified spelling of the same name, so
+  // `localhost.` must be rejected exactly like `localhost`.
+  const host = bracketed.endsWith('.') ? bracketed.slice(0, -1) : bracketed;
+  const isLocalName = host === 'localhost' || host.endsWith('.localhost');
+  if (isLocalName || (isIP(host) !== 0 && !isPublicIp(host))) {
+    throw new AeoConfigError(`astro-aeo: ${label} must be a public HTTPS origin.`);
   }
   return parsed.origin;
 }

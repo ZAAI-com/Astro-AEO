@@ -1,6 +1,6 @@
 import { test, expect, describe, beforeAll, afterAll } from 'vitest';
 import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -16,6 +16,26 @@ const astroBin = join(astroDir, typeof astroBinField === 'string' ? astroBinFiel
 // 127.0.0.1, not "localhost": Node's fetch resolves localhost to ::1, but the
 // Astro dev server binds IPv4, so localhost would never connect under Vitest.
 const BASE = `http://127.0.0.1:${PORT}`;
+
+// Astro warns, and keeps warning, when a prerendered route touches
+// `Astro.request.headers` (core/request.js installs the getter that logs it). That
+// warning is the only observable proof that our middleware did not read them, so the
+// needle is read out of the installed Astro rather than hard-coded: if a future major
+// rewords or drops the warning, this throws at import instead of turning the
+// assertion below into one that can never fail.
+const HEADER_WARNING = 'is not available on prerendered pages';
+const astroRequestSource = readFileSync(join(astroDir, 'dist', 'core', 'request.js'), 'utf8');
+// Created before the dev server starts and removed in afterAll. It lives under the
+// demo's /private/** exclusion so it can never reach an AEO artifact.
+const PROBE_PAGE = join(DEMO, 'src', 'pages', 'private', 'headers-probe.astro');
+if (!astroRequestSource.includes(HEADER_WARNING)) {
+  throw new Error(
+    `astro ${JSON.parse(readFileSync(join(astroDir, 'package.json'), 'utf8')).version} no longer warns ` +
+    `with ${JSON.stringify(HEADER_WARNING)} when a prerendered route reads request headers. ` +
+    'Find the current wording in astro/dist/core/request.js and update HEADER_WARNING, ' +
+    'or this test proves nothing.',
+  );
+}
 
 /** @type {import('node:child_process').ChildProcess} */
 let server;
@@ -104,10 +124,35 @@ async function waitForServerOutputToDrain(quietMs = 200, timeoutMs = 5000) {
   throw new Error(`Dev server output did not drain in ${timeoutMs}ms.${serverDiagnostics()}`);
 }
 
+/** @param {string} url @param {number} [timeoutMs] */
+async function fetchUntilOk(url, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastStatus = 'no response';
+  while (Date.now() < deadline) {
+    assertServerRunning(`Dev server stopped while waiting for ${url}`);
+    try {
+      const response = await fetch(url);
+      await response.body?.cancel();
+      if (response.ok) return;
+      lastStatus = `HTTP ${response.status}`;
+    } catch (error) {
+      lastStatus = error instanceof Error ? error.message : String(error);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`${url} never returned a 2xx: ${lastStatus}.${serverDiagnostics()}`);
+}
+
 beforeAll(async () => {
   // Give the child a clean env: Vitest injects NODE_OPTIONS and VITEST* vars that
   // break the child's own Vite (it prints "ready" but never binds). ASTRO_DEV_BACKGROUND
   // keeps Astro 7's dev server in the foreground so we can tear it down in afterAll.
+  // Astro's route manifest is built at startup, so the control page below has to
+  // exist before the server spawns.
+  writeFileSync(
+    PROBE_PAGE,
+    "---\nconst accept = Astro.request.headers.get('accept');\n---\n<html><body><p>{accept}</p></body></html>\n",
+  );
   const childEnv = { ...process.env, ASTRO_DEV_BACKGROUND: '1' };
   delete childEnv.NODE_OPTIONS;
   for (const key of Object.keys(childEnv)) {
@@ -130,6 +175,7 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
+  rmSync(PROBE_PAGE, { force: true });
   if (server) server.kill('SIGKILL');
 });
 
@@ -187,6 +233,9 @@ describe('dev server AEO endpoints', () => {
     const md = await fetch(`${BASE}/private/secret.md`);
     expect(md.status).toBe(404);
     const llms = await (await fetch(`${BASE}/llms.txt`)).text();
+    // Positive control: an llms.txt that failed to list anything would satisfy the
+    // exclusion assertion on its own.
+    expect(llms).toContain('/about.md');
     expect(llms).not.toContain('/private/secret');
   });
 
@@ -245,7 +294,21 @@ describe('request-time contract', () => {
     expect(body).toContain('<link rel="alternate" type="text/markdown" href="/about.md">');
     expect(body).toContain('data-astro-aeo-graph');
     expect(body).toContain('"@type":"BreadcrumbList"');
-    expect(serverOutput.slice(outputStart)).not.toContain('Astro.request.headers');
+    // waitForServerOutput above already proved this request's log reached serverOutput,
+    // so Astro's prerendered-headers warning would be in the same slice had the
+    // middleware read them.
+    const log = serverOutput.slice(outputStart);
+    expect(log).toMatch(/\[200\]\s+\/about\//);
+    expect(log).not.toContain(HEADER_WARNING);
+  });
+
+  // Control for the assertion above: the warning is only worth asserting on if this
+  // dev server really does emit it. A page that does read the headers must produce it,
+  // through the same capture and the same slice arithmetic.
+  test('a prerendered route that does read request headers is logged, so the check above can fail', async () => {
+    const outputStart = serverOutput.length;
+    await fetchUntilOk(`${BASE}/private/headers-probe/`);
+    await waitForServerOutput(new RegExp(HEADER_WARNING.replace(/ /g, '\\s+')), outputStart, 10000);
   });
 
   test('a .md response carries an ETag that satisfies a conditional request', async () => {

@@ -1,4 +1,5 @@
 // @ts-check
+import { canonicalLanguage } from './locale.js';
 
 const SITEMAP_NAMESPACE = 'http://www.sitemaps.org/schemas/sitemap/0.9';
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
@@ -180,7 +181,9 @@ function parseXml(raw) {
     if (source.startsWith('<!--', position)) {
       const end = source.indexOf('-->', position + 4);
       if (end === -1) fail(position, 'An XML comment is not closed.');
-      if (source.slice(position + 4, end).includes('--')) fail(position, 'An XML comment contains "--".');
+      const comment = source.slice(position + 4, end);
+      if (comment.includes('--')) fail(position, 'An XML comment contains "--".');
+      if (comment.endsWith('-')) fail(position, 'An XML comment ends with "-".');
       mayDeclare = false;
       position = end + 3;
       continue;
@@ -409,18 +412,6 @@ function rejectMixedContent(node, findings) {
       });
       return;
     }
-  }
-}
-
-/** @param {unknown} value */
-function canonicalLanguage(value) {
-  if (typeof value !== 'string' || !value.trim()) return null;
-  const candidate = value.trim().replace(/_/g, '-');
-  if (candidate.toLowerCase() === 'x-default') return 'x-default';
-  try {
-    return Intl.getCanonicalLocales(candidate)[0] ?? null;
-  } catch {
-    return null;
   }
 }
 

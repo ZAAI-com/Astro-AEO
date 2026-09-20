@@ -95,4 +95,39 @@ describe('runtime configuration projection', () => {
       origins: [{ origin: 'https://example.com', targetDigest: sha256('built') }],
     });
   });
+
+  test('config-mode IndexNow input recomputes the eligible origins from the loaded config', () => {
+    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-config-indexnow-'));
+    roots.push(root);
+    const integration = aeo({
+      discovery: { indexNow: { enabled: true, state: 'private', key: { source: 'env', name: 'INDEXNOW_CONFIG_KEY' } } },
+    });
+    writePrivateFile(indexNowPaths(root).prepareInput, serializeIndexNowPrepareInput({
+      version: 1,
+      projectRoot: root,
+      mode: 'private',
+      submit: 'changed',
+      strict: false,
+      base: '',
+      statePathname: '/.well-known/astro-aeo-indexnow-v1.json',
+      key: { source: 'env' },
+      origins: [{ origin: 'https://example.com' }],
+      // The retired domain was notifiable when the build ran and carries no override.
+      eligibleOrigins: ['https://example.com', 'https://example.de', 'https://example.fr'],
+      current: [{ url: 'https://example.com/', fingerprint: sha256('page') }],
+    }));
+
+    const provider = integration[INDEXNOW_PREPARE_PROVIDER];
+    const astroConfig = {
+      site: 'https://example.com',
+      i18n: { locales: ['en', 'de'], defaultLocale: 'en', domains: { de: 'https://example.de' } },
+    };
+    expect(provider({ root, astroConfig }).eligibleOrigins).toEqual([
+      'https://example.com', 'https://example.de',
+    ]);
+    // Without a usable site the cached set is the only answer available.
+    expect(provider({ root, astroConfig: {} }).eligibleOrigins).toEqual([
+      'https://example.com', 'https://example.de', 'https://example.fr',
+    ]);
+  });
 });

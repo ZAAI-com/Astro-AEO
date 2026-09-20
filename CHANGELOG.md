@@ -2,6 +2,126 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## 1.3.1
+
+A correctness release that clears the full review backlog raised against 1.3.0. There are no new
+features and no configuration changes. Every fix below lands with a test that fails without it.
+
+### Behavior changes worth reading before upgrading
+
+- On multilingual sites, `corpus.index.sections` path rules are now evaluated against the
+  locale-relative pathname. A page served at `/de/blog/post` under locale `de` matches as
+  `/blog/post`, so one rule applies inside every locale. If you wrote locale-prefixed rules
+  against 1.3.0, drop the prefix. Single-locale sites are unaffected, and predicates still
+  receive the page with its full `pathname`.
+- Static gzip corpus siblings now pin the OS byte alongside MTIME, XFL and the flag byte, so a
+  rebuild produces different bytes than 1.3.0 for the same content. The artifacts are
+  deterministic across platforms for the first time; `astro-aeo validate` enforces the exact
+  header.
+- A URL map whose `outputFilepath` lands inside `public/` warns again before overwriting the
+  committed file. The warning was lost in 1.2 when the deferred writer became the production
+  path, and the overwrite happened silently.
+- IndexNow submission never ran in 1.3.0 on Node 20 or newer, which is every supported
+  environment. The DNS-pinning transport answered Node's lookup with the legacy single-address
+  signature, and the happy-eyeballs connect path (`autoSelectFamily`, on by default since Node 20)
+  rejected it, so every HTTPS call in the IndexNow path failed. Under the default non-strict
+  policy `astro-aeo indexnow submit` warned and exited 0 without submitting, so the command looked
+  like it succeeded. If you enabled IndexNow on 1.3.0, assume no submission ever landed: after
+  upgrading, run prepare and submit again to notify the engines about everything published since.
+  Any `NODE_OPTIONS=--no-network-family-autoselection` workaround can be removed.
+
+### Correctness
+
+- Answer both lookup contracts from the IndexNow DNS-pinning transport. Node's happy-eyeballs
+  path asks with `all` set and expects an array of `{ address, family }`; the legacy path expects
+  `(address, family)`. The transport now replies in whichever form was requested. Which address is
+  resolved, vetted, and pinned is unchanged, so the SSRF protection is untouched, and the transport
+  is now covered end to end through Node's real connect path instead of only through fakes.
+- Reserve singleton and generated section slugs globally, so a crafted section title can no
+  longer produce two chunks at one pathname.
+- Keep IndexNow state advancing when the processing cache is merely disabled. `cache.enabled:
+  false` previously reported the cache as read-only and silently stopped IndexNow entirely.
+- Reject an unresolved locale group that shares `auto` mode with concrete locales instead of
+  publishing a `/null/` path. The guard now reads the same complete locale set that selects the
+  corpus topology, so a multi-origin `auto` build can no longer publish a `/null/` directory.
+  The shared global artifact is claimed using the complete active-locale count, and per-locale
+  companion token counts are keyed by locale.
+- Select each locale's own homepage under `corpus.full.mode: 'index'`.
+- Resolve rendered `hreflang` against the served URL rather than the canonical URL, canonicalize
+  decoded and percent-encoded catalog pathnames into one page identity so overlays apply, and
+  fail runtime corpus plans on hreflang validation errors as the build already did.
+- Treat prerendered companion lookups as header-unavailable end to end, guard a non-array
+  catalog `alternates` value, pass the configured site into development `getStaticPaths()`
+  evaluation, freeze plugin alternates handles, and compare runtime cache versions trimmed.
+
+### Development server
+
+Two dynamic route patterns that overlap, such as a `src/pages/[category]/` route with no entries
+alongside `src/pages/[...slug].astro`, broke every in-process rewrite to the shadowed route in
+`astro dev`. Astro's `findRouteToRewrite` commits to the first route whose pattern matches, and its
+only way to reject a route that matches without producing the path reads `route.distURL`, which is
+populated only while a build writes files. Ordinary requests and the build were unaffected, but
+every page behind the shadowed route silently vanished from `llms.txt`, `llms-full.txt`, and the
+schema corpus, and its `.md` companion returned an empty 404 with nothing written to the terminal.
+
+- Failed internal rewrites are recorded instead of discarded. Development warns once per server,
+  naming the first affected path, how many others followed, and the cause, and answers an affected
+  `.md` request with that reason rather than an empty 404. Production still fails closed, and its
+  responses are unchanged.
+- Development recovers the page by re-requesting it from the address Astro reported at startup, so
+  the corpus and companions stay complete. This is reached only after an in-process rewrite has
+  already failed, only for renders that were already anonymous, and it is never present in a
+  production or adapter bundle.
+- The two development discovery warnings no longer suppress each other. A project with both an
+  on-demand dynamic page and `pages.devDynamicDiscovery: false` previously heard about only the
+  first of the two.
+
+### Security and validation
+
+- Confine every IndexNow private-state read and write canonically inside the project root, before
+  any directory is created, so a symlinked `.astro` or `aeo-cache` can neither redirect queue,
+  acknowledgment, or progress data nor materialize directories outside the project. Symlinked
+  state files are rejected outright.
+- Apply the `keyLocation` prefix check to the decoded, canonicalized pathname and reject encoded
+  path separators outright.
+- Drop current, acknowledgment, and pending state for origins no longer present in the prepare
+  input, with a warning, instead of re-preparing them under the input-wide key and mode.
+- Reject localhost, loopback, link-local, and private-address IndexNow origins at configuration
+  time, including the fully qualified trailing-dot spellings such as `https://localhost.`, and
+  reject whitespace-only or NUL-containing key paths in the published JSON schema.
+- Compare the `keyLocation` prefix against the decoded, canonicalized directory, so a key location
+  containing a legal escape such as `%20` no longer rejects valid URLs beneath it.
+- Carry the complete eligible-origin set into the IndexNow prepare input. Scoping retained cache
+  state against the per-origin overrides alone discarded every URL for an Astro i18n domain that
+  had no explicit override. `astro-aeo indexnow prepare --source config` recomputes that set from
+  the configuration it just loaded, so an origin retired since the build, including an i18n domain
+  that never carried an override, is dropped with a warning rather than inheriting the
+  input-wide key and submission mode.
+- Recognize percent-encoded locale prefixes when computing the locale-relative pathname, so
+  section rules and homepage selection work for locales with non-ASCII characters.
+- Pass request-header availability through every runtime response path, including plugin artifacts
+  and error responses, so prerendered routes never read Astro's blanked request headers.
+- Treat robots `Sitemap:` and `# llms.txt:` references as external whenever the local origin
+  cannot be proven, rather than failing on an absent local path.
+- Percent-encode discovered corpus path segments so encoded robots references match non-ASCII
+  locale artifacts.
+- Accept `@astrojs/sitemap` `customPages` URLs, so a valid sitemap is still aliased and
+  advertised.
+- Reject XML comment content ending in a hyphen in strict sitemap parsing.
+
+### Internal
+
+- One canonicalizer and one BCP 47 normalizer for the whole package. IndexNow digests now use the
+  validating `canonicalJson`, and the sitemap parser and corpus validator share the build's
+  `canonicalLanguage` instead of their own weaker copies.
+- A malformed renderer export throws a distinct error, so the build diagnostic names the contract
+  violation. An arbitrary import failure stays suppressed because its message can embed paths.
+- Removed the unused plugin `cacheIdentities()` API. Plugin cache declarations still gate
+  build/runtime consistency; wiring them into the processing cache is planned separately.
+- Closed six tests that could not fail, covering the renderer cache guard, five strict sitemap
+  findings, IndexNow network-error retries, sitemap alias preservation, adapter build log capture,
+  and adapter response-stream errors.
+
 ## 1.3.0
 
 Astro-AEO 1.3 adds deterministic multilingual discovery and incremental processing while keeping

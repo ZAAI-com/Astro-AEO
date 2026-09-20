@@ -27,3 +27,7 @@ fixtures/ssr-node/.astro/
 
 # Local Mantic index cache
 .mantic/
+
+# Conductor workspace scratch: release-evidence screenshots, submitted fixtures and
+# gate logs are kept local. docs/release-evidence/ records their hashes instead.
+.context/

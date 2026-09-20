@@ -32,9 +32,27 @@ jobs:
         run: node scripts/check-changesets.mjs --since "origin/${{ github.base_ref }}"
       # Astro 6 requires Vite 7 and says so at startup, but the lockfile resolves
       # Vite 8 for Astro 7. Pin the pair so this leg tests a combination users have.
+      # The Astro 5 leg deliberately gets no Vite pin. Astro declares vite as a normal
+      # dependency, not a peer, so pnpm installs each Astro's own Vite nested under it
+      # and this repo has no root vite devDependency for a pin to move. Astro 6 is the
+      # exception only because it asserts on the root-resolved Vite at startup.
       - name: Pin Astro version for this leg
         if: matrix.astro != '7'
         run: pnpm add -D astro@${{ matrix.astro }} ${{ matrix.astro == '6' && 'vite@7' || '' }}
+      # Print the pairing this leg actually resolved rather than reasoning about it
+      # from the lockfile. Astro 5 is expected to report its own nested Vite 6 here,
+      # not the root-level Vite that the Astro 7 leg locks.
+      - name: Report the Astro and Vite pairing under test
+        run: |
+          node -e "
+          const { createRequire } = require('node:module');
+          const req = createRequire(process.cwd() + '/x.js');
+          const astro = req('astro/package.json');
+          const vite = createRequire(req.resolve('astro/package.json'))('vite/package.json');
+          let root = 'none';
+          try { root = req('vite/package.json').version; } catch {}
+          console.log('astro ' + astro.version + ' resolves vite ' + vite.version + '; root vite: ' + root);
+          "
       - name: Typecheck
         run: pnpm run typecheck
       # The published .d.ts files are hand-written and only ever seen by this

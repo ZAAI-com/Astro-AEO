@@ -31,7 +31,7 @@ describe('sectionFor', () => {
 
   test('predicate matcher', () => {
     const rules = [{ title: 'Products', match: (p) => /^\/[a-z0-9-]+$/.test(p.pathname) && p.pathname !== '/about' }];
-    expect(sectionFor(page('/c5h'), rules, 'Pages')).toBe('Products');
+    expect(sectionFor(page('/widgets'), rules, 'Pages')).toBe('Products');
     expect(sectionFor(page('/about'), rules, 'Pages')).toBe('Pages');
   });
 });

@@ -88,7 +88,10 @@ export function sectionSlugBase(rawTitle) {
 /**
  * Resolve a slug for every input title. Repeated identical raw titles share a
  * slug. If distinct titles collide after normalization, every colliding title
- * receives a SHA-256 suffix of at least eight hex characters.
+ * receives a SHA-256 suffix of at least eight hex characters. Singleton bases
+ * and generated suffixed slugs are reserved globally before assignment so a
+ * title whose base literally spells another group's generated slug cannot
+ * duplicate a chunk pathname.
  *
  * @param {readonly string[]} rawTitles
  * @returns {Promise<string[]>}
@@ -101,6 +104,12 @@ export async function resolveSectionSlugs(rawTitles) {
     const titles = byBase.get(base) ?? [];
     titles.push(title);
     byBase.set(base, titles);
+  }
+
+  /** @type {Set<string>} */
+  const reserved = new Set();
+  for (const [base, titles] of byBase) {
+    if (titles.length === 1) reserved.add(base);
   }
 
   /** @type {Map<string, string>} */
@@ -118,14 +127,20 @@ export async function resolveSectionSlugs(rawTitles) {
     let length = 8;
     while (length < 64) {
       const prefixes = titles.map((title) => hashes.get(title)?.slice(0, length));
-      if (new Set(prefixes).size === prefixes.length) break;
+      const unique = new Set(prefixes).size === prefixes.length;
+      const unreserved = prefixes.every((prefix) => !reserved.has(`${base}-${prefix}`));
+      if (unique && unreserved) break;
       length++;
     }
-    const finalPrefixes = titles.map((title) => hashes.get(title)?.slice(0, length));
-    if (new Set(finalPrefixes).size !== finalPrefixes.length) {
+    const finalSlugs = titles.map((title) => `${base}-${hashes.get(title)?.slice(0, length)}`);
+    if (
+      new Set(finalSlugs).size !== finalSlugs.length ||
+      finalSlugs.some((slug) => reserved.has(slug))
+    ) {
       throw new Error(`SHA-256 could not disambiguate section slug "${base}".`);
     }
-    for (const title of titles) resolved.set(title, `${base}-${hashes.get(title)?.slice(0, length)}`);
+    titles.forEach((title, index) => resolved.set(title, /** @type {string} */ (finalSlugs[index])));
+    for (const slug of finalSlugs) reserved.add(slug);
   }
 
   return rawTitles.map((title) => /** @type {string} */ (resolved.get(title)));

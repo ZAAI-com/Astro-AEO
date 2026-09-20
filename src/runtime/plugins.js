@@ -94,7 +94,15 @@ export function createRuntimePluginPageHandles(pages, readPage) {
       pathname: page.pathname,
       ...(typeof page.origin === 'string' ? { origin: page.origin } : {}),
       ...(typeof page.locale === 'string' ? { locale: page.locale } : {}),
-      ...(Array.isArray(page.alternates) ? { alternates: page.alternates.map((item) => ({ ...item })) } : {}),
+      // Alternates metadata crosses the plugin boundary frozen: a runtime
+      // hook must not rewrite or append entries later hooks then observe.
+      ...(Array.isArray(page.alternates)
+        ? {
+          alternates: Object.freeze(
+            page.alternates.map((item) => Object.freeze({ ...item })),
+          ),
+        }
+        : {}),
       read() {
         pending ??= Promise.resolve(readPage(page)).then(sanitizeRuntimePage);
         return pending;
@@ -116,15 +124,16 @@ export function createRuntimePluginPageHandles(pages, readPage) {
  * @param {RuntimePluginLoader[]} loaders
  * @param {readonly RuntimePluginPageHandle[]} [pages]
  * @param {'dev'|'build'|'preview'} [command]
+ * @param {boolean} [requestHeadersAvailable]  False on prerendered routes, whose blanked headers must never be read.
  * @returns {Promise<Response | null>}
  */
-export async function serveRuntimePluginArtifact(target, request, loaders, pages = [], command = 'build') {
+export async function serveRuntimePluginArtifact(target, request, loaders, pages = [], command = 'build', requestHeadersAvailable = true) {
   if (request.method !== 'GET' && request.method !== 'HEAD') return null;
-  if (target.conflict) return failureResponse(request);
+  if (target.conflict) return failureResponse(request, requestHeadersAvailable);
 
   try {
     const runtime = await loadRuntimePlugins(loaders, command);
-    if (runtime.failed.has(target.plugin)) return failureResponse(request);
+    if (runtime.failed.has(target.plugin)) return failureResponse(request, requestHeadersAvailable);
 
     const claim = immutableJsonValue(target.claim, 'runtime plugin artifact claim');
     const generated = await runtime.run('artifact:generate', {
@@ -132,7 +141,7 @@ export async function serveRuntimePluginArtifact(target, request, loaders, pages
       representation: null,
     }, { pathname: target.pathname, pages });
     if (generated.isolated || !isArtifactEnvelope(generated.value, target.claim, true)) {
-      return failureResponse(request);
+      return failureResponse(request, requestHeadersAvailable);
     }
 
     const validated = await runtime.run('artifact:validate', generated.value, {
@@ -140,18 +149,19 @@ export async function serveRuntimePluginArtifact(target, request, loaders, pages
       pages,
     });
     if (validated.isolated || !isArtifactEnvelope(validated.value, target.claim, true)) {
-      return failureResponse(request);
+      return failureResponse(request, requestHeadersAvailable);
     }
 
     const representation = validated.value.representation;
-    if (!isRepresentation(representation)) return failureResponse(request);
+    if (!isRepresentation(representation)) return failureResponse(request, requestHeadersAvailable);
     return textResponse({
       body: representation.body,
       contentType: representation.contentType,
       request,
+      requestHeadersAvailable,
     });
   } catch {
-    return failureResponse(request);
+    return failureResponse(request, requestHeadersAvailable);
   }
 }
 
@@ -331,11 +341,15 @@ async function loadAll(loaders, command) {
 /** @param {unknown} left @param {unknown} right */
 function sameCacheDeclaration(left, right) {
   if (left === undefined && right === undefined) return true;
-  return Boolean(
-    left && right &&
-    /** @type {any} */ (left).pure === true && /** @type {any} */ (right).pure === true &&
-    /** @type {any} */ (left).version === /** @type {any} */ (right).version,
-  );
+  if (!left || !right) return false;
+  const declared = /** @type {any} */ (left);
+  const registered = /** @type {any} */ (right);
+  if (declared.pure !== true || registered.pure !== true) return false;
+  // The build manifest stores the trimmed version; the runtime declaration
+  // may still carry its surrounding whitespace.
+  const declaredVersion = typeof declared.version === 'string' ? declared.version.trim() : declared.version;
+  const registeredVersion = typeof registered.version === 'string' ? registered.version.trim() : registered.version;
+  return declaredVersion === registeredVersion;
 }
 
 /**
@@ -533,13 +547,14 @@ function sameClaim(left, right) {
   return left.id === right.id && left.pathname === right.pathname && Boolean(left.replace) === Boolean(right.replace);
 }
 
-/** @param {Request} request */
-function failureResponse(request) {
+/** @param {Request} request @param {boolean} [requestHeadersAvailable] */
+function failureResponse(request, requestHeadersAvailable = true) {
   return textResponse({
     body: GENERIC_FAILURE,
     contentType: 'text/plain; charset=utf-8',
     request,
     status: 500,
     headers: { 'cache-control': 'no-store' },
+    requestHeadersAvailable,
   });
 }

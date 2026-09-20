@@ -68,22 +68,26 @@ async function prepareIndexNowLocked(distDir, options, source, root) {
     : parseInput(await loadConfigInput(root, outputRoot, options.loadConfig));
   const ackPath = join(cacheDir, INDEXNOW_ACK_FILENAME);
   const queuePath = join(cacheDir, INDEXNOW_PENDING_FILENAME);
-  const priorAck = readOptionalAcknowledgment(ackPath);
-  const priorQueue = readOptionalQueue(queuePath);
+  const priorAck = readOptionalAcknowledgment(ackPath, root);
+  const priorQueue = readOptionalQueue(queuePath, root);
   const fetchImpl = options.fetch;
   const transport = options.transport ?? (fetchImpl ? undefined : createSafeHttpsTransport());
+  // Cache state may outlive configuration. Current URLs, acknowledgments, and
+  // pending operations for origins no longer in input.origins must not be
+  // re-prepared with the input-wide key and submission mode.
+  const configuredOrigins = configuredOriginMap(input);
+  const scoped = scopeToConfiguredOrigins(input, priorAck, priorQueue);
+  const staleOriginWarnings = scoped.staleOrigins.map((origin) =>
+    `IndexNow ignored stale state for ${origin}: the origin is no longer configured.`);
   const localPublicState = input.mode === 'public'
     ? readLocalPublicState(outputRoot, input.statePathname, input.base)
     : undefined;
-  const byOrigin = groupCurrentOrigins(input.current);
-  const configuredOrigins = configuredOriginMap(input);
+  const byOrigin = groupCurrentOrigins(scoped.current);
   const allOrigins = [...new Set([
     ...byOrigin.keys(),
     ...configuredOrigins.keys(),
-    ...priorAck.origins.map((item) => item.origin),
-    ...priorQueue.origins.map((item) => item.origin),
   ])].sort(codeUnitCompare);
-  const warnings = [];
+  const warnings = [...staleOriginWarnings];
   /** @type {Map<string, import('../src/build/indexnow-state.js').UrlFingerprint[]>} */
   const publicAcknowledgments = new Map();
 
@@ -107,17 +111,20 @@ async function prepareIndexNowLocked(distDir, options, source, root) {
 
   const targetDigests = new Map();
   if (localPublicState) targetDigests.set(localPublicState.origin, localPublicState.digest);
-  const prepared = prepareIndexNowQueue(input, {
-    acknowledgment: priorAck,
-    priorQueue,
-    publicAcknowledgments,
-    targetDigests,
-  });
+  const prepared = prepareIndexNowQueue(
+    { ...input, current: scoped.current },
+    {
+      acknowledgment: scoped.acknowledgment,
+      priorQueue: scoped.priorQueue,
+      publicAcknowledgments,
+      targetDigests,
+    },
+  );
   warnings.push(...prepared.warnings);
-  writePrivateFile(queuePath, serializeIndexNowQueue(prepared.queue));
+  writePrivateFile(queuePath, serializeIndexNowQueue(prepared.queue), root);
   // Persist only origins whose acknowledgment was actually resolved. Empty
   // private entries are treated as unresolved so poisoned state can recover.
-  writePrivateFile(ackPath, serializeIndexNowAcknowledgment(prepared.acknowledgment));
+  writePrivateFile(ackPath, serializeIndexNowAcknowledgment(prepared.acknowledgment), root);
   return {
     queuePath,
     acknowledgmentPath: ackPath,
@@ -173,23 +180,56 @@ async function loadConfigInput(root, distDir, loader) {
   );
 }
 
-/** @param {string} path */
-function readOptionalAcknowledgment(path) {
+/** @param {string} path @param {string} [root] */
+function readOptionalAcknowledgment(path, root) {
   if (!existsSync(path)) return { version: /** @type {const} */ (1), origins: [] };
-  try { return parseIndexNowAcknowledgment(readJsonFile(path)); }
+  try { return parseIndexNowAcknowledgment(readJsonFile(path, root)); }
   catch (error) { throw new IndexNowInvocationError(`invalid IndexNow acknowledgment ledger: ${errorMessage(error)}`); }
 }
 
-/** @param {string} path */
-function readOptionalQueue(path) {
+/** @param {string} path @param {string} [root] */
+function readOptionalQueue(path, root) {
   if (!existsSync(path)) return { version: /** @type {const} */ (1), origins: [] };
-  try { return parseIndexNowQueue(readJsonFile(path)); }
+  try { return parseIndexNowQueue(readJsonFile(path, root)); }
   catch (error) { throw new IndexNowInvocationError(`invalid IndexNow pending queue: ${errorMessage(error)}`); }
 }
 
 /** @param {import('../src/build/indexnow-state.js').IndexNowPrepareInputV1} input */
 function configuredOriginMap(input) {
   return new Map(input.origins.map((item) => [item.origin, item]));
+}
+
+/**
+ * Filter stale cache state against the origins the prepare input still
+ * configures, so retired origins cannot inherit its key and submission mode.
+ * @param {import('../src/build/indexnow-state.js').IndexNowPrepareInputV1} input
+ * @param {import('../src/build/indexnow-state.js').IndexNowAcknowledgmentV1} priorAck
+ * @param {import('../src/build/indexnow-state.js').IndexNowQueueV1} priorQueue
+ */
+function scopeToConfiguredOrigins(input, priorAck, priorQueue) {
+  // Scope against every eligible origin, not only the per-origin overrides.
+  // An Astro i18n domain is notifiable without an override, so filtering on
+  // `origins` alone discards all of its current URLs. Older prepare inputs
+  // carry no `eligibleOrigins`, and fall back to the previous behavior.
+  const configured = new Set(input.eligibleOrigins ?? input.origins.map((item) => item.origin));
+  const stale = new Set([
+    ...priorAck.origins.map((item) => item.origin),
+    ...priorQueue.origins.map((item) => item.origin),
+  ]);
+  return {
+    current: input.current.filter((item) => {
+      try { return configured.has(new URL(item.url).origin); } catch { return false; }
+    }),
+    acknowledgment: {
+      version: /** @type {const} */ (1),
+      origins: priorAck.origins.filter((item) => configured.has(item.origin)),
+    },
+    priorQueue: {
+      version: /** @type {const} */ (1),
+      origins: priorQueue.origins.filter((item) => configured.has(item.origin)),
+    },
+    staleOrigins: [...stale].filter((origin) => !configured.has(origin)).sort(codeUnitCompare),
+  };
 }
 
 /** @param {import('../src/build/indexnow-state.js').UrlFingerprint[]} values */

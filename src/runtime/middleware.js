@@ -3,6 +3,7 @@ import {
   RUNTIME,
   RUNTIME_CATALOG_LOADERS,
   RUNTIME_CORPUS_TOKENIZER_LOADER,
+  RUNTIME_DEV_LOOPBACK_SOURCE,
   RUNTIME_DYNAMIC_ROUTE_SOURCE,
   RUNTIME_MARKDOWN_RENDERER_LOADERS,
   RUNTIME_PLUGIN_LOADERS,
@@ -49,12 +50,28 @@ import {
 } from './serve.js';
 import { RuntimeDynamicRouteDiscoveryError } from './dynamic-routes.js';
 import {
+  companionRewriteWarning,
+  createFetchFailureSink,
+  isNoMatchingStaticPathError,
+  warnDevCompanionRewriteFailure,
+  warnDevCorpusRewriteFailure,
+} from './rewrite-diagnostics.js';
+import {
   createRuntimePluginPageHandles,
   runtimePluginArtifactFor,
   serveRuntimePluginArtifact,
 } from './plugins.js';
 
 const DEV_NOTE = '<!-- astro-aeo development preview -->';
+// Paths currently being re-requested over the development loopback. Astro blanks
+// request headers for prerendered routes, so the loopback request cannot carry a
+// marker of its own and the path is the only signal available. The window is one
+// serial fetch wide, and a concurrent visitor to the same path would at worst see
+// the page's own marker comment.
+/** @type {Set<string>} */
+const LOOPBACK_COLLECT_PATHS = new Set();
+/** @type {Promise<{ fetchHtml: (target: string) => Promise<import('./serve.js').HtmlLoad | null> } | null> | null} */
+let loopbackTransport = null;
 const INTERNAL_REQUEST_HEADER = 'x-astro-aeo-internal';
 const INTERNAL_PURPOSE_HEADER = 'x-astro-aeo-internal-purpose';
 const CORPUS_PURPOSE = 'corpus';
@@ -118,6 +135,12 @@ export const onRequest = async (context, next) => {
   ) {
     return redactAeoHeadMarkers(await next(), context.request, requestHeadersAvailable);
   }
+  if (RUNTIME.command === 'dev' && LOOPBACK_COLLECT_PATHS.has(decoded)) {
+    // A development loopback re-request for a page whose in-process rewrite
+    // failed. Render it with collection on so page markers behave exactly as
+    // they do for an internal corpus render.
+    return withCollectionFlag(context, true, () => next());
+  }
   const pathname = stripBase(decoded, RUNTIME.site.base);
   const encodedPathname = encodePathname(pathname);
 
@@ -131,6 +154,9 @@ export const onRequest = async (context, next) => {
   const companionAvailable = RUNTIME.config.markdown.enabled &&
     mdPagePath !== null &&
     (!projectOwned || coreReplacementAuthorized);
+  // One sink per request. Every fetcher below records into it, so a failed
+  // internal rewrite can be named instead of silently shortening the corpus.
+  const fetchFailures = createFetchFailureSink();
   /** @type {ReturnType<typeof serveMarkdown> | undefined} */
   let markdownResolution;
   /** @param {boolean} [failClosed] */
@@ -141,8 +167,15 @@ export const onRequest = async (context, next) => {
         preserveQuery: true,
         rewritePathname,
         collect: false,
+        requestHeadersAvailable,
+        failures: fetchFailures,
       });
-      const collected = htmlFetcher(context, next, { preserveQuery: true, rewritePathname });
+      const collected = htmlFetcher(context, next, {
+        preserveQuery: true,
+        rewritePathname,
+        requestHeadersAvailable,
+        failures: fetchFailures,
+      });
       const fetcher = async (sourcePathname) => {
         const safe = await probe(sourcePathname);
         if (safe === null || safe.html === null || !safe.response.ok) return safe;
@@ -212,6 +245,7 @@ export const onRequest = async (context, next) => {
             disposableCorpusStateFor(context) ? RUNTIME_DYNAMIC_ROUTE_SOURCE : null,
           ),
         RUNTIME.command,
+        requestHeadersAvailable,
       );
       if (response) return response;
     } catch (error) {
@@ -225,6 +259,7 @@ export const onRequest = async (context, next) => {
         body: `${error.message}\n`,
         contentType: 'text/plain; charset=utf-8',
         request: context.request,
+        requestHeadersAvailable,
         status: error instanceof RuntimeCorpusLimitError ? 503 : 500,
         headers: { 'cache-control': 'no-store' },
       });
@@ -235,7 +270,7 @@ export const onRequest = async (context, next) => {
       sitemapAvailable: RUNTIME.sitemapAvailable,
       origin: context.url.origin,
     });
-    return textResponse({ body, contentType, request: context.request });
+    return textResponse({ body, contentType, request: context.request, requestHeadersAvailable });
   }
   if (artifact === 'schema-graph' || artifact === 'schema-map') {
     if (buildOwnsInventoryArtifact()) {
@@ -246,6 +281,7 @@ export const onRequest = async (context, next) => {
         body: UNRECOGNIZED_CORPUS_STATE,
         contentType: 'text/plain; charset=utf-8',
         request: context.request,
+        requestHeadersAvailable,
         status: 503,
         headers: { 'cache-control': 'no-store' },
       });
@@ -254,7 +290,7 @@ export const onRequest = async (context, next) => {
       const { body, contentType } = await serveSchemaCorpus(
         artifact,
         RUNTIME,
-        htmlFetcher(context, next, { sanitizeCredentials: true }),
+        htmlFetcher(context, next, { sanitizeCredentials: true, failures: fetchFailures }),
         {
           catalogLoaders: RUNTIME_CATALOG_LOADERS,
           dynamicRouteSource: RUNTIME_DYNAMIC_ROUTE_SOURCE,
@@ -263,7 +299,8 @@ export const onRequest = async (context, next) => {
           origin: context.url.origin,
         },
       );
-      return textResponse({ body, contentType, request: context.request });
+      warnDevCorpusRewriteFailure(fetchFailures, RUNTIME.command);
+      return textResponse({ body, contentType, request: context.request, requestHeadersAvailable });
     } catch (error) {
       const limited = error instanceof RuntimeCorpusLimitError;
       const discovery = error instanceof RuntimeDynamicRouteDiscoveryError;
@@ -275,6 +312,7 @@ export const onRequest = async (context, next) => {
           : 'astro-aeo: the semantic corpus is temporarily unavailable.\n',
         contentType: 'text/plain; charset=utf-8',
         request: context.request,
+        requestHeadersAvailable,
         status: limited ? 503 : 500,
         headers: { 'cache-control': 'no-store' },
       });
@@ -289,12 +327,13 @@ export const onRequest = async (context, next) => {
         body: UNRECOGNIZED_CORPUS_STATE,
         contentType: 'text/plain; charset=utf-8',
         request: context.request,
+        requestHeadersAvailable,
         status: 503,
         headers: { 'cache-control': 'no-store' },
       });
     }
     try {
-      const planned = await serveCorpusArtifact(pathname, RUNTIME, htmlFetcher(context, next, { sanitizeCredentials: true }), {
+      const planned = await serveCorpusArtifact(pathname, RUNTIME, htmlFetcher(context, next, { sanitizeCredentials: true, failures: fetchFailures }), {
         note: RUNTIME.command === 'dev' ? DEV_NOTE : undefined,
         concurrency: 1,
         catalogLoaders: RUNTIME_CATALOG_LOADERS,
@@ -304,10 +343,16 @@ export const onRequest = async (context, next) => {
         tokenizerLoader: RUNTIME_CORPUS_TOKENIZER_LOADER,
         origin: activeArtifactOrigin ?? context.url.origin,
       });
+      warnDevCorpusRewriteFailure(fetchFailures, RUNTIME.command);
       if (!planned) {
         return redactAeoHeadMarkers(await next(), context.request, requestHeadersAvailable);
       }
-      return textResponse({ body: planned.body, contentType: planned.contentType, request: context.request });
+      return textResponse({
+        body: planned.body,
+        contentType: planned.contentType,
+        request: context.request,
+        requestHeadersAvailable,
+      });
     } catch (error) {
       const limited = error instanceof RuntimeCorpusLimitError;
       const invalid = error instanceof RuntimeCorpusPlanError;
@@ -319,6 +364,7 @@ export const onRequest = async (context, next) => {
           : 'astro-aeo: the corpus is temporarily unavailable.\n',
         contentType: 'text/plain; charset=utf-8',
         request: context.request,
+        requestHeadersAvailable,
         status: limited ? 503 : 500,
         headers: { 'cache-control': 'no-store' },
       });
@@ -342,14 +388,33 @@ export const onRequest = async (context, next) => {
         }, encodedMdPagePath ?? mdPagePath);
       }
       cancelResponseBody(source);
-      return new Response(null, { status: source && !source.ok ? source.status : 404 });
+      const status = source && !source.ok ? source.status : 404;
+      // A companion that 404s because an internal rewrite threw is a bug the
+      // developer cannot see. Name it in the terminal, and in development
+      // answer with the reason rather than an empty body. Production keeps the
+      // bare response.
+      if (RUNTIME.command === 'dev' && source === null && fetchFailures.count > 0) {
+        const pagePath = encodedMdPagePath ?? mdPagePath ?? pathname;
+        warnDevCompanionRewriteFailure(pagePath, fetchFailures, RUNTIME.command);
+        return textResponse({
+          body: `${companionRewriteWarning(pagePath, fetchFailures)}\n`,
+          contentType: 'text/plain; charset=utf-8',
+          request: context.request,
+          requestHeadersAvailable,
+          status,
+          headers: { 'cache-control': 'no-store' },
+        });
+      }
+      return new Response(null, { status });
     }
     return textResponse({
       body,
       contentType: MARKDOWN_CONTENT_TYPE,
       request: context.request,
+      requestHeadersAvailable,
       status: source?.status ?? 200,
       headers: representationHeaders(source, encodedMdPagePath ?? mdPagePath, context, false),
+      requestHeadersAvailable,
     });
   }
 
@@ -443,6 +508,7 @@ export const onRequest = async (context, next) => {
         body,
         contentType: MARKDOWN_CONTENT_TYPE,
         request: context.request,
+        requestHeadersAvailable,
         status: source.status,
         headers: representationHeaders(source, encodedPagePath, context, true),
       });
@@ -733,7 +799,7 @@ function configuredPathKey(pathname) {
 /**
  * @param {import('astro').APIContext} context
  * @param {import('astro').MiddlewareNext} next
- * @param {{ preserveQuery?: boolean; sanitizeCredentials?: boolean; rewritePathname?: string; collect?: boolean; requestHeadersAvailable?: boolean }} [opts]
+ * @param {{ preserveQuery?: boolean; sanitizeCredentials?: boolean; rewritePathname?: string; collect?: boolean; requestHeadersAvailable?: boolean; failures?: import('./rewrite-diagnostics.js').FetchFailureSink }} [opts]
  * @returns {import('./serve.js').HtmlFetcher}
  */
 function htmlFetcher(context, next, opts = {}) {
@@ -741,42 +807,66 @@ function htmlFetcher(context, next, opts = {}) {
   const origin = context.url.origin;
   const search = context.url.search;
   const outerLocals = snapshotLocals(context.locals);
+  // Astro blanks request headers for prerendered routes. Every fetcher that
+  // does not explicitly carry caller headers must treat them as unavailable.
+  const headersAvailable = opts.requestHeadersAvailable ?? !context.isPrerendered;
   let tail = Promise.resolve();
 
   /** @param {string} pathname */
   const loadOne = async (pathname) => {
     const sourcePathname = opts.rewritePathname ?? pathname;
     const target = `${basePrefix(RUNTIME.site.base)}${withTrailingSlash(sourcePathname)}${opts.preserveQuery ? search : ''}`;
+    const corpus = Boolean(opts.sanitizeCredentials);
+    const collect = opts.collect !== false;
+    /** @type {{ targetUrl: URL; rewriteTarget: Request } | null} */
+    let prepared = null;
     try {
       const targetUrl = new URL(target, origin);
-      const headers = opts.sanitizeCredentials || opts.requestHeadersAvailable === false
+      const headers = corpus || !headersAvailable
         ? new Headers()
         : new Headers(sourceRequest.headers);
       sanitizeSourceHeaders(headers);
-      if (opts.sanitizeCredentials) {
+      if (corpus) {
         headers.set(INTERNAL_PURPOSE_HEADER, CORPUS_PURPOSE);
       }
       headers.set('cache-control', 'no-store');
       const cacheInit = supportsRequestCacheOption()
         ? /** @type {const} */ ({ cache: 'no-store' })
         : {};
-      const rewriteTarget = new Request(targetUrl, {
-        method: 'GET',
-        headers,
-        ...cacheInit,
-      });
-      const corpus = Boolean(opts.sanitizeCredentials);
-      const collect = opts.collect !== false;
-      const state = disposableCorpusStateFor(context);
-      const directOuterCookies = !corpus ? state?.cookies : null;
+      prepared = {
+        targetUrl,
+        rewriteTarget: new Request(targetUrl, { method: 'GET', headers, ...cacheInit }),
+      };
+    } catch (error) {
+      opts.failures?.record(sourcePathname, error);
+      return null;
+    }
+    const { targetUrl, rewriteTarget } = prepared;
 
-      if (corpus) {
-        // Never run an anonymous corpus render through a shared RenderContext.
-        // Astro 5 and Astro 6.0-6.2 do not expose the closure-held caller IP,
-        // cookies, or session for safe replacement. The public artifact handler
-        // fails closed before reaching this defense-in-depth guard.
-        return state ? renderFreshCorpusState(state, rewriteTarget, collect) : null;
-      }
+    if (corpus) {
+      // Never run an anonymous corpus render through a shared RenderContext.
+      // Astro 5 and Astro 6.0-6.2 do not expose the closure-held caller IP,
+      // cookies, or session for safe replacement. The public artifact handler
+      // fails closed before reaching this defense-in-depth guard.
+      //
+      // Deliberately outside a catch: renderFreshCorpusState rethrows a
+      // construction failure in development, and that must keep reaching the
+      // caller instead of being recorded as an ordinary missing page.
+      const state = disposableCorpusStateFor(context);
+      const before = opts.failures?.count ?? 0;
+      const rendered = state
+        ? await renderFreshCorpusState(state, rewriteTarget, collect, opts.failures, sourcePathname)
+        : null;
+      if (rendered !== null) return rendered;
+      // Only a rewrite that actually threw earns the fallback. A page that
+      // legitimately produced no HTML must stay absent.
+      if ((opts.failures?.count ?? 0) === before) return null;
+      return devLoopbackHtml(`${targetUrl.pathname}${targetUrl.search}`, collect);
+    }
+
+    try {
+      const state = disposableCorpusStateFor(context);
+      const directOuterCookies = state?.cookies;
 
       const legacyPipeline = legacyPipelineFor(context);
       const restoreRewriteState = await prepareRewriteState(
@@ -831,12 +921,27 @@ function htmlFetcher(context, next, opts = {}) {
         const settled = bodylessResponse(response);
         restore();
         return { response: settled, html: null };
-      } catch {
+      } catch (error) {
+        opts.failures?.record(sourcePathname, error);
         cancelResponseBody(response);
         restore();
+        // A direct `.md` request keeps its caller's credentials, so it must not
+        // be answered by an anonymous loopback render in general. Two cases are
+        // safe because the in-process render was already anonymous: Astro had
+        // blanked the request headers, or the rewrite failed with the routing
+        // bug this fallback exists for, which only `getStaticPaths()` routes
+        // produce and those never see request headers either way.
+        if (!headersAvailable || isNoMatchingStaticPathError(error)) {
+          // The loopback URL must be the rewrite target, query included, so a
+          // preserved query cannot change meaning between the two paths.
+          return devLoopbackHtml(`${targetUrl.pathname}${targetUrl.search}`, collect);
+        }
         return null;
       }
-    } catch { return null; }
+    } catch (error) {
+      opts.failures?.record(sourcePathname, error);
+      return null;
+    }
   };
 
   return (pathname) => {
@@ -847,18 +952,53 @@ function htmlFetcher(context, next, opts = {}) {
 }
 
 /**
+ * Re-request one page over the development server's own listening address after
+ * its in-process rewrite failed. Reached only from renders that were already
+ * anonymous: a corpus render, which strips credentials by design, or a request
+ * whose headers Astro has blanked because the route is prerendered. A rewrite
+ * carrying real caller credentials is never re-requested this way.
+ *
+ * @param {string} target base-prefixed pathname, as the middleware will decode it
+ * @param {boolean} collect
+ * @returns {Promise<import('./serve.js').HtmlLoad | null>}
+ */
+async function devLoopbackHtml(target, collect) {
+  if (RUNTIME.command !== 'dev' || !RUNTIME_DEV_LOOPBACK_SOURCE) return null;
+  if (!loopbackTransport) {
+    loopbackTransport = Promise.resolve(RUNTIME_DEV_LOOPBACK_SOURCE.load())
+      .then((namespace) => (namespace?.LOOPBACK ? namespace : null))
+      .catch(() => null);
+  }
+  const transport = await loopbackTransport;
+  if (!transport) return null;
+  const key = decodePathname(target);
+  if (key !== null && collect) LOOPBACK_COLLECT_PATHS.add(key);
+  try {
+    return await transport.fetchHtml(target);
+  } finally {
+    if (key !== null && collect) LOOPBACK_COLLECT_PATHS.delete(key);
+  }
+}
+
+/**
  * Astro 6.3 and newer expose their request state on the API context. Corpus
  * renders use a disposable instance so private provider, locale, route, and
  * rewrite-counter caches cannot carry caller or page-to-page state.
  * @param {any} outerState
  * @param {Request} request
  * @param {boolean} collect
+ * @param {import('./rewrite-diagnostics.js').FetchFailureSink} [failures]
+ * @param {string} [sourcePathname]
  * @returns {Promise<Awaited<ReturnType<import('./serve.js').HtmlFetcher>>>}
  */
-async function renderFreshCorpusState(outerState, request, collect) {
+async function renderFreshCorpusState(outerState, request, collect, failures, sourcePathname) {
+  const pathname = sourcePathname ?? new URL(request.url).pathname;
   const pipeline = outerState.pipeline;
   const manifest = outerState.manifest;
-  if ((!pipeline && !manifest) || typeof outerState.constructor !== 'function') return null;
+  if ((!pipeline && !manifest) || typeof outerState.constructor !== 'function') {
+    failures?.record(pathname, new Error(UNRECOGNIZED_CORPUS_STATE.trim()));
+    return null;
+  }
   const renderOptions = {
     addCookieHeader: false,
     clientAddress: undefined,
@@ -874,12 +1014,14 @@ async function renderFreshCorpusState(outerState, request, collect) {
     // Construction failures for Astro 7.2's public one-argument FetchState must
     // surface in development instead of silently emptying the corpus.
     if (RUNTIME.command === 'dev') throw error;
+    failures?.record(pathname, error);
     return null;
   }
   try {
     await provideFreshSession(outerState, state);
     await provideFreshCache(outerState, state);
-  } catch {
+  } catch (error) {
+    failures?.record(pathname, error);
     return null;
   }
 
@@ -888,7 +1030,8 @@ async function renderFreshCorpusState(outerState, request, collect) {
   let response;
   try {
     response = await state.rewrite(request);
-  } catch {
+  } catch (error) {
+    failures?.record(pathname, error);
     return null;
   } finally {
     if (previous) INTERNAL_REWRITES.set(state.locals, previous);
@@ -899,7 +1042,8 @@ async function renderFreshCorpusState(outerState, request, collect) {
   if (transformable) {
     try {
       return { response, html: await response.text() };
-    } catch {
+    } catch (error) {
+      failures?.record(pathname, error);
       cancelResponseBody(response);
       return null;
     }

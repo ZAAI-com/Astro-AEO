@@ -212,9 +212,12 @@ export function normalizePageAlternates(pages) {
       }
     }
     const blockedRendered = new Set();
-    for (const alternate of extractRenderedAlternates(page.representations?.html, page.canonicalUrl ?? page.url)) {
+    // Rendered hreflang links resolve against the served document URL, the way
+    // browsers resolve them, so a canonical alias cannot repoint a relative
+    // alternate onto another host or path.
+    for (const alternate of extractRenderedAlternates(page.representations?.html, page.url)) {
       const language = canonicalLanguage(alternate.language);
-      const url = publicHttpsUrl(alternate.url, page.canonicalUrl ?? page.url);
+      const url = publicHttpsUrl(alternate.url, alternate.base ?? page.url);
       if (!language || !url) {
         diagnostics.push(localeDiagnostic('hreflang-invalid', 'error', 'An invalid rendered hreflang alternate was discarded.', page.pathname));
         continue;

@@ -15,22 +15,48 @@ import { isoDate } from './markdown-doc.js';
  * @property {string} description
  * @property {string} markdown
  * @property {string[]} aeoTokens
+ * @property {string | null} [locale]
  * @property {{ includeInLlms: boolean; includeInLlmsFull: boolean; generateMarkdown: boolean }} [directives]
  * @property {string | undefined} [lastModified]
  */
 
 /**
+ * The locale-relative spelling of a page pathname: a page grouped under a
+ * locale whose pathname carries that locale's prefix is matched without it,
+ * so configured section rules apply identically within every locale. Pages
+ * without a matching prefix keep their full pathname.
+ *
+ * @param {LlmsPage} page
+ * @returns {string}
+ */
+function localeRelativePathname(page) {
+  if (typeof page.locale !== 'string' || page.locale === '') return page.pathname;
+  // Match the raw spelling and the percent-encoded public spelling, because the
+  // corpus planner encodes the locale when it builds the public directory. A
+  // locale with non-ASCII or reserved characters reaches us either way.
+  const candidates = new Set([`/${page.locale}`, `/${encodeURIComponent(page.locale)}`]);
+  for (const prefix of candidates) {
+    if (page.pathname === prefix || page.pathname.startsWith(`${prefix}/`)) {
+      return page.pathname.slice(prefix.length) || '/';
+    }
+  }
+  return page.pathname;
+}
+
+/**
  * Assign a page to the first matching section rule, or the default section.
+ * Path rules are evaluated against the locale-relative pathname.
  * @param {LlmsPage} page
  * @param {import('../../index.js').SectionRule[]} sections
  * @param {string | false} defaultSection
  * @returns {string | null} section title, or null to drop the page
  */
 export function sectionFor(page, sections, defaultSection) {
+  const relative = localeRelativePathname(page);
   for (const rule of sections) {
     if (typeof rule.match === 'function') {
       if (rule.match(page)) return rule.title;
-    } else if (rule.match !== undefined && matchPath(page.pathname, rule.match)) {
+    } else if (rule.match !== undefined && matchPath(relative, rule.match)) {
       return rule.title;
     }
   }
@@ -144,7 +170,11 @@ export function selectFullTxtPages(pages, config) {
       p.directives?.includeInLlmsFull !== false,
   );
   if (config.corpus.full.mode === 'first-page-only') return eligible.slice(0, 1);
-  if (config.corpus.full.mode === 'index') return eligible.filter((p) => p.pathname === '/');
+  if (config.corpus.full.mode === 'index') {
+    // The homepage of a locale family is its locale-relative root: the domain-
+    // routed `/` spelling or the page carrying the locale prefix alone.
+    return eligible.filter((p) => localeRelativePathname(p) === '/');
+  }
   return eligible;
 }
 

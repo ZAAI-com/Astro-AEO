@@ -429,8 +429,25 @@ prerendered dynamic paths:
   experimental because it relies on Astro's private `virtual:astro:routes` module,
   whose shape may change between Astro releases. If it becomes incompatible, switch
   back to `'startup'`.
-- `false` preserves catalog-only development enumeration. Astro-AEO warns when a
-  dynamic page is consequently missing from the development corpus.
+- `false` preserves catalog-only development enumeration. When a project has a dynamic
+  page route and no `pages.catalogs` module, Astro-AEO warns that the development corpus
+  is incomplete.
+
+Enumeration is only half the job: a discovered path still has to render. When two dynamic
+route patterns both match a path and the one Astro sorts first does not produce it,
+Astro's development server cannot reach the right route through an internal rewrite. A
+`src/pages/[category]/` route with no entries alongside `src/pages/[...slug].astro` is the
+common shape. Ordinary requests are unaffected, and so is the build.
+
+Astro-AEO recovers in development by re-requesting that one page from the address the
+development server reported at startup, so the corpus and `.md` companions stay complete.
+This is the single exception to the request-time rule that no network destination is
+derived from a request: the destination is Astro's own bound address, never a header, the
+transport exists only in `astro dev`, and it is reached only after an in-process rewrite
+has already failed. If the fallback is unavailable, Astro-AEO names the incomplete corpus
+in the terminal and answers the affected `.md` request with the reason instead of an empty
+404. Catalogs do not work around this, because a catalog supplies pathnames and pathnames
+were never the missing piece.
 
 Discovery loads only page modules that Astro has resolved as project-owned,
 prerendered dynamic routes. Astro-AEO never crawls the site and never parses project
@@ -499,7 +516,10 @@ Once middleware owns them, both files render each known route through the
 application so page markers behave normally. Each route is rendered serially through
 Astro's in-process rewrite pipeline: no network destination is derived from the Host
 header, the trusted rewrite capability exists only in process, and caller credentials
-are not copied into corpus renders. `corpus.runtime.maxPages` defaults to 50. A larger
+are not copied into corpus renders. The one exception is the development rewrite
+fallback described under "Dynamic routes and catalogs", which re-requests a single page
+from the development server's own bound address after an in-process rewrite has failed,
+and which is never present in a production or adapter bundle. `corpus.runtime.maxPages` defaults to 50. A larger
 corpus returns `503` with `Cache-Control: no-store`, without partial output. Raise the
 limit or select `'unlimited'` only when the deployment can safely absorb that work.
 Astro 5 and Astro 6.0-6.2 receive `503` for request-time corpora because those
@@ -632,6 +652,8 @@ Astro-AEO's core Turndown converter. Missing optional peers warn and retain norm
 ### Sections
 
 `corpus.index.sections` groups pages in `llms.txt`. Each rule has a `title` and a `match` that is a glob string, an array of globs, a RegExp, or a predicate `(page) => boolean`. Rules are evaluated in order, first match wins. Empty sections are dropped. Pages matching no rule fall into `defaultSection`.
+
+On a multilingual site, path rules are evaluated against the locale-relative pathname: a page grouped under locale `de` and served at `/de/blog/post` is matched as `/blog/post`, so one rule such as `/blog/**` applies inside every locale. Write rules without the locale prefix. A predicate still receives the page with its full `pathname`.
 
 ```js
 corpus: {
@@ -1027,7 +1049,7 @@ On `astro build`, generated files and targeted HTML enrichments are buffered unt
 ownership checks finish, then committed atomically. No separate package build step, external
 service, or network self-fetch is required. Redirect stubs and non-HTML outputs are skipped.
 
-In `astro dev`, a middleware serves `robots.txt`, `domain-profile.json`, and `.md` companions live, and renders the aggregate corpora on request. `pages.devDynamicDiscovery` defaults to `'startup'`, so prerendered dynamic routes are enumerated in development as well; see "Dynamic routes and catalogs" for what each mode does and when a restart is needed. On-demand, CMS-only, and other externally inventoried paths still need a `pages.catalogs` module, and the build output remains the source of truth.
+In `astro dev`, a middleware serves `robots.txt`, `domain-profile.json`, and `.md` companions live, and renders the aggregate corpora on request. `pages.devDynamicDiscovery` defaults to `'startup'`, so prerendered dynamic routes are enumerated in development as well; see "Dynamic routes and catalogs" for what each mode does, when a restart is needed, and how overlapping dynamic route patterns are handled. On-demand, CMS-only, and other externally inventoried paths still need a `pages.catalogs` module, and the build output remains the source of truth.
 
 Last-modified dates come from `<meta property="article:modified_time">` when present, otherwise from the git commit history of a static route's source file. Emit `article:modified_time` for precise dates on content-collection pages.
 

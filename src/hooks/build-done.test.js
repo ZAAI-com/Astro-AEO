@@ -110,6 +110,26 @@ describe('staged build plugin pipeline', () => {
     }
   });
 
+  test('keeps IndexNow state advancement when the processing cache is disabled', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    const resolved = config({
+      cache: { enabled: false },
+      discovery: { sitemap: { mode: 'disabled' }, indexNow: { enabled: true, state: 'public' } },
+    });
+    const diagnostics = [];
+    const writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, undefined, diagnostics),
+    );
+    writer.commit();
+    const publicPath = join(files.dist, '.well-known', 'astro-aeo-indexnow-v1.json');
+    const privateRoot = join(files.root, '.astro', 'aeo-cache', 'indexnow');
+    expect(existsSync(publicPath)).toBe(true);
+    expect(existsSync(join(privateRoot, 'pending-v1.json'))).toBe(true);
+    expect(diagnostics.some((diagnostic) => diagnostic.code === 'indexnow-state-read-only')).toBe(false);
+  });
+
   test('uses acknowledged fingerprints to queue removals without resubmitting unchanged pages', async () => {
     const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
     const resolved = config({

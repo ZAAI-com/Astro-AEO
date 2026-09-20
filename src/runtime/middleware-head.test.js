@@ -221,6 +221,22 @@ describe('runtime semantic head enrichment', () => {
     expect(await response.text()).toBe('');
   });
 
+  test('a prerendered Markdown companion lookup never reads the blanked request headers', async () => {
+    const context = contextFor('/page.md');
+    context.isPrerendered = true;
+    context.rewrite.mockImplementation(async () => new Response(html(), {
+      headers: { 'content-type': 'text/html' },
+    }));
+    guardRequestHeaders(context);
+
+    const response = await onRequest(context, vi.fn(async () => new Response('project fallback')));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/markdown');
+    expect(await response.text()).toContain('# Page');
+    expect(context.rewrite).toHaveBeenCalled();
+  });
+
   test('redacts transport markers from non-GET HTML without changing application status', async () => {
     const marker = headMarker({ title: 'Must not leak' });
     const source = html(marker);

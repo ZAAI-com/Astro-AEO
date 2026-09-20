@@ -6,21 +6,21 @@ import { renderLlmsFullTxt, renderLlmsTxt } from './render/llms-txt.js';
 
 const siteMeta = { name: 'Example', description: 'Corpus fixture' };
 
-function page(pathname, language, locale = language) {
-  const canonicalUrl = `https://example.test${pathname}/`;
+function page(pathname, language, locale = language, origin = 'https://example.test') {
+  const canonicalUrl = `${origin}${pathname}/`;
   return {
     id: pathname,
     pathname,
     url: canonicalUrl,
     canonicalUrl,
-    markdownUrl: `https://example.test${pathname}.md`,
+    markdownUrl: `${origin}${pathname}.md`,
     mdHref: `${pathname}.md`,
     title: pathname.slice(1).toUpperCase(),
     description: `${language} page`,
     markdown: `# ${language}\n\nAuthored ${language} content.`,
     language,
     locale,
-    origin: 'https://example.test',
+    origin,
     aeoTokens: [],
     directives: {
       index: true,
@@ -48,6 +48,46 @@ describe('logical corpus artifact planner', () => {
       .toBe(renderLlmsTxt(pages, config, siteMeta));
     expect(plan.artifacts.find(({ pathname }) => pathname === '/llms-full.txt')?.contents)
       .toBe(renderLlmsFullTxt(pages, config, siteMeta));
+  });
+
+  test('rejects an unresolved locale group beside concrete locales in auto mode', async () => {
+    const config = resolveConfig({ i18n: { indexes: 'auto' } });
+    const plan = await planCorpusArtifacts({
+      pages: [page('/guide', undefined, null), page('/en/guide', 'en', 'en')],
+      config,
+      siteMeta,
+      origin: 'https://example.test',
+      base: '',
+    });
+
+    expect(plan.artifacts).toEqual([]);
+    expect(plan.manifest).toBeUndefined();
+    expect(plan.diagnostics).toEqual([
+      expect.objectContaining({ code: 'corpus-locale-required', severity: 'error' }),
+    ]);
+  });
+
+  test('rejects an unresolved group when another origin supplies the second locale', async () => {
+    const config = resolveConfig({ i18n: { indexes: 'auto' } });
+    const plan = await planCorpusArtifacts({
+      // This host contributes one unresolved group, so a host-local check sees a
+      // single locale and permits the legacy root layout. Topology selection uses
+      // the complete set, takes the locale-family path, and would publish /null/.
+      pages: [
+        page('/guide', undefined, null),
+        page('/guide', 'en', 'en', 'https://other.test'),
+      ],
+      config,
+      siteMeta,
+      origin: 'https://example.test',
+      base: '',
+    });
+
+    expect(plan.artifacts.map(({ pathname }) => pathname)).not.toContain('/null/llms.txt');
+    expect(plan.artifacts).toEqual([]);
+    expect(plan.diagnostics).toEqual([
+      expect.objectContaining({ code: 'corpus-locale-required', severity: 'error' }),
+    ]);
   });
 
   test('plans locale families, chunks, small corpora, and a host-local manifest', async () => {
@@ -250,6 +290,62 @@ describe('logical corpus artifact planner', () => {
       .toContain('https://example.test/en/llms.txt');
     expect(plan.manifest.pages).toHaveLength(1);
     expect(plan.manifest.pages[0].origin).toBe('https://fr.example.test');
+  });
+
+  test('selects the shared global artifact for a single-locale domain host', async () => {
+    const config = resolveConfig({
+      corpus: { manifest: { enabled: true } },
+      i18n: { indexes: 'global' },
+    });
+    const i18n = createLocaleSnapshot({
+      locales: ['en', 'fr'],
+      defaultLocale: 'en',
+      domains: { fr: 'https://fr.example.test' },
+    }, 'https://example.test');
+    const english = page('/en/guide', 'en', 'en');
+    const french = {
+      ...page('/fr/guide', 'fr', 'fr'),
+      origin: 'https://fr.example.test',
+      url: 'https://fr.example.test/fr/guide/',
+      canonicalUrl: 'https://fr.example.test/fr/guide/',
+      markdownUrl: 'https://fr.example.test/fr/guide.md',
+    };
+    const plan = await planCorpusArtifacts({
+      pages: [english, french],
+      config,
+      siteMeta,
+      origin: 'https://fr.example.test',
+      base: '',
+      i18n,
+    });
+
+    expect(plan.diagnostics).toEqual([]);
+    expect(plan.manifest.locales).toEqual([
+      expect.objectContaining({ locale: 'fr', canonicalArtifact: '/llms.txt' }),
+    ]);
+  });
+
+  test('keeps per-locale token counts when two locales share a page id', async () => {
+    const { renderMarkdownDocument } = await import('./render/markdown-doc.js');
+    const { countApproximateTokens } = await import('./corpus-tokenizer.js');
+    const config = resolveConfig({ corpus: { manifest: { enabled: true } } });
+    const english = page('/guide', 'en', 'en');
+    const french = {
+      ...page('/guide', 'fr', 'fr'),
+      markdown: `# fr\n\n${'Contenu français nettement plus long. '.repeat(12)}`,
+    };
+    const plan = await planCorpusArtifacts({
+      pages: [english, french],
+      config,
+      siteMeta,
+      origin: 'https://example.test',
+      base: '',
+    });
+
+    const counts = Object.fromEntries(plan.manifest.pages.map((entry) => [entry.locale, entry.tokenCount]));
+    expect(counts.en).toBe(countApproximateTokens(renderMarkdownDocument(english, config)));
+    expect(counts.fr).toBe(countApproximateTokens(renderMarkdownDocument(french, config)));
+    expect(counts.en).not.toBe(counts.fr);
   });
 
   test('hashes published companion Markdown and nulls companion-less pages', async () => {

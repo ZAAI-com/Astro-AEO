@@ -1,8 +1,13 @@
 // @ts-check
+import { fileURLToPath } from 'node:url';
 import { toSource } from './serialize.js';
 
 export const RUNTIME_CONFIG_ID = 'astro-aeo:runtime-config';
 export const DYNAMIC_ROUTES_ID = 'astro-aeo:dynamic-routes';
+export const DEV_LOOPBACK_ID = 'astro-aeo:dev-loopback';
+// Asserted absent from built server and adapter bundles. The loopback transport
+// opens a socket, so it must never leave development.
+export const DEVELOPMENT_LOOPBACK_SENTINEL = 'astro-aeo:development-loopback-transport';
 export const DEVELOPMENT_DYNAMIC_ROUTE_LOADER_SENTINEL =
   'astro-aeo:development-dynamic-route-loader';
 // Registered symbol key: the hot loader warns once per development process, even
@@ -10,6 +15,7 @@ export const DEVELOPMENT_DYNAMIC_ROUTE_LOADER_SENTINEL =
 export const DEV_ON_DEMAND_WARNING_KEY = 'astro-aeo:development-on-demand-warning';
 const RESOLVED_RUNTIME_CONFIG_ID = `\0${RUNTIME_CONFIG_ID}`;
 const RESOLVED_DYNAMIC_ROUTES_ID = `\0${DYNAMIC_ROUTES_ID}`;
+const RESOLVED_DEV_LOOPBACK_ID = `\0${DEV_LOOPBACK_ID}`;
 
 /**
  * @typedef {object} DynamicRouteDefinition
@@ -37,6 +43,7 @@ const RESOLVED_DYNAMIC_ROUTES_ID = `\0${DYNAMIC_ROUTES_ID}`;
  * @param {() => { name: string; module: string; specifier: string; options?: import('../index.js').JsonValue; stages: string[]; hookManifest?: { stage: string; ordinal: number; cache?: import('../index.js').CacheDeclaration }[]; claims: { id: string; pathname: string; replace?: boolean }[] }[]} [getRuntimePlugins]
  * @param {() => { name: string; version: string; approximate: boolean; module: string; specifier: string; options?: import('../index.js').JsonValue } | undefined} [getCorpusTokenizer]
  * @param {() => DynamicRouteModuleConfig | null} [getDynamicRoutes]
+ * @param {() => { origin: string; nonce: string } | null} [getDevLoopback]
  * @returns {{ name: string; enforce: 'pre'; resolveId(id: string): string | undefined; load(id: string): string | undefined }}
  */
 export function aeoRuntimeConfigPlugin(
@@ -47,6 +54,7 @@ export function aeoRuntimeConfigPlugin(
   getRuntimePlugins = () => [],
   getCorpusTokenizer = () => undefined,
   getDynamicRoutes = () => null,
+  getDevLoopback = () => null,
 ) {
   return {
     name: 'astro-aeo:runtime-config',
@@ -55,12 +63,19 @@ export function aeoRuntimeConfigPlugin(
     resolveId(id) {
       if (id === RUNTIME_CONFIG_ID) return RESOLVED_RUNTIME_CONFIG_ID;
       if (id === DYNAMIC_ROUTES_ID) return RESOLVED_DYNAMIC_ROUTES_ID;
+      if (id === DEV_LOOPBACK_ID) return RESOLVED_DEV_LOOPBACK_ID;
       return undefined;
     },
     /** @param {string} id */
     load(id) {
       if (id === RESOLVED_DYNAMIC_ROUTES_ID) {
         return dynamicRoutesModuleSource(getDynamicRoutes());
+      }
+      if (id === RESOLVED_DEV_LOOPBACK_ID) {
+        // Loaded lazily, and only after an in-process rewrite already failed,
+        // so the development server is necessarily listening by now and the
+        // address it reported at startup is known.
+        return devLoopbackModuleSource(getDevLoopback());
       }
       if (id !== RESOLVED_RUNTIME_CONFIG_ID) return undefined;
       const catalogLoaders = getCatalogModules()
@@ -101,6 +116,11 @@ export function aeoRuntimeConfigPlugin(
       const dynamicRouteSource = dynamicRoutes
         ? `{ mode: ${JSON.stringify(dynamicRoutes.mode)}, load: () => import(${JSON.stringify(DYNAMIC_ROUTES_ID)}) }`
         : 'null';
+      // The `import()` is emitted only in development, so a production or
+      // adapter bundle has no reference to the loopback module at all.
+      const devLoopbackSource = getDevLoopback()
+        ? `{ load: () => import(${JSON.stringify(DEV_LOOPBACK_ID)}) }`
+        : 'null';
       const sourceImports = sources
         .map(
           ({ specifier }, index) =>
@@ -123,6 +143,7 @@ export function aeoRuntimeConfigPlugin(
         `export const RUNTIME_PLUGIN_LOADERS = [${runtimePluginLoaders}];\n` +
         `export const CORPUS_TOKENIZER_LOADER = ${corpusTokenizerLoader};\n` +
         `export const DYNAMIC_ROUTE_SOURCE = ${dynamicRouteSource};\n` +
+        `export const DEV_LOOPBACK_SOURCE = ${devLoopbackSource};\n` +
         `const __astroAeoStripFrontmatter = (markdown) => markdown.startsWith('---') ? markdown.replace(/^---[\\t ]*\\r?\\n[\\s\\S]*?\\r?\\n---[\\t ]*(?:\\r?\\n|$)/, '') : markdown;\n` +
         `export const RUNTIME = ${toSource(getSnapshot())};\n` +
         `RUNTIME.standaloneSources = { ${sourceRegistry} };\n` +
@@ -130,6 +151,25 @@ export function aeoRuntimeConfigPlugin(
       );
     },
   };
+}
+
+/**
+ * @param {{ origin: string; nonce: string } | null} loopback
+ * @returns {string}
+ */
+function devLoopbackModuleSource(loopback) {
+  if (!loopback) return 'export const LOOPBACK = null;\n';
+  // The transport is imported from here and nowhere else. A production build
+  // emits `DEV_LOOPBACK_SOURCE = null`, so this module is never generated, the
+  // import below never exists, and no bundler can reach the transport at all.
+  const transport = fileURLToPath(new URL('../runtime/dev-loopback.js', import.meta.url));
+  return (
+    `// ${DEVELOPMENT_LOOPBACK_SENTINEL}\n` +
+    `import { loopbackFetchHtml } from ${JSON.stringify(transport)};\n` +
+    `export const LOOPBACK = { origin: ${JSON.stringify(loopback.origin)}, ` +
+    `nonce: ${JSON.stringify(loopback.nonce)} };\n` +
+    'export const fetchHtml = (target) => loopbackFetchHtml(LOOPBACK, target);\n'
+  );
 }
 
 /**

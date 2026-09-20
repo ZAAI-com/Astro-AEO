@@ -44,6 +44,20 @@ describe('parseSitemapXml', () => {
     }
   });
 
+  test('rejects comment content ending with a hyphen', () => {
+    for (const xml of [
+      `<?xml version="1.0"?><urlset xmlns="${NS}"><!--bad---><url><loc>https://example.test/</loc></url></urlset>`,
+      `<?xml version="1.0"?><urlset xmlns="${NS}"><!-- -><url><loc>https://example.test/</loc></url></urlset>`,
+    ]) {
+      const parsed = parseSitemapXml(xml);
+      expect(parsed.findings.map((entry) => entry.code), xml).toContain('sitemap-xml-malformed');
+    }
+    const accepted = parseSitemapXml(
+      `<?xml version="1.0"?><urlset xmlns="${NS}"><!-- fine --><url><loc>https://example.test/</loc></url></urlset>`,
+    );
+    expect(accepted.findings).toEqual([]);
+  });
+
   test('resolves per-element xmlns:xhtml declarations', () => {
     const parsed = parseSitemapXml(
       `<urlset xmlns="${NS}">` +
@@ -124,6 +138,68 @@ describe('parseSitemapXml', () => {
       'sitemap-namespace-invalid',
       'sitemap-urlset-empty',
     ]);
+  });
+
+  test('rejects a root element that is neither urlset nor sitemapindex', () => {
+    const parsed = parseSitemapXml(`<feed xmlns="${NS}"><url><loc>https://example.test/</loc></url></feed>`);
+    expect(parsed.findings.map((entry) => entry.code)).toEqual(['sitemap-root-invalid']);
+    expect(parsed).toMatchObject({ kind: null, locations: [], urls: [] });
+  });
+
+  test.each([
+    ['no loc at all', '<url><lastmod>2026-01-01</lastmod></url>'],
+    ['two locs', '<url><loc>https://example.test/a</loc><loc>https://example.test/b</loc></url>'],
+    ['an empty loc', '<url><loc>   </loc></url>'],
+    ['a loc with element children', '<url><loc><a>https://example.test/</a></loc></url>'],
+  ])('rejects a <url> entry with %s', (_label, entry) => {
+    const parsed = parseSitemapXml(`<urlset xmlns="${NS}">${entry}</urlset>`);
+    expect(parsed.findings.map((finding) => finding.code)).toContain('sitemap-url-loc-invalid');
+    // Diagnosing the entry is not enough: it must also be excluded from the
+    // URL set, or a caller that only reads `urls` still trusts it.
+    expect(parsed.urls).toEqual([]);
+    expect(parsed.findings.map((finding) => finding.code)).toContain('sitemap-urlset-empty');
+  });
+
+  test.each([
+    ['no loc at all', '<sitemap><lastmod>2026-01-01</lastmod></sitemap>'],
+    ['two locs', '<sitemap><loc>https://example.test/a.xml</loc><loc>https://example.test/b.xml</loc></sitemap>'],
+    ['an empty loc', '<sitemap><loc> </loc></sitemap>'],
+  ])('rejects a <sitemap> entry with %s and reports the empty index', (_label, entry) => {
+    const parsed = parseSitemapXml(`<sitemapindex xmlns="${NS}">${entry}</sitemapindex>`);
+    expect(parsed.findings.map((finding) => finding.code)).toEqual([
+      'sitemap-index-loc-invalid',
+      'sitemap-index-empty',
+    ]);
+  });
+
+  test('reports an index that carries no <sitemap> entries at all', () => {
+    const parsed = parseSitemapXml(`<sitemapindex xmlns="${NS}"></sitemapindex>`);
+    expect(parsed.findings.map((finding) => finding.code)).toEqual(['sitemap-index-empty']);
+  });
+
+  test.each([
+    ['an unparseable hreflang', 'hreflang="not a tag" href="https://example.test/x/"'],
+    ['a missing hreflang', 'href="https://example.test/x/"'],
+    ['an empty href', 'hreflang="fr" href="  "'],
+    ['a missing href', 'hreflang="fr"'],
+  ])('rejects an xhtml:link alternate with %s', (_label, attrs) => {
+    const parsed = parseSitemapXml(
+      `<urlset xmlns="${NS}" xmlns:xhtml="${XHTML}"><url>` +
+        '<loc>https://example.test/</loc>' +
+        `<xhtml:link rel="alternate" ${attrs}/>` +
+        '</url></urlset>',
+    );
+    expect(parsed.findings.map((finding) => finding.code)).toContain('sitemap-hreflang-invalid');
+    expect(parsed.urls[0].alternates).toEqual([]);
+  });
+
+  test.each([
+    ['an unclosed comment', `<urlset xmlns="${NS}"><!-- never closed <url><loc>https://example.test/</loc></url></urlset>`],
+    ['a duplicate attribute', `<urlset xmlns="${NS}"><url a="1" a="2"><loc>https://example.test/</loc></url></urlset>`],
+    ['an unescaped < in an attribute value', `<urlset xmlns="${NS}"><url a="1<2"><loc>https://example.test/</loc></url></urlset>`],
+    ['multiple root elements', `<urlset xmlns="${NS}"/><urlset xmlns="${NS}"/>`],
+  ])('rejects %s as malformed XML', (_label, xml) => {
+    expect(parseSitemapXml(xml).findings.map((finding) => finding.code)).toContain('sitemap-xml-malformed');
   });
 
   test('reads sitemap indexes and rejects duplicate hreflang languages', () => {

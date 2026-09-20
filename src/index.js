@@ -1,4 +1,5 @@
 // @ts-check
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { lstatSync, readFileSync, readdirSync } from 'node:fs';
@@ -37,8 +38,10 @@ import {
 } from './build/corpus-tokenizer.js';
 import {
   INDEXNOW_PREPARE_PROVIDER,
+  eligibleIndexNowOrigins,
   indexNowPaths,
   indexNowStatePathname,
+  normalizeIndexNowOrigin,
 } from './build/indexnow.js';
 import { parseIndexNowPrepareInput } from './build/indexnow-state.js';
 
@@ -48,6 +51,22 @@ const FALLBACK_ENTRYPOINT = fileURLToPath(new URL('./runtime/fallback.js', impor
  * @param {import('./index.js').AstroAeoConfig} [userConfig]
  * @returns {import('astro').AstroIntegration}
  */
+/**
+ * Astro reports the bound address, which may be a wildcard when `--host` is
+ * used. A wildcard is not a destination, so the loopback address for the same
+ * family is used instead. The port always comes from Astro.
+ * @param {{ address?: string; family?: string | number; port?: number }} address
+ * @returns {string}
+ */
+function loopbackOrigin(address) {
+  const port = address.port;
+  const family = String(address.family ?? '').toLowerCase();
+  const ipv6 = family === 'ipv6' || family === '6' || (address.address ?? '').includes(':');
+  const wildcard = !address.address || address.address === '0.0.0.0' || address.address === '::';
+  const host = wildcard ? (ipv6 ? '::1' : '127.0.0.1') : address.address;
+  return `http://${ipv6 ? `[${host}]` : host}${port ? `:${port}` : ''}`;
+}
+
 export default function aeo(userConfig = {}) {
   /** @type {ReturnType<typeof resolveConfig>} */
   let config;
@@ -91,8 +110,14 @@ export default function aeo(userConfig = {}) {
   let hasDynamicProjectPage = false;
   let hasOnDemandDynamicProjectPage = false;
   let hasPrerenderedCustom404 = false;
-  let developmentDynamicWarningEmitted = false;
+  // Two independent latches. One shared flag let whichever message fired first
+  // suppress the other, so a project with both an on-demand dynamic page and
+  // `devDynamicDiscovery: false` never heard about the second problem.
+  let developmentOnDemandWarningEmitted = false;
+  let developmentDiscoveryWarningEmitted = false;
   let initialDynamicRoutesCaptured = false;
+  /** @type {{ origin: string; nonce: string } | null} */
+  let devLoopback = null;
   /** @type {{ entrypoint: string; pattern: string; params: string[]; segments: Array<Array<{ content: string; dynamic: boolean; spread: boolean }>> }[]} */
   let initialDynamicRoutes = [];
   /** @type {import('./index.js').Diagnostic[]} */
@@ -150,6 +175,16 @@ export default function aeo(userConfig = {}) {
     };
   }
 
+  /**
+   * The development server's own listening address, as Astro reported it at
+   * startup. Never derived from a request header, and never present outside
+   * `astro dev`.
+   * @returns {{ origin: string; nonce: string } | null}
+   */
+  function devLoopbackConfig() {
+    return astroLifecycleCommand === 'dev' ? devLoopback : null;
+  }
+
   /** @returns {import('./virtual/plugin.js').DynamicRouteModuleConfig | null} */
   function dynamicRouteModuleConfig() {
     if (
@@ -194,7 +229,9 @@ export default function aeo(userConfig = {}) {
         config = resolveConfig(userConfig, logger);
         integrationLogger = logger;
         astroLifecycleCommand = astroCommand;
-        developmentDynamicWarningEmitted = false;
+        developmentOnDemandWarningEmitted = false;
+        developmentDiscoveryWarningEmitted = false;
+        devLoopback = null;
         initialDynamicRoutesCaptured = false;
         initialDynamicRoutes = [];
         if (astroConfig.root) projectRoot = fileURLToPath(astroConfig.root);
@@ -258,12 +295,24 @@ export default function aeo(userConfig = {}) {
                 ),
                 () => runtimeCorpusTokenizerModule(corpusTokenizer),
                 dynamicRouteModuleConfig,
+                devLoopbackConfig,
               ),
             ],
           },
         });
 
         addMiddleware({ order: 'pre', entrypoint: 'astro-aeo/middleware' });
+      },
+
+      // The fifth lifecycle hook, and the only reason for it: Astro reports the
+      // development server's bound address here, which is the one destination
+      // the development loopback fallback is allowed to use.
+      'astro:server:start': ({ address }) => {
+        if (astroLifecycleCommand !== 'dev' || !address) {
+          devLoopback = null;
+          return;
+        }
+        devLoopback = { origin: loopbackOrigin(address), nonce: randomUUID() };
       },
 
       'astro:config:done': async ({ config: astroConfig, logger, injectTypes, buildOutput }) => {
@@ -443,18 +492,25 @@ export default function aeo(userConfig = {}) {
           initialDynamicRoutes = currentDynamicRoutes;
           initialDynamicRoutesCaptured = true;
         }
-        if (
-          astroLifecycleCommand === 'dev' &&
-          !developmentDynamicWarningEmitted &&
-          config.pages.catalogs.length === 0
-        ) {
-          if (hasOnDemandDynamicProjectPage && config.pages.devDynamicDiscovery !== 'hot') {
-            developmentDynamicWarningEmitted = true;
+        if (astroLifecycleCommand === 'dev' && config.pages.catalogs.length === 0) {
+          // Both conditions can hold at once, and they describe different gaps,
+          // so neither message shadows the other.
+          if (
+            hasOnDemandDynamicProjectPage &&
+            config.pages.devDynamicDiscovery !== 'hot' &&
+            !developmentOnDemandWarningEmitted
+          ) {
+            developmentOnDemandWarningEmitted = true;
             integrationLogger?.warn(
               'astro-aeo: on-demand dynamic page routes require pages.catalogs for development corpus enumeration.',
             );
-          } else if (config.pages.devDynamicDiscovery === false && hasDynamicProjectPage) {
-            developmentDynamicWarningEmitted = true;
+          }
+          if (
+            config.pages.devDynamicDiscovery === false &&
+            hasDynamicProjectPage &&
+            !developmentDiscoveryWarningEmitted
+          ) {
+            developmentDiscoveryWarningEmitted = true;
             integrationLogger?.warn(
               'astro-aeo: the development corpus is incomplete because pages.devDynamicDiscovery is false and no pages.catalogs module is configured.',
             );
@@ -572,6 +628,20 @@ export default function aeo(userConfig = {}) {
       const cached = parseIndexNowPrepareInput(JSON.parse(readFileSync(path, 'utf8')));
       const nextBase = astroConfig?.base && astroConfig.base !== '/' ? astroConfig.base : '';
       const configured = new Map(resolved.discovery.indexNow.origins.map((item) => [item.origin, item]));
+      // The cached input records the origins the build could notify. Configuration
+      // may have retired one since, including an Astro i18n domain that never
+      // carried an override, and retained cache state is scoped against this set.
+      // Recompute it from the config just loaded; keep the cached set only when
+      // this config names no usable site to recompute from.
+      let eligibleOrigins;
+      try {
+        eligibleOrigins = [...eligibleIndexNowOrigins({
+          primaryOrigin: normalizeIndexNowOrigin(String(astroConfig?.site ?? '')),
+          i18nOrigins: createLocaleSnapshot(astroConfig?.i18n, String(astroConfig?.site ?? '')).origins,
+          overrides: resolved.discovery.indexNow.origins,
+          mode: resolved.discovery.indexNow.state,
+        })].sort();
+      } catch { eligibleOrigins = cached.eligibleOrigins; }
       const origins = cached.origins.map((item) => {
         const override = configured.get(item.origin);
         return {
@@ -596,6 +666,7 @@ export default function aeo(userConfig = {}) {
         ...(resolved.discovery.indexNow.keyLocation
           ? { keyLocation: resolved.discovery.indexNow.keyLocation }
           : { keyLocation: undefined }),
+        ...(eligibleOrigins ? { eligibleOrigins } : { eligibleOrigins: undefined }),
         origins,
       };
     },

@@ -24,8 +24,10 @@ import { openProcessingCache } from '../build/processing-cache.js';
 import {
   INDEXNOW_PUBLIC_PATH,
   collectIndexNowFingerprints,
+  eligibleIndexNowOrigins,
   ensureIndexNowPrivateDirectory,
   indexNowStatePathname,
+  normalizeIndexNowOrigin,
   readIndexNowPrivateState,
 } from '../build/indexnow.js';
 import {
@@ -763,7 +765,9 @@ async function onBuildDoneLocked(config, options, env, session) {
       semanticPages,
       writer,
       privateState: indexNowPrivate,
-      processingReadOnly: processingCache.readOnly,
+      // A disabled cache opted out of reuse, not out of private-state writes;
+      // only an enabled cache that failed to open may withhold IndexNow state.
+      processingReadOnly: processingCache.enabled ? processingCache.readOnly : false,
       inventoryComplete,
       diagnostics: buildDiagnostics,
     });
@@ -825,13 +829,12 @@ function stageIndexNowBuild(options) {
   /** @type {import('../build/indexnow-state.js').IndexNowQueueV1} */
   const priorQueue = stateUnavailable ? { version: 1, origins: [] } : privateState.queue;
   const stateMode = config.discovery.indexNow.state;
-  const configuredOrigins = new Set([primaryOrigin]);
-  if (stateMode !== 'public') {
-    for (const value of env.i18n?.origins ?? []) {
-      try { configuredOrigins.add(normalizeIndexNowOrigin(value)); } catch {}
-    }
-    for (const value of config.discovery.indexNow.origins) configuredOrigins.add(value.origin);
-  }
+  const configuredOrigins = eligibleIndexNowOrigins({
+    primaryOrigin,
+    i18nOrigins: env.i18n?.origins ?? [],
+    overrides: config.discovery.indexNow.origins,
+    mode: stateMode,
+  });
   const eligiblePages = stateMode === 'public'
     ? options.pages.filter((page) => {
         try { return new URL(page.canonicalUrl ?? page.url).origin === primaryOrigin; }
@@ -873,6 +876,10 @@ function stageIndexNowBuild(options) {
       ? { keyLocation: config.discovery.indexNow.keyLocation }
       : {}),
     origins: originOverrides,
+    // Every origin this build may notify, including Astro i18n domains that
+    // carry no explicit override. The CLI scopes retained cache state against
+    // this set; scoping against `origins` alone drops secondary-domain URLs.
+    eligibleOrigins: [...configuredOrigins].sort(),
     current: fingerprints.current,
     inventoryComplete,
   };
@@ -987,15 +994,6 @@ function stageIndexNowBuild(options) {
     serializeIndexNowAcknowledgment(prepared.acknowledgment),
     { mode: 0o600, confineTo: env.projectRoot },
   );
-}
-
-/** @param {string} value */
-function normalizeIndexNowOrigin(value) {
-  const url = new URL(value);
-  if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash || url.port) {
-    throw new TypeError('unsafe origin');
-  }
-  return url.origin;
 }
 
 /**

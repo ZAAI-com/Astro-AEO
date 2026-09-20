@@ -16,6 +16,37 @@ describe('Markdown renderer preflight', () => {
     expect(() => orderMarkdownRenderers([mdx, mdx])).toThrow(/only once/);
   });
 
+  test('names the contract violation but never an import failure', async () => {
+    const warnings = [];
+    const diagnostics = [];
+    const load = vi.fn(async (specifier) => {
+      if (specifier.endsWith('/import-failure.js')) throw new Error('SECRET missing optional peer');
+      return {
+        default: {
+          name: 'bad-cache',
+          apiVersion: 1,
+          render: () => ({ status: 'decline' }),
+          cache: { pure: true, version: '' },
+        },
+      };
+    });
+
+    const loaded = await preloadMarkdownRenderers(
+      [{ module: './bad-cache.js' }, { module: './import-failure.js' }],
+      '/project',
+      { warn: (message) => warnings.push(message) },
+      diagnostics,
+      load,
+    );
+
+    expect(loaded).toEqual([]);
+    expect(warnings[0]).toContain('has an invalid cache declaration');
+    expect(warnings[1]).toMatch(/failed to load and was omitted; rendered HTML/);
+    expect(warnings[1]).not.toContain('SECRET');
+    expect(JSON.stringify(diagnostics)).not.toContain('SECRET');
+    expect(JSON.stringify(diagnostics)).toContain('invalid cache declaration');
+  });
+
   test('preflights modules, clones options, and omits recoverable load failures', async () => {
     const warnings = [];
     const diagnostics = [];

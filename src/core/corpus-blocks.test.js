@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { sha256Hex } from './corpus-manifest.js';
 import {
   chunkPathname,
   formatChunkPart,
@@ -72,6 +73,19 @@ describe('section slugs and chunk paths', () => {
     expect(ascii).toMatch(/^cafe-[0-9a-f]{8,64}$/);
     expect(accented).not.toBe(ascii);
     expect(repeated).toBe(accented);
+  });
+
+  test('reserves unsuffixed and generated slugs globally across groups', async () => {
+    const prefix = (await sha256Hex('Cafe')).slice(0, 8);
+    const crafted = `Cafe ${prefix}`;
+    expect(sectionSlugBase(crafted)).toBe(`cafe-${prefix}`);
+    const craftedFirst = await resolveSectionSlugs([crafted, 'Café', 'Cafe']);
+    const craftedLast = await resolveSectionSlugs(['Café', 'Cafe', crafted]);
+    expect(craftedFirst[0]).toBe(`cafe-${prefix}`);
+    expect(craftedLast[2]).toBe(`cafe-${prefix}`);
+    for (const slugs of [craftedFirst, craftedLast]) {
+      expect(new Set(slugs).size).toBe(3);
+    }
   });
 
   test('pads through 9999 and expands naturally', () => {

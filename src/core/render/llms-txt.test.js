@@ -154,3 +154,38 @@ describe('renderLlmsFullTxt', () => {
     expect(out).not.toContain('# Post A');
   });
 });
+
+describe('locale-relative rules and homepage selection', () => {
+  test('section rules match the locale-relative pathname', () => {
+    const post = page({ pathname: '/fr/blog/a', locale: 'fr', title: 'Post FR' });
+    expect(renderLlmsTxt([post], SECTIONED, SITE)).toContain('## Blog');
+    const home = page({ pathname: '/fr', locale: 'fr', title: 'Accueil', mdHref: '/fr.md' });
+    expect(renderLlmsTxt([home], SECTIONED, SITE)).toContain('## Home');
+  });
+
+  test('unresolved and unprefixed pages keep matching their full pathname', () => {
+    const unresolved = page({ pathname: '/blog/a', locale: null });
+    expect(renderLlmsTxt([unresolved], SECTIONED, SITE)).toContain('## Blog');
+    const unprefixed = page({ pathname: '/about', locale: 'en' });
+    expect(renderLlmsTxt([unprefixed], SECTIONED, SITE)).toContain('## Pages');
+  });
+
+  test("function section rules keep receiving the page itself", () => {
+    const fn = resolveConfig({
+      corpus: { index: { sections: [{ title: 'Fn', match: (p) => p.locale === 'fr' }], defaultSection: 'Pages' } },
+    });
+    expect(renderLlmsTxt([page({ pathname: '/fr/x', locale: 'fr' })], fn, SITE)).toContain('## Fn');
+  });
+
+  test("'index' keeps each locale's own homepage", () => {
+    const cfg = resolveConfig({ corpus: { full: { mode: 'index' } } });
+    const localized = [
+      page({ pathname: '/', locale: 'en', title: 'EN home' }),
+      page({ pathname: '/about', locale: 'en', title: 'EN about' }),
+      page({ pathname: '/fr', locale: 'fr', title: 'FR home' }),
+      page({ pathname: '/fr/guide', locale: 'fr', title: 'FR guide' }),
+      page({ pathname: '/de', locale: 'de', title: 'DE prefixed home' }),
+    ];
+    expect(selectFullTxtPages(localized, cfg).map((p) => p.pathname)).toEqual(['/', '/fr', '/de']);
+  });
+});

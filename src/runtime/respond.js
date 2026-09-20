@@ -147,16 +147,20 @@ export function isNotModified(request, etag) {
  * @param {Request} input.request
  * @param {number} [input.status]
  * @param {HeadersInit} [input.headers]
+ * @param {boolean} [input.requestHeadersAvailable]  False on prerendered routes, whose blanked headers must never be read for conditional negotiation.
  * @returns {Promise<Response>}
  */
-export async function textResponse({ body, contentType, request, status = 200, headers = {} }) {
+export async function textResponse({ body, contentType, request, status = 200, headers = {}, requestHeadersAvailable = true }) {
   const etag = await etagFor(body);
   const effectiveStatus = generatedStatus(status);
   const base = stripRepresentationMetadata(new Headers(headers));
   base.set('content-type', contentType);
   base.set('etag', etag);
 
-  if (effectiveStatus >= 200 && effectiveStatus < 300 && isNotModified(request, etag)) {
+  if (
+    requestHeadersAvailable &&
+    effectiveStatus >= 200 && effectiveStatus < 300 && isNotModified(request, etag)
+  ) {
     const revalidation = new Headers(base);
     revalidation.delete('content-type');
     return new Response(null, { status: 304, headers: revalidation });

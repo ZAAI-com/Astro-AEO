@@ -85,7 +85,18 @@ export async function planCorpusArtifacts(input) {
   /** @type {Array<{ code: string; severity: 'warning'|'error'; message: string; pathname?: string; details?: unknown }>} */
   const diagnostics = [];
 
-  if ((mode === 'locale' || mode === 'both') && locales.some((locale) => locale.locale === null)) {
+  // Locale-prefixed families spell the locale into a public path, so an
+  // unresolved group may only use the legacy root layout: alone in auto mode.
+  // Any other sharing of concrete and unresolved groups is an explicit error
+  // rather than a public `/null/` directory.
+  // Evaluate against `allLocales`, the same complete set that drives topology
+  // selection below. Checking only host-local groups lets a multi-origin `auto`
+  // build take the locale-family path while this host's sole group is
+  // unresolved, which spells `null` into a public `/null/` directory.
+  const unresolvedLocaleGroup = allLocales.some((locale) => locale.locale === null);
+  const requiresConcreteLocale = mode === 'locale' || mode === 'both' ||
+    (mode === 'auto' && allLocales.length > 1);
+  if (requiresConcreteLocale && unresolvedLocaleGroup) {
     diagnostics.push(finding(
       'corpus-locale-required',
       'error',
@@ -366,7 +377,9 @@ export async function planCorpusArtifacts(input) {
       for (const page of participatingPages) {
         if (!hasMarkdownCompanion(page, input.config)) continue;
         const published = renderMarkdownDocument(page, input.config);
-        pageTokenCounts.set(corpusPageIdentity(page), await count(published));
+        // Keyed by locale as well: two locales may share a page id on one
+        // origin and each owns its companion token count.
+        pageTokenCounts.set(`${corpusPageIdentity(page)}\0${page.locale ?? ''}`, await count(published));
       }
       return { artifacts, tokenizer, pageTokenCounts };
     },
@@ -397,11 +410,14 @@ export async function planCorpusArtifacts(input) {
       ));
     } else {
       const localeRecords = locales.flatMap((locale) => {
+        // The shared global artifact is selected against every active locale,
+        // including those routed to other domains: a host carrying a single
+        // locale still serves the shared root artifact and must claim it.
         const canonical = selectCanonicalArtifact(
           locale.locale,
           planned.result.artifacts,
           mode,
-          locales.length,
+          allLocales.length,
         );
         return canonical
           ? [{
@@ -454,7 +470,7 @@ export async function planCorpusArtifacts(input) {
                 language: locale.language,
                 section: section.title,
                 tokenCount: companion
-                  ? (planned.result.pageTokenCounts.get(identity) ?? 0)
+                  ? (planned.result.pageTokenCounts.get(`${identity}\0${locale.locale ?? ''}`) ?? 0)
                   : null,
                 sourceStrategy: page.source?.strategy ?? 'rendered',
                 ...(page.lastModified ? { modified: page.lastModified } : {}),

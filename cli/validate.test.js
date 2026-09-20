@@ -230,6 +230,14 @@ describe('validateDist', () => {
 
     const hash = (value) => `sha256:${createHash('sha256').update(value).digest('hex')}`;
 
+    /** Byte-identical to the static build's deterministic gzip producer. */
+    const canonicalGzip = (value) => {
+      const bytes = Buffer.from(gzipSync(Buffer.from(value), { level: 9, mtime: 0 }));
+      bytes.fill(0, 4, 8);
+      bytes[9] = 255;
+      return bytes;
+    };
+
     function manifestDist() {
       const root = mkdtempSync(join(tmpdir(), 'aeo-manifest-validation-'));
       tmps.push(root);
@@ -246,7 +254,7 @@ describe('validateDist', () => {
       writeFileSync(join(root, 'index.md'), markdown);
       writeFileSync(join(root, 'llms.txt'), index);
       writeFileSync(join(root, 'llms-en.txt'), index);
-      writeFileSync(join(root, 'llms.txt.gz'), gzipSync(Buffer.from(index), { level: 9, mtime: 0 }));
+      writeFileSync(join(root, 'llms.txt.gz'), canonicalGzip(index));
       writeFileSync(join(root, 'llms', 'pages-0001.txt'), chunk);
       const manifest = normalizeCorpusManifest({
         version: 1,
@@ -350,6 +358,54 @@ describe('validateDist', () => {
       expect(result.errors.map((entry) => entry.code)).not.toContain('sitemap-reference-missing');
       expect(result.warnings.map((entry) => entry.code)).toContain('sitemap-external-unchecked');
       expect(result.sitemapsChecked).toBe(0);
+    });
+
+    test('treats absolute references as external when the local origin is unknown', () => {
+      const root = mkdtempSync(join(tmpdir(), 'aeo-manifest-validation-'));
+      tmps.push(root);
+      writeFileSync(
+        join(root, 'index.html'),
+        '<html><head><title>Unknown Origin</title><meta name="robots" content="index,follow"></head><body>x</body></html>',
+      );
+      writeFileSync(
+        join(root, 'robots.txt'),
+        'User-agent: *\nAllow: /\n\nSitemap: https://elsewhere.example.net/sitemap.xml\n' +
+          '# llms.txt: https://elsewhere.example.net/llms.txt\n',
+      );
+      const result = validateDist(root);
+      const errorCodes = result.errors.map((entry) => entry.code);
+      const warningCodes = result.warnings.map((entry) => entry.code);
+      expect(errorCodes).not.toContain('sitemap-reference-missing');
+      expect(errorCodes).not.toContain('robots-corpus-missing');
+      expect(warningCodes).toContain('sitemap-external-unchecked');
+      expect(warningCodes).toContain('robots-corpus-external');
+    });
+
+    test('matches encoded robots corpus references against non-ASCII artifact paths', () => {
+      const root = manifestDist();
+      mkdirSync(join(root, 'français'), { recursive: true });
+      writeFileSync(join(root, 'français', 'llms.txt'), '# Site\n\n## Pages\n\n- [Home](/index.md): Home page.\n');
+      writeFileSync(
+        join(root, 'robots.txt'),
+        'User-agent: *\nAllow: /\n\n# llms.txt: https://valid.example.com/fran%C3%A7ais/llms.txt\n',
+      );
+      const result = validateDist(root);
+      expect(result.errors.map((entry) => entry.code)).not.toContain('robots-corpus-missing');
+    });
+
+    test('rejects gzip headers that deviate from the deterministic producer', () => {
+      const root = manifestDist();
+      const source = readFileSync(join(root, 'llms.txt'));
+      const canonical = canonicalGzip(source);
+      canonical[3] = 0x01; // FTEXT set: decompresses fine but is not an emitted header
+      writeFileSync(join(root, 'llms.txt.gz'), canonical);
+      const manifestPath = join(root, 'llms', 'manifest.json');
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+      manifest.artifacts.find((entry) => entry.encoding === 'gzip').hash = hash(canonical);
+      writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+      const result = validateDist(root);
+      expect(result.errors.map((entry) => entry.code)).toContain('corpus-gzip-metadata');
     });
   });
 });

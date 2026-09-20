@@ -724,10 +724,8 @@ function createDeferredArtifactWriter(deps) {
     for (const claim of claims) {
       if (decisions.has(claim.id)) continue;
       if (!claim.served) {
-        if (
-          pathEntryExists(claim.artifact.path) &&
-          claim.artifact.onConflict !== 'overwrite'
-        ) {
+        const destinationExists = pathEntryExists(claim.artifact.path);
+        if (destinationExists && claim.artifact.onConflict !== 'overwrite') {
           decisions.set(claim.id, { status: 'preserved', blockers: [{ kind: 'existing-output' }] });
           reportDiagnostic(
             'url-map-existing-output',
@@ -736,6 +734,17 @@ function createDeferredArtifactWriter(deps) {
           );
         } else {
           decisions.set(claim.id, { status: 'emit', blockers: [] });
+          // A project-root claim never reaches externalOwnersFor, which only inspects served
+          // keys, so an output configured inside public/ would otherwise overwrite a committed
+          // source file with no build-time notice. Warn even under the overwrite policy.
+          if (destinationExists && publicRoot && pathWithin(publicRoot, claim.artifact.path)) {
+            reportDiagnostic(
+              'url-map-public-file',
+              'warning',
+              `astro-aeo: ${artifactPathLabel(claim.artifact.path)} also exists in public/. ` +
+                'Astro-AEO overwrote the committed file; remove it, or choose a different output path.',
+            );
+          }
         }
         continue;
       }
