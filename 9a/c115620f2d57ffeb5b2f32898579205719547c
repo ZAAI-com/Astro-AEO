@@ -1,0 +1,55 @@
+src/schema-definition.test.js
+  s_1ef061f9f9c11e::t_657e8cf2c944be 174-176
+cli/indexnow-io.js
+  s_1ef061f9f9c11e::t_d0151a112b1b6f 9,15,19-24,35-37,40,42,49-51,68-82
+  s_1ef061f9f9c11e::t_0a58aa4f1c4999 83-84
+scripts/schema-definition.mjs
+  s_1ef061f9f9c11e::t_eb103c557afdfa 193-197
+cli/indexnow-submit.js
+  s_1ef061f9f9c11e::t_af8145c9e0e289 21,30
+  s_1ef061f9f9c11e::t_a4d469b664b128 401,403,417-419,423-424,440-441
+  s_1ef061f9f9c11e::t_05c69ba08da220 75
+  s_1ef061f9f9c11e::t_49fdc071e45a20 265-266,281,295-315
+  s_1ef061f9f9c11e::t_2a6fa39a670491 170
+  s_1ef061f9f9c11e::t_4bbde502418f80 31
+  s_1ef061f9f9c11e::t_668a46f5980882 316-317
+src/build/public-ip.js
+  s_1ef061f9f9c11e::t_ea495294f92303 1-96
+cli/indexnow-prepare.js
+  s_1ef061f9f9c11e::t_3aa18622e1d52b 75-81,85,90
+  s_1ef061f9f9c11e::t_47cde99be50dfc 114-122,124,127
+  s_1ef061f9f9c11e::t_c7491d6a6eddbe 202-230
+src/config.js
+  s_1ef061f9f9c11e::t_8b5d81446678f1 512-521
+  s_1ef061f9f9c11e::t_e47c73a7f3c522 2,10
+src/config.test.js
+  s_1ef061f9f9c11e::t_01b95eacd4050d 303-307
+cli/indexnow-prepare.test.js
+  s_1ef061f9f9c11e::t_d42433d04712f1 259-294
+schema/astro-aeo.schema.json
+  s_1ef061f9f9c11e::t_75dddfa1bf144e 1
+cli/indexnow-submit.test.js
+  s_1ef061f9f9c11e::t_3498ac70fff8f3 210
+  s_1ef061f9f9c11e::t_fc3ae63c33e036 204-209,211-219,221-223
+  s_1ef061f9f9c11e::t_993ade90490a9f 220
+cli/indexnow-io.test.js
+  s_1ef061f9f9c11e::t_961fdffc5590fe 26-28,35
+  s_1ef061f9f9c11e::t_0275ea33caab81 1
+  s_1ef061f9f9c11e::t_478952e00922b5 2-25,29-34,36-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9ac115620f2d57ffeb5b2f32898579205719547c",
+  "prompts": {},
+  "sessions": {
+    "s_1ef061f9f9c11e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4143971cffebdIlfro8BoAuF6",
+        "model": "unknown"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
