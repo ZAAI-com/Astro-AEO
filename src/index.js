@@ -1,4 +1,5 @@
 // @ts-check
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { lstatSync, readFileSync, readdirSync } from 'node:fs';
@@ -48,6 +49,22 @@ const FALLBACK_ENTRYPOINT = fileURLToPath(new URL('./runtime/fallback.js', impor
  * @param {import('./index.js').AstroAeoConfig} [userConfig]
  * @returns {import('astro').AstroIntegration}
  */
+/**
+ * Astro reports the bound address, which may be a wildcard when `--host` is
+ * used. A wildcard is not a destination, so the loopback address for the same
+ * family is used instead. The port always comes from Astro.
+ * @param {{ address?: string; family?: string | number; port?: number }} address
+ * @returns {string}
+ */
+function loopbackOrigin(address) {
+  const port = address.port;
+  const family = String(address.family ?? '').toLowerCase();
+  const ipv6 = family === 'ipv6' || family === '6' || (address.address ?? '').includes(':');
+  const wildcard = !address.address || address.address === '0.0.0.0' || address.address === '::';
+  const host = wildcard ? (ipv6 ? '::1' : '127.0.0.1') : address.address;
+  return `http://${ipv6 ? `[${host}]` : host}${port ? `:${port}` : ''}`;
+}
+
 export default function aeo(userConfig = {}) {
   /** @type {ReturnType<typeof resolveConfig>} */
   let config;
@@ -97,6 +114,8 @@ export default function aeo(userConfig = {}) {
   let developmentOnDemandWarningEmitted = false;
   let developmentDiscoveryWarningEmitted = false;
   let initialDynamicRoutesCaptured = false;
+  /** @type {{ origin: string; nonce: string } | null} */
+  let devLoopback = null;
   /** @type {{ entrypoint: string; pattern: string; params: string[]; segments: Array<Array<{ content: string; dynamic: boolean; spread: boolean }>> }[]} */
   let initialDynamicRoutes = [];
   /** @type {import('./index.js').Diagnostic[]} */
@@ -154,6 +173,16 @@ export default function aeo(userConfig = {}) {
     };
   }
 
+  /**
+   * The development server's own listening address, as Astro reported it at
+   * startup. Never derived from a request header, and never present outside
+   * `astro dev`.
+   * @returns {{ origin: string; nonce: string } | null}
+   */
+  function devLoopbackConfig() {
+    return astroLifecycleCommand === 'dev' ? devLoopback : null;
+  }
+
   /** @returns {import('./virtual/plugin.js').DynamicRouteModuleConfig | null} */
   function dynamicRouteModuleConfig() {
     if (
@@ -200,6 +229,7 @@ export default function aeo(userConfig = {}) {
         astroLifecycleCommand = astroCommand;
         developmentOnDemandWarningEmitted = false;
         developmentDiscoveryWarningEmitted = false;
+        devLoopback = null;
         initialDynamicRoutesCaptured = false;
         initialDynamicRoutes = [];
         if (astroConfig.root) projectRoot = fileURLToPath(astroConfig.root);
@@ -263,12 +293,24 @@ export default function aeo(userConfig = {}) {
                 ),
                 () => runtimeCorpusTokenizerModule(corpusTokenizer),
                 dynamicRouteModuleConfig,
+                devLoopbackConfig,
               ),
             ],
           },
         });
 
         addMiddleware({ order: 'pre', entrypoint: 'astro-aeo/middleware' });
+      },
+
+      // The fifth lifecycle hook, and the only reason for it: Astro reports the
+      // development server's bound address here, which is the one destination
+      // the development loopback fallback is allowed to use.
+      'astro:server:start': ({ address }) => {
+        if (astroLifecycleCommand !== 'dev' || !address) {
+          devLoopback = null;
+          return;
+        }
+        devLoopback = { origin: loopbackOrigin(address), nonce: randomUUID() };
       },
 
       'astro:config:done': async ({ config: astroConfig, logger, injectTypes, buildOutput }) => {

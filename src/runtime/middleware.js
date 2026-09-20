@@ -3,6 +3,7 @@ import {
   RUNTIME,
   RUNTIME_CATALOG_LOADERS,
   RUNTIME_CORPUS_TOKENIZER_LOADER,
+  RUNTIME_DEV_LOOPBACK_SOURCE,
   RUNTIME_DYNAMIC_ROUTE_SOURCE,
   RUNTIME_MARKDOWN_RENDERER_LOADERS,
   RUNTIME_PLUGIN_LOADERS,
@@ -51,6 +52,7 @@ import { RuntimeDynamicRouteDiscoveryError } from './dynamic-routes.js';
 import {
   companionRewriteWarning,
   createFetchFailureSink,
+  isNoMatchingStaticPathError,
   warnDevCompanionRewriteFailure,
   warnDevCorpusRewriteFailure,
 } from './rewrite-diagnostics.js';
@@ -61,6 +63,15 @@ import {
 } from './plugins.js';
 
 const DEV_NOTE = '<!-- astro-aeo development preview -->';
+// Paths currently being re-requested over the development loopback. Astro blanks
+// request headers for prerendered routes, so the loopback request cannot carry a
+// marker of its own and the path is the only signal available. The window is one
+// serial fetch wide, and a concurrent visitor to the same path would at worst see
+// the page's own marker comment.
+/** @type {Set<string>} */
+const LOOPBACK_COLLECT_PATHS = new Set();
+/** @type {Promise<{ fetchHtml: (target: string) => Promise<import('./serve.js').HtmlLoad | null> } | null> | null} */
+let loopbackTransport = null;
 const INTERNAL_REQUEST_HEADER = 'x-astro-aeo-internal';
 const INTERNAL_PURPOSE_HEADER = 'x-astro-aeo-internal-purpose';
 const CORPUS_PURPOSE = 'corpus';
@@ -123,6 +134,12 @@ export const onRequest = async (context, next) => {
     !decoded.startsWith(`${configuredBase}/`)
   ) {
     return redactAeoHeadMarkers(await next(), context.request, requestHeadersAvailable);
+  }
+  if (RUNTIME.command === 'dev' && LOOPBACK_COLLECT_PATHS.has(decoded)) {
+    // A development loopback re-request for a page whose in-process rewrite
+    // failed. Render it with collection on so page markers behave exactly as
+    // they do for an internal corpus render.
+    return withCollectionFlag(context, true, () => next());
   }
   const pathname = stripBase(decoded, RUNTIME.site.base);
   const encodedPathname = encodePathname(pathname);
@@ -836,9 +853,15 @@ function htmlFetcher(context, next, opts = {}) {
       // construction failure in development, and that must keep reaching the
       // caller instead of being recorded as an ordinary missing page.
       const state = disposableCorpusStateFor(context);
-      return state
-        ? renderFreshCorpusState(state, rewriteTarget, collect, opts.failures, sourcePathname)
+      const before = opts.failures?.count ?? 0;
+      const rendered = state
+        ? await renderFreshCorpusState(state, rewriteTarget, collect, opts.failures, sourcePathname)
         : null;
+      if (rendered !== null) return rendered;
+      // Only a rewrite that actually threw earns the fallback. A page that
+      // legitimately produced no HTML must stay absent.
+      if ((opts.failures?.count ?? 0) === before) return null;
+      return devLoopbackHtml(targetUrl.pathname, collect);
     }
 
     try {
@@ -902,6 +925,15 @@ function htmlFetcher(context, next, opts = {}) {
         opts.failures?.record(sourcePathname, error);
         cancelResponseBody(response);
         restore();
+        // A direct `.md` request keeps its caller's credentials, so it must not
+        // be answered by an anonymous loopback render in general. Two cases are
+        // safe because the in-process render was already anonymous: Astro had
+        // blanked the request headers, or the rewrite failed with the routing
+        // bug this fallback exists for, which only `getStaticPaths()` routes
+        // produce and those never see request headers either way.
+        if (!headersAvailable || isNoMatchingStaticPathError(error)) {
+          return devLoopbackHtml(targetUrl.pathname, collect);
+        }
         return null;
       }
     } catch (error) {
@@ -915,6 +947,35 @@ function htmlFetcher(context, next, opts = {}) {
     tail = result.then(() => undefined, () => undefined);
     return result;
   };
+}
+
+/**
+ * Re-request one page over the development server's own listening address after
+ * its in-process rewrite failed. Reached only from renders that were already
+ * anonymous: a corpus render, which strips credentials by design, or a request
+ * whose headers Astro has blanked because the route is prerendered. A rewrite
+ * carrying real caller credentials is never re-requested this way.
+ *
+ * @param {string} target base-prefixed pathname, as the middleware will decode it
+ * @param {boolean} collect
+ * @returns {Promise<import('./serve.js').HtmlLoad | null>}
+ */
+async function devLoopbackHtml(target, collect) {
+  if (RUNTIME.command !== 'dev' || !RUNTIME_DEV_LOOPBACK_SOURCE) return null;
+  if (!loopbackTransport) {
+    loopbackTransport = Promise.resolve(RUNTIME_DEV_LOOPBACK_SOURCE.load())
+      .then((namespace) => (namespace?.LOOPBACK ? namespace : null))
+      .catch(() => null);
+  }
+  const transport = await loopbackTransport;
+  if (!transport) return null;
+  const key = decodePathname(target);
+  if (key !== null && collect) LOOPBACK_COLLECT_PATHS.add(key);
+  try {
+    return await transport.fetchHtml(target);
+  } finally {
+    if (key !== null && collect) LOOPBACK_COLLECT_PATHS.delete(key);
+  }
 }
 
 /**

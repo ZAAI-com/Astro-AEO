@@ -10,7 +10,10 @@ import {
   readJson,
   unresolvedRelativeImports,
 } from './helpers.js';
-import { DEVELOPMENT_DYNAMIC_ROUTE_LOADER_SENTINEL } from '../../src/virtual/plugin.js';
+import {
+  DEVELOPMENT_DYNAMIC_ROUTE_LOADER_SENTINEL,
+  DEVELOPMENT_LOOPBACK_SENTINEL,
+} from '../../src/virtual/plugin.js';
 
 const serverEntryAdapters = ['node', 'cloudflare', 'deno'];
 
@@ -27,6 +30,11 @@ const developmentDynamicRouteLoaderSentinels = [
   DEVELOPMENT_DYNAMIC_ROUTE_LOADER_SENTINEL,
   'astro-aeo:dynamic-routes',
   'astro-aeo-hot-routes-unavailable',
+  // The loopback transport opens a socket, so its absence from every deployed
+  // bundle matters more than the loaders above, not less.
+  DEVELOPMENT_LOOPBACK_SENTINEL,
+  'astro-aeo:dev-loopback',
+  'x-astro-aeo-loopback',
 ];
 
 const providerRuntimeArtifacts = [

@@ -12,7 +12,7 @@
  */
 
 // @ts-expect-error resolved at build time by src/virtual/plugin.js
-import { CATALOG_LOADERS as VIRTUAL_CATALOG_LOADERS, CORPUS_TOKENIZER_LOADER as VIRTUAL_CORPUS_TOKENIZER_LOADER, DYNAMIC_ROUTE_SOURCE as VIRTUAL_DYNAMIC_ROUTE_SOURCE, MARKDOWN_RENDERER_LOADERS as VIRTUAL_MARKDOWN_RENDERER_LOADERS, RUNTIME_PLUGIN_LOADERS as VIRTUAL_RUNTIME_PLUGIN_LOADERS, RUNTIME as VIRTUAL } from 'astro-aeo:runtime-config';
+import { CATALOG_LOADERS as VIRTUAL_CATALOG_LOADERS, CORPUS_TOKENIZER_LOADER as VIRTUAL_CORPUS_TOKENIZER_LOADER, DEV_LOOPBACK_SOURCE as VIRTUAL_DEV_LOOPBACK_SOURCE, DYNAMIC_ROUTE_SOURCE as VIRTUAL_DYNAMIC_ROUTE_SOURCE, MARKDOWN_RENDERER_LOADERS as VIRTUAL_MARKDOWN_RENDERER_LOADERS, RUNTIME_PLUGIN_LOADERS as VIRTUAL_RUNTIME_PLUGIN_LOADERS, RUNTIME as VIRTUAL } from 'astro-aeo:runtime-config';
 
 /** @type {import('./serve.js').Runtime} */
 export const RUNTIME = VIRTUAL;
@@ -31,3 +31,10 @@ export const RUNTIME_CORPUS_TOKENIZER_LOADER = VIRTUAL_CORPUS_TOKENIZER_LOADER;
 
 /** @type {import('./dynamic-routes.js').RuntimeDynamicRouteSource | null} */
 export const RUNTIME_DYNAMIC_ROUTE_SOURCE = VIRTUAL_DYNAMIC_ROUTE_SOURCE;
+
+/**
+ * Present only in development builds: the plugin emits `null` everywhere else,
+ * so no production or adapter bundle contains the loopback import.
+ * @type {{ load: () => Promise<{ LOOPBACK: { origin: string; nonce: string } | null; fetchHtml: (target: string) => Promise<import('./serve.js').HtmlLoad | null> }> } | null}
+ */
+export const RUNTIME_DEV_LOOPBACK_SOURCE = VIRTUAL_DEV_LOOPBACK_SOURCE;
