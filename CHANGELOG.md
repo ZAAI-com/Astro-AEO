@@ -38,6 +38,19 @@ startup, memory, and request ceilings remain enforced.
 
 ### Correctness and safety (review backlog)
 
+- Aligned the JSON schema for `discovery.indexnow[].origin` with runtime validation by
+  rejecting non-443 ports, and covered remaining renderer cache-declaration rejection cases.
+- Kept a leading thematic break separate from a following setext heading in Markdown block
+  planning, preserving both blocks in generated corpora.
+- Scoped corpus manifest chunk links by locale, so two pages sharing a pathname across locales
+  are no longer credited with each other's chunks.
+- Stopped writing a `.md` companion for a catalog page published on another origin. Companions
+  are written into this build's own namespace, so two catalog origins sharing a pathname claimed
+  the same file under one owner and the later write silently replaced the earlier one. The new
+  `catalog-foreign-origin-companion` diagnostic reports each skip.
+- Kept the corpus with request-time middleware whenever more than one origin is configured. A
+  single emitted corpus is planned against the configured site only, so it cannot be correct for
+  every host a multi-domain deployment answers on.
 - Corpus ownership ([#8](https://github.com/ZAAI-com/Astro-AEO/issues/8)): `llms.txt` and
   `llms-full.txt` are handed to request-time middleware only when one of the project's own page
   routes renders on demand. Astro-AEO injects `prerender: false` fallback routes for every adapter,
