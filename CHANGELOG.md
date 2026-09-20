@@ -42,8 +42,10 @@ features and no configuration changes. Every fix below lands with a test that fa
 - Keep IndexNow state advancing when the processing cache is merely disabled. `cache.enabled:
   false` previously reported the cache as read-only and silently stopped IndexNow entirely.
 - Reject an unresolved locale group that shares `auto` mode with concrete locales instead of
-  publishing a `/null/` path, claim the shared global artifact using the complete active-locale
-  count, and key per-locale companion token counts by locale.
+  publishing a `/null/` path. The guard now reads the same complete locale set that selects the
+  corpus topology, so a multi-origin `auto` build can no longer publish a `/null/` directory.
+  The shared global artifact is claimed using the complete active-locale count, and per-locale
+  companion token counts are keyed by locale.
 - Select each locale's own homepage under `corpus.full.mode: 'index'`.
 - Resolve rendered `hreflang` against the served URL rather than the canonical URL, canonicalize
   decoded and percent-encoded catalog pathnames into one page identity so overlays apply, and
@@ -51,6 +53,28 @@ features and no configuration changes. Every fix below lands with a test that fa
 - Treat prerendered companion lookups as header-unavailable end to end, guard a non-array
   catalog `alternates` value, pass the configured site into development `getStaticPaths()`
   evaluation, freeze plugin alternates handles, and compare runtime cache versions trimmed.
+
+### Development server
+
+Two dynamic route patterns that overlap, such as a `src/pages/[category]/` route with no entries
+alongside `src/pages/[...slug].astro`, broke every in-process rewrite to the shadowed route in
+`astro dev`. Astro's `findRouteToRewrite` commits to the first route whose pattern matches, and its
+only way to reject a route that matches without producing the path reads `route.distURL`, which is
+populated only while a build writes files. Ordinary requests and the build were unaffected, but
+every page behind the shadowed route silently vanished from `llms.txt`, `llms-full.txt`, and the
+schema corpus, and its `.md` companion returned an empty 404 with nothing written to the terminal.
+
+- Failed internal rewrites are recorded instead of discarded. Development warns once per server,
+  naming the first affected path, how many others followed, and the cause, and answers an affected
+  `.md` request with that reason rather than an empty 404. Production still fails closed, and its
+  responses are unchanged.
+- Development recovers the page by re-requesting it from the address Astro reported at startup, so
+  the corpus and companions stay complete. This is reached only after an in-process rewrite has
+  already failed, only for renders that were already anonymous, and it is never present in a
+  production or adapter bundle.
+- The two development discovery warnings no longer suppress each other. A project with both an
+  on-demand dynamic page and `pages.devDynamicDiscovery: false` previously heard about only the
+  first of the two.
 
 ### Security and validation
 
@@ -69,9 +93,10 @@ features and no configuration changes. Every fix below lands with a test that fa
   containing a legal escape such as `%20` no longer rejects valid URLs beneath it.
 - Carry the complete eligible-origin set into the IndexNow prepare input. Scoping retained cache
   state against the per-origin overrides alone discarded every URL for an Astro i18n domain that
-  had no explicit override.
-- Evaluate the unresolved-locale guard against the same complete locale set that selects the
-  corpus topology, so a multi-origin `auto` build can no longer publish a `/null/` directory.
+  had no explicit override. `astro-aeo indexnow prepare --source config` recomputes that set from
+  the configuration it just loaded, so an origin retired since the build, including an i18n domain
+  that never carried an override, is dropped with a warning rather than inheriting the
+  input-wide key and submission mode.
 - Recognize percent-encoded locale prefixes when computing the locale-relative pathname, so
   section rules and homepage selection work for locales with non-ASCII characters.
 - Pass request-header availability through every runtime response path, including plugin artifacts
