@@ -32,6 +32,10 @@ jobs:
         run: node scripts/check-changesets.mjs --since "origin/${{ github.base_ref }}"
       # Astro 6 requires Vite 7 and says so at startup, but the lockfile resolves
       # Vite 8 for Astro 7. Pin the pair so this leg tests a combination users have.
+      # The Astro 5 leg deliberately gets no Vite pin. Astro declares vite as a normal
+      # dependency, not a peer, so pnpm installs each Astro's own Vite nested under it
+      # and this repo has no root vite devDependency for a pin to move. Astro 6 is the
+      # exception only because it asserts on the root-resolved Vite at startup.
       - name: Pin Astro version for this leg
         if: matrix.astro != '7'
         run: pnpm add -D astro@${{ matrix.astro }} ${{ matrix.astro == '6' && 'vite@7' || '' }}
