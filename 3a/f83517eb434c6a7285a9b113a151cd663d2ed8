@@ -1,0 +1,44 @@
+scripts/indexnow-network-smoke.mjs
+  s_bdce41f686e426::t_73ca3ead94c653 11,14-32,74-81
+src/build/indexnow.js
+  s_bdce41f686e426::t_f7cc6fc7f6e5b8 236-272
+src/config.test.js
+  s_bdce41f686e426::t_ddce0002e3607d 303-307,312-314
+benchmarks/README.md
+  s_bdce41f686e426::t_1d71d2a0661bfb 48
+  s_bdce41f686e426::t_0f084df07a89d5 47
+src/index-config.test.js
+  s_bdce41f686e426::t_8c496befe172eb 98-132
+cli/indexnow-io.test.js
+  s_bdce41f686e426::t_81a68fb0d4926a 12-24,38,50,64
+src/hooks/build-done.js
+  s_bdce41f686e426::t_688b63320f277e 27,30
+  s_bdce41f686e426::t_f7cc6fc7f6e5b8 832-837
+src/runtime/middleware.js
+  s_bdce41f686e426::t_7f1e5cdae6aec6 864,937
+  s_bdce41f686e426::t_73eb71e6b64ec4 935-936
+benchmarks/thresholds.mjs
+  s_bdce41f686e426::t_1d71d2a0661bfb 6
+  s_bdce41f686e426::t_3ce9d301e86bf2 7-8
+src/index.js
+  s_bdce41f686e426::t_c72e4d043c3d37 41,44
+  s_bdce41f686e426::t_8b603a0ccbec28 631-644,669
+src/runtime/plugins.js
+  s_bdce41f686e426::t_7f1e5cdae6aec6 136,144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3af83517eb434c6a7285a9b113a151cd663d2ed8",
+  "prompts": {},
+  "sessions": {
+    "s_bdce41f686e426": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "33c14d9e-95df-43c0-8b4d-cfe570f794bc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
