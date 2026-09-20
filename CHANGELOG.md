@@ -37,6 +37,8 @@ features and no configuration changes. Every fix below lands with a test that fa
   `(address, family)`. The transport now replies in whichever form was requested. Which address is
   resolved, vetted, and pinned is unchanged, so the SSRF protection is untouched, and the transport
   is now covered end to end through Node's real connect path instead of only through fakes.
+- Reserve singleton and generated section slugs globally, so a crafted section title can no
+  longer produce two chunks at one pathname.
 - Keep IndexNow state advancing when the processing cache is merely disabled. `cache.enabled:
   false` previously reported the cache as read-only and silently stopped IndexNow entirely.
 - Reject an unresolved locale group that shares `auto` mode with concrete locales instead of
