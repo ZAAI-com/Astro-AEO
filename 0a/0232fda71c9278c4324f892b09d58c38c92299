@@ -1,0 +1,24 @@
+.github/workflows/W1-Test.yml
+  s_ac1a1981b22f43::t_c9814c9e3636c8 42-55
+src/runtime/middleware-corpus-auth.test.js
+  s_ac1a1981b22f43::t_6724fa29652793 450-496
+src/runtime/middleware.dev.test.js
+  s_ac1a1981b22f43::t_e9158e02f73cbf 20-39,127-145,150-155,178,236-238,297-302
+  s_ac1a1981b22f43::t_192ce5a36e990a 3,303-311
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0a0232fda71c9278c4324f892b09d58c38c92299",
+  "prompts": {},
+  "sessions": {
+    "s_ac1a1981b22f43": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d5946da5-291c-4ebc-b9ae-8d907ccf39f0",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
