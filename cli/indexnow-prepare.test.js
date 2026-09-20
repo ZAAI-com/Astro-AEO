@@ -256,6 +256,42 @@ describe('indexnow prepare', () => {
       .rejects.toThrow(/invalid IndexNow acknowledgment ledger/u);
   });
 
+  test('drops stale cache origins that are no longer configured', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-indexnow-'));
+    roots.push(root);
+    const cache = join(root, '.astro', 'aeo-cache', 'indexnow');
+    writePrivateFile(join(cache, 'prepare-input-v1.json'), serializeIndexNowPrepareInput({
+      version: 1,
+      projectRoot: root,
+      mode: 'private',
+      submit: 'changed',
+      strict: false,
+      base: '',
+      statePathname: '/.well-known/astro-aeo-indexnow-v1.json',
+      key: { source: 'env' },
+      origins: [{ origin: 'https://example.com' }],
+      current: [fp('a')],
+    }));
+    writePrivateFile(join(cache, 'pending-v1.json'), `${JSON.stringify({
+      version: 1,
+      origins: [{
+        origin: 'https://retired.example.com',
+        mode: 'private',
+        strict: false,
+        targetDigest: sha256('stale'),
+        key: { source: 'env' },
+        operations: [{ url: 'https://retired.example.com/stale', operation: 'upsert', fingerprint: sha256('stale') }],
+      }],
+    }, null, 2)}\n`);
+
+    const result = await prepareIndexNow(join(root, 'dist'), { projectRoot: root });
+    const queue = parseIndexNowQueue(JSON.parse(readFileSync(result.queuePath, 'utf8')));
+    expect(queue.origins.map((item) => item.origin)).toEqual(['https://example.com']);
+    expect(queue.origins.some((item) => item.key.source === 'env' && item.origin !== 'https://example.com'))
+      .toBe(false);
+    expect(result.warnings.join('\n')).toMatch(/no longer configured/u);
+  });
+
   test('rejects --input with config source before importing config', async () => {
     await expect(prepareIndexNow('dist', { source: 'config', input: 'x' }))
       .rejects.toThrow(/only with --source cache/u);

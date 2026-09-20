@@ -201,6 +201,26 @@ describe('indexnow submit', () => {
     expect(calls).toBe(0);
   });
 
+  test('rejects encoded separators that escape the keyLocation prefix', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-submit-'));
+    roots.push(root);
+    const queuePath = fixtureQueue(root, {
+      keyLocation: '/keys/site.txt',
+      operations: [{
+        url: 'https://example.com/keys/a%2F..%2F..%2Fsecret',
+        operation: 'upsert',
+        fingerprint: sha256('secret'),
+      }],
+    });
+    let calls = 0;
+    await expect(submitIndexNow(queuePath, {
+      projectRoot: root,
+      env: { INDEXNOW_TEST_KEY: KEY },
+      transport: { async request() { calls += 1; return { status: 200, headers: {}, body: KEY }; } },
+    })).rejects.toThrow(/encoded path separator/u);
+    expect(calls).toBe(0);
+  });
+
   test('classifies private and reserved addresses as unsafe', () => {
     for (const value of [
       '127.0.0.1', '10.0.0.1', '169.254.1.1', '192.168.1.1',

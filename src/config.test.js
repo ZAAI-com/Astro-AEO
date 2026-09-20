@@ -300,6 +300,11 @@ describe('resolveConfig', () => {
     expect(() => resolveConfig({ discovery: { indexNow: {
       origins: [{ origin: 'https://example.com' }, { origin: 'https://EXAMPLE.com/' }],
     } } })).toThrow(/duplicate origin/);
+    for (const localOrigin of ['https://localhost', 'https://app.localhost', 'https://127.0.0.1', 'https://[::1]', 'https://192.168.0.10']) {
+      expect(() => resolveConfig({ discovery: { indexNow: {
+        origins: [{ origin: localOrigin }],
+      } } }), localOrigin).toThrow(/public/);
+    }
   });
 
   test('page catalog descriptors require a non-empty module', () => {
