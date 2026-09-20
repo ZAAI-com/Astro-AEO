@@ -1,0 +1,19 @@
+docs/release-evidence/1.3.1-semantic-validation.md
+  s_87b2cae6ffba7f::t_bd90e1d60e7db7 15,17,29,37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "90e2186ac316a57b3fcd684eb59db669086347c5",
+  "prompts": {},
+  "sessions": {
+    "s_87b2cae6ffba7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "48f8ae8c-3b45-4ef2-acd2-500558006840",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
