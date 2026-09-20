@@ -1,0 +1,34 @@
+src/runtime/config.js
+  s_977125af27853e::t_352eda41ca0ca5 15,34-40
+src/runtime/rewrite-fallback.dev.test.js
+  s_977125af27853e::t_3b8f80d6efcb28 1-199
+src/runtime/middleware.js
+  s_977125af27853e::t_352eda41ca0ca5 6,55,66-74,138-143,856-858,860-864,928-936,952-978
+  s_977125af27853e::t_35615b0f327fc2 979-980
+test/adapters/build.test.js
+  s_977125af27853e::t_352eda41ca0ca5 13-16,33-37
+src/index.js
+  s_977125af27853e::t_352eda41ca0ca5 2,52-67,117-118,176-185,232,296,305-313
+  s_977125af27853e::t_00863d7c18ce1d 314-315
+src/runtime/dev-loopback.js
+  s_977125af27853e::t_b5a023325024c1 1-72
+src/virtual/plugin.js
+  s_977125af27853e::t_352eda41ca0ca5 2,7-10,18,46,57,66,74-79,119-123,146,156-172
+  s_977125af27853e::t_4a33c5498cf463 173-174
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "68618150b44bf765580c27af98c8894c03dea074",
+  "prompts": {},
+  "sessions": {
+    "s_977125af27853e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e843a899-0d4e-40a4-add8-ed9bb60276b5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
