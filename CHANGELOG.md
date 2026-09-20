@@ -52,15 +52,28 @@ features and no configuration changes. Every fix below lands with a test that fa
 
 ### Security and validation
 
-- Reject symlinked IndexNow state files on read and confine private writes canonically inside the
-  project root, so a symlinked `.astro` or `aeo-cache` cannot redirect queue, acknowledgment, or
-  progress data.
+- Confine every IndexNow private-state read and write canonically inside the project root, before
+  any directory is created, so a symlinked `.astro` or `aeo-cache` can neither redirect queue,
+  acknowledgment, or progress data nor materialize directories outside the project. Symlinked
+  state files are rejected outright.
 - Apply the `keyLocation` prefix check to the decoded, canonicalized pathname and reject encoded
   path separators outright.
 - Drop current, acknowledgment, and pending state for origins no longer present in the prepare
   input, with a warning, instead of re-preparing them under the input-wide key and mode.
 - Reject localhost, loopback, link-local, and private-address IndexNow origins at configuration
-  time, and reject whitespace-only or NUL-containing key paths in the published JSON schema.
+  time, including the fully qualified trailing-dot spellings such as `https://localhost.`, and
+  reject whitespace-only or NUL-containing key paths in the published JSON schema.
+- Compare the `keyLocation` prefix against the decoded, canonicalized directory, so a key location
+  containing a legal escape such as `%20` no longer rejects valid URLs beneath it.
+- Carry the complete eligible-origin set into the IndexNow prepare input. Scoping retained cache
+  state against the per-origin overrides alone discarded every URL for an Astro i18n domain that
+  had no explicit override.
+- Evaluate the unresolved-locale guard against the same complete locale set that selects the
+  corpus topology, so a multi-origin `auto` build can no longer publish a `/null/` directory.
+- Recognize percent-encoded locale prefixes when computing the locale-relative pathname, so
+  section rules and homepage selection work for locales with non-ASCII characters.
+- Pass request-header availability through every runtime response path, including plugin artifacts
+  and error responses, so prerendered routes never read Astro's blanked request headers.
 - Treat robots `Sitemap:` and `# llms.txt:` references as external whenever the local origin
   cannot be proven, rather than failing on an absent local path.
 - Percent-encode discovered corpus path segments so encoded robots references match non-ASCII

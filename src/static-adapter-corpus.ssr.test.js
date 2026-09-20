@@ -32,6 +32,8 @@ beforeAll(() => {
     encoding: 'utf8',
   });
   buildOutput = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+  // A spawn failure carries its reason on `error`, and leaves `status` null.
+  if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(buildOutput || `astro build exited ${result.status}`);
 }, 180000);
 

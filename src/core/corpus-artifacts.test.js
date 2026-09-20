@@ -6,21 +6,21 @@ import { renderLlmsFullTxt, renderLlmsTxt } from './render/llms-txt.js';
 
 const siteMeta = { name: 'Example', description: 'Corpus fixture' };
 
-function page(pathname, language, locale = language) {
-  const canonicalUrl = `https://example.test${pathname}/`;
+function page(pathname, language, locale = language, origin = 'https://example.test') {
+  const canonicalUrl = `${origin}${pathname}/`;
   return {
     id: pathname,
     pathname,
     url: canonicalUrl,
     canonicalUrl,
-    markdownUrl: `https://example.test${pathname}.md`,
+    markdownUrl: `${origin}${pathname}.md`,
     mdHref: `${pathname}.md`,
     title: pathname.slice(1).toUpperCase(),
     description: `${language} page`,
     markdown: `# ${language}\n\nAuthored ${language} content.`,
     language,
     locale,
-    origin: 'https://example.test',
+    origin,
     aeoTokens: [],
     directives: {
       index: true,
@@ -62,6 +62,29 @@ describe('logical corpus artifact planner', () => {
 
     expect(plan.artifacts).toEqual([]);
     expect(plan.manifest).toBeUndefined();
+    expect(plan.diagnostics).toEqual([
+      expect.objectContaining({ code: 'corpus-locale-required', severity: 'error' }),
+    ]);
+  });
+
+  test('rejects an unresolved group when another origin supplies the second locale', async () => {
+    const config = resolveConfig({ i18n: { indexes: 'auto' } });
+    const plan = await planCorpusArtifacts({
+      // This host contributes one unresolved group, so a host-local check sees a
+      // single locale and permits the legacy root layout. Topology selection uses
+      // the complete set, takes the locale-family path, and would publish /null/.
+      pages: [
+        page('/guide', undefined, null),
+        page('/guide', 'en', 'en', 'https://other.test'),
+      ],
+      config,
+      siteMeta,
+      origin: 'https://example.test',
+      base: '',
+    });
+
+    expect(plan.artifacts.map(({ pathname }) => pathname)).not.toContain('/null/llms.txt');
+    expect(plan.artifacts).toEqual([]);
     expect(plan.diagnostics).toEqual([
       expect.objectContaining({ code: 'corpus-locale-required', severity: 'error' }),
     ]);

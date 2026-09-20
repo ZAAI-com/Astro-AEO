@@ -68,8 +68,8 @@ async function prepareIndexNowLocked(distDir, options, source, root) {
     : parseInput(await loadConfigInput(root, outputRoot, options.loadConfig));
   const ackPath = join(cacheDir, INDEXNOW_ACK_FILENAME);
   const queuePath = join(cacheDir, INDEXNOW_PENDING_FILENAME);
-  const priorAck = readOptionalAcknowledgment(ackPath);
-  const priorQueue = readOptionalQueue(queuePath);
+  const priorAck = readOptionalAcknowledgment(ackPath, root);
+  const priorQueue = readOptionalQueue(queuePath, root);
   const fetchImpl = options.fetch;
   const transport = options.transport ?? (fetchImpl ? undefined : createSafeHttpsTransport());
   // Cache state may outlive configuration. Current URLs, acknowledgments, and
@@ -180,17 +180,17 @@ async function loadConfigInput(root, distDir, loader) {
   );
 }
 
-/** @param {string} path */
-function readOptionalAcknowledgment(path) {
+/** @param {string} path @param {string} [root] */
+function readOptionalAcknowledgment(path, root) {
   if (!existsSync(path)) return { version: /** @type {const} */ (1), origins: [] };
-  try { return parseIndexNowAcknowledgment(readJsonFile(path)); }
+  try { return parseIndexNowAcknowledgment(readJsonFile(path, root)); }
   catch (error) { throw new IndexNowInvocationError(`invalid IndexNow acknowledgment ledger: ${errorMessage(error)}`); }
 }
 
-/** @param {string} path */
-function readOptionalQueue(path) {
+/** @param {string} path @param {string} [root] */
+function readOptionalQueue(path, root) {
   if (!existsSync(path)) return { version: /** @type {const} */ (1), origins: [] };
-  try { return parseIndexNowQueue(readJsonFile(path)); }
+  try { return parseIndexNowQueue(readJsonFile(path, root)); }
   catch (error) { throw new IndexNowInvocationError(`invalid IndexNow pending queue: ${errorMessage(error)}`); }
 }
 
@@ -207,7 +207,11 @@ function configuredOriginMap(input) {
  * @param {import('../src/build/indexnow-state.js').IndexNowQueueV1} priorQueue
  */
 function scopeToConfiguredOrigins(input, priorAck, priorQueue) {
-  const configured = new Set(input.origins.map((item) => item.origin));
+  // Scope against every eligible origin, not only the per-origin overrides.
+  // An Astro i18n domain is notifiable without an override, so filtering on
+  // `origins` alone discards all of its current URLs. Older prepare inputs
+  // carry no `eligibleOrigins`, and fall back to the previous behavior.
+  const configured = new Set(input.eligibleOrigins ?? input.origins.map((item) => item.origin));
   const stale = new Set([
     ...priorAck.origins.map((item) => item.origin),
     ...priorQueue.origins.map((item) => item.origin),

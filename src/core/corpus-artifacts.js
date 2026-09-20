@@ -89,9 +89,13 @@ export async function planCorpusArtifacts(input) {
   // unresolved group may only use the legacy root layout: alone in auto mode.
   // Any other sharing of concrete and unresolved groups is an explicit error
   // rather than a public `/null/` directory.
-  const unresolvedLocaleGroup = locales.some((locale) => locale.locale === null);
+  // Evaluate against `allLocales`, the same complete set that drives topology
+  // selection below. Checking only host-local groups lets a multi-origin `auto`
+  // build take the locale-family path while this host's sole group is
+  // unresolved, which spells `null` into a public `/null/` directory.
+  const unresolvedLocaleGroup = allLocales.some((locale) => locale.locale === null);
   const requiresConcreteLocale = mode === 'locale' || mode === 'both' ||
-    (mode === 'auto' && locales.length > 1);
+    (mode === 'auto' && allLocales.length > 1);
   if (requiresConcreteLocale && unresolvedLocaleGroup) {
     diagnostics.push(finding(
       'corpus-locale-required',

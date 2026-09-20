@@ -292,6 +292,36 @@ describe('indexnow prepare', () => {
     expect(result.warnings.join('\n')).toMatch(/no longer configured/u);
   });
 
+  test('keeps i18n domain URLs that carry no per-origin override', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-indexnow-'));
+    roots.push(root);
+    const cache = join(root, '.astro', 'aeo-cache', 'indexnow');
+    writePrivateFile(join(cache, 'prepare-input-v1.json'), serializeIndexNowPrepareInput({
+      version: 1,
+      projectRoot: root,
+      mode: 'private',
+      submit: 'changed',
+      strict: false,
+      base: '',
+      statePathname: '/.well-known/astro-aeo-indexnow-v1.json',
+      key: { source: 'env' },
+      // Only the primary origin has an override. The German domain is an Astro
+      // i18n origin: eligible for notification, but absent from `origins`.
+      origins: [{ origin: 'https://example.com' }],
+      eligibleOrigins: ['https://example.com', 'https://example.de'],
+      current: [
+        { url: 'https://example.com/a', fingerprint: sha256('a') },
+        { url: 'https://example.de/a', fingerprint: sha256('de-a') },
+      ],
+    }));
+
+    const result = await prepareIndexNow(join(root, 'dist'), { projectRoot: root });
+    const queue = parseIndexNowQueue(JSON.parse(readFileSync(result.queuePath, 'utf8')));
+    expect(queue.origins.map((item) => item.origin).sort())
+      .toEqual(['https://example.com', 'https://example.de']);
+    expect(result.warnings.join('\n')).not.toMatch(/no longer configured/u);
+  });
+
   test('rejects --input with config source before importing config', async () => {
     await expect(prepareIndexNow('dist', { source: 'config', input: 'x' }))
       .rejects.toThrow(/only with --source cache/u);

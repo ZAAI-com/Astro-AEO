@@ -14,8 +14,16 @@ import {
 import { randomBytes } from 'node:crypto';
 import { dirname, resolve, sep } from 'node:path';
 
-/** @param {string} path */
-export function readJsonFile(path) {
+/**
+ * Read tool-owned JSON state. When a project root is supplied the whole
+ * directory chain must stay canonically inside it, so a symlinked `.astro` or
+ * `aeo-cache` cannot make the CLI consume a queue, acknowledgment, or prepare
+ * input from outside the project and act on it.
+ * @param {string} path
+ * @param {string} [root]
+ */
+export function readJsonFile(path, root) {
+  if (root !== undefined) assertCanonicallyInsideRoot(dirname(path), root);
   let stat;
   try { stat = lstatSync(path); }
   catch (error) { throw new IndexNowInvocationError(`cannot read ${path}: ${errorMessage(error)}`); }
@@ -41,6 +49,12 @@ export function readJsonFile(path) {
  */
 export function writePrivateFile(path, contents, root) {
   const directory = dirname(path);
+  // Validate the deepest directory that already exists before creating anything.
+  // `mkdirSync` with `recursive` follows a symlinked ancestor, so checking only
+  // afterwards still lets a redirected chain materialize outside the project.
+  if (root !== undefined) {
+    assertCanonicallyInsideRoot(nearestExistingAncestor(directory), root);
+  }
   mkdirSync(directory, { recursive: true });
   const stat = lstatSync(directory);
   if (!stat.isDirectory() || stat.isSymbolicLink()) {
@@ -62,6 +76,25 @@ export function writePrivateFile(path, contents, root) {
     if (fd !== undefined) closeSync(fd);
     try { unlinkSync(temporary); } catch {}
     throw new IndexNowInvocationError(`cannot write ${path}: ${errorMessage(error)}`);
+  }
+}
+
+/**
+ * The closest ancestor of `directory` that exists on disk, so confinement can be
+ * checked before any component is created.
+ * @param {string} directory
+ */
+function nearestExistingAncestor(directory) {
+  let current = resolve(directory);
+  for (;;) {
+    try {
+      lstatSync(current);
+      return current;
+    } catch {
+      const parent = dirname(current);
+      if (parent === current) return current;
+      current = parent;
+    }
   }
 }
 

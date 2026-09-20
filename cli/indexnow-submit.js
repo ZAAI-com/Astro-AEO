@@ -74,12 +74,12 @@ async function submitIndexNowLocked(queuePath, root, options) {
   const progressPath = join(dirname(queuePath), 'progress-v1.json');
   recoverProgress(progressPath, queuePath, ackPath, root);
   let queue;
-  try { queue = parseIndexNowQueue(readJsonFile(queuePath)); }
+  try { queue = parseIndexNowQueue(readJsonFile(queuePath, root)); }
   catch (error) {
     if (error instanceof IndexNowInvocationError) throw error;
     throw new IndexNowInvocationError(`invalid IndexNow queue: ${errorMessage(error)}`);
   }
-  const acknowledgment = readAcknowledgment(ackPath);
+  const acknowledgment = readAcknowledgment(ackPath, root);
   const transport = options.transport ?? createSafeHttpsTransport();
   const env = options.env ?? process.env;
   const sleep = options.sleep ?? ((milliseconds) => new Promise((done) => setTimeout(done, milliseconds)));
@@ -276,7 +276,10 @@ export function createSafeHttpsTransport(dependencies = {}) {
  * @param {string} origin
  */
 function assertUrlsUnderKeyLocation(operations, keyLocation, origin) {
-  const keyDirectory = dirname(keyLocation);
+  // Canonicalize the key directory the same way the URLs are canonicalized.
+  // Comparing a raw `keyLocation` against decoded pathnames rejects valid URLs
+  // whenever the configured directory contains a legal escape such as `%20`.
+  const keyDirectory = dirname(canonicalQueuePathname(keyLocation, keyLocation));
   const prefix = keyDirectory === '/' ? '/' : `${keyDirectory.replace(/\/$/u, '')}/`;
   for (const operation of operations) {
     let pathname;
@@ -388,12 +391,12 @@ function resolveKey(source, root, env) {
   return key;
 }
 
-/** @param {string} path */
-function readAcknowledgment(path) {
+/** @param {string} path @param {string} [root] */
+function readAcknowledgment(path, root) {
   if (!existsSync(path)) {
     return /** @type {import('../src/build/indexnow-state.js').IndexNowAcknowledgmentV1} */ ({ version: 1, origins: [] });
   }
-  try { return parseIndexNowAcknowledgment(readJsonFile(path)); }
+  try { return parseIndexNowAcknowledgment(readJsonFile(path, root)); }
   catch (error) {
     throw new IndexNowInvocationError(`invalid IndexNow acknowledgment ledger: ${errorMessage(error)}`);
   }
@@ -431,7 +434,7 @@ function persistProgress(progressPath, queuePath, ackPath, queue, ackByOrigin, r
 function recoverProgress(progressPath, queuePath, ackPath, root) {
   if (!existsSync(progressPath)) return;
   let parsed;
-  try { parsed = readJsonFile(progressPath); }
+  try { parsed = readJsonFile(progressPath, root); }
   catch (error) { throw new IndexNowInvocationError(`invalid IndexNow progress journal: ${errorMessage(error)}`); }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || parsed.version !== 1) {
     throw new IndexNowInvocationError('invalid IndexNow progress journal');

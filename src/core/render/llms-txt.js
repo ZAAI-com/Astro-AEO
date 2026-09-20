@@ -31,9 +31,14 @@ import { isoDate } from './markdown-doc.js';
  */
 function localeRelativePathname(page) {
   if (typeof page.locale !== 'string' || page.locale === '') return page.pathname;
-  const prefix = `/${page.locale}`;
-  if (page.pathname === prefix || page.pathname.startsWith(`${prefix}/`)) {
-    return page.pathname.slice(prefix.length) || '/';
+  // Match the raw spelling and the percent-encoded public spelling, because the
+  // corpus planner encodes the locale when it builds the public directory. A
+  // locale with non-ASCII or reserved characters reaches us either way.
+  const candidates = new Set([`/${page.locale}`, `/${encodeURIComponent(page.locale)}`]);
+  for (const prefix of candidates) {
+    if (page.pathname === prefix || page.pathname.startsWith(`${prefix}/`)) {
+      return page.pathname.slice(prefix.length) || '/';
+    }
   }
   return page.pathname;
 }

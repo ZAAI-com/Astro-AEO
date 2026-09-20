@@ -154,6 +154,10 @@ describe('parseSitemapXml', () => {
   ])('rejects a <url> entry with %s', (_label, entry) => {
     const parsed = parseSitemapXml(`<urlset xmlns="${NS}">${entry}</urlset>`);
     expect(parsed.findings.map((finding) => finding.code)).toContain('sitemap-url-loc-invalid');
+    // Diagnosing the entry is not enough: it must also be excluded from the
+    // URL set, or a caller that only reads `urls` still trusts it.
+    expect(parsed.urls).toEqual([]);
+    expect(parsed.findings.map((finding) => finding.code)).toContain('sitemap-urlset-empty');
   });
 
   test.each([

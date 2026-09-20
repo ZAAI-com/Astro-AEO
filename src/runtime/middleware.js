@@ -217,6 +217,7 @@ export const onRequest = async (context, next) => {
             disposableCorpusStateFor(context) ? RUNTIME_DYNAMIC_ROUTE_SOURCE : null,
           ),
         RUNTIME.command,
+        requestHeadersAvailable,
       );
       if (response) return response;
     } catch (error) {
@@ -230,6 +231,7 @@ export const onRequest = async (context, next) => {
         body: `${error.message}\n`,
         contentType: 'text/plain; charset=utf-8',
         request: context.request,
+        requestHeadersAvailable,
         status: error instanceof RuntimeCorpusLimitError ? 503 : 500,
         headers: { 'cache-control': 'no-store' },
       });
@@ -240,7 +242,7 @@ export const onRequest = async (context, next) => {
       sitemapAvailable: RUNTIME.sitemapAvailable,
       origin: context.url.origin,
     });
-    return textResponse({ body, contentType, request: context.request });
+    return textResponse({ body, contentType, request: context.request, requestHeadersAvailable });
   }
   if (artifact === 'schema-graph' || artifact === 'schema-map') {
     if (buildOwnsInventoryArtifact()) {
@@ -251,6 +253,7 @@ export const onRequest = async (context, next) => {
         body: UNRECOGNIZED_CORPUS_STATE,
         contentType: 'text/plain; charset=utf-8',
         request: context.request,
+        requestHeadersAvailable,
         status: 503,
         headers: { 'cache-control': 'no-store' },
       });
@@ -268,7 +271,7 @@ export const onRequest = async (context, next) => {
           origin: context.url.origin,
         },
       );
-      return textResponse({ body, contentType, request: context.request });
+      return textResponse({ body, contentType, request: context.request, requestHeadersAvailable });
     } catch (error) {
       const limited = error instanceof RuntimeCorpusLimitError;
       const discovery = error instanceof RuntimeDynamicRouteDiscoveryError;
@@ -280,6 +283,7 @@ export const onRequest = async (context, next) => {
           : 'astro-aeo: the semantic corpus is temporarily unavailable.\n',
         contentType: 'text/plain; charset=utf-8',
         request: context.request,
+        requestHeadersAvailable,
         status: limited ? 503 : 500,
         headers: { 'cache-control': 'no-store' },
       });
@@ -294,6 +298,7 @@ export const onRequest = async (context, next) => {
         body: UNRECOGNIZED_CORPUS_STATE,
         contentType: 'text/plain; charset=utf-8',
         request: context.request,
+        requestHeadersAvailable,
         status: 503,
         headers: { 'cache-control': 'no-store' },
       });
@@ -312,7 +317,12 @@ export const onRequest = async (context, next) => {
       if (!planned) {
         return redactAeoHeadMarkers(await next(), context.request, requestHeadersAvailable);
       }
-      return textResponse({ body: planned.body, contentType: planned.contentType, request: context.request });
+      return textResponse({
+        body: planned.body,
+        contentType: planned.contentType,
+        request: context.request,
+        requestHeadersAvailable,
+      });
     } catch (error) {
       const limited = error instanceof RuntimeCorpusLimitError;
       const invalid = error instanceof RuntimeCorpusPlanError;
@@ -324,6 +334,7 @@ export const onRequest = async (context, next) => {
           : 'astro-aeo: the corpus is temporarily unavailable.\n',
         contentType: 'text/plain; charset=utf-8',
         request: context.request,
+        requestHeadersAvailable,
         status: limited ? 503 : 500,
         headers: { 'cache-control': 'no-store' },
       });
@@ -353,6 +364,7 @@ export const onRequest = async (context, next) => {
       body,
       contentType: MARKDOWN_CONTENT_TYPE,
       request: context.request,
+      requestHeadersAvailable,
       status: source?.status ?? 200,
       headers: representationHeaders(source, encodedMdPagePath ?? mdPagePath, context, false),
       requestHeadersAvailable,
@@ -449,6 +461,7 @@ export const onRequest = async (context, next) => {
         body,
         contentType: MARKDOWN_CONTENT_TYPE,
         request: context.request,
+        requestHeadersAvailable,
         status: source.status,
         headers: representationHeaders(source, encodedPagePath, context, true),
       });

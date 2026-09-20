@@ -141,6 +141,10 @@ describe('emitUrlMap', () => {
     const publicDir = join(projectRoot, 'public');
     const output = join(publicDir, 'Url-Map.md');
     const warnings = [];
+    // Captured at the moment the transaction is about to replace the file, so a
+    // warning emitted only afterwards cannot satisfy the assertion.
+    let warningsBeforeApply = null;
+    let contentsBeforeApply = null;
     mkdirSync(publicDir);
     writeFileSync(output, 'committed');
     const writer = createArtifactWriter({
@@ -151,6 +155,11 @@ describe('emitUrlMap', () => {
       projectRoot,
       diagnostics: [],
       failOn: 'error',
+      beforeApply: () => {
+        if (warningsBeforeApply !== null) return;
+        warningsBeforeApply = [...warnings];
+        contentsBeforeApply = readFileSync(output, 'utf8');
+      },
     });
     const config = resolveConfig({
       urlMap: { enabled: true, outputFilepath: 'public/Url-Map.md' },
@@ -163,7 +172,9 @@ describe('emitUrlMap', () => {
       expect(readFileSync(output, 'utf8')).toBe('committed');
       writer.commit();
       expect(readFileSync(output, 'utf8')).toContain('# Url Map');
-      expect(warnings.some((warning) => warning.includes('also exists in public/'))).toBe(true);
+      expect(contentsBeforeApply).toBe('committed');
+      expect(warningsBeforeApply.some((warning) => warning.includes('also exists in public/')))
+        .toBe(true);
     } finally {
       rmSync(projectRoot, { recursive: true, force: true });
     }

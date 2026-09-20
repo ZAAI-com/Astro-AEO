@@ -875,6 +875,10 @@ function stageIndexNowBuild(options) {
       ? { keyLocation: config.discovery.indexNow.keyLocation }
       : {}),
     origins: originOverrides,
+    // Every origin this build may notify, including Astro i18n domains that
+    // carry no explicit override. The CLI scopes retained cache state against
+    // this set; scoping against `origins` alone drops secondary-domain URLs.
+    eligibleOrigins: [...configuredOrigins].sort(),
     current: fingerprints.current,
     inventoryComplete,
   };

@@ -33,6 +33,7 @@ export const INDEXNOW_PREPARE_INPUT_FILENAME = 'prepare-input-v1.json';
  *   key: IndexNowKeySource;
  *   keyLocation?: string;
  *   origins: IndexNowOriginConfig[];
+ *   eligibleOrigins?: string[];
  *   current: UrlFingerprint[];
  *   inventoryComplete?: boolean;
  * }} IndexNowPrepareInputV1
@@ -325,8 +326,22 @@ export function parseIndexNowPrepareInput(value) {
   if (!isRecord(value) || value.version !== 1) throw new TypeError('IndexNow prepare input has an invalid version');
   assertOnlyKeys(value, [
     'version', 'projectRoot', 'mode', 'submit', 'strict', 'base', 'statePathname',
-    'key', 'keyLocation', 'origins', 'current', 'inventoryComplete',
+    'key', 'keyLocation', 'origins', 'eligibleOrigins', 'current', 'inventoryComplete',
   ], 'IndexNow prepare input');
+  // The full set of origins this build may notify, which is wider than the
+  // per-origin overrides in `origins`: Astro i18n domains are eligible without
+  // any explicit override. Absent means "fall back to origins", so prepare
+  // inputs written before this field still parse.
+  let eligibleOrigins;
+  if (value.eligibleOrigins !== undefined) {
+    if (
+      !Array.isArray(value.eligibleOrigins) ||
+      value.eligibleOrigins.some((item) => typeof item !== 'string' || !item)
+    ) {
+      throw new TypeError('IndexNow prepare input eligibleOrigins must be an array of origins');
+    }
+    eligibleOrigins = [...new Set(/** @type {string[]} */ (value.eligibleOrigins))].sort(codeUnitCompare);
+  }
   if (value.inventoryComplete !== undefined && typeof value.inventoryComplete !== 'boolean') {
     throw new TypeError('IndexNow prepare input inventoryComplete must be a boolean');
   }
@@ -360,6 +375,7 @@ export function parseIndexNowPrepareInput(value) {
     key,
     ...(value.keyLocation === undefined ? {} : { keyLocation: validateRootPath(value.keyLocation, 'keyLocation') }),
     origins,
+    ...(eligibleOrigins === undefined ? {} : { eligibleOrigins }),
     current,
     // Absent means complete, so state written before this field still parses.
     ...(value.inventoryComplete === undefined ? {} : { inventoryComplete: value.inventoryComplete }),

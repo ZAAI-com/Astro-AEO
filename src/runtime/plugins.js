@@ -124,11 +124,12 @@ export function createRuntimePluginPageHandles(pages, readPage) {
  * @param {RuntimePluginLoader[]} loaders
  * @param {readonly RuntimePluginPageHandle[]} [pages]
  * @param {'dev'|'build'|'preview'} [command]
+ * @param {boolean} [requestHeadersAvailable]  False on prerendered routes, whose blanked headers must never be read.
  * @returns {Promise<Response | null>}
  */
-export async function serveRuntimePluginArtifact(target, request, loaders, pages = [], command = 'build') {
+export async function serveRuntimePluginArtifact(target, request, loaders, pages = [], command = 'build', requestHeadersAvailable = true) {
   if (request.method !== 'GET' && request.method !== 'HEAD') return null;
-  if (target.conflict) return failureResponse(request);
+  if (target.conflict) return failureResponse(request, requestHeadersAvailable);
 
   try {
     const runtime = await loadRuntimePlugins(loaders, command);
@@ -148,18 +149,19 @@ export async function serveRuntimePluginArtifact(target, request, loaders, pages
       pages,
     });
     if (validated.isolated || !isArtifactEnvelope(validated.value, target.claim, true)) {
-      return failureResponse(request);
+      return failureResponse(request, requestHeadersAvailable);
     }
 
     const representation = validated.value.representation;
-    if (!isRepresentation(representation)) return failureResponse(request);
+    if (!isRepresentation(representation)) return failureResponse(request, requestHeadersAvailable);
     return textResponse({
       body: representation.body,
       contentType: representation.contentType,
       request,
+      requestHeadersAvailable,
     });
   } catch {
-    return failureResponse(request);
+    return failureResponse(request, requestHeadersAvailable);
   }
 }
 
@@ -545,13 +547,14 @@ function sameClaim(left, right) {
   return left.id === right.id && left.pathname === right.pathname && Boolean(left.replace) === Boolean(right.replace);
 }
 
-/** @param {Request} request */
-function failureResponse(request) {
+/** @param {Request} request @param {boolean} [requestHeadersAvailable] */
+function failureResponse(request, requestHeadersAvailable = true) {
   return textResponse({
     body: GENERIC_FAILURE,
     contentType: 'text/plain; charset=utf-8',
     request,
     status: 500,
     headers: { 'cache-control': 'no-store' },
+    requestHeadersAvailable,
   });
 }

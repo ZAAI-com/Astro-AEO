@@ -512,9 +512,12 @@ function validateIndexNowOrigin(value, label) {
   // IndexNow only serves public origins. Localhost names and any literal
   // loopback, link-local, or private address are rejected up front; DNS names
   // are re-checked against their resolved addresses by the submit transport.
-  const host = parsed.hostname.startsWith('[') && parsed.hostname.endsWith(']')
+  const bracketed = parsed.hostname.startsWith('[') && parsed.hostname.endsWith(']')
     ? parsed.hostname.slice(1, -1)
     : parsed.hostname;
+  // A single trailing dot is the fully qualified spelling of the same name, so
+  // `localhost.` must be rejected exactly like `localhost`.
+  const host = bracketed.endsWith('.') ? bracketed.slice(0, -1) : bracketed;
   const isLocalName = host === 'localhost' || host.endsWith('.localhost');
   if (isLocalName || (isIP(host) !== 0 && !isPublicIp(host))) {
     throw new AeoConfigError(`astro-aeo: ${label} must be a public HTTPS origin.`);
