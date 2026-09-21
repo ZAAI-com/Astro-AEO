@@ -1,0 +1,33 @@
+AGENTS.md
+  s_b84c07fd11e5b2::t_4c075e232b9f56 90-93
+src/integration-hooks.test.js
+  s_b84c07fd11e5b2::t_6c41f0bcf28bfb 283-320
+src/index.js
+  s_b84c07fd11e5b2::t_b75486eb9e78c5 273-285,822,829,932-967
+  s_b84c07fd11e5b2::t_f171aa7bb32757 860-865,867
+  s_b84c07fd11e5b2::t_fdd376c6507ef9 968-969
+src/runtime/fallback-routes.dev.test.js
+  s_b84c07fd11e5b2::t_0ab4789b3579ce 288-289,323-324
+  s_b84c07fd11e5b2::t_758a68312c8257 285-287,290
+  s_b84c07fd11e5b2::t_2d18fa92ecf819 325
+docs/release-evidence/1.3.2-semantic-validation.md
+  s_b84c07fd11e5b2::t_5b9893cc606ec4 78
+.changeset/olive-cameras-repeat.md
+  s_b84c07fd11e5b2::t_20a9c1fd06ec7a 1-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d269d3f43696efef7bf188350db774fcb6aed0ce",
+  "prompts": {},
+  "sessions": {
+    "s_b84c07fd11e5b2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08a914e3-4a1f-4394-893c-18afe55e2e22",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
