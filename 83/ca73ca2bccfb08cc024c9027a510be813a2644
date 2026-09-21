@@ -1,0 +1,47 @@
+src/edge/vercel.js
+  s_9adb0045239326::t_1e03daf25818be 1-9
+src/edge.d.ts
+  s_9adb0045239326::t_a8cf01ca4e6512 1-67
+package.json
+  s_9adb0045239326::t_007c0fe7a89fe0 162
+  s_9adb0045239326::t_a8cf01ca4e6512 42-57
+src/edge.js
+  s_9adb0045239326::t_1e03daf25818be 1-8
+src/edge/plugin.js
+  s_9adb0045239326::t_1e03daf25818be 1-36
+src/edge/cloudflare.js
+  s_9adb0045239326::t_1e03daf25818be 1-9
+src/runtime/edge/cloudflare.js
+  s_9adb0045239326::t_dc301e6dfd66d0 1-45
+src/runtime/edge/netlify.js
+  s_9adb0045239326::t_dc301e6dfd66d0 1-8,10,12-15,18,20
+  s_9adb0045239326::t_2042d790a24f7e 9,11,16-17,19
+src/runtime/edge/vercel.js
+  s_9adb0045239326::t_dc301e6dfd66d0 1-48
+src/core/boundary.test.js
+  s_9adb0045239326::t_50f70032117c30 17-19,33,61,72-89
+  s_9adb0045239326::t_0a9df15c132f51 90-91
+src/runtime/edge/handler.test.js
+  s_9adb0045239326::t_09b04918411221 1-260
+src/runtime/edge/handler.js
+  s_9adb0045239326::t_dc301e6dfd66d0 1-82,87,89-90,92-97,100-101,103-114,116,118-122,124-130,132-134,136-137,139-191
+  s_9adb0045239326::t_2042d790a24f7e 83-86,88,91,98-99,102,115,117,123,131,135,138
+src/edge/netlify.js
+  s_9adb0045239326::t_1e03daf25818be 1-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "83ca73ca2bccfb08cc024c9027a510be813a2644",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
