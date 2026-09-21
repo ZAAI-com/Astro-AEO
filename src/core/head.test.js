@@ -192,6 +192,18 @@ describe('managed page head', () => {
       .toMatchObject({ name: 'Explicit title', description: 'Explicit description', inLanguage: 'de-DE' });
   });
 
+  test('the shared WebSite entity carries a language only on a single-language site', () => {
+    const websiteOf = (/** @type {Record<string, unknown>} */ siteFacts) => enrichHtmlHead({
+      html: document(''), page: { ...page(), language: 'de' }, config: resolveConfig(), site: { ...site, ...siteFacts },
+    }).graph?.entries.find(({ entity }) => entity['@type'] === 'WebSite')?.entity;
+    expect(websiteOf({})).toMatchObject({ inLanguage: 'de' });
+    expect(websiteOf({ i18n: { locales: [{}] } })).toMatchObject({ inLanguage: 'de' });
+    // Two locales would each claim the one WebSite, and the merged site graph would conflict.
+    const multilingual = websiteOf({ i18n: { locales: [{}, {}] } });
+    expect(multilingual).toBeDefined();
+    expect(multilingual).not.toHaveProperty('inLanguage');
+  });
+
   test('targeted metadata edits preserve tag-like authored script bytes', () => {
     const json = '<script type="application/ld+json">{"@type":"Thing","name":"<title>Literal</title><meta name=description>"}</script>';
     const ordinary = '<script>const literal = "<meta property=og:title>"; const close = "</head>";</script>';

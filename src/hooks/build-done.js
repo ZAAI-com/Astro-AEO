@@ -370,6 +370,7 @@ async function onBuildDoneLocked(config, options, env, session) {
         siteUrl: env.siteUrl,
         base: env.base,
         trailingSlash: env.trailingSlash,
+        ...(env.i18n ? { i18n: env.i18n } : {}),
       };
       const breadcrumbTrail = catalogBreadcrumbTrail(
         page.pathname,
