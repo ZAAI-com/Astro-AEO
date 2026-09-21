@@ -12,6 +12,7 @@ import {
 import { basename, dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
+import { createHash } from 'node:crypto';
 import { createArtifactWriter, normalizeArtifactPathname } from './artifacts.js';
 
 let dir;
@@ -433,6 +434,54 @@ describe('deferred ownership and transaction', () => {
       ],
     });
     expect(manifest.artifacts[0].representation.etag).toMatch(/^"[0-9a-f]{64}"$/);
+  });
+
+  test('a core producer sees the resolved decisions, and its bytes are what the ownership manifest hashes', () => {
+    const publicRoot = join(dir, 'public');
+    mkdirSync(publicRoot);
+    writeFileSync(join(publicRoot, 'kept.md'), 'project file');
+    const writer = deferredWriter({ publicDir: pathToFileURL(`${publicRoot}/`) });
+    writer.write(artifact({ path: join(dir, 'a.md'), owner: 'dotmd', route: '/a.md' }));
+    // Blocked by a committed public file, so it is not emitted.
+    writer.write(artifact({ path: join(dir, 'kept.md'), owner: 'dotmd', route: '/kept.md', onConflict: 'skip' }));
+    let calls = 0;
+    expect(writer.write({
+      owner: 'edgeManifest',
+      route: '/manifest.json',
+      representation: { body: 'ignored', contentType: 'application/json; charset=utf-8' },
+      produce: (emitted) => {
+        calls++;
+        return JSON.stringify({
+          a: emitted('/a.md', 'dotmd'),
+          kept: emitted('/kept.md', 'dotmd'),
+          wrongOwner: emitted('/a.md', 'llmsTxt'),
+          missing: emitted('/nope.md', 'dotmd'),
+          unsafe: emitted('/../a.md', 'dotmd'),
+        });
+      },
+    })).toBe(true);
+    expect(existsSync(join(dir, 'manifest.json'))).toBe(false);
+    expect(calls).toBe(0);
+
+    writer.commit();
+    const body = readFileSync(join(dir, 'manifest.json'), 'utf8');
+    expect(JSON.parse(body)).toEqual({ a: true, kept: false, wrongOwner: false, missing: false, unsafe: false });
+    const ownership = JSON.parse(readFileSync(join(dir, '.astro', 'aeo-cache', 'ownership-v1.json'), 'utf8'));
+    const entry = ownership.artifacts.find((item) => item.pathname === '/manifest.json');
+    expect(entry.representation.byteLength).toBe(Buffer.byteLength(body));
+    expect(entry.representation.etag).toBe(`"${createHash('sha256').update(body).digest('hex')}"`);
+  });
+
+  test('a plugin-owned artifact cannot defer its body', () => {
+    const writer = deferredWriter();
+    expect(writer.write({
+      owner: { kind: 'plugin', name: 'third-party', claimId: 'x' },
+      pathname: '/plugin.json',
+      representation: { body: 'static', contentType: 'application/json' },
+      produce: () => 'deferred',
+    })).toBe(true);
+    writer.commit();
+    expect(readFileSync(join(dir, 'plugin.json'), 'utf8')).toBe('static');
   });
 
   test('reserves exact runtime ownership and transactionally removes an authorized public copy', () => {

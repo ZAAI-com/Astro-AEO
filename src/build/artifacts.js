@@ -17,7 +17,7 @@ import {
 import { commitFileTransaction } from './transaction.js';
 
 /**
- * @typedef {'dotmd'|'llmsTxt'|'llmsFullTxt'|'robotsTxt'|'domainProfile'|'urlMap'|'sitemapAlias'} ArtifactOwner
+ * @typedef {'dotmd'|'llmsTxt'|'llmsFullTxt'|'robotsTxt'|'domainProfile'|'urlMap'|'sitemapAlias'|'edgeManifest'} ArtifactOwner
  */
 
 /** @type {ArtifactOwner[]} */
@@ -29,6 +29,7 @@ const OWNER_ORDER = [
   'domainProfile',
   'urlMap',
   'sitemapAlias',
+  'edgeManifest',
 ];
 
 // These findings describe invalid or ambiguous write authority, not optional
@@ -54,6 +55,10 @@ const MANDATORY_ARTIFACT_CODES = new Set([
  * @property {string | Uint8Array} [contents] Mutually exclusive with `copyFrom`.
  * @property {string} [copyFrom]          Byte-copy source; keeps the copy at the filesystem level.
  * @property {{ body: string; contentType: string }} [representation]
+ * @property {(emitted: (pathname: string, owner: string) => boolean) => string} [produce]
+ *   Core only. Replaces `representation.body` once ownership is resolved, for an
+ *   artifact that describes what the build actually emitted. It is a claim like any
+ *   other, so arbitration, stale cleanup and rollback are unchanged.
  * @property {string} [contentType]        Internal binary/text content type override.
  * @property {boolean} [replace]           Plugin-owned exact replacement authorization.
  * @property {boolean} [runtime]           Reserve ownership for middleware without emitting a file.
@@ -537,9 +542,15 @@ function createDeferredArtifactWriter(deps) {
     if (committed || resolution) {
       throw new Error('astro-aeo: cannot register an artifact after ownership resolution');
     }
+    const owner = generatedOwner(artifact.owner);
+    // A producer is a core facility. The plugin envelope stays a string body, so no
+    // plugin can defer its bytes past arbitration.
+    const produce = typeof artifact.produce === 'function' && owner.kind === 'core' ? artifact.produce : undefined;
     const content = artifact.runtime
       ? { contents: '', contentType: 'application/octet-stream' }
-      : artifactContent(artifact);
+      : artifactContent(produce
+        ? { ...artifact, representation: { body: '', contentType: artifact.representation?.contentType ?? '' } }
+        : artifact);
     if (!content) {
       reportDiagnostic('artifact-invalid-representation', 'error', 'astro-aeo: an artifact returned an invalid representation.');
       return false;
@@ -572,9 +583,10 @@ function createDeferredArtifactWriter(deps) {
     claims.push({
       id: claims.length,
       artifact: { ...artifact, path: destination },
-      owner: generatedOwner(artifact.owner),
+      owner,
       served,
       content,
+      ...(produce ? { produce } : {}),
       group: typeof artifact.group === 'string' && artifact.group ? artifact.group : undefined,
     });
     return true;
@@ -798,6 +810,21 @@ function createDeferredArtifactWriter(deps) {
         'warning',
         `astro-aeo: atomic artifact group ${group} was skipped because not every member could be emitted.`,
       );
+    }
+
+    // Produced bodies are computed from the final decisions, before anything hashes them.
+    for (const claim of claims) {
+      if (!claim.produce || decisions.get(claim.id)?.status !== 'emit') continue;
+      claim.content = {
+        ...claim.content,
+        contents: claim.produce((/** @type {string} */ pathname, /** @type {string} */ ownerName) => {
+          const served = normalizeArtifactPathname(pathname);
+          return served !== null && (byServed.get(served.key) ?? []).some((candidate) =>
+            candidate.owner.kind === 'core' &&
+            candidate.owner.name === ownerName &&
+            decisions.get(candidate.id)?.status === 'emit');
+        }),
+      };
     }
 
     const manifestEntries = buildManifestEntries(byServed, decisions, conflictPeers);
