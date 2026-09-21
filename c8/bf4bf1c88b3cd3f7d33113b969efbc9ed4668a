@@ -1,0 +1,19 @@
+package.json
+  s_9adb0045239326::t_2ecdd5b5cdd35c 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c8bf4bf1c88b3cd3f7d33113b969efbc9ed4668a",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
