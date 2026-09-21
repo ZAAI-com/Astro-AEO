@@ -1,0 +1,26 @@
+.changeset/olive-cameras-repeat.md
+  s_b84c07fd11e5b2::t_1942ae9ca77ed6 10-11
+src/index.js
+  s_b84c07fd11e5b2::t_9b8c70f4547d92 933-934,937-940,963-972
+src/integration-hooks.test.js
+  s_b84c07fd11e5b2::t_bedac623e16ba3 292-294,318,320,322
+src/runtime/fallback-routes.dev.test.js
+  s_b84c07fd11e5b2::t_9b8c70f4547d92 38-49,304-306,310,319,325,332
+  s_b84c07fd11e5b2::t_98059c18d8fb0c 299-303,307-309,311
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a11d3a35fb4a7c0c83994e268b98a7a8bc3c95db",
+  "prompts": {},
+  "sessions": {
+    "s_b84c07fd11e5b2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08a914e3-4a1f-4394-893c-18afe55e2e22",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
