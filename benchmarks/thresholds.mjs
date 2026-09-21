@@ -10,8 +10,17 @@ export const RELEASE_THRESHOLDS = Object.freeze({
   // generous so ordinary correctness work does not gate a release; the absolute
   // bundle, startup, memory, and request ceilings below remain the binding
   // limits.
-  packagePackedBytes: 400_000,
-  packageUnpackedBytes: 1_180_000,
+  //
+  // 1.4 ships the audit engine and its seven report formats, the doctor and fix
+  // commands, the content and Starlight helpers, and three edge handlers, all as
+  // new opt-in source. The first of those (the rule registry and finding
+  // contracts) alone measured 1,200,204 unpacked, past the 1.3 ceiling, so both
+  // ceilings move once here for the whole release instead of creeping per
+  // workstream. None of the new code enters a consumer's runtime bundle unless it
+  // is imported, and that is held by the bundle and startup limits below. Tighten
+  // these to the measured 1.4.0 tarball before the tag.
+  packagePackedBytes: 500_000,
+  packageUnpackedBytes: 1_600_000,
   parse100KbP95Ms: 50,
   convert100KbP95Ms: 150,
   requestP95OverheadMs: 10,
