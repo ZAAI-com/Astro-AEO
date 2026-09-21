@@ -1,0 +1,28 @@
+---
+import { createLocalBusiness } from 'astro-aeo/schema';
+const business = createLocalBusiness({
+  '@id': 'https://recipe.example.com/#bakery',
+  name: 'Harbor Street Bakery',
+  telephone: '+49 30 0000000',
+});
+const jsonLd = JSON.stringify({ '@context': 'https://schema.org', ...business });
+---
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Harbor Street Bakery: Bread Baked Every Morning</title>
+    <meta name="description" content="Sourdough, rye and pastries, baked daily on Harbor Street." />
+    <meta name="robots" content="index, follow" />
+    <meta property="og:title" content="Harbor Street Bakery: Bread Baked Every Morning" />
+    <meta property="og:description" content="Sourdough, rye and pastries, baked daily on Harbor Street." />
+    <meta property="og:image" content="https://recipe.example.com/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script type="application/ld+json" set:html={jsonLd} />
+  </head>
+  <body>
+    <main>
+      <h1>Harbor Street Bakery: Bread Baked Every Morning</h1>
+      <p>This recipe page carries enough plain prose for a useful Markdown companion. It explains what the page is for, who it helps, and what a reader can do next, in ordinary sentences an answer engine can quote. Replace this text with your own content and keep each page focused on one question.</p>
+    </main>
+  </body>
+</html>

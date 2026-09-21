@@ -92,6 +92,10 @@ try {
     'src/content.d.ts',
     'src/audit/rules.js',
     'cli/audit.js',
+    'cli/doctor.js',
+    'cli/accept-contract.js',
+    'cli/fix/index.js',
+    'cli/fix/render-yaml.js',
     'cli/formats/index.js',
   ]) {
     if (!files.has(required)) contentErrors.push(`required package file is absent: ${required}`);

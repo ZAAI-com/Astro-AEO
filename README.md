@@ -232,8 +232,8 @@ aeo({
 All 1.3 corpus, i18n, cache, crawler, and IndexNow outputs shown above are implemented. New corpus
 families, gzip, crawler presets, Content Signals, and IndexNow remain disabled until configured.
 The 1.4 `audit` command and its SARIF, JUnit, HTML, Markdown, and GitHub report formats are implemented
-(see [Audit](#audit)), and so is [static edge negotiation](#static-edge-negotiation). The 1.4 doctor and
-provider-fix work is not released yet.
+(see [Audit](#audit)), and so are [static edge negotiation](#static-edge-negotiation) and the
+[`doctor` and `fix`](#doctor-and-fix) deployment commands.
 
 `validation.onBuild` decides what can fail a build, at the severity chosen by `validation.failOn`:
 
@@ -245,6 +245,27 @@ provider-fix work is not released yet.
   the default `failOn: 'error'` a page whose companion has no text is what newly stops a build. Link,
   anchor and hreflang rules need the rendered site and run only in `astro-aeo audit`.
 - `'off'`: nothing optional. Artifact integrity errors that would corrupt output still stop the build.
+
+### Migrating to 1.4
+
+1.4 adds features and changes no configuration key. A project that uses none of them emits the same
+public files as 1.3.2. Four behaviors are worth knowing before you upgrade:
+
+- `validation.onBuild: 'recommended'` also gates on the audit rules a build can answer from its page
+  model. With the default `failOn: 'error'`, the one new blocking rule is `markdown-empty`: a Markdown
+  companion with no text, such as a page whose content is only an image. `'artifacts'` and `'off'` are
+  unchanged.
+- A catch-all page rendered on demand (`src/pages/[...slug].astro`, or an integration's equivalent) no
+  longer owns every `.md` companion and text artifact path. Those requests answered a bodyless `404`
+  before and are served now. `/[...slug].json` and dynamic endpoints still own their paths.
+- On a site with more than one Astro i18n locale, the inferred site-wide `WebSite` entity no longer
+  carries `inLanguage`. Each page would otherwise claim its own language for the one shared entity, and
+  the merged site graph failed the build with `schema.scalar-conflict`. Every `WebPage` keeps its
+  language, and single-language sites are unchanged.
+- Repeated `<meta name="generator">` tags no longer report `metadata-conflict`.
+
+Every build also writes a private `.astro/aeo-cache/deployment-v1.json` beside the existing manifests. It
+holds names and modes only and is never published.
 
 ### Migrating to 1.3
 
@@ -1012,7 +1033,7 @@ const jsonLd = serializeGraph(result.graph, { siteUrl: 'https://example.com/' })
 ```
 
 The package exports builders for `WebSite`, `WebPage`, `Person`, `Organization`, `Article`,
-`BlogPosting`, `BreadcrumbList`, `ImageObject`, `VideoObject`, `Product`,
+`BlogPosting`, `TechArticle`, `BreadcrumbList`, `ImageObject`, `VideoObject`, `Product`,
 `SoftwareApplication`, `Service`, `Offer`, `FAQPage`, `HowTo`, `Event`, and `LocalBusiness`, plus
 `createEntity`, `createGraph`, `createId`, `ref`, `connect`, `mergeGraph`, `deduplicateGraph`,
 `validateGraph`, and `serializeGraph`.
@@ -1100,6 +1121,72 @@ import { FaqJsonLd, BreadcrumbJsonLd, ArticleJsonLd } from 'astro-aeo/components
 Each compatibility component renders a single, XSS-safe `<script type="application/ld+json">`.
 They use the graph builders internally while preserving their established props and serialized
 output. New semantic pages should prefer `AeoHead` and `astro-aeo/schema`.
+
+## Doctor and fix
+
+```bash
+npx astro-aeo doctor                       # what this project is set up to deploy
+npx astro-aeo doctor --url https://example.com/   # and what the deployment really does
+npx astro-aeo fix                          # dry run: shows the change
+npx astro-aeo fix --write                  # applies it, after a backup
+```
+
+Static hosts often serve `.md` files as `text/plain` or as a download. `fix` makes the host serve them as
+`text/markdown; charset=utf-8` by editing exactly one file:
+
+| Provider | File | Edit |
+|---|---|---|
+| Cloudflare Pages, Netlify | `public/_headers` | one block between `# astro-aeo:start markdown-mime` and `# astro-aeo:end markdown-mime`; every byte outside it, and CRLF line endings, are kept |
+| Vercel | `vercel.json` | one `headers` rule; unknown fields, key order and indentation are kept |
+| Render | `render.yaml` | one header on the static site service; comments, anchors and key order are kept |
+
+It is a dry run unless you pass `--write`. Before writing, the original is copied with its file mode to
+`.astro/aeo-backups/<UTC timestamp>/`. A second `--write` finds nothing to do and makes no backup. `fix`
+refuses, without writing anything, when it finds several providers (choose one with `--provider`),
+several Render static services (`--service`), a malformed document or markers, a competing rule for
+`.md` paths, a symbolic link, or a path outside the project. For nginx, Apache, Node, Cloudflare Workers
+and Deno it prints a snippet and edits nothing: `astro-aeo fix --provider nginx`.
+
+`doctor` reads the facts the last build recorded and the same provider files, and reports each check as:
+
+| Status | Meaning |
+|---|---|
+| `configured` | verified against the deployment (only `--url` can say this), or nothing is needed |
+| `unverified` | the local files look right, which proves nothing about what is deployed |
+| `missing` | nothing provides it; the hint says what to run |
+| `conflicting` | something contradicts it, locally or in the deployment |
+
+`--url <page>` probes one deployed page anonymously with a fixed number of requests: the companion's
+content type, every case of the Accept contract the middleware and edge handlers are tested against,
+`Vary: Accept`, `HEAD`, and `If-None-Match`. What the deployment does replaces what the local files
+suggest. Exit codes: `0` when nothing is missing or conflicting, `1` otherwise, `2` for a bad invocation
+or an unreachable URL. `--json` prints the checks.
+
+## GitHub Action
+
+```yaml
+permissions:
+  contents: read
+  security-events: write   # only needed for the SARIF upload
+steps:
+  - uses: actions/checkout@v4
+  - run: npm ci && npm run build
+  - uses: ZAAI-com/Astro-AEO@1.4.0
+    with:
+      target: dist            # or a deployed URL
+      fail-on: error          # error, warning or none
+```
+
+The action runs the `astro-aeo` your project installed, writes a SARIF report, uploads it to GitHub code
+scanning, adds a Markdown summary to the job, and only then reports the audit's exit status, so findings
+are uploaded even when they fail the job. Set `upload-sarif: 'false'` where the workflow lacks
+`security-events: write`, such as a pull request from a fork. Other inputs: `working-directory`,
+`sarif-file`, and `args` for extra `audit` flags.
+
+## Recipes
+
+[`recipes/`](recipes/) holds eight small, complete projects: marketing, blog, Starlight, SaaS, commerce,
+local business, i18n, and SSR. Each builds on its own and passes `astro-aeo audit` with no errors.
 
 ## Static edge negotiation
 

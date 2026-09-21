@@ -107,3 +107,16 @@ the [1.2 semantic validation record](docs/release-evidence/1.2.0-semantic-valida
   advertise a path owned by a project route or a `public/` file.
 - `.astro/aeo-cache/deployment-v1.json` is private (mode `0o600`, confined to the project root). It
   records names and modes only: no absolute path, environment value, or secret.
+
+### Doctor and fix commands
+
+- `astro-aeo fix` is a dry run unless `--write` is passed. It edits exactly one provider file, inside the
+  project, and refuses (writing nothing) on a symbolic link at or above the target, a path outside the
+  project, a malformed document, malformed or duplicated markers, a competing rule, or an ambiguous
+  provider or service. The original is backed up with its file mode before the write, and both writes
+  go through one transaction that rolls back on error.
+- `astro-aeo doctor` makes no network request without `--url`. With it, it sends a bounded, fixed set of
+  anonymous requests to that one origin: no cookie, no authorization, no redirect followed, and a URL
+  that carries credentials is refused. Local configuration is never reported as a verified deployment.
+- The GitHub Action passes its inputs to the shell as environment variables, never by interpolation
+  into the script, and runs the CLI the project itself installed.

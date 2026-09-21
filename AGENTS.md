@@ -104,6 +104,18 @@ plain ESM with no package build step.
   `0o600`): output mode, adapter name, base, build format, trailing slash, negotiation mode, edge
   provider and an ownership digest. Names and modes only, never a path or an environment value.
 
+- `cli/doctor.js` reports `configured`, `missing`, `conflicting` or `unverified`. Local files never
+  earn `configured`: only the `--url` probe does, and a probe result replaces the local reading. Its
+  Markdown MIME check calls the same editors as `cli/fix/`, so the two commands cannot disagree, and
+  its probe uses `cli/accept-contract.js`, the table the middleware and edge handlers are tested
+  against (`test/contracts/accept.js` re-exports it). `cli/fix/` is a dry run unless `--write`, edits
+  exactly one file, refuses anything ambiguous, malformed, symlinked or outside the project, and
+  backs the original up under `.astro/aeo-backups/<UTC timestamp>/` through `commitFileTransaction`.
+- `action.yml` is a composite action that runs the project's installed CLI. Inputs reach the shell
+  only as environment variables, and the exit status is reported after the SARIF upload.
+  `recipes/` are complete projects outside the published folders; `test:recipes` builds each one
+  and requires an audit with no errors.
+
 ### Runtime invariants
 
 - `src/core/` and `src/runtime/` may not import `node:` modules or reach modules that do. The
@@ -150,9 +162,13 @@ plain ESM with no package build step.
   `src/runtime/middleware.d.ts`, `src/schema.d.ts`, `src/adapters.d.ts`, `src/content.d.ts`,
   `src/starlight.d.ts`, and `src/edge.d.ts` (shared by the four edge subpaths). Update declarations
   and consumer type tests with their code.
-- There are four runtime dependencies: `@astrojs/sitemap`, `turndown`, `linkedom` via
-  `linkedom/worker`, and the type-only Schema.org vocabulary package `schema-dts`. Do not add
-  another without a comparably strong reason.
+- There are five runtime dependencies: `@astrojs/sitemap`, `turndown`, `linkedom` via
+  `linkedom/worker`, the type-only Schema.org vocabulary package `schema-dts`, and `yaml`. `yaml`
+  exists for one reason: `astro-aeo fix` edits `render.yaml` in place, and only a document-level
+  YAML API keeps a project's comments, anchors and key order. It is loaded by a dynamic `import()`
+  in `cli/fix/render-yaml.js` and nowhere else; the boundary test's bare-import allowlist keeps it
+  and every other new package out of the bundled runtime code. Do not add another without a
+  comparably strong reason.
 - House style forbids em dashes. Use a colon, comma, or parentheses.
 - Contributor tooling uses pnpm 11 and requires Node 22.13 or newer. The published package must
   continue to run on Node 20.19.5 or newer and Astro 5 or newer. CI installs dependencies with a
@@ -189,6 +205,8 @@ pnpm run test:dev
 pnpm run test:ssr
 pnpm run test:adapters
 pnpm run test:edge
+pnpm run test:recipes
+pnpm run benchmark:audit
 pnpm run typecheck
 pnpm run test:types
 pnpm run schema:check

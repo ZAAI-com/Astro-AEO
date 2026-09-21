@@ -49,6 +49,8 @@ if (!quick) {
     'test:adapters:build',
     'test:adapters:runtime',
     'test:edge',
+    'test:recipes',
+    'benchmark:audit',
   ]) {
     if (!pkg.scripts?.[script]) {
       throw new Error(`package.json must define ${JSON.stringify(script)} before release:check can pass`);
@@ -61,6 +63,8 @@ if (!quick) {
     ['Adapter build matrix', 'pnpm', ['run', 'test:adapters:build']],
     ['Adapter local-runtime matrix', 'pnpm', ['run', 'test:adapters:runtime']],
     ['Static edge handler in workerd', 'pnpm', ['run', 'test:edge']],
+    ['Recipes build and audit clean', 'pnpm', ['run', 'test:recipes']],
+    ['Offline audit of 10,000 pages', 'pnpm', ['run', 'benchmark:audit']],
     ['Adapter bundle baselines', 'node', ['scripts/build-benchmark-baselines.mjs']],
     ['Packed tarball install and Astro build', 'node', ['scripts/package-smoke.mjs']],
     ['IndexNow live transport smoke', 'node', ['scripts/indexnow-network-smoke.mjs']],
