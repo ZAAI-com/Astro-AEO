@@ -1,0 +1,52 @@
+src/core/corpus-artifacts.js
+  s_9adb0045239326::t_a5418c0dbd480d 477
+src/core/page-model.js
+  s_9adb0045239326::t_c89698117f108a 2,32,128,218,264
+docs/rules.md
+  s_9adb0045239326::t_48b85848e63e00 813-816
+src/runtime/plugins.js
+  s_9adb0045239326::t_78f8df48543ada 495
+components/index.d.ts
+  s_9adb0045239326::t_c89698117f108a 162-163
+src/page.js
+  s_9adb0045239326::t_c89698117f108a 2,13,25,47-49,77-78
+src/core/corpus-manifest.js
+  s_9adb0045239326::t_a5418c0dbd480d 65
+src/core/corpus-artifacts.test.js
+  s_9adb0045239326::t_0dc7bc532b441e 160-174
+src/build/catalogs.js
+  s_9adb0045239326::t_a5418c0dbd480d 4,217-224,241
+src/audit/rules.js
+  s_9adb0045239326::t_a5418c0dbd480d 57
+src/build/collect.js
+  s_9adb0045239326::t_a5418c0dbd480d 192,234,268
+src/index.d.ts
+  s_9adb0045239326::t_c89698117f108a 241-242,1018
+  s_9adb0045239326::t_a5418c0dbd480d 78-79
+src/core/extract/marker.js
+  s_9adb0045239326::t_c89698117f108a 16
+src/core/page-version.js
+  s_9adb0045239326::t_c89698117f108a 1-12
+src/page.d.ts
+  s_9adb0045239326::t_c89698117f108a 19-20,65-66
+src/runtime/serve.js
+  s_9adb0045239326::t_a5418c0dbd480d 214
+src/core/page-model.test.js
+  s_9adb0045239326::t_0dc7bc532b441e 59-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "328eed17253b84934861ccaa85786aaa2449b048",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
