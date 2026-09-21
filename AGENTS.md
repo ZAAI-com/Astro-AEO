@@ -87,13 +87,23 @@ plain ESM with no package build step.
   `order: 'pre'`. Vite resolves it. `addMiddleware` itself must not introduce an adapter
   requirement.
 - Astro exposes `injectRoute` only in `astro:config:setup` and has no `removeRoute`, so the
-  injected fallback routes are unavoidably a superset of what a build turns out to need. When the
+  injected fallback routes are unavoidably a superset of what a build turns out to need. The one
+  case injection can rule out is an exact artifact path the project routes itself: no route is
+  resolved yet, but the page file is on disk, and injecting there would make Astro warn that a
+  static route is defined twice and could hand the request to the fallback's 404. When the
   build owns the corpus, the runtime declines the inventory-derived artifacts (`llms.txt`,
   `llms-full.txt`, the corpus paths, and the schema graph and map) instead of shadowing the
   emitted bytes with a shorter live render. It declines only when a dynamic page route exists,
   because otherwise both answers agree and declining would only cost a working response.
   `robots.txt` and the domain profile are pure functions of configuration, so they never diverge
-  and are never declined.
+  and are never declined. `astro dev` receives the same routes, adapter or not, when the project
+  routes its own `/404` to a redirect: Astro resolves a redirect route before middleware dispatch,
+  so those projects reach no middleware for any artifact path. Anything else at `/404` dispatches
+  middleware, so nothing is injected and development keeps its in-process rewrites. Keep that gate
+  separate from the adapter flag that promotes a build to server output. Development injection
+  prerenders every exact artifact path, because Astro forbids an on-demand route from rewriting to
+  a prerendered page; a dynamic pattern has to stay on demand or Astro never dispatches it, and
+  `src/runtime/middleware.js` answers that forbidden rewrite through the development loopback.
 - Runtime configuration must remain serializable. Function options apply during builds but cannot
   cross the virtual-module boundary; keep warnings and fallbacks explicit.
 - Development dynamic-route records carry only route mechanics and lazy module imports. Never

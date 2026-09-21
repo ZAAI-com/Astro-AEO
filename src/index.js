@@ -255,11 +255,34 @@ export default function aeo(userConfig = {}) {
         sitemapState.expected = plan.expected;
 
         adapterFallbacks = Boolean(astroConfig.adapter);
-        if (adapterFallbacks && injectRoute) {
+        // A generated artifact is a middleware claim, not a route, so Astro's router
+        // treats its path as unmatched and falls back to `/404`. A page or endpoint
+        // there still dispatches middleware, which is why an ordinary development
+        // server serves artifacts with nothing injected. A redirect there does not:
+        // Astro answers redirect routes in its routing layer, before middleware, so
+        // every artifact path becomes that redirect and Astro-AEO is never asked.
+        // Those projects need the same concrete routes an adapter build receives.
+        //
+        // This stays separate from `adapterFallbacks`, which also promotes a build to
+        // server output: `astro dev` must imply nothing about the build.
+        const devFallbackRoutes = command === 'dev' && redirectOwnsNotFound(astroConfig);
+        if ((adapterFallbacks || devFallbackRoutes) && injectRoute) {
           const runtimeClaims = pluginDispatcher.runtimeManifest.plugins.flatMap(
             (plugin) => plugin.claims,
           );
-          injectRuntimeFallbackRoutes(config, injectRoute, runtimeClaims);
+          // `astro:config:done` is where `pagesDir` is normally recorded, and that runs
+          // after the only hook exposing `injectRoute`. Derive it here for the one
+          // question injection has to answer.
+          const setupPagesDir = astroConfig.srcDir
+            ? fileURLToPath(new URL('pages/', astroConfig.srcDir))
+            : '';
+          injectRuntimeFallbackRoutes(
+            config,
+            injectRoute,
+            runtimeClaims,
+            command === 'dev',
+            setupPagesDir,
+          );
         }
 
         const added = [];
@@ -413,6 +436,8 @@ export default function aeo(userConfig = {}) {
           // ownership. Every other route, including routes contributed by an
           // integration, must win over Astro-AEO at runtime. Our tagged fallback
           // routes returned above and are the only external routes omitted here.
+          // That omission applies in `astro dev` too, where the same routes are
+          // injected for a project whose 404 is a redirect.
           const ownedRoute = origin !== 'internal';
           if (ownedRoute && normalizedPathname) resolvedRoutePaths.add(normalizedPathname);
           if (ownedRoute && pathname && entrypoint) {
@@ -725,14 +750,84 @@ function escapeViteGlobPath(value) {
 }
 
 /**
- * Give adapters concrete manifest routes that reach pre-middleware before the
- * provider's status-404 fallback. The endpoint itself succeeds at nothing: it
- * returns 404 only after Astro-AEO declines the request.
- * @param {ReturnType<typeof resolveConfig>} config
- * @param {(route: { pattern: string; entrypoint: string; prerender: false }) => void} injectRoute
- * @param {readonly import('./index.js').PluginArtifactClaim[]} [pluginClaims]
+ * The path segments Astro routes as locale prefixes. A locale is either a code or
+ * an object naming the path it is served under, and only the path spelling can
+ * appear in a URL.
+ * @param {unknown} i18n
+ * @returns {Set<string>}
  */
-function injectRuntimeFallbackRoutes(config, injectRoute, pluginClaims = []) {
+function localePathSegments(i18n) {
+  /** @type {Set<string>} */
+  const paths = new Set();
+  if (!i18n || typeof i18n !== 'object') return paths;
+  const locales = /** @type {{ locales?: unknown }} */ (i18n).locales;
+  if (!Array.isArray(locales)) return paths;
+  for (const locale of locales) {
+    if (typeof locale === 'string') {
+      paths.add(locale);
+      continue;
+    }
+    const path = locale && typeof locale === 'object'
+      ? /** @type {{ path?: unknown }} */ (locale).path
+      : null;
+    if (typeof path === 'string' && path) paths.add(path);
+  }
+  return paths;
+}
+
+/**
+ * True when the project routes its own `/404` to a redirect. Astro resolves a
+ * redirect route before middleware dispatch, so such a project reaches no
+ * middleware for any path it does not otherwise route, including every generated
+ * artifact. A trailing slash is not significant. Anything else at `/404`,
+ * including no custom 404 at all, still dispatches middleware and needs nothing
+ * injected.
+ *
+ * A locale-prefixed spelling counts, but only under a segment the project
+ * actually configures as a locale. `redirects: { '/blog/404/': '/error/' }` in a
+ * project with no `blog` locale redirects one concrete page and leaves the
+ * router's own 404 alone, so injecting for it would change a development server
+ * this gate exists to leave untouched.
+ * @param {{ redirects?: unknown; i18n?: unknown }} astroConfig
+ * @returns {boolean}
+ */
+function redirectOwnsNotFound(astroConfig) {
+  const redirects = astroConfig.redirects;
+  if (!redirects || typeof redirects !== 'object') return false;
+  const locales = localePathSegments(astroConfig.i18n);
+  return Object.keys(redirects).some((pattern) => {
+    const trimmed = pattern.replace(/\/+$/, '');
+    if (trimmed === '/404') return true;
+    const prefixed = /^\/([^/]+)\/404$/.exec(trimmed);
+    return prefixed !== null && locales.has(prefixed[1]);
+  });
+}
+
+/**
+ * Give the router concrete manifest routes that reach pre-middleware before the
+ * provider's status-404 fallback in an adapter build, and before the development
+ * server's redirect and 404 routing in `astro dev`. The endpoint itself succeeds at
+ * nothing: it returns 404 only after Astro-AEO declines the request.
+ *
+ * A dynamic pattern must render on demand or Astro refuses to dispatch it without
+ * `getStaticPaths()` paths, and middleware would never run. An exact path has no such
+ * constraint, so the development server prerenders those: Astro forbids an on-demand
+ * route from rewriting to a prerendered page, and every internal rewrite a corpus
+ * needs would otherwise take the loopback detour. A build keeps every fallback on
+ * demand, which is what makes adapter routing reach pre-middleware at all.
+ * @param {ReturnType<typeof resolveConfig>} config
+ * @param {(route: { pattern: string; entrypoint: string; prerender: boolean }) => void} injectRoute
+ * @param {readonly import('./index.js').PluginArtifactClaim[]} [pluginClaims]
+ * @param {boolean} [prerenderExactPaths] development only, see above
+ * @param {string} [pagesDir] absolute pages directory, for the collision check
+ */
+function injectRuntimeFallbackRoutes(
+  config,
+  injectRoute,
+  pluginClaims = [],
+  prerenderExactPaths = false,
+  pagesDir = '',
+) {
   if (config.markdown.enabled) {
     injectRoute({
       pattern: '/[...astroAeoMarkdown].md',
@@ -762,8 +857,14 @@ function injectRuntimeFallbackRoutes(config, injectRoute, pluginClaims = []) {
     // Astro decodes concrete request pathnames before applying its generated
     // route regex. Inject the decoded identity while retaining the canonical
     // encoded spelling everywhere that is public or persisted.
+    const decoded = exactPathnameIdentity(pathname, 'runtime artifact pathname').key;
+    // The project already routes this exact path. Injecting a second route for it
+    // makes Astro warn that a static route is defined twice, and the duplicate can
+    // win the match and answer the fallback's 404 in place of the project's page.
+    // The page file carries the decoded spelling, which is why this reads the key.
+    if (projectRoutesExactPathname(pagesDir, decoded)) continue;
     patterns.push(
-      exactPathnameIdentity(pathname, 'runtime artifact pathname').key
+      decoded
         // Brackets are Astro's dynamic-route syntax. Its parser recognizes their
         // encoded spelling as literal brackets while still decoding ordinary URL
         // bytes before matching the generated regex.
@@ -788,7 +889,11 @@ function injectRuntimeFallbackRoutes(config, injectRoute, pluginClaims = []) {
   }
 
   for (const pattern of patterns) {
-    injectRoute({ pattern, entrypoint: FALLBACK_ENTRYPOINT, prerender: false });
+    injectRoute({
+      pattern,
+      entrypoint: FALLBACK_ENTRYPOINT,
+      prerender: prerenderExactPaths && !pattern.includes('['),
+    });
   }
 }
 
@@ -822,6 +927,49 @@ function publicRuntimePathnames(publicDir) {
   };
   visit(root, []);
   return files.map(normalize);
+}
+
+/**
+ * Astro's file-based routing drops the module extension, so `/llms.txt` comes from
+ * `src/pages/llms.txt` plus any supported page or endpoint extension.
+ * @type {readonly string[]}
+ */
+const PROJECT_ROUTE_EXTENSIONS = [
+  '.js', '.mjs', '.cjs', '.ts', '.mts', '.cts',
+  '.astro', '.md', '.mdx', '.markdown', '.html',
+];
+
+/**
+ * Whether the project already routes this exact artifact pathname itself.
+ *
+ * Astro warns that a static route cannot be defined more than once and says it will
+ * become a hard error. The injected fallback exists only to reach pre-middleware for
+ * a path nothing else answers, so it stands down where the project routes the path.
+ * `injectRoute` is exposed only in `astro:config:setup`, before any route is
+ * resolved, so this asks the filesystem about a handful of exact filenames rather
+ * than crawling the pages directory to discover routes.
+ *
+ * @param {string} pagesDir absolute pages directory
+ * @param {string} pathname decoded artifact pathname, leading slash
+ * @returns {boolean}
+ */
+function projectRoutesExactPathname(pagesDir, pathname) {
+  if (!pagesDir) return false;
+  const relativePath = pathname.replace(/^\/+/, '');
+  if (relativePath === '') return false;
+  const candidate = resolve(pagesDir, relativePath);
+  const fromPages = relative(pagesDir, candidate);
+  if (fromPages === '' || fromPages.startsWith('..') || isAbsolute(fromPages)) return false;
+  // `llms.txt.js` and `llms.txt/index.js` both route to `/llms.txt`.
+  return [candidate, resolve(candidate, 'index')].some((routeBase) =>
+    PROJECT_ROUTE_EXTENSIONS.some((extension) => {
+      try {
+        const stats = lstatSync(`${routeBase}${extension}`);
+        return stats.isFile() || stats.isSymbolicLink();
+      } catch {
+        return false;
+      }
+    }));
 }
 
 /** @param {string} entrypoint @param {string} projectRoot */

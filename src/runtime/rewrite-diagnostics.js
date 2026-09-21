@@ -16,7 +16,7 @@
  */
 
 /** @typedef {{ pathname: string; error: unknown }} FetchFailure */
-/** @typedef {{ record(pathname: string, error: unknown): void; readonly count: number; readonly first: FetchFailure | null }} FetchFailureSink */
+/** @typedef {{ record(pathname: string, error: unknown): void; forgive(remaining: number): void; readonly count: number; readonly first: FetchFailure | null }} FetchFailureSink */
 
 // Registered symbols, not module state: Vite can re-execute a module during a
 // development session, and one warning per dev process is the goal.
@@ -32,6 +32,14 @@ export function createFetchFailureSink() {
     record(pathname, error) {
       count += 1;
       if (first === null) first = { pathname, error };
+    },
+    // A development loopback that answered the page means nothing was dropped, so
+    // the corpus is complete and there is nothing for the terminal to name. Only a
+    // prefix is ever forgiven, so a surviving `first` was recorded before it.
+    forgive(remaining) {
+      if (remaining >= count) return;
+      count = remaining;
+      if (count === 0) first = null;
     },
     get count() {
       return count;
@@ -56,6 +64,32 @@ export function isNoMatchingStaticPathError(error) {
   if (candidate.name === 'NoMatchingStaticPathFound') return true;
   return typeof candidate.message === 'string' &&
     candidate.message.includes('no matching static path was found');
+}
+
+/**
+ * Astro forbids an on-demand route from rewriting to a prerendered one, because a
+ * build compiles that component to a file the runtime cannot render. The injected
+ * development fallback routes are on demand, so every companion whose page is
+ * prerendered hits this. Matched by `name` first, then by title, then by message.
+ *
+ * The message fallback exists so a reworded Astro release degrades to the generic
+ * diagnostic rather than to silence, but a true answer here also lets the caller
+ * re-request the page anonymously, which is only equivalent because Astro throws
+ * this solely for a prerendered target. So the fallback requires the two other
+ * fixed parts of Astro's sentence as well, not just the prerendered phrase an
+ * application error could coincidentally carry.
+ * @param {unknown} error
+ * @returns {boolean}
+ */
+export function isForbiddenPrerenderedRewriteError(error) {
+  if (!error || typeof error !== 'object') return false;
+  const candidate = /** @type {{ title?: unknown; name?: unknown; message?: unknown }} */ (error);
+  if (candidate.name === 'ForbiddenRewrite') return true;
+  if (candidate.title === 'Forbidden rewrite to a static route.') return true;
+  if (typeof candidate.message !== 'string') return false;
+  return candidate.message.includes('is marked as prerendered') &&
+    candidate.message.includes('tried to rewrite the on-demand route') &&
+    candidate.message.includes('with the static route');
 }
 
 /** @param {unknown} error @returns {string} */

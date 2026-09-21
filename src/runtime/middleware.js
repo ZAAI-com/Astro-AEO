@@ -52,6 +52,7 @@ import { RuntimeDynamicRouteDiscoveryError } from './dynamic-routes.js';
 import {
   companionRewriteWarning,
   createFetchFailureSink,
+  isForbiddenPrerenderedRewriteError,
   isNoMatchingStaticPathError,
   warnDevCompanionRewriteFailure,
   warnDevCorpusRewriteFailure,
@@ -861,9 +862,13 @@ function htmlFetcher(context, next, opts = {}) {
       // Only a rewrite that actually threw earns the fallback. A page that
       // legitimately produced no HTML must stay absent.
       if ((opts.failures?.count ?? 0) === before) return null;
-      return devLoopbackHtml(`${targetUrl.pathname}${targetUrl.search}`, collect);
+      const loopback = await devLoopbackHtml(`${targetUrl.pathname}${targetUrl.search}`, collect);
+      if (loopback !== null) opts.failures?.forgive(before);
+      return loopback;
     }
 
+    // Read before the rewrite so a rescue can forgive exactly this page's record.
+    const before = opts.failures?.count ?? 0;
     try {
       const state = disposableCorpusStateFor(context);
       const directOuterCookies = state?.cookies;
@@ -922,19 +927,52 @@ function htmlFetcher(context, next, opts = {}) {
         restore();
         return { response: settled, html: null };
       } catch (error) {
+        // Record every failure, then forgive it once the loopback has taken the
+        // request off this path, the same order the corpus branch above uses.
+        const forbiddenPrerendered = isForbiddenPrerenderedRewriteError(error);
         opts.failures?.record(sourcePathname, error);
         cancelResponseBody(response);
         restore();
         // A direct `.md` request keeps its caller's credentials, so it must not
-        // be answered by an anonymous loopback render in general. Two cases are
-        // safe because the in-process render was already anonymous: Astro had
-        // blanked the request headers, or the rewrite failed with the routing
-        // bug this fallback exists for, which only `getStaticPaths()` routes
-        // produce and those never see request headers either way.
-        if (!headersAvailable || isNoMatchingStaticPathError(error)) {
+        // be answered by an anonymous loopback render in general. Three cases are
+        // safe because the render was already anonymous or the target cannot read
+        // headers at all: Astro had blanked the request headers, the rewrite failed
+        // with the routing bug this fallback exists for, which only
+        // `getStaticPaths()` routes produce, or the target route is prerendered,
+        // which is exactly what the forbidden rewrite reports.
+        //
+        // The third case drops nothing, even though this request arrived with its
+        // caller's headers. Astro throws the forbidden rewrite only when the target
+        // route's own `prerender` is true, and it builds a prerendered render's
+        // request with `headers: {}` and an emptied `url.search`. The in-process
+        // rewrite this replaces would therefore have rendered anonymously as well,
+        // so the loopback is equivalent to it rather than a downgrade from it.
+        // `rewrite-diagnostics.test.js` pins both halves against the installed
+        // Astro so a release that changes either one fails there.
+        if (
+          !headersAvailable ||
+          isNoMatchingStaticPathError(error) ||
+          forbiddenPrerendered
+        ) {
           // The loopback URL must be the rewrite target, query included, so a
           // preserved query cannot change meaning between the two paths.
-          return devLoopbackHtml(`${targetUrl.pathname}${targetUrl.search}`, collect);
+          const loopback = await devLoopbackHtml(
+            `${targetUrl.pathname}${targetUrl.search}`,
+            collect,
+          );
+          // Astro forbids an on-demand route from rewriting to a prerendered one,
+          // and the injected development fallback routes are on demand, so that
+          // error is the ordinary path for a prerendered page's companion rather
+          // than a failure worth naming. An unclaimed `.md` reaches it too, because
+          // its target resolves to the prerendered 404 route, and that is a missing
+          // page owed a bodyless 404 rather than a diagnostic. Neither earns a
+          // record once the loopback has had its turn. A loopback that never loaded
+          // does, because then every companion of a prerendered page 404s silently
+          // with nothing naming the cause.
+          const rescued = loopback !== null ||
+            (forbiddenPrerendered && (await devLoopbackTransport()) !== null);
+          if (rescued) opts.failures?.forgive(before);
+          return loopback;
         }
         return null;
       }
@@ -952,6 +990,23 @@ function htmlFetcher(context, next, opts = {}) {
 }
 
 /**
+ * The loopback transport, loaded once per process. Separate from the fetch below
+ * so a caller can tell a transport that never loaded, an environment problem worth
+ * naming, from one that loaded and answered with no HTML, an ordinary missing page.
+ *
+ * @returns {Promise<any>}
+ */
+async function devLoopbackTransport() {
+  if (RUNTIME.command !== 'dev' || !RUNTIME_DEV_LOOPBACK_SOURCE) return null;
+  if (!loopbackTransport) {
+    loopbackTransport = Promise.resolve(RUNTIME_DEV_LOOPBACK_SOURCE.load())
+      .then((namespace) => (namespace?.LOOPBACK ? namespace : null))
+      .catch(() => null);
+  }
+  return loopbackTransport;
+}
+
+/**
  * Re-request one page over the development server's own listening address after
  * its in-process rewrite failed. Reached only from renders that were already
  * anonymous: a corpus render, which strips credentials by design, or a request
@@ -963,13 +1018,7 @@ function htmlFetcher(context, next, opts = {}) {
  * @returns {Promise<import('./serve.js').HtmlLoad | null>}
  */
 async function devLoopbackHtml(target, collect) {
-  if (RUNTIME.command !== 'dev' || !RUNTIME_DEV_LOOPBACK_SOURCE) return null;
-  if (!loopbackTransport) {
-    loopbackTransport = Promise.resolve(RUNTIME_DEV_LOOPBACK_SOURCE.load())
-      .then((namespace) => (namespace?.LOOPBACK ? namespace : null))
-      .catch(() => null);
-  }
-  const transport = await loopbackTransport;
+  const transport = await devLoopbackTransport();
   if (!transport) return null;
   const key = decodePathname(target);
   if (key !== null && collect) LOOPBACK_COLLECT_PATHS.add(key);

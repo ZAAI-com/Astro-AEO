@@ -2,6 +2,39 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## 1.3.2
+
+### Patch Changes
+
+- c8fa815: Serve development artifacts on projects that redirect their own `/404`. Astro resolves a redirect
+  route in its routing layer, before middleware dispatch, so a configuration such as
+  `redirects: { '/404/': '/error/' }` answered `llms.txt`, `llms-full.txt`, `robots.txt`,
+  `/.well-known/domain-profile.json`, `/llms/manifest.json`, and every `.md` companion with a 301
+  instead of reaching Astro-AEO at all. `astro dev` now injects the same fallback routes an adapter
+  build already receives for those projects, so the artifact paths have a concrete match. Any other
+  `/404`, including none, dispatches middleware on its own and nothing is injected, so development
+  servers that already worked are untouched.
+
+  Two behaviors follow for the affected development servers: an unclaimed `.md` path returns a
+  bodyless 404 rather than reaching the 404 route, and a companion whose page is prerendered is
+  rendered through a loopback request, because Astro forbids an on-demand route from rewriting to a
+  prerendered page. A rewrite the loopback rescued is no longer reported as a rewrite failure, for a
+  companion and for a corpus page alike, since nothing was dropped. A loopback that never loaded at all
+  still names its cause in the terminal rather than leaving every companion of a prerendered page to
+  404 silently. Development servers with an adapter gain the same companion fix, where the forbidden
+  rewrite previously produced a 404.
+
+  Build output, adapter builds, and server-output promotion are unchanged: a build without an adapter
+  still injects nothing, and projects that saw a 301 on `llms.txt` or a `.md` companion in development
+  were never affected in production.
+
+  One combination is not covered on Astro 6 and older: a project that also sets
+  `trailingSlash: 'always'`. Those versions derive a dynamic route's trailing-slash pattern from the
+  project configuration alone, so the injected `.md` catch-all matches `/about.md/` and not
+  `/about.md`, and the redirect keeps answering the slashless spelling. The exact artifact paths are
+  fixed on every supported Astro, and Astro 7 exempts dynamic endpoint patterns with a file
+  extension, so companions work there as well.
+
 ## 1.3.1
 
 A correctness release that clears the full review backlog raised against 1.3.0. There are no new

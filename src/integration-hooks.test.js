@@ -280,7 +280,49 @@ describe('integration diagnostics and declarations', () => {
     expect(source).not.toContain('"projectPaths": ["/robots.txt"');
   });
 
-  test('does not inject fallback endpoints for a fully static project', async () => {
+  // Astro warns that a static route cannot be defined more than once and intends to
+  // make it a hard error. `injectRoute` is available only before any route is
+  // resolved, so the only thing injection can consult is the project's page files.
+  test('does not inject an artifact path the project already routes itself', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-page-collision-'));
+    const rootUrl = pathToFileURL(`${root}/`);
+    const pages = join(root, 'src', 'pages');
+    mkdirSync(pages, { recursive: true });
+    writeFileSync(join(pages, 'llms.txt.ts'), 'export function GET() {}\n');
+    // The index spelling routes to the same path, and a page extension counts too.
+    mkdirSync(join(pages, 'llms-full.txt'), { recursive: true });
+    writeFileSync(join(pages, 'llms-full.txt', 'index.astro'), '<p>owned</p>\n');
+    const injected = [];
+    const integration = aeo({ discovery: { sitemap: { mode: 'disabled' } } });
+    try {
+      await integration.hooks['astro:config:setup']({
+        config: {
+          adapter: { name: 'test-adapter' },
+          integrations: [],
+          root: rootUrl,
+          srcDir: new URL('src/', rootUrl),
+          site: new URL('https://example.test'),
+        },
+        command: 'build',
+        injectRoute: (route) => injected.push(route),
+        addMiddleware() {},
+        updateConfig() {},
+        logger: { warn() {}, info() {}, error() {}, debug() {} },
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+
+    const patterns = injected.map(({ pattern }) => pattern);
+    expect(patterns).not.toContain('/llms.txt');
+    expect(patterns).not.toContain('/llms-full.txt');
+    // Standing down is per path. Everything the project does not route is unaffected,
+    // including the locale variants, which are dynamic patterns and cannot collide.
+    expect(patterns).toContain('/[astroAeoLocale]/llms.txt');
+    expect(patterns).toContain('/[astroAeoLocale]/llms-full.txt');
+  });
+
+  test('does not inject fallback endpoints for a static build without an adapter', async () => {
     const injected = [];
     const integration = aeo({ discovery: { sitemap: { mode: 'disabled' } } });
     await integration.hooks['astro:config:setup']({
@@ -292,6 +334,236 @@ describe('integration diagnostics and declarations', () => {
       logger: { warn() {}, info() {}, error() {}, debug() {} },
     });
     expect(injected).toEqual([]);
+  });
+
+  // Astro answers redirect routes in its routing layer, before middleware dispatch, so
+  // a project that redirects `/404/` never reaches pre-middleware for an artifact path.
+  // Those development servers need the same concrete routes an adapter build receives.
+  test('injects fallback endpoints in dev when a redirect owns the 404', async () => {
+    const root = new URL('file:///tmp/astro-aeo-dev-injected-routes/');
+    const injected = [];
+    let updated;
+    const integration = aeo({ discovery: { sitemap: { mode: 'disabled' } } });
+    const logger = { warn() {}, info() {}, error() {}, debug() {} };
+    await integration.hooks['astro:config:setup']({
+      config: {
+        integrations: [],
+        root,
+        site: new URL('https://example.test'),
+        redirects: { '/404/': '/error/' },
+      },
+      command: 'dev',
+      injectRoute: (route) => injected.push(route),
+      addMiddleware() {},
+      updateConfig: (value) => { updated = value; },
+      logger,
+    });
+
+    expect(injected.map(({ pattern }) => pattern)).toEqual([
+      '/[...astroAeoMarkdown].md',
+      '/llms.txt',
+      '/llms-full.txt',
+      '/[astroAeoLocale]/llms.txt',
+      '/[astroAeoLocale]/llms-full.txt',
+    ]);
+    // A dynamic pattern has to render on demand to be dispatched at all, while an
+    // exact path is prerendered so its internal rewrites stay in process: Astro
+    // forbids an on-demand route from rewriting to a prerendered page.
+    expect(Object.fromEntries(injected.map(({ pattern, prerender }) => [pattern, prerender])))
+      .toEqual({
+        '/[...astroAeoMarkdown].md': false,
+        '/llms.txt': true,
+        '/llms-full.txt': true,
+        '/[astroAeoLocale]/llms.txt': false,
+        '/[astroAeoLocale]/llms-full.txt': false,
+      });
+    expect(new Set(injected.map(({ entrypoint }) => entrypoint)).size).toBe(1);
+
+    await integration.hooks['astro:config:done']({
+      config: {
+        site: new URL('https://example.test'),
+        base: '/',
+        trailingSlash: 'ignore',
+        build: { format: 'directory' },
+        root,
+        publicDir: new URL('public/', root),
+        output: 'static',
+      },
+      logger,
+      injectTypes() {},
+      buildOutput: 'static',
+    });
+    // The fallback routes must never register as project claims: if they did, the
+    // runtime would decline every artifact instead of serving it.
+    integration.hooks['astro:routes:resolved']({
+      routes: [
+        ...injected.map((route) => ({
+          type: 'endpoint',
+          origin: 'project',
+          pathname: route.pattern.includes('[') ? undefined : route.pattern,
+          pattern: route.pattern,
+          entrypoint: route.entrypoint,
+          prerender: route.prerender,
+        })),
+        {
+          type: 'endpoint',
+          origin: 'project',
+          pathname: '/feed.md',
+          entrypoint: '/tmp/astro-aeo-dev-injected-routes/src/pages/feed.md.js',
+          prerender: false,
+        },
+      ],
+    });
+
+    const plugin = updated.vite.plugins[0];
+    const source = plugin.load(plugin.resolveId('astro-aeo:runtime-config'));
+    expect(source).toContain('"projectPaths": ["/feed.md"]');
+    expect(source).not.toContain('astroAeoMarkdown');
+    expect(source).not.toContain('"dynamicPagesUnreachable": true');
+  });
+
+  test('leaves an ordinary dev server alone, redirects that do not own the 404 included', async () => {
+    const cases = [
+      undefined,
+      { '/old/': '/new/' },
+      { '/404-page/': '/error/' },
+      { '/blog/archive/404/': '/error/' },
+      // One segment deep, but `blog` is not a configured locale, so this redirects
+      // one concrete page and leaves the router's own 404 dispatching middleware.
+      { '/blog/404/': '/error/' },
+    ];
+    for (const redirects of cases) {
+      const injected = [];
+      const integration = aeo({ discovery: { sitemap: { mode: 'disabled' } } });
+      await integration.hooks['astro:config:setup']({
+        config: {
+          integrations: [],
+          site: new URL('https://example.test'),
+          ...(redirects ? { redirects } : {}),
+        },
+        command: 'dev',
+        injectRoute: (route) => injected.push(route),
+        addMiddleware() {},
+        updateConfig() {},
+        logger: { warn() {}, info() {}, error() {}, debug() {} },
+      });
+      expect(injected, `redirects: ${JSON.stringify(redirects)}`).toEqual([]);
+    }
+  });
+
+  // A locale-prefixed 404 redirect swallows artifacts exactly the same way, and a
+  // trailing slash is not significant to Astro's routing.
+  test('recognizes a locale-prefixed and slashless 404 redirect', async () => {
+    // `de` has to be a locale the project configures, in either spelling Astro
+    // accepts, for the prefixed form to mean the router's 404 rather than a page.
+    const cases = [
+      { redirects: { '/de/404': '/de/error/' }, i18n: { defaultLocale: 'en', locales: ['en', 'de'] } },
+      {
+        redirects: { '/de/404': '/de/error/' },
+        i18n: { defaultLocale: 'en', locales: ['en', { path: 'de', codes: ['de-AT'] }] },
+      },
+      { redirects: { '/404': '/error' } },
+    ];
+    for (const { redirects, i18n } of cases) {
+      const injected = [];
+      const integration = aeo({ discovery: { sitemap: { mode: 'disabled' } } });
+      await integration.hooks['astro:config:setup']({
+        config: {
+          integrations: [],
+          site: new URL('https://example.test'),
+          redirects,
+          ...(i18n ? { i18n } : {}),
+        },
+        command: 'dev',
+        injectRoute: (route) => injected.push(route),
+        addMiddleware() {},
+        updateConfig() {},
+        logger: { warn() {}, info() {}, error() {}, debug() {} },
+      });
+      expect(injected.map(({ pattern }) => pattern), JSON.stringify(redirects))
+        .toContain('/[...astroAeoMarkdown].md');
+    }
+  });
+
+  // The prefix gate reads the configured locales, so the same redirect decides
+  // differently in a project that does not declare the segment as a locale.
+  test('ignores a locale-shaped 404 redirect for a segment that is not a locale', async () => {
+    const injected = [];
+    const integration = aeo({ discovery: { sitemap: { mode: 'disabled' } } });
+    await integration.hooks['astro:config:setup']({
+      config: {
+        integrations: [],
+        site: new URL('https://example.test'),
+        redirects: { '/de/404/': '/de/error/' },
+        i18n: { defaultLocale: 'en', locales: ['en', 'fr'] },
+      },
+      command: 'dev',
+      injectRoute: (route) => injected.push(route),
+      addMiddleware() {},
+      updateConfig() {},
+      logger: { warn() {}, info() {}, error() {}, debug() {} },
+    });
+    expect(injected).toEqual([]);
+  });
+
+  // `serverOutput` is module private, and inline-renderer validation short-circuits
+  // outside a build, so no dev-side assertion can read it back directly. What is
+  // assertable is that a dev run leaves no residue: injection must not persist into a
+  // later build on the same instance, and the build must still validate as fully
+  // prerendered, which an inline renderer only survives while `serverOutput` is false.
+  test('a dev run leaves a later static build prerendered and free of injected routes', async () => {
+    const root = new URL('file:///tmp/astro-aeo-dev-server-output/');
+    const injected = [];
+    const integration = aeo({
+      markdown: { renderers: [() => ''] },
+      discovery: { sitemap: { mode: 'disabled' } },
+    });
+    const logger = { warn() {}, info() {}, error() {}, debug() {} };
+    const setup = (command) => integration.hooks['astro:config:setup']({
+      config: {
+        integrations: [],
+        root,
+        site: new URL('https://example.test'),
+        redirects: { '/404/': '/error/' },
+      },
+      command,
+      injectRoute: (route) => injected.push(route),
+      addMiddleware() {},
+      updateConfig() {},
+      logger,
+    });
+    await setup('dev');
+    expect(injected.length).toBeGreaterThan(0);
+    injected.length = 0;
+    await setup('build');
+    expect(injected).toEqual([]);
+
+    await integration.hooks['astro:config:done']({
+      config: {
+        site: new URL('https://example.test'),
+        base: '/',
+        trailingSlash: 'ignore',
+        build: { format: 'directory' },
+        root,
+        publicDir: new URL('public/', root),
+        output: 'static',
+      },
+      logger,
+      injectTypes() {},
+      buildOutput: 'static',
+    });
+    expect(() => integration.hooks['astro:routes:resolved']({
+      routes: [
+        {
+          type: 'page',
+          origin: 'project',
+          pathname: '/about',
+          pattern: '/about',
+          entrypoint: '/tmp/astro-aeo-dev-server-output/src/pages/about.astro',
+          prerender: true,
+        },
+      ],
+    })).not.toThrow();
   });
 
   test('treats integration routes as runtime owners without claiming Astro internal routes', async () => {
