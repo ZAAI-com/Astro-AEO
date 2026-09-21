@@ -1,0 +1,26 @@
+cli/doctor.test.js
+  s_9adb0045239326::t_15860a47fe4ad6 1-179
+bin/astro-aeo.js
+  s_9adb0045239326::t_15860a47fe4ad6 13-14,21-22,48-59,101-112
+  s_9adb0045239326::t_8ec5f82ab0e2ee 113-117
+cli/doctor.js
+  s_9adb0045239326::t_1f8b62f6267c4a 1-270
+test/contracts/accept.js
+  s_9adb0045239326::t_5ee71afe66a674 1-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "55a485246b7b349e33e4e2f13e2f8dd281192962",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
