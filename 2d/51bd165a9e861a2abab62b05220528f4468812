@@ -1,0 +1,93 @@
+fixtures/starlight-static/src/content/docs/guides/explicit.mdx
+  s_9adb0045239326::t_50f6aa96ea38dc 1-10
+README.md
+  s_9adb0045239326::t_5bc9f0368f1cc0 1102-1150
+fixtures/starlight-static/package.json
+  s_9adb0045239326::t_50f6aa96ea38dc 1-4,10
+  s_9adb0045239326::t_2872a7eb468cb0 5-9
+AGENTS.md
+  s_9adb0045239326::t_5bc9f0368f1cc0 85-92,134,136-137
+fixtures/starlight-node/src/content/docs/guides/install.md
+  s_9adb0045239326::t_22806cc5c090b0 1-16
+src/starlight.test.js
+  s_9adb0045239326::t_62c9b1a7fbb280 1-71
+fixtures/starlight-node/src/content/docs/guides/dynamic.mdx
+  s_9adb0045239326::t_22806cc5c090b0 1-8
+src/starlight/markdown.test.js
+  s_9adb0045239326::t_62c9b1a7fbb280 1-83
+package.json
+  s_9adb0045239326::t_3d0cdb5ee31972 124
+  s_9adb0045239326::t_50f6aa96ea38dc 37-41,98,104-106
+fixtures/starlight-static/src/content/docs/guides/dynamic.mdx
+  s_9adb0045239326::t_50f6aa96ea38dc 1-8
+.changeset/starlight-plugin.md
+  s_9adb0045239326::t_5bc9f0368f1cc0 1-19
+fixtures/starlight-static/src/content/docs/guides/tabs.mdx
+  s_9adb0045239326::t_50f6aa96ea38dc 1-25
+src/core/boundary.test.js
+  s_9adb0045239326::t_09576d18d9e1fe 14-16,30,57,60-61
+fixtures/starlight-node/package.json
+  s_9adb0045239326::t_22806cc5c090b0 1-11
+src/starlight/markdown.js
+  s_9adb0045239326::t_35cb3134053562 49
+  s_9adb0045239326::t_c91d16752114b4 45-48,98-99
+  s_9adb0045239326::t_d1fd6e7611f8b0 1-44,50-97,100-135
+fixtures/types-consumer/consumer.ts
+  s_9adb0045239326::t_5bc9f0368f1cc0 883-894
+fixtures/starlight-static/src/content/docs/guides/install.md
+  s_9adb0045239326::t_50f6aa96ea38dc 1-16
+src/starlight.ssr.test.js
+  s_9adb0045239326::t_22806cc5c090b0 1-88
+src/starlight.e2e.test.js
+  s_9adb0045239326::t_efb4bada13ac80 11-14,20,37
+  s_9adb0045239326::t_50f6aa96ea38dc 1-10,15-19,21-36,38,40-47,49-56,58-62,64-73,75-95
+  s_9adb0045239326::t_1841fd8161f1b3 39,48,57,63,74
+fixtures/starlight-static/src/content.config.ts
+  s_9adb0045239326::t_50f6aa96ea38dc 1-7
+fixtures/starlight-node/src/content/docs/index.md
+  s_9adb0045239326::t_22806cc5c090b0 1-6
+src/starlight.js
+  s_9adb0045239326::t_1841fd8161f1b3 56-59,69-72
+  s_9adb0045239326::t_ee32a41bd635ba 76
+  s_9adb0045239326::t_5d3a56f2321251 1-55,60-68,73-75,77-91
+src/starlight/marker.test.js
+  s_9adb0045239326::t_62c9b1a7fbb280 1-67
+src/starlight.d.ts
+  s_9adb0045239326::t_5d3a56f2321251 1-37
+fixtures/starlight-node/astro.config.mjs
+  s_9adb0045239326::t_22806cc5c090b0 1-16,18-20
+  s_9adb0045239326::t_1ca41ba3f2c5ce 17
+scripts/package-smoke.mjs
+  s_9adb0045239326::t_5bc9f0368f1cc0 82-84
+fixtures/starlight-node/src/content.config.ts
+  s_9adb0045239326::t_22806cc5c090b0 1-7
+src/starlight/marker.js
+  s_9adb0045239326::t_219ef0efc28e1e 1-73
+.github/workflows/W1-Test.yml
+  s_9adb0045239326::t_5bc9f0368f1cc0 139
+fixtures/starlight-static/src/content/docs/index.md
+  s_9adb0045239326::t_50f6aa96ea38dc 1-6
+src/starlight/route-data.js
+  s_9adb0045239326::t_317245d412774e 26
+  s_9adb0045239326::t_219ef0efc28e1e 1-25,27-29
+fixtures/starlight-static/astro.config.mjs
+  s_9adb0045239326::t_50f6aa96ea38dc 1-15
+pnpm-lock.yaml
+  s_9adb0045239326::t_6477ff415363e1 33-35,164-174,192-200,415-418,610-621,1128-1130,1358-1395,1730-1732,2172-2176,2266-2271,2516-2518,2535-2539,2687-2690,2924-2926,3185-3211,3221-3226,3230-3232,3243-3245,3276-3283,3575-3578,3743-3745,3764-3766,3814-3816,4184-4187,4278-4287,4415-4417,4421-4423,4945-4947,5046-5049,5443-5449,5521-5555,5844-5845,5969-5993,6330-6331,6838-6860,7096-7097,7527-7532,7680-7687,7905-7906,7921-7922,8074-8075,8399-8405,8679-8743,8799-8809,8814-8821,8830-8831,8864-8867,9170-9171,9313-9316,9334-9347,9478-9487,9938-9947,10019-10028,10204-10207,10216-10224,10959-10963,11020-11021
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2d51bd165a9e861a2abab62b05220528f4468812",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
