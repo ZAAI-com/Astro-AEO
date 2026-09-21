@@ -13,6 +13,7 @@ export const COLLECT_FLAG = 'astroAeoCollect';
  * @property {string} [description]
  * @property {string} [image]
  * @property {string} [language]
+ * @property {string} [version]
  * @property {string} [sourcePath]
  * @property {'markdown'|'mdx'|'astro'|'cms'|'rendered'|'custom'} [sourceKind]
  * @property {string} [published]

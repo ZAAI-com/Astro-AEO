@@ -1,6 +1,7 @@
 // @ts-check
 import { extname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { isPageVersion } from '../core/page-version.js';
 import { normalizeCatalogPathname, normalizePath } from '../core/match.js';
 import { pageCatalogIdentity } from '../core/page-identity.js';
 import { toIsoTimestamp } from '../core/page-model.js';
@@ -213,6 +214,14 @@ export async function loadCatalogPages(catalogs, load, logger, context, diagnost
               });
             }
           }
+          if (entry.version !== undefined && !isPageVersion(entry.version)) {
+            reportCatalogDiagnostic(diagnostics, logger, {
+              code: 'catalog-invalid-version',
+              message: `astro-aeo: catalog page ${pathname} has an invalid version label and it was ignored.`,
+              pathname,
+              sourcePath: catalog.module,
+            });
+          }
           const directives = entry.directives && typeof entry.directives === 'object' && !Array.isArray(entry.directives)
             ? Object.fromEntries(
                 ['index', 'includeInLlms', 'includeInLlmsFull', 'generateMarkdown']
@@ -229,6 +238,7 @@ export async function loadCatalogPages(catalogs, load, logger, context, diagnost
             ...(typeof entry.description === 'string' ? { description: entry.description } : {}),
             ...(typeof entry.image === 'string' ? { image: entry.image } : {}),
             ...(typeof entry.language === 'string' ? { language: entry.language } : {}),
+            ...(isPageVersion(entry.version) ? { version: entry.version } : {}),
             ...(typeof entry.markdown === 'string' ? { markdown: entry.markdown } : {}),
             ...(entry.dates && typeof entry.dates === 'object' && !Array.isArray(entry.dates)
               ? {

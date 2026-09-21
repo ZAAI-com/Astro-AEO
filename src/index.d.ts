@@ -75,6 +75,8 @@ export interface CorpusManifestPageV1 {
   hash: `sha256:${string}` | null;
   sourceStrategy: string;
   modified?: string;
+  /** Documentation version label. Absent for unversioned pages. */
+  version?: string;
   chunks: string[];
 }
 
@@ -236,6 +238,8 @@ export interface AeoPageRecord extends AeoPage {
   origin?: string;
   locale?: string;
   language?: string;
+  /** Documentation version label. Absent for unversioned pages. */
+  version?: string;
   alternates?: PageAlternate[];
   metadata: {
     title: string;
@@ -1011,6 +1015,7 @@ export interface RuntimePluginPageRecord {
   readonly pathname: string;
   readonly origin?: string;
   readonly locale?: string;
+  readonly version?: string;
   readonly routePattern?: string;
   readonly rendering?: 'prerendered' | 'on-demand';
   readonly canonicalUrl?: string;

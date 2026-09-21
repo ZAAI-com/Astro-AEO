@@ -189,7 +189,7 @@ function validCachedPageResult(value) {
  * @param {import('../page.js').PageDescriptor} descriptor
  * @param {string} pathname
  * @param {CollectContext} ctx
- * @returns {{ markdown?: string; body?: string; title?: string; description?: string; image?: string; language?: string; published?: string; lastModified?: string; authors?: unknown[]; entities?: unknown[]; directives?: Partial<Record<'index'|'includeInLlms'|'includeInLlmsFull'|'generateMarkdown', boolean>>; kind?: 'markdown'|'mdx'|'astro'|'cms'|'rendered'|'custom'; path?: string; hash?: string; strategy?: 'markdown-route'|'catalog'; extraction?: import('../core/extract/index.js').ExtractionDiagnostics } | undefined}
+ * @returns {{ markdown?: string; body?: string; title?: string; description?: string; image?: string; language?: string; version?: string; published?: string; lastModified?: string; authors?: unknown[]; entities?: unknown[]; directives?: Partial<Record<'index'|'includeInLlms'|'includeInLlmsFull'|'generateMarkdown', boolean>>; kind?: 'markdown'|'mdx'|'astro'|'cms'|'rendered'|'custom'; path?: string; hash?: string; strategy?: 'markdown-route'|'catalog'; extraction?: import('../core/extract/index.js').ExtractionDiagnostics } | undefined}
  */
 function authoredSource(descriptor, pathname, ctx) {
   const catalogMarkdown =
@@ -231,6 +231,7 @@ function authoredSource(descriptor, pathname, ctx) {
     descriptor.description !== undefined ||
     descriptor.image !== undefined ||
     descriptor.language !== undefined ||
+    descriptor.version !== undefined ||
     descriptor.dates !== undefined ||
     descriptor.authors !== undefined ||
     descriptor.entities !== undefined ||
@@ -264,6 +265,7 @@ function authoredSource(descriptor, pathname, ctx) {
     ...(descriptor.description !== undefined ? { description: descriptor.description } : {}),
     ...(descriptor.image !== undefined ? { image: descriptor.image } : {}),
     ...(descriptor.language !== undefined ? { language: descriptor.language } : {}),
+    ...(descriptor.version !== undefined ? { version: descriptor.version } : {}),
     ...(descriptor.dates?.published !== undefined ? { published: descriptor.dates.published } : {}),
     ...(descriptor.dates?.modified !== undefined || descriptor.lastModified !== undefined
       ? { lastModified: descriptor.dates?.modified ?? descriptor.lastModified }

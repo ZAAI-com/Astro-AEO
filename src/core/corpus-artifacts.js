@@ -474,6 +474,7 @@ export async function planCorpusArtifacts(input) {
                   : null,
                 sourceStrategy: page.source?.strategy ?? 'rendered',
                 ...(page.lastModified ? { modified: page.lastModified } : {}),
+                ...(page.version ? { version: page.version } : {}),
                 chunks: chunksByPage.get(chunkIdentity) ?? [],
                 markdown: published,
               });

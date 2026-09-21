@@ -54,6 +54,7 @@ function rules(category, severity, applicability, ruleIds) {
 
 /** @type {readonly AuditRule[]} */
 const RULE_LIST = Object.freeze([
+  ...rules('build', 'warning', ['build'], ['catalog-invalid-version']),
   // Rules the 1.4 audit adds. Everything below them predates it.
   ...rules('links', 'error', ['offline', 'live'], ['link-internal-broken']),
   ...rules('links', 'warning', ['offline', 'live'], ['link-anchor-missing']),

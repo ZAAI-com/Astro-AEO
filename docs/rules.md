@@ -810,6 +810,10 @@ Severity: warning. Raised by: build.
 
 Severity: warning. Raised by: build.
 
+### catalog-invalid-version
+
+Severity: warning. Raised by: build.
+
 ### catalog-load-failed
 
 Severity: warning. Raised by: build.
