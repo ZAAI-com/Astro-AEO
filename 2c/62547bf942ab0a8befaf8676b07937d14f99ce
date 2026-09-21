@@ -1,0 +1,21 @@
+.changeset/package-size-explanation.md
+  s_9adb0045239326::t_4f7ebc0c68bd2d 1-11
+benchmarks/README.md
+  s_9adb0045239326::t_4c328ebd64c1d7 47-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2c62547bf942ab0a8befaf8676b07937d14f99ce",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
