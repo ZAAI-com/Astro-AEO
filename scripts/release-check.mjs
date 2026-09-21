@@ -48,6 +48,7 @@ if (!quick) {
     'test:trailing',
     'test:adapters:build',
     'test:adapters:runtime',
+    'test:edge',
   ]) {
     if (!pkg.scripts?.[script]) {
       throw new Error(`package.json must define ${JSON.stringify(script)} before release:check can pass`);
@@ -59,6 +60,7 @@ if (!quick) {
     ['Base-path trailing-slash matrix', 'pnpm', ['run', 'test:trailing']],
     ['Adapter build matrix', 'pnpm', ['run', 'test:adapters:build']],
     ['Adapter local-runtime matrix', 'pnpm', ['run', 'test:adapters:runtime']],
+    ['Static edge handler in workerd', 'pnpm', ['run', 'test:edge']],
     ['Adapter bundle baselines', 'node', ['scripts/build-benchmark-baselines.mjs']],
     ['Packed tarball install and Astro build', 'node', ['scripts/package-smoke.mjs']],
     ['IndexNow live transport smoke', 'node', ['scripts/indexnow-network-smoke.mjs']],

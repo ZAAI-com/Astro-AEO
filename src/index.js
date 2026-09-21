@@ -44,6 +44,7 @@ import {
   normalizeIndexNowOrigin,
 } from './build/indexnow.js';
 import { parseIndexNowPrepareInput } from './build/indexnow-state.js';
+import { edgeProviderOf } from './edge/plugin.js';
 
 const FALLBACK_ENTRYPOINT = fileURLToPath(new URL('./runtime/fallback.js', import.meta.url));
 
@@ -107,6 +108,10 @@ export default function aeo(userConfig = {}) {
   let serverOutput = false;
   let adapterFallbacks = false;
   let hasOnDemandProjectPage = false;
+  /** @type {ReturnType<typeof edgeProviderOf>} */
+  let edgeProvider = null;
+  /** @type {string | null} */
+  let adapterName = null;
   let hasDynamicProjectPage = false;
   let hasOnDemandDynamicProjectPage = false;
   let hasPrerenderedCustom404 = false;
@@ -255,6 +260,22 @@ export default function aeo(userConfig = {}) {
         sitemapState.expected = plan.expected;
 
         adapterFallbacks = Boolean(astroConfig.adapter);
+        adapterName = typeof astroConfig.adapter?.name === 'string' ? astroConfig.adapter.name : null;
+        edgeProvider = edgeProviderOf(config.plugins);
+        // Static edge negotiation exists for sites with no server. The gate reads the
+        // adapter the project configured, never `serverOutput`, which Astro-AEO's own
+        // fallback routes turn on for any adapter.
+        if (edgeProvider && astroConfig.adapter) {
+          throw new Error(
+            `astro-aeo: the ${edgeProvider} static edge plugin is for sites without an adapter. ` +
+            'This project configures one, so the Astro middleware already negotiates: remove the edge plugin.',
+          );
+        }
+        if (edgeProvider && config.markdown.negotiation === 'off') {
+          throw new Error(
+            `astro-aeo: the ${edgeProvider} static edge plugin needs markdown.negotiation set to "response" or "redirect".`,
+          );
+        }
         // A generated artifact is a middleware claim, not a route, so Astro's router
         // treats its path as unmatched and falls back to `/404`. A page or endpoint
         // there still dispatches middleware, which is why an ordinary development
@@ -394,7 +415,8 @@ export default function aeo(userConfig = {}) {
             '}\n',
         });
 
-        if (config.markdown.negotiation !== 'off' && !astroConfig.adapter) {
+        // An edge plugin is exactly how a project without an adapter negotiates.
+        if (config.markdown.negotiation !== 'off' && !astroConfig.adapter && !edgeProvider) {
           logger.warn(
             `astro-aeo: markdown.negotiation is "${config.markdown.negotiation}" but this project has no adapter, so every route is prerendered and none can negotiate. ` +
               'Astro does not expose request headers to a prerendered route. Add an adapter and mark the routes that should negotiate with `export const prerender = false`, or set markdown.negotiation to "off". The .md companions are unaffected.',
@@ -481,6 +503,12 @@ export default function aeo(userConfig = {}) {
           }
           if (projectRoute && type === 'page' && prerendered === false) {
             hasOnDemandProjectPage = true;
+            if (edgeProvider) {
+              throw new Error(
+                `astro-aeo: the ${edgeProvider} static edge plugin requires every page to be prerendered, ` +
+                `but ${routePattern ?? pathname ?? 'a page route'} renders on demand.`,
+              );
+            }
           }
           const dynamicProjectPage = projectRoute && type === 'page' && pathname == null;
           if (dynamicProjectPage) {
@@ -637,6 +665,9 @@ export default function aeo(userConfig = {}) {
           corpusTokenizer: corpusTokenizer?.implementation,
           pluginDispatcher,
           i18n: localeSnapshot,
+          edgeProvider,
+          adapterName,
+          serverOutput,
         });
       },
     },

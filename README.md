@@ -232,7 +232,8 @@ aeo({
 All 1.3 corpus, i18n, cache, crawler, and IndexNow outputs shown above are implemented. New corpus
 families, gzip, crawler presets, Content Signals, and IndexNow remain disabled until configured.
 The 1.4 `audit` command and its SARIF, JUnit, HTML, Markdown, and GitHub report formats are implemented
-(see [Audit](#audit)). The 1.4 doctor, provider-fix, and static edge-negotiation work is not released yet.
+(see [Audit](#audit)), and so is [static edge negotiation](#static-edge-negotiation). The 1.4 doctor and
+provider-fix work is not released yet.
 
 `validation.onBuild` decides what can fail a build, at the severity chosen by `validation.failOn`:
 
@@ -616,7 +617,8 @@ a prerendered route, deliberately: those pages become static files, so honouring
 request header would work in `astro dev` and then silently stop working once
 deployed. A project with no adapter prerenders everything and cannot negotiate
 anywhere, and Astro-AEO warns if you configure it there. The `.md` companions are
-unaffected and work on any hosting.
+unaffected and work on any hosting. A fully static site can still negotiate in its host's
+edge layer: see [Static edge negotiation](#static-edge-negotiation).
 
 ### Extraction
 
@@ -1098,6 +1100,67 @@ import { FaqJsonLd, BreadcrumbJsonLd, ArticleJsonLd } from 'astro-aeo/components
 Each compatibility component renders a single, XSS-safe `<script type="application/ld+json">`.
 They use the graph builders internally while preserving their established props and serialized
 output. New semantic pages should prefer `AeoHead` and `astro-aeo/schema`.
+
+## Static edge negotiation
+
+A site with no adapter is only files, so Astro cannot negotiate for it. On Cloudflare, Netlify, and
+Vercel the host's edge layer can. This is opt-in and has two halves: a plugin that makes the build emit a
+manifest, and a small handler you deploy.
+
+```js
+// astro.config.mjs
+import aeo from 'astro-aeo';
+import { cloudflareEdge } from 'astro-aeo/edge/cloudflare'; // or netlifyEdge, vercelEdge
+
+export default defineConfig({
+  site: 'https://example.com',
+  integrations: [aeo({ markdown: { negotiation: 'response' }, plugins: [cloudflareEdge()] })],
+});
+```
+
+```js
+// Cloudflare Pages: functions/_middleware.js
+import { createCloudflareHandler } from 'astro-aeo/edge/cloudflare';
+export const onRequest = createCloudflareHandler().onRequest;
+// A Worker with a static assets binding instead: export default { fetch: createCloudflareHandler().fetch };
+```
+
+```js
+// Netlify: netlify/edge-functions/aeo.js
+import { createNetlifyHandler } from 'astro-aeo/edge/netlify';
+export default createNetlifyHandler();
+export const config = { path: '/*' };
+```
+
+```js
+// Vercel: middleware.js (Routing Middleware). The platform helpers are yours to install.
+import { next, rewrite } from '@vercel/functions';
+import { createVercelHandler } from 'astro-aeo/edge/vercel';
+export default createVercelHandler({ next, rewrite });
+```
+
+Pass `{ base: '/docs' }` to a handler when the site sets Astro's `base`.
+
+The build writes `/.well-known/astro-aeo-edge-v1.json`: `{ version: 1, provider, mode, base, routes:
+[{ html, markdown }] }`, sorted, listing only the companions the build really emitted. A companion that a
+project route or a `public/` file displaced is never advertised. `mode` is your `markdown.negotiation`.
+
+The handlers follow the Astro middleware's rules exactly, and one shared contract table tests both: `GET`
+and `HEAD` only, exact manifest routes only (with or without a trailing slash), Markdown only when it
+strictly outranks HTML, `303` with the query preserved in `'redirect'` mode, and `Vary: Accept` on every
+listed route whichever representation is chosen. They fail closed to the unmodified HTML response when
+the manifest is missing, malformed, from a future version, or stale. On Cloudflare and Netlify the
+handler serves the companion itself as `text/markdown; charset=utf-8` with the asset's `ETag` and cache
+policy, `304` for a matching `If-None-Match`, and no body for `HEAD`. Vercel middleware cannot read a
+response, so there the handler rewrites to the companion and the platform serves it.
+
+The plugin is rejected with an error when the project configures an adapter (the Astro middleware already
+negotiates there), when a page renders on demand, or when `markdown.negotiation` is `'off'`. Without the
+plugin nothing changes: no manifest is written and no output byte differs.
+
+The Cloudflare handler is tested in real workerd and all three against the shared contract locally. None
+of them has been verified on a deployed provider yet, so treat a first deployment as your own check:
+`curl -H 'Accept: text/markdown' https://example.com/` should answer `text/markdown`.
 
 ## Starlight
 

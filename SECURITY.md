@@ -93,3 +93,17 @@ the [1.2 semantic validation record](docs/release-evidence/1.2.0-semantic-valida
 - Reports carry no absolute path, no source body, and no diagnostic `details`. Text from the audited
   site is escaped for each format, and control characters are replaced in terminal, GitHub annotation,
   Markdown, JUnit, and HTML output so audited content cannot forge a log line or an annotation.
+
+### Static edge negotiation
+
+- The edge handlers read one public build artifact, `/.well-known/astro-aeo-edge-v1.json`, and treat it
+  as untrusted: a manifest that is missing, malformed, from another version, oversized, or that names an
+  unsafe or non-Markdown companion path is rejected whole, and the request continues to the unmodified
+  HTML response.
+- They act only on `GET` and `HEAD` for exact listed routes, fetch only the manifest and listed `.md`
+  companions from the deployment's own static assets, and never contact another origin. They hold no
+  request state between requests and read no cookie or credential.
+- The manifest lists only companions the build emitted after ownership arbitration, so it cannot
+  advertise a path owned by a project route or a `public/` file.
+- `.astro/aeo-cache/deployment-v1.json` is private (mode `0o600`, confined to the project root). It
+  records names and modes only: no absolute path, environment value, or secret.

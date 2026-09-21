@@ -90,6 +90,20 @@ plain ESM with no package build step.
   source line by line and returns a fallback, never partial output, for anything it would have to
   evaluate. Its fixtures are Astro 7 only and declare their dependencies so Vite bundles Starlight.
 
+- Static edge negotiation is for sites with no adapter. `src/edge/` holds the provider plugin
+  factories and re-exports the handlers; `src/runtime/edge/handler.js` is the one decision function and
+  `cloudflare.js`, `netlify.js` and `vercel.js` only adapt a host to it. All of it is bundled into an
+  edge runtime, so the boundary test covers it and pins each provider's import closure. The edge plugin
+  registers no hook: `src/index.js` recognizes its `astroAeoEdge` field, gates on the raw
+  `astroConfig.adapter` plus `hasOnDemandProjectPage` (never `serverOutput`, which any adapter turns
+  on), and `build-done` writes the manifest as the core artifact `edgeManifest`. Its body comes from a
+  `produce` callback the deferred writer runs after ownership resolution and before anything hashes
+  it. That callback is core only: plugin envelopes keep a string body. `test/contracts/accept.js` is
+  the single Accept table for the middleware, the handlers and the workerd suite (`test:edge`).
+- `src/build/deployment-facts.js` stages the private `.astro/aeo-cache/deployment-v1.json` (mode
+  `0o600`): output mode, adapter name, base, build format, trailing slash, negotiation mode, edge
+  provider and an ownership digest. Names and modes only, never a path or an environment value.
+
 ### Runtime invariants
 
 - `src/core/` and `src/runtime/` may not import `node:` modules or reach modules that do. The
@@ -131,10 +145,10 @@ plain ESM with no package build step.
 - Use plain ESM JavaScript with `// @ts-check` and JSDoc. The published folders are `src`,
   `components`, `bin`, `cli`, and `schema`, so every shipped source file must run as published and
   remain installable from a git dependency.
-- Public declarations are hand-written in exactly nine files: `src/index.d.ts`,
+- Public declarations are hand-written in exactly ten files: `src/index.d.ts`,
   `components/index.d.ts`, `src/page.d.ts`, `src/extract.d.ts`,
-  `src/runtime/middleware.d.ts`, `src/schema.d.ts`, `src/adapters.d.ts`, `src/content.d.ts`, and
-  `src/starlight.d.ts`. Update declarations
+  `src/runtime/middleware.d.ts`, `src/schema.d.ts`, `src/adapters.d.ts`, `src/content.d.ts`,
+  `src/starlight.d.ts`, and `src/edge.d.ts` (shared by the four edge subpaths). Update declarations
   and consumer type tests with their code.
 - There are four runtime dependencies: `@astrojs/sitemap`, `turndown`, `linkedom` via
   `linkedom/worker`, and the type-only Schema.org vocabulary package `schema-dts`. Do not add
@@ -174,6 +188,7 @@ pnpm run test:watch
 pnpm run test:dev
 pnpm run test:ssr
 pnpm run test:adapters
+pnpm run test:edge
 pnpm run typecheck
 pnpm run test:types
 pnpm run schema:check

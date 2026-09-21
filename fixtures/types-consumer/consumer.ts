@@ -892,3 +892,31 @@ const starlightOptions: StarlightAeoOptions = {
 };
 export const starlightPlugin: StarlightAeoPlugin = starlightAeo(starlightOptions);
 export const starlightPluginName: string = starlightPlugin.name;
+
+// The edge subpaths share one declaration file.
+import { decideEdgeRepresentation, readEdgeManifest } from 'astro-aeo/edge';
+import type { EdgeDecision, StaticEdgeManifestV1 } from 'astro-aeo/edge';
+import { cloudflareEdge, createCloudflareHandler } from 'astro-aeo/edge/cloudflare';
+import { createNetlifyHandler, netlifyEdge } from 'astro-aeo/edge/netlify';
+import { createVercelHandler, vercelEdge } from 'astro-aeo/edge/vercel';
+
+export const edgeManifest: StaticEdgeManifestV1 = {
+  version: 1,
+  provider: 'cloudflare',
+  mode: 'response',
+  base: '/',
+  routes: [{ html: '/', markdown: '/index.md' }],
+};
+export const edgeDecision: EdgeDecision = decideEdgeRepresentation(
+  new Request('https://example.com/'),
+  readEdgeManifest(edgeManifest),
+);
+export const edgePlugins: AstroAeoPlugin[] = [cloudflareEdge(), netlifyEdge(), vercelEdge()];
+export const edgeConfig: AstroAeoConfig = { markdown: { negotiation: 'response' }, plugins: [cloudflareEdge()] };
+export const cloudflareOnRequest = createCloudflareHandler({ base: '/docs', assetsBinding: 'ASSETS' }).onRequest;
+export const netlifyHandler: (request: Request, context: { next(request?: Request): Promise<Response> }) => Promise<Response> =
+  createNetlifyHandler();
+export const vercelMiddleware: (request: Request) => Promise<Response> = createVercelHandler({
+  next: () => new Response(null),
+  rewrite: () => new Response(null),
+});

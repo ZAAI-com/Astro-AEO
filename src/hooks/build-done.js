@@ -44,6 +44,8 @@ import { siteScopeUrl, stableCanonical } from '../core/canonical.js';
 import { enrichHtmlHead, stripAeoHeadMarkers } from '../core/head.js';
 import { catalogBreadcrumbTrail } from '../core/catalog-breadcrumbs.js';
 import { recommendedAuditDiagnostics } from '../audit/build.js';
+import { deploymentFactsPath, serializeDeploymentFacts } from '../build/deployment-facts.js';
+import { EDGE_MANIFEST_ROUTE, serializeEdgeManifest } from '../build/edge-manifest.js';
 import {
   applySemanticGraphPatch,
   reconcileSemanticEnvelope,
@@ -75,6 +77,9 @@ import {
  * @property {{ module: string; specifier: string; namespace: any }[]} [catalogModules]
  * @property {import('../core/markdown-renderers.js').MarkdownRendererEntry[]} [markdownRenderers]
  * @property {Awaited<ReturnType<typeof import('../plugins/dispatcher.js').createPluginDispatcher>>} [pluginDispatcher]
+ * @property {'cloudflare'|'netlify'|'vercel'|null} [edgeProvider] Static edge negotiation provider, when configured.
+ * @property {string | null} [adapterName]
+ * @property {boolean} [serverOutput]
  * @property {import('../core/locale.js').LocaleSnapshot} [i18n]
  * @property {import('../index.js').CorpusTokenizerModule} [corpusTokenizer]
  */
@@ -329,6 +334,22 @@ async function onBuildDoneLocked(config, options, env, session) {
     onDiagnostics: () => writeDiagnosticsManifest(env.projectRoot, pages, env.diagnostics ?? []),
     onSettled: releaseLocks,
   });
+  if (env.projectRoot) {
+    /** @type {any} */ (writer).stagePrivateWrite?.(
+      deploymentFactsPath(env.projectRoot),
+      () => serializeDeploymentFacts({
+        output: env.serverOutput ? 'server' : 'static',
+        adapter: env.adapterName ?? null,
+        base: env.base,
+        buildFormat: env.buildFormat,
+        trailingSlash: env.trailingSlash,
+        negotiation: config.markdown.enabled ? config.markdown.negotiation : 'off',
+        edgeProvider: env.edgeProvider ?? null,
+        ownership: /** @type {any} */ (writer).resolve?.().manifestEntries ?? [],
+      }),
+      { mode: 0o600, confineTo: env.projectRoot },
+    );
+  }
   /** @type {any} */ (writer).stagePrivateWrite?.(
     diagnosticsManifestPath(env.projectRoot),
     () => serializeDiagnosticsManifest(pages, env.diagnostics ?? []),
@@ -702,6 +723,19 @@ async function onBuildDoneLocked(config, options, env, session) {
     diagnostics: buildDiagnostics,
   });
   if (config.markdown.enabled) logger.info(`astro-aeo: emitted ${written} .md companion files`);
+
+  if (env.edgeProvider && config.markdown.enabled && config.markdown.negotiation !== 'off') {
+    const mode = config.markdown.negotiation;
+    const provider = env.edgeProvider;
+    writer.write({
+      owner: 'edgeManifest',
+      route: EDGE_MANIFEST_ROUTE,
+      representation: { body: '', contentType: 'application/json; charset=utf-8' },
+      onConflict: 'overwrite',
+      // The body lists only companions that survived ownership arbitration.
+      produce: (emitted) => serializeEdgeManifest({ pages, provider, mode, base: env.base, emitted }),
+    });
+  }
 
   const corpus = await stageCorpusArtifacts(pages, config, {
     siteUrl: env.siteUrl,
