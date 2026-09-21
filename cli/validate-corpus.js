@@ -14,8 +14,8 @@ const ARTIFACT_KINDS = new Set(['index', 'full', 'small', 'chunk', 'alias']);
 const decoder = new TextDecoder('utf-8', { fatal: true });
 
 /**
- * @typedef {import('./validate.js').Finding} Finding
- * @typedef {{ errors: Finding[]; warnings: Finding[] }} FindingOutput
+ * @typedef {import('./validate.js').LegacyFinding} LegacyFinding
+ * @typedef {{ errors: LegacyFinding[]; warnings: LegacyFinding[] }} FindingOutput
  */
 
 /**

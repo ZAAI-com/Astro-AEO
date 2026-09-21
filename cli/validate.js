@@ -7,7 +7,7 @@ import { validateLocalSitemap } from '../src/build/sitemap-validate.js';
 import { validateCorpusArtifacts } from './validate-corpus.js';
 
 /**
- * @typedef {object} Finding
+ * @typedef {object} LegacyFinding
  * @property {'error'|'warn'} level
  * @property {string} code
  * @property {string} message
@@ -17,8 +17,8 @@ import { validateCorpusArtifacts } from './validate-corpus.js';
 /**
  * @typedef {object} ValidateResult
  * @property {boolean} ok            No errors (warnings allowed).
- * @property {Finding[]} errors
- * @property {Finding[]} warnings
+ * @property {LegacyFinding[]} errors
+ * @property {LegacyFinding[]} warnings
  * @property {number} pagesChecked
  * @property {number} artifactsChecked
  * @property {number} sitemapsChecked
@@ -32,9 +32,9 @@ import { validateCorpusArtifacts } from './validate-corpus.js';
  * @returns {ValidateResult}
  */
 export function validateDist(distDir, opts = {}) {
-  /** @type {Finding[]} */
+  /** @type {LegacyFinding[]} */
   const errors = [];
-  /** @type {Finding[]} */
+  /** @type {LegacyFinding[]} */
   const warnings = [];
   const requestedBase = opts.base && opts.base !== '/'
     ? `/${opts.base.replace(/^\/+|\/+$/g, '')}`
@@ -171,7 +171,7 @@ export function validateDist(distDir, opts = {}) {
  * @param {string} base
  * @param {Set<string>} corpusPaths
  * @param {string | undefined} localOrigin
- * @param {{ errors: Finding[]; warnings: Finding[] }} out
+ * @param {{ errors: LegacyFinding[]; warnings: LegacyFinding[] }} out
  */
 function validateRobotsReferences(robots, distDir, base, corpusPaths, localOrigin, out) {
   let checked = 0;
@@ -263,7 +263,7 @@ function validationOrigin(distDir, robots) {
 
 /**
  * @param {string} llms
- * @param {{ errors: Finding[]; warnings: Finding[] }} out
+ * @param {{ errors: LegacyFinding[]; warnings: LegacyFinding[] }} out
  */
 function validateLlmsTxt(llms, out) {
   const lines = llms.split('\n');
@@ -285,7 +285,7 @@ function validateLlmsTxt(llms, out) {
 /**
  * @param {string} html
  * @param {string} rel
- * @param {{ warnings: Finding[] }} out
+ * @param {{ warnings: LegacyFinding[] }} out
  */
 function validateTitleLength(html, rel, out) {
   const title = extractTitle(html);
@@ -306,7 +306,7 @@ function validateTitleLength(html, rel, out) {
 /**
  * @param {string} html
  * @param {string} rel
- * @param {{ errors: Finding[] }} out
+ * @param {{ errors: LegacyFinding[] }} out
  */
 function validateImageAlt(html, rel, out) {
   const missingAlt = findImagesMissingAlt(html);
@@ -323,7 +323,7 @@ function validateImageAlt(html, rel, out) {
 /**
  * @param {string} html
  * @param {string} rel
- * @param {{ warnings: Finding[] }} out
+ * @param {{ warnings: LegacyFinding[] }} out
  */
 function validateSocialMeta(html, rel, out) {
   const ogTitle = extractMetaContent(html, { property: 'og:title' });
@@ -373,7 +373,7 @@ function validateSocialMeta(html, rel, out) {
 /**
  * @param {string} html
  * @param {string} rel
- * @param {{ warnings: Finding[] }} out
+ * @param {{ warnings: LegacyFinding[] }} out
  */
 function validateRobotsMeta(html, rel, out) {
   if (extractMetaContent(html, { name: 'robots' }) === undefined) {
@@ -399,7 +399,7 @@ function findImagesMissingAlt(html) {
 
 /**
  * @param {string} robots
- * @param {{ warnings: Finding[] }} out
+ * @param {{ warnings: LegacyFinding[] }} out
  */
 function validateRobots(robots, out) {
   const userAgents = [];
@@ -430,7 +430,7 @@ function validateRobots(robots, out) {
 
 /**
  * @param {string} raw
- * @param {{ errors: Finding[]; warnings: Finding[] }} out
+ * @param {{ errors: LegacyFinding[]; warnings: LegacyFinding[] }} out
  */
 function validateDomainProfile(raw, out) {
   let json;
@@ -504,7 +504,7 @@ function withoutBase(pathname, base) {
   return pathname.startsWith(`${base}/`) ? pathname.slice(base.length) : null;
 }
 
-/** @param {Finding[]} findings */
+/** @param {LegacyFinding[]} findings */
 function uniqueFindings(findings) {
   const seen = new Set();
   return findings.filter((finding) => {
