@@ -48,6 +48,34 @@ Severity: warning. Raised by: build.
 
 Severity: error. Raised by: build.
 
+### live-body-too-large
+
+Severity: warning. Raised by: live.
+
+### live-external-skipped
+
+Severity: info. Raised by: live.
+
+### live-fetch-failed
+
+Severity: error. Raised by: live.
+
+### live-markdown-mime
+
+Severity: warning. Raised by: live.
+
+### live-page-cap-reached
+
+Severity: warning. Raised by: live.
+
+### live-redirect-limit
+
+Severity: warning. Raised by: live.
+
+### live-target-unreachable
+
+Severity: error. Raised by: live.
+
 ### llms-empty
 
 Severity: warning. Raised by: offline.
@@ -226,9 +254,21 @@ Severity: error. Raised by: build.
 
 Severity: warning. Raised by: build.
 
+### canonical-duplicate
+
+Severity: warning. Raised by: build, offline, live.
+
 ### canonical-invalid
 
 Severity: warning. Raised by: build.
+
+### description-duplicate
+
+Severity: warning. Raised by: build, offline, live.
+
+### description-missing
+
+Severity: warning. Raised by: build, offline, live.
 
 ### managed-head-missing
 
@@ -262,6 +302,10 @@ Severity: warning. Raised by: offline.
 
 Severity: warning. Raised by: offline.
 
+### title-duplicate
+
+Severity: warning. Raised by: build, offline, live.
+
 ### title-length
 
 Severity: warning. Raised by: offline.
@@ -292,6 +336,18 @@ Severity: warning. Raised by: offline.
 
 Severity: error. Raised by: offline.
 
+### markdown-empty
+
+Severity: error. Raised by: build, offline, live.
+
+### markdown-html-residue
+
+Severity: warning. Raised by: build, offline, live.
+
+### markdown-no-h1
+
+Severity: warning. Raised by: build, offline, live.
+
 ### markdown-renderer-duplicate-name
 
 Severity: warning. Raised by: build.
@@ -303,6 +359,10 @@ Severity: warning. Raised by: build.
 ### markdown-renderer-runtime-load-failed
 
 Severity: warning. Raised by: build.
+
+### markdown-thin
+
+Severity: warning. Raised by: build, offline, live.
 
 ### mdx-invalid-component-mapping
 
@@ -638,6 +698,18 @@ Severity: error. Raised by: offline.
 
 Severity: error. Raised by: offline.
 
+### hreflang-return-missing
+
+Severity: warning. Raised by: offline, live.
+
+### hreflang-target-missing
+
+Severity: error. Raised by: offline, live.
+
+### html-lang-missing
+
+Severity: warning. Raised by: offline, live.
+
 ### sitemap-hreflang-canonical-mismatch
 
 Severity: error. Raised by: offline.
@@ -667,6 +739,14 @@ Severity: error. Raised by: offline.
 ### corpus-link-missing
 
 Severity: error. Raised by: offline.
+
+### link-anchor-missing
+
+Severity: warning. Raised by: offline, live.
+
+### link-internal-broken
+
+Severity: error. Raised by: offline, live.
 
 ## Category: build
 

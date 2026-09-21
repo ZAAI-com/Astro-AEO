@@ -54,6 +54,25 @@ function rules(category, severity, applicability, ruleIds) {
 
 /** @type {readonly AuditRule[]} */
 const RULE_LIST = Object.freeze([
+  // Rules the 1.4 audit adds. Everything below them predates it.
+  ...rules('links', 'error', ['offline', 'live'], ['link-internal-broken']),
+  ...rules('links', 'warning', ['offline', 'live'], ['link-anchor-missing']),
+  ...rules('metadata', 'warning', ['build', 'offline', 'live'], [
+    'canonical-duplicate', 'description-duplicate', 'description-missing', 'title-duplicate',
+  ]),
+  ...rules('markdown', 'error', ['build', 'offline', 'live'], ['markdown-empty']),
+  ...rules('markdown', 'warning', ['build', 'offline', 'live'], [
+    'markdown-html-residue', 'markdown-no-h1', 'markdown-thin',
+  ]),
+  ...rules('internationalization', 'error', ['offline', 'live'], ['hreflang-target-missing']),
+  ...rules('internationalization', 'warning', ['offline', 'live'], [
+    'hreflang-return-missing', 'html-lang-missing',
+  ]),
+  ...rules('discovery', 'error', ['live'], ['live-fetch-failed', 'live-target-unreachable']),
+  ...rules('discovery', 'warning', ['live'], [
+    'live-body-too-large', 'live-markdown-mime', 'live-page-cap-reached', 'live-redirect-limit',
+  ]),
+  ...rules('discovery', 'info', ['live'], ['live-external-skipped']),
   ...rules('links', 'error', ['offline'], ['corpus-link-missing']),
   ...rules('metadata', 'warning', ['build'], ['metadata-conflict', 'metadata-duplicate']),
   ...rules('corpus', 'warning', ['build'], [

@@ -11,7 +11,7 @@ const CODE = "'((?:schema\\.)?[a-z][a-z0-9]*(?:-[a-z0-9]+)+)'";
 // emitter helper (after an optional `out`), or a ternary between two literals.
 const EMITTERS = [
   new RegExp(`code:\\s*(?:[^,'\\n]*\\?\\s*[^:'\\n]*:\\s*)?${CODE}`, 'g'),
-  new RegExp(`\\b(?:finding|error|warn|diagnostic|report)\\(\\s*(?:out,\\s*)?${CODE}`, 'g'),
+  new RegExp(`\\b(?:finding|error|warn|diagnostic|report|at)\\(\\s*(?:out,\\s*|page,\\s*)?${CODE}`, 'g'),
   new RegExp(`\\?\\s*${CODE}\\s*:\\s*'(?:schema\\.)?[a-z0-9-]+'`, 'g'),
   new RegExp(`\\?\\s*'(?:schema\\.)?[a-z0-9-]+'\\s*:\\s*${CODE}`, 'g'),
 ];
@@ -29,7 +29,7 @@ function sourceFiles(directory) {
 }
 
 const sources = [...sourceFiles(join(ROOT, 'src')), ...sourceFiles(join(ROOT, 'cli'))]
-  .filter((path) => !path.includes(join('src', 'audit')))
+  .filter((path) => !path.endsWith(join('audit', 'rules.js')))
   .map((path) => ({ path, text: readFileSync(path, 'utf8') }));
 
 /** @param {string[]} suffixes */
@@ -51,6 +51,7 @@ describe('audit rule registry', () => {
     ['validator CLI', ['cli/validate.js', 'cli/validate-corpus.js'], 70],
     ['sitemap validator', ['src/build/sitemap-validate.js', 'src/core/sitemap-xml.js'], 25],
     ['schema graph validator', ['src/schema.js'], 12],
+    ['audit rules', ['src/audit/site-rules.js'], 10],
     ['build diagnostics', ['.js'], 170],
   ])('registers every code the %s emits', (_label, suffixes, floor) => {
     const emitted = emittedBy(suffixes);
