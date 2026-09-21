@@ -880,3 +880,15 @@ export const contentCatalog: PageCatalog = defineContentCatalog(contentOptions);
 const cmsPage: CmsPage = { id: 'record-1', pathname: '/cms/one', version: 'v2' };
 const cmsAdapter: CmsAdapter = { name: 'sanity', listPages: async () => [cmsPage] };
 export const cmsCatalog: PageCatalog = defineCmsAdapter(cmsAdapter);
+
+// The Starlight subpath types load without Starlight installed.
+import starlightAeo from 'astro-aeo/starlight';
+import type { StarlightAeoOptions, StarlightAeoPlugin } from 'astro-aeo/starlight';
+
+const starlightOptions: StarlightAeoOptions = {
+  aeo: { markdown: { negotiation: 'response' } },
+  links: { pagination: true, edit: false },
+  techArticle: true,
+};
+export const starlightPlugin: StarlightAeoPlugin = starlightAeo(starlightOptions);
+export const starlightPluginName: string = starlightPlugin.name;

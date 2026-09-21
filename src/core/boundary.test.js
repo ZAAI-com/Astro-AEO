@@ -11,6 +11,9 @@ import { fileURLToPath } from 'node:url';
 const CORE = fileURLToPath(new URL('.', import.meta.url));
 const RUNTIME = fileURLToPath(new URL('../runtime/', import.meta.url));
 const SCHEMA = fileURLToPath(new URL('../schema.js', import.meta.url));
+// The Starlight route middleware and everything it imports run inside the consumer's
+// SSR bundle on every collected page, exactly like the runtime directory.
+const STARLIGHT = fileURLToPath(new URL('../starlight/', import.meta.url));
 
 /** @returns {string[]} every .js file under `dir`, excluding tests. */
 function sourceFiles(dir) {
@@ -24,7 +27,7 @@ function sourceFiles(dir) {
 describe('src/core and src/runtime safety', () => {
   // The public schema entry is also bundled into edge/runtime consumers. It
   // lives at the package root to pair with its hand-written declaration.
-  const files = [...sourceFiles(CORE), ...sourceFiles(RUNTIME), SCHEMA];
+  const files = [...sourceFiles(CORE), ...sourceFiles(RUNTIME), ...sourceFiles(STARLIGHT), SCHEMA];
 
   test('the boundary covers a real set of modules, so an empty pass means nothing', () => {
     expect(files.length).toBeGreaterThan(10);
@@ -51,8 +54,11 @@ describe('src/core and src/runtime safety', () => {
         // Both safe directories may import from each other and from themselves.
         if (!relative(CORE, target).startsWith('..')) continue;
         if (!relative(RUNTIME, target).startsWith('..')) continue;
+        if (!relative(STARLIGHT, target).startsWith('..')) continue;
         if (target === SCHEMA) continue;
         if (target.endsWith(join('lib', 'errors.js'))) continue;
+        // Pure string escaping, shared with the components.
+        if (target.endsWith(join('lib', 'serialize-jsonld.js'))) continue;
         offenders.push(`${relative(CORE, file)} -> ${specifier}`);
       }
     }

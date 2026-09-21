@@ -34,6 +34,11 @@
       "types": "./src/content.d.ts",
       "default": "./src/content.js"
     },
+    "./starlight": {
+      "types": "./src/starlight.d.ts",
+      "default": "./src/starlight.js"
+    },
+    "./starlight/route-data": "./src/starlight/route-data.js",
     "./mdx": {
       "types": "./src/adapters.d.ts",
       "default": "./src/adapters/mdx.js"
@@ -90,11 +95,15 @@
     "markdown"
   ],
   "peerDependencies": {
+    "@astrojs/starlight": ">=0.32.0",
     "@mdx-js/mdx": "^3.1.1",
     "astro": ">=5.0.0",
     "defuddle": "^0.19.2"
   },
   "peerDependenciesMeta": {
+    "@astrojs/starlight": {
+      "optional": true
+    },
     "@mdx-js/mdx": {
       "optional": true
     },
@@ -112,6 +121,7 @@
     "@astrojs/cloudflare": "14.3.0",
     "@astrojs/netlify": "8.1.3",
     "@astrojs/node": "^11.1.4",
+    "@astrojs/starlight": "0.42.2",
     "@astrojs/vercel": "11.0.4",
     "@changesets/cli": "^2.29.8",
     "@deno/astro-adapter": "0.6.0",

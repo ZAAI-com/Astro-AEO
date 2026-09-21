@@ -1099,6 +1099,55 @@ Each compatibility component renders a single, XSS-safe `<script type="applicati
 They use the graph builders internally while preserving their established props and serialized
 output. New semantic pages should prefer `AeoHead` and `astro-aeo/schema`.
 
+## Starlight
+
+```js
+// astro.config.mjs
+import starlight from '@astrojs/starlight';
+import starlightAeo from 'astro-aeo/starlight';
+
+export default defineConfig({
+  site: 'https://docs.example.com',
+  integrations: [
+    starlight({
+      title: 'Docs',
+      plugins: [starlightAeo({ aeo: { discovery: { robots: { enabled: true } } } })],
+    }),
+  ],
+});
+```
+
+`starlightAeo()` is a Starlight plugin (Starlight 0.32 or newer). It registers the Astro-AEO integration
+itself, so do not also add `aeo()` to `integrations`: that is rejected with an error. Pass the
+integration's options as `aeo`.
+
+Each docs page publishes its authored Markdown, not a conversion of the rendered HTML:
+
+- The page title becomes the top-level heading, and `:::note`, `:::tip`, `:::caution` and `:::danger`
+  asides become labeled blockquotes (`> **Caution: Back up first**`).
+- In MDX, `<Tabs>` and `<TabItem label="...">` become labeled sections, `<Aside>`, `<Card>` and
+  `<LinkCard>` are converted, and `import` lines are dropped. Code fences are never touched.
+- A page that renders a value (an expression, an `export`, any other component, or an attribute computed
+  at run time) is not guessed at. It falls back to extracting the rendered `.sl-markdown-content` region
+  and records the `authored-source-fallback` diagnostic.
+- An explicit `<AeoPage>` on a page always wins over what the plugin infers.
+
+| Option | Default | Meaning |
+|---|---|---|
+| `aeo` | `{}` | Options for the Astro-AEO integration. |
+| `links.pagination` | `true` | Append Starlight's previous and next page links to each companion. |
+| `links.edit` | `false` | Append the "edit this page" URL when Starlight resolved one. |
+| `techArticle` | `true` | Add a minimal `TechArticle` entity from the page's own title, description, language and modified date. Nothing is inferred. |
+
+Three integration defaults differ under Starlight, and each yields to what you set in `aeo`:
+`discovery.sitemap.mode` is `'external'` because Starlight registers `@astrojs/sitemap` itself,
+`markdown.extraction.selectors` starts with `.sl-markdown-content`, and `/404` is added to
+`pages.exclude`.
+
+The page source travels through the same private marker as `<AeoPage>`: it is emitted only while
+Astro-AEO collects a page, never on a visitor's request, and it is removed before anything is written or
+served.
+
 ## Validator CLI
 
 ```bash

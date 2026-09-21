@@ -1,0 +1,11 @@
+{
+  "name": "astro-aeo-starlight-node",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@astrojs/node": "^11.1.4",
+    "@astrojs/starlight": "0.42.2",
+    "astro": "^7.3.1"
+  }
+}

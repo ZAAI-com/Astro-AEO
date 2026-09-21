@@ -82,6 +82,14 @@ plain ESM with no package build step.
   builds the deterministic `AuditReportV1`; `cli/audit.js` and `cli/formats/` only parse flags and
   render. `validate` and `ValidateResult` are frozen: new checks go to `audit`.
 
+- `src/starlight.js` is a Starlight plugin that registers `aeo()` itself and uses only Starlight's
+  public plugin and route-data APIs; it never imports Starlight, so the peer stays optional.
+  `src/starlight/route-data.js` is route middleware inside the consumer's SSR bundle (the boundary
+  test covers `src/starlight/`). It writes an `inferred` marker only under the collection flag, and
+  `readMarker` prefers an authored marker over an inferred one. `src/starlight/markdown.js` converts
+  source line by line and returns a fallback, never partial output, for anything it would have to
+  evaluate. Its fixtures are Astro 7 only and declare their dependencies so Vite bundles Starlight.
+
 ### Runtime invariants
 
 - `src/core/` and `src/runtime/` may not import `node:` modules or reach modules that do. The
@@ -123,9 +131,10 @@ plain ESM with no package build step.
 - Use plain ESM JavaScript with `// @ts-check` and JSDoc. The published folders are `src`,
   `components`, `bin`, `cli`, and `schema`, so every shipped source file must run as published and
   remain installable from a git dependency.
-- Public declarations are hand-written in exactly eight files: `src/index.d.ts`,
+- Public declarations are hand-written in exactly nine files: `src/index.d.ts`,
   `components/index.d.ts`, `src/page.d.ts`, `src/extract.d.ts`,
-  `src/runtime/middleware.d.ts`, `src/schema.d.ts`, `src/adapters.d.ts`, and `src/content.d.ts`. Update declarations
+  `src/runtime/middleware.d.ts`, `src/schema.d.ts`, `src/adapters.d.ts`, `src/content.d.ts`, and
+  `src/starlight.d.ts`. Update declarations
   and consumer type tests with their code.
 - There are four runtime dependencies: `@astrojs/sitemap`, `turndown`, `linkedom` via
   `linkedom/worker`, and the type-only Schema.org vocabulary package `schema-dts`. Do not add
