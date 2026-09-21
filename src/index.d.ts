@@ -115,6 +115,77 @@ export interface Diagnostic {
   details?: JsonValue;
 }
 
+/** Report category. The order here is the order categories appear in a report. */
+export type AuditCategory =
+  | 'discovery'
+  | 'metadata'
+  | 'markdown'
+  | 'corpus'
+  | 'structured-data'
+  | 'internationalization'
+  | 'links'
+  | 'build';
+
+/** One-based position inside `Finding.file`. */
+export interface SourceLocation {
+  line: number;
+  column?: number;
+  endLine?: number;
+  endColumn?: number;
+}
+
+/**
+ * The 1.4 finding. `ruleId` is the pre-1.4 diagnostic or validator `code`,
+ * unchanged. `file` is relative to the audited root and never absolute.
+ */
+export interface Finding {
+  version: 1;
+  ruleId: string;
+  severity: 'info' | 'warning' | 'error';
+  category: AuditCategory;
+  message: string;
+  file?: string;
+  /** Page pathname for a local audit, absolute URL for a live one. */
+  url?: string;
+  location?: SourceLocation;
+  evidence?: string;
+  helpUrl?: string;
+  /** Points this finding removed from its category. Absent when scoring is off. */
+  deduction?: number;
+}
+
+export interface AuditCategoryScore {
+  category: AuditCategory;
+  score: number;
+  findings: number;
+}
+
+/** Advisory only: scores never decide an exit status. */
+export interface AuditScores {
+  rubric: 'astro-aeo-readiness-v1';
+  overall: number;
+  categories: AuditCategoryScore[];
+}
+
+export interface AuditCrawlScope {
+  origins: string[];
+  maxPages: number | 'unlimited';
+  pagesFetched: number;
+  truncated: boolean;
+  skippedExternal: number;
+}
+
+export interface AuditReportV1 {
+  version: 1;
+  tool: { name: 'astro-aeo'; version: string };
+  target: { kind: 'dist' | 'url'; value: string };
+  /** Present for live audits only. */
+  scope?: AuditCrawlScope;
+  summary: { errors: number; warnings: number; infos: number; pagesChecked: number };
+  scores?: AuditScores;
+  findings: Finding[];
+}
+
 export interface DiagnosticManifestPageV1 {
   pathname: string;
   /** Sanitized source strategy only. Source bodies never enter this manifest. */

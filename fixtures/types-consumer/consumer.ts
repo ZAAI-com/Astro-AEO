@@ -10,6 +10,8 @@ import type {
   AeoGraph,
   AeoPage,
   AeoPageRecord,
+  AuditCategory,
+  AuditReportV1,
   Artifact,
   ArtifactOwner,
   ArtifactOwnershipManifestV1,
@@ -27,6 +29,7 @@ import type {
   EntityReference,
   EntityType,
   ExtractionOptions,
+  Finding,
   ExtractionDiagnostics,
   ExtractedDocument,
   Diagnostic,
@@ -569,6 +572,26 @@ export const recordOrigin: string | undefined = record.origin;
 export const recordLocale: string | undefined = record.locale;
 export const recordAlternateLanguage: string | undefined = record.alternates?.[0]?.language;
 export const extraction: ExtractionDiagnostics | undefined = record.extraction;
+export const auditCategory: AuditCategory = 'structured-data';
+export const finding: Finding = {
+  version: 1,
+  ruleId: 'schema.invalid-id',
+  severity: 'error',
+  category: auditCategory,
+  message: 'Example',
+  file: 'index.html',
+  location: { line: 1, column: 1 },
+  deduction: 15,
+};
+export const auditReport: AuditReportV1 = {
+  version: 1,
+  tool: { name: 'astro-aeo', version: '1.4.0' },
+  target: { kind: 'dist', value: 'dist' },
+  summary: { errors: 1, warnings: 0, infos: 0, pagesChecked: 1 },
+  scores: { rubric: 'astro-aeo-readiness-v1', overall: 97.86, categories: [{ category: auditCategory, score: 85, findings: 1 }] },
+  findings: [finding],
+};
+export const auditRuleId: string = auditReport.findings[0].ruleId;
 export const diagnostic: Diagnostic = { version: 1, code: 'example', severity: 'info', message: 'Example' };
 export const extractionDefaults: string[] = DEFAULT_EXTRACTION.selectors;
 export const extractedPromise: Promise<ExtractedDocument> = extractHtml('<main>Hello</main>');

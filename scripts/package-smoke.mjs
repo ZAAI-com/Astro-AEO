@@ -78,6 +78,8 @@ try {
     'components/index.js',
     'components/index.d.ts',
     'schema/astro-aeo.schema.json',
+    'schema/audit-report-v1.schema.json',
+    'src/audit/rules.js',
   ]) {
     if (!files.has(required)) contentErrors.push(`required package file is absent: ${required}`);
   }
