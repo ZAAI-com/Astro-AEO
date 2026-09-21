@@ -1,0 +1,22 @@
+CHANGELOG.md
+  s_792ddad143d53d::t_9f89f1bde99a5d 5-27
+  s_792ddad143d53d::t_852683fc4a6283 28
+package.json
+  s_792ddad143d53d::t_9f89f1bde99a5d 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "32f3aef8b8b364e9c6ca2a26f3154fddd88add4c",
+  "prompts": {},
+  "sessions": {
+    "s_792ddad143d53d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c14c-d349-7b30-bb64-4c218b0953b5",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
