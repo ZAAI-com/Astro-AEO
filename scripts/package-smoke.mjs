@@ -79,6 +79,8 @@ try {
     'components/index.d.ts',
     'schema/astro-aeo.schema.json',
     'schema/audit-report-v1.schema.json',
+    'src/content.js',
+    'src/content.d.ts',
     'src/audit/rules.js',
     'cli/audit.js',
     'cli/formats/index.js',

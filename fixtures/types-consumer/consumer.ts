@@ -78,6 +78,7 @@ import {
   connect,
   createArticle,
   createBlogPosting,
+  createTechArticle,
   createBreadcrumbList,
   createEntity,
   createEvent,
@@ -783,6 +784,7 @@ export const p0Entities: SchemaEntity[] = [
   createOrganization({ name: 'Example' }),
   createArticle({ headline: 'Article' }),
   createBlogPosting({ headline: 'Post' }),
+  createTechArticle({ headline: 'Install', proficiencyLevel: 'Beginner' }),
   createBreadcrumbList({ name: 'Breadcrumbs' }),
   createImageObject({ name: 'Image' }),
   createVideoObject({ name: 'Video' }),
@@ -862,3 +864,19 @@ export const badPluginVersion: AstroAeoPlugin = { name: 'future', apiVersion: 2,
 export const badHeadCanonical: AeoHeadProps = { canonical: 42 };
 // @ts-expect-error AeoHead's component value must retain the same canonical prop contract
 export const badInferredHeadCanonical: ComponentProps<typeof AeoHead> = { canonical: 42 };
+
+// The content subpath: helpers return the same props and catalog contracts as `astro-aeo/page`.
+import { contentDescriptor, contentPage, defineCmsAdapter, defineContentCatalog } from 'astro-aeo/content';
+import type { CmsAdapter, CmsPage, ContentCatalogOptions } from 'astro-aeo/content';
+
+export const contentProps: AeoPageProps = contentPage({ body: '# Hi' }, { version: 'v2' });
+export const contentPageDescriptor: PageDescriptor = contentDescriptor({ body: '# Hi' }, { pathname: '/hi', version: 'v2' });
+export const contentPageVersion: string | undefined = contentPageDescriptor.version;
+const contentOptions: ContentCatalogOptions<{ slug: string }> = {
+  entries: () => [{ slug: 'a' }],
+  toPage: (entry) => (entry.slug ? { pathname: `/${entry.slug}` } : null),
+};
+export const contentCatalog: PageCatalog = defineContentCatalog(contentOptions);
+const cmsPage: CmsPage = { id: 'record-1', pathname: '/cms/one', version: 'v2' };
+const cmsAdapter: CmsAdapter = { name: 'sanity', listPages: async () => [cmsPage] };
+export const cmsCatalog: PageCatalog = defineCmsAdapter(cmsAdapter);

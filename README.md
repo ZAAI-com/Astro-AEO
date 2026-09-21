@@ -408,7 +408,7 @@ const { Content } = await render(post);
 <Content />
 ```
 
-`defineAeoPage` reads `body`, `data.title`, `data.description`, image, language, and dates from a
+`defineAeoPage` reads `body`, `data.title`, `data.description`, image, language, version, and dates from a
 content-collection entry, or accepts explicit authored Markdown/MDX, source kind/path, authors,
 Schema.org entities, and directive hints. Every field is optional; supplying none is the same as
 not using it at all, and extraction runs as usual.
@@ -496,6 +496,47 @@ export default {
   },
 };
 ```
+
+### Content and CMS helpers
+
+`astro-aeo/content` removes the boilerplate above. Every helper is plain data in, plain data out, so a
+catalog built with them is still loadable by Node before Vite exists (a catalog module cannot import
+`astro:content`; read a JSON export, a file glob, or an index your project builds).
+
+```js
+// src/aeo-catalog.js
+import { defineCmsAdapter } from 'astro-aeo/content';
+
+export default defineCmsAdapter({
+  name: 'sanity',
+  async listPages() {
+    const posts = await fetchPostsFromYourCms();
+    return posts.map((p) => ({ id: p.id, pathname: `/blog/${p.slug}`, title: p.title, markdown: p.markdown }));
+  },
+});
+```
+
+- `contentPage(entry, overrides?)` returns `<AeoPage>` props from a content-collection entry. It is
+  `defineAeoPage({ source: entry, ...overrides })`.
+- `contentDescriptor(entry, { pathname, ...overrides })` returns a serializable catalog descriptor from
+  an entry: title, description, image, language, version, dates, Markdown body, and source path.
+- `defineContentCatalog({ name?, entries, toPage })` builds a catalog. `entries(context)` loads your
+  entries and `toPage(entry, context)` returns `{ pathname, ...overrides }`, or `null` to leave one out.
+- `defineCmsAdapter({ name, listPages })` builds a catalog whose pages always carry
+  `source.kind: 'cms'` and the source path `cms:<name>:<id>`, whatever the adapter reported. Fetching,
+  credentials, and caching stay in your adapter; Astro-AEO adds no network access.
+
+These catalogs load through the same failure isolation as a hand-written one: a catalog that throws
+warns, records `catalog-load-failed`, and contributes nothing.
+
+### Page versions
+
+A page may carry a documentation version label: `version: 'v2'` on a catalog descriptor, on
+`defineAeoPage`, or as `data.version` on a content entry. A label is one path segment of letters,
+digits, `.`, `_` or `-` (at most 64 characters); anything else is ignored, and a catalog reports
+`catalog-invalid-version`. The label appears on `AeoPageRecord`, on plugin page records, and on the
+page's corpus manifest entry. It is metadata only: it changes no generated artifact, and a site without
+versions produces exactly the bytes it did before.
 
 A catalog that cannot resolve, import, evaluate, or run `listPages()` warns and
 contributes nothing rather than failing the build or server startup. Catalogs run in

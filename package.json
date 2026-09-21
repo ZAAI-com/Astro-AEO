@@ -30,6 +30,10 @@
       "types": "./src/extract.d.ts",
       "default": "./src/extract.js"
     },
+    "./content": {
+      "types": "./src/content.d.ts",
+      "default": "./src/content.js"
+    },
     "./mdx": {
       "types": "./src/adapters.d.ts",
       "default": "./src/adapters/mdx.js"

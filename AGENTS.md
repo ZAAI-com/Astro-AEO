@@ -123,9 +123,9 @@ plain ESM with no package build step.
 - Use plain ESM JavaScript with `// @ts-check` and JSDoc. The published folders are `src`,
   `components`, `bin`, `cli`, and `schema`, so every shipped source file must run as published and
   remain installable from a git dependency.
-- Public declarations are hand-written in exactly seven files: `src/index.d.ts`,
+- Public declarations are hand-written in exactly eight files: `src/index.d.ts`,
   `components/index.d.ts`, `src/page.d.ts`, `src/extract.d.ts`,
-  `src/runtime/middleware.d.ts`, `src/schema.d.ts`, and `src/adapters.d.ts`. Update declarations
+  `src/runtime/middleware.d.ts`, `src/schema.d.ts`, `src/adapters.d.ts`, and `src/content.d.ts`. Update declarations
   and consumer type tests with their code.
 - There are four runtime dependencies: `@astrojs/sitemap`, `turndown`, `linkedom` via
   `linkedom/worker`, and the type-only Schema.org vocabulary package `schema-dts`. Do not add
