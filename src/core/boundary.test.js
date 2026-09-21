@@ -70,6 +70,38 @@ describe('src/core and src/runtime safety', () => {
   });
 });
 
+describe('bare imports in bundled modules', () => {
+  // Everything here is bundled into a consumer's server or edge output, so a new
+  // package import is a new runtime dependency for every project. `yaml` in
+  // particular belongs to `astro-aeo fix` alone and must never appear.
+  const ALLOWED = [
+    /^turndown$/,
+    /^linkedom\/worker$/,
+    /^astro:/,
+    /^astro-aeo:/,
+    /^virtual:astro-aeo\//,
+  ];
+
+  test('come only from the runtime dependency allowlist', () => {
+    const files = [...sourceFiles(CORE), ...sourceFiles(RUNTIME), ...sourceFiles(STARLIGHT), ...sourceFiles(EDGE), EDGE_ENTRY, SCHEMA];
+    const offenders = [];
+    for (const file of files) {
+      // JSDoc `import('astro')` type references are not imports.
+      const source = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+      const specifiers = [
+        ...source.matchAll(/^\s*(?:import|export)\s[^'"\n]*?from\s*['"]([^'"]+)['"]/gm),
+        ...source.matchAll(/^\s*import\s*['"]([^'"]+)['"]/gm),
+        ...source.matchAll(/\bimport\(\s*['"]([^'"]+)['"]\s*\)/g),
+      ].map((match) => match[1]);
+      for (const specifier of specifiers) {
+        if (specifier.startsWith('.') || ALLOWED.some((pattern) => pattern.test(specifier))) continue;
+        offenders.push(`${relative(CORE, file)} -> ${specifier}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+
 describe('static edge bundles', () => {
   /** @param {string} entry @param {Set<string>} [seen] @returns {Set<string>} */
   function closure(entry, seen = new Set()) {

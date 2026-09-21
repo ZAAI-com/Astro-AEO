@@ -131,7 +131,8 @@
     "@astrojs/sitemap": "^3.7.3",
     "linkedom": "^0.18.13",
     "schema-dts": "^2.0.0",
-    "turndown": "^7.2.0"
+    "turndown": "^7.2.0",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@astrojs/cloudflare": "14.3.0",
@@ -160,6 +161,7 @@
     "test:adapters:runtime": "vitest run --config vitest.adapters-runtime.config.js",
     "test:compat:node": "node scripts/test-node-server-compat.mjs",
     "test:edge": "vitest run --config vitest.edge.config.js",
+    "test:recipes": "vitest run --config vitest.recipes.config.js",
     "test:dev": "vitest run --config vitest.dev.config.js",
     "test:ssr": "vitest run --config vitest.ssr.config.js",
     "test:trailing": "node scripts/test-node-server-compat.mjs --trailing-matrix",
@@ -172,6 +174,7 @@
     "changeset:check": "node scripts/check-changesets.mjs --since origin/main",
     "benchmark": "node --expose-gc benchmarks/run.mjs",
     "benchmark:check": "node --expose-gc benchmarks/run.mjs --enforce",
+    "benchmark:audit": "node benchmarks/audit.mjs --enforce",
     "benchmark:baseline": "node scripts/update-benchmark-baseline.mjs",
     "indexnow:smoke": "node scripts/indexnow-network-smoke.mjs",
     "package:smoke": "node scripts/package-smoke.mjs",
