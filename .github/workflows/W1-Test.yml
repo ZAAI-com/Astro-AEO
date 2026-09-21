@@ -99,6 +99,57 @@ jobs:
           ASTRO_AEO_ADAPTER_RUNTIMES: node,cloudflare,deno
         run: pnpm run test:adapters:runtime
 
+  edge-runtime:
+    name: static edge handler in workerd
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Accept contract against the Cloudflare handler in workerd
+        run: pnpm run test:edge
+
+  action-smoke:
+    name: audit action smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      # No upload here: that needs `security-events: write`, which a pull request from a fork lacks.
+      - name: A clean build passes
+        id: clean
+        uses: ./
+        with:
+          target: fixtures/dist-valid
+          upload-sarif: 'false'
+      - name: The report is SARIF 2.1.0
+        run: node -e "const s=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')); if (s.version!=='2.1.0'||!Array.isArray(s.runs[0].results)) process.exit(1)" "${{ steps.clean.outputs.sarif-file }}"
+      - name: A broken build fails after writing its report
+        id: broken
+        continue-on-error: true
+        uses: ./
+        with:
+          target: fixtures/dist-broken
+          upload-sarif: 'false'
+          sarif-file: broken.sarif
+      - name: The failure was reported, and only after the report existed
+        run: test "${{ steps.broken.outcome }}" = "failure" && test -s broken.sarif
+
   astro-node-runtime:
     uses: ./.github/workflows/W-Node-Compat.yml
 

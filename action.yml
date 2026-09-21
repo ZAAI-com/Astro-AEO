@@ -1,0 +1,75 @@
+name: Astro-AEO audit
+description: Audit an Astro build for Answer Engine Optimization and report the findings to GitHub code scanning.
+author: ZAAI
+branding:
+  icon: check-circle
+  color: blue
+
+inputs:
+  target:
+    description: Build directory or deployed URL to audit.
+    default: dist
+  working-directory:
+    description: Directory of the Astro project, where astro-aeo is installed.
+    default: .
+  fail-on:
+    description: Fail the step on findings at this level (error, warning or none).
+    default: error
+  upload-sarif:
+    description: 'Upload the SARIF report to GitHub code scanning. Requires the security-events write permission.'
+    default: 'true'
+  sarif-file:
+    description: Where to write the SARIF report, relative to the working directory.
+    default: astro-aeo.sarif
+  args:
+    description: Extra arguments for `astro-aeo audit`, such as `--base /docs` or `--max-pages 200`.
+    default: ''
+
+outputs:
+  sarif-file:
+    description: Path of the SARIF report.
+    value: ${{ steps.audit.outputs.sarif-file }}
+  exit-code:
+    description: Exit code of the audit (0 pass, 1 findings at or above fail-on, 2 bad invocation).
+    value: ${{ steps.audit.outputs.exit-code }}
+
+runs:
+  using: composite
+  steps:
+    # The project's own installed CLI runs, so the audit matches the astro-aeo version that built the site.
+    # Inputs reach the shell as environment variables, never by interpolation into the script.
+    - id: audit
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        AEO_TARGET: ${{ inputs.target }}
+        AEO_FAIL_ON: ${{ inputs.fail-on }}
+        AEO_SARIF: ${{ inputs.sarif-file }}
+        AEO_ARGS: ${{ inputs.args }}
+      run: |
+        set +e
+        # shellcheck disable=SC2086
+        npx --no-install astro-aeo audit "$AEO_TARGET" --format sarif --output "$AEO_SARIF" --fail-on "$AEO_FAIL_ON" $AEO_ARGS
+        code=$?
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        echo "sarif-file=$PWD/$AEO_SARIF" >> "$GITHUB_OUTPUT"
+        if [ -f "$AEO_SARIF" ]; then
+          npx --no-install astro-aeo audit "$AEO_TARGET" --format markdown --fail-on none $AEO_ARGS >> "$GITHUB_STEP_SUMMARY" || true
+        fi
+        exit 0
+
+    - if: ${{ inputs.upload-sarif == 'true' && hashFiles(format('{0}/{1}', inputs.working-directory, inputs.sarif-file)) != '' }}
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ steps.audit.outputs.sarif-file }}
+        category: astro-aeo
+
+    # The status is reported last, so findings are uploaded even when they fail the job.
+    - shell: bash
+      env:
+        AEO_EXIT: ${{ steps.audit.outputs.exit-code }}
+      run: |
+        if [ "$AEO_EXIT" != "0" ]; then
+          echo "::error title=astro-aeo audit::the audit exited with status $AEO_EXIT"
+          exit "$AEO_EXIT"
+        fi
