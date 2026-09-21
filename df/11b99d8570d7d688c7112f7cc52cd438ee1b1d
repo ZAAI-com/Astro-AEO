@@ -1,0 +1,24 @@
+src/action.test.js
+  s_9adb0045239326::t_e8410131cb82a7 1-28
+action.yml
+  s_9adb0045239326::t_bc61eb5faab8f9 1-18,20-75
+  s_9adb0045239326::t_7cda1356b2206b 19
+.github/workflows/W1-Test.yml
+  s_9adb0045239326::t_75903d7cc26bc6 102-152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "df11b99d8570d7d688c7112f7cc52cd438ee1b1d",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
