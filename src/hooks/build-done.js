@@ -43,6 +43,7 @@ import { renderSchemaCorpus, validateCollectedSchemaGraphs } from '../core/schem
 import { siteScopeUrl, stableCanonical } from '../core/canonical.js';
 import { enrichHtmlHead, stripAeoHeadMarkers } from '../core/head.js';
 import { catalogBreadcrumbTrail } from '../core/catalog-breadcrumbs.js';
+import { recommendedAuditDiagnostics } from '../audit/build.js';
 import {
   applySemanticGraphPatch,
   reconcileSemanticEnvelope,
@@ -320,7 +321,11 @@ async function onBuildDoneLocked(config, options, env, session) {
     diagnostics: env.diagnostics ?? [],
     failOn: config.validation?.failOn ?? 'error',
     validationOnBuild: config.validation?.onBuild ?? 'artifacts',
-    diagnosticsProvider: () => pages.flatMap((page) => page.diagnostics),
+    // Pulled only under `validation.onBuild: 'recommended'`, after every page is final.
+    diagnosticsProvider: () => [
+      ...pages.flatMap((page) => page.diagnostics),
+      ...recommendedAuditDiagnostics(pages),
+    ],
     onDiagnostics: () => writeDiagnosticsManifest(env.projectRoot, pages, env.diagnostics ?? []),
     onSettled: releaseLocks,
   });
