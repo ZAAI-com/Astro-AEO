@@ -1,0 +1,42 @@
+src/runtime/rewrite-diagnostics.test.js
+  s_f6f7f5fdbc987b::t_38bac165c755ef 110,128
+  s_f6f7f5fdbc987b::t_51e264d87069ce 125-127,129-136,138-144
+src/runtime/fallback-routes.dev.test.js
+  s_f6f7f5fdbc987b::t_4325f9ba4ceaac 285-293
+  s_f6f7f5fdbc987b::t_2bd0d69c9f82ce 45,65,294-297,308,314-320,326
+src/index.js
+  s_f6f7f5fdbc987b::t_ffe4f8b6374780 741-765,770-779,785,788-790
+  s_f6f7f5fdbc987b::t_38ba9e1907e5a6 740
+src/runtime/rewrite-diagnostics.js
+  s_f6f7f5fdbc987b::t_67c51a2c1d0a04 74-80,89-92
+src/integration-hooks.test.js
+  s_f6f7f5fdbc987b::t_cc1bda6b880bdb 389-391,415-425,429-434,446-464
+  s_f6f7f5fdbc987b::t_5a5289d37b1461 465-466
+docs/release-evidence/1.3.2-semantic-validation.md
+  s_06926f239378a8::t_a4985102af5d99 15-17,29-31,33
+  s_06926f239378a8::t_68d3dfa9808827 34-35,57-79,88-89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "73a9ef8cff0a0313482119948784cc0070f20b05",
+  "prompts": {},
+  "sessions": {
+    "s_06926f239378a8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2a06f9f1-0f79-4902-a6bb-36900ccc2a16",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_f6f7f5fdbc987b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "55b153b1-51b9-4d51-bc8b-8385a2b2a8ac",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
