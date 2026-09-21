@@ -107,7 +107,11 @@ describe('isForbiddenPrerenderedRewriteError', () => {
     );
     expect(errorsData).toContain('name: "ForbiddenRewrite"');
     expect(errorsData).toContain('title: "Forbidden rewrite to a static route."');
-    const { AstroErrorData } = await import('astro/errors');
+    // The module, not the `astro/errors` entrypoint: Astro 5 exports only
+    // `AstroError` from there, and this pin has to hold on every supported major.
+    const { ForbiddenRewrite } = await import(
+      '../../node_modules/astro/dist/core/errors/errors-data.js'
+    );
 
     const error = new Error(
       "You tried to rewrite the on-demand route '/about.md' with the static route " +
@@ -125,7 +129,7 @@ describe('isForbiddenPrerenderedRewriteError', () => {
     // The message fallback needs the whole sentence, so it cannot be satisfied by
     // the prerendered phrase alone. Pin the two other parts against the installed
     // Astro, because a release that rewords them turns this branch off.
-    const message = AstroErrorData.ForbiddenRewrite.message('/a.md', '/a/', 'src/pages/a.astro');
+    const message = ForbiddenRewrite.message('/a.md', '/a/', 'src/pages/a.astro');
     expect(message).toContain('tried to rewrite the on-demand route');
     expect(message).toContain('with the static route');
     expect(isForbiddenPrerenderedRewriteError({ message })).toBe(true);
