@@ -1,0 +1,44 @@
+src/audit/rules.js
+  s_9adb0045239326::t_db8341f38c0d69 1-22,24-56,62-187,190-211
+  s_9adb0045239326::t_1c3dd89151b4bb 23
+  s_9adb0045239326::t_29240cf3b00b4f 188-189
+  s_9adb0045239326::t_2961cdac7b9c3b 57-61
+docs/rules.md
+  s_9adb0045239326::t_23b5340df4c9a7 1-236,245-501,504,507-509,514-661,668-779
+  s_9adb0045239326::t_2961cdac7b9c3b 237-244,502-503,505-506,510-513,662-667
+src/audit/score.js
+  s_9adb0045239326::t_35e85163620191 1-65
+scripts/rule-docs.mjs
+  s_9adb0045239326::t_23b5340df4c9a7 1-26
+src/audit/score.test.js
+  s_9adb0045239326::t_38f553a8259593 1-55
+src/audit/report.test.js
+  s_9adb0045239326::t_38f553a8259593 1-59
+src/audit/rules.test.js
+  s_9adb0045239326::t_38f553a8259593 1-18,22-40,44-92
+  s_9adb0045239326::t_2961cdac7b9c3b 19-21,41-43
+src/audit/finding.test.js
+  s_9adb0045239326::t_38f553a8259593 1-85
+scripts/generate-rule-docs.mjs
+  s_9adb0045239326::t_23b5340df4c9a7 1-9
+src/audit/finding.js
+  s_9adb0045239326::t_ecdd13233a152d 1-133
+src/audit/report.js
+  s_9adb0045239326::t_5ab8133f149821 1-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0029f547fb7326fed6b8d0050d30959b4ce26ce0",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}

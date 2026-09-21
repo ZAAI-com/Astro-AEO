@@ -1,0 +1,94 @@
+cli/formats/html.js
+  s_9adb0045239326::t_e8c80c4d3e6bad 1-49
+src/audit/live.test.js
+  s_9adb0045239326::t_0598d2a83a19f8 1-155
+cli/formats/junit.js
+  s_9adb0045239326::t_5bfb377faaca9a 1-38
+bin/astro-aeo.js
+  s_9adb0045239326::t_37f73577152ea7 12,18,32-43,70-81
+  s_9adb0045239326::t_8aafea477d8837 82-84
+SECURITY.md
+  s_9adb0045239326::t_bd016563d24ad0 85
+  s_9adb0045239326::t_a29947124b610e 82-84,86-95
+cli/formats/markdown.js
+  s_9adb0045239326::t_5bfb377faaca9a 1-37
+src/audit/rules.test.js
+  s_9adb0045239326::t_0ad19ab8763fcc 54
+  s_9adb0045239326::t_ea1dcebf2d82d9 14,32
+src/audit/build.js
+  s_9adb0045239326::t_91f39f82438797 1-21
+README.md
+  s_9adb0045239326::t_a29947124b610e 234-246,1076-1122
+  s_9adb0045239326::t_5bb4af63a48026 1123
+.changeset/audit-command.md
+  s_9adb0045239326::t_a29947124b610e 1-16
+src/audit/site-rules.js
+  s_9adb0045239326::t_52dc54004b2c31 101-102
+  s_9adb0045239326::t_2bc867d4f6fa4c 59-60
+  s_9adb0045239326::t_a52e9a263cdceb 1-58,61-80,89,91,93,95,98,106,113-114,123-220
+  s_9adb0045239326::t_c510bf65b0194f 81-88,90,92,94,96-97,99-100,103-105,107-112,115-122
+cli/audit-cli.test.js
+  s_9adb0045239326::t_fd1f818a5be86b 1-126
+AGENTS.md
+  s_9adb0045239326::t_a29947124b610e 77-83
+cli/formats/shared.js
+  s_9adb0045239326::t_1f8a4871aa76fc 1-43
+cli/formats/index.js
+  s_9adb0045239326::t_5bfb377faaca9a 1-31
+cli/formats/sarif.js
+  s_9adb0045239326::t_e8c80c4d3e6bad 1-60
+cli/formats/formats.test.js
+  s_9adb0045239326::t_fd1f818a5be86b 1-105
+src/hooks/build-done.test.js
+  s_9adb0045239326::t_c70057413cdf5c 348-367
+cli/formats/github.js
+  s_9adb0045239326::t_5bfb377faaca9a 1-27
+src/hooks/build-done.js
+  s_9adb0045239326::t_91f39f82438797 324-328
+  s_9adb0045239326::t_852252a6a2ff6b 46
+src/audit/rules.js
+  s_9adb0045239326::t_ea1dcebf2d82d9 57-75
+src/audit/local.test.js
+  s_9adb0045239326::t_c510bf65b0194f 129-130,134
+  s_9adb0045239326::t_c50d24a872fa52 1-128,131-133,135-184
+cli/formats/terminal.js
+  s_9adb0045239326::t_5bfb377faaca9a 1-30
+src/build/diagnostics.js
+  s_9adb0045239326::t_3a0d73ec29c14c 65
+cli/audit.js
+  s_9adb0045239326::t_f0d0889c8ed59c 1-58,60-96,98-139
+  s_9adb0045239326::t_52dc54004b2c31 59,97
+src/audit/live.js
+  s_9adb0045239326::t_a6fc0765346741 1-53,55-78,88-324
+  s_9adb0045239326::t_678e0e832b5fcc 79-83
+  s_9adb0045239326::t_c2d013b36594b8 54,86-87
+  s_9adb0045239326::t_6759deb1801271 84-85
+src/audit/local.js
+  s_9adb0045239326::t_6c8a7094576983 1-162,164-166,168-188
+  s_9adb0045239326::t_c5d8ea1b2c4e55 163,167
+scripts/package-smoke.mjs
+  s_9adb0045239326::t_bd016563d24ad0 83-84
+src/audit/build.test.js
+  s_9adb0045239326::t_c70057413cdf5c 1-52
+src/audit/facts.js
+  s_9adb0045239326::t_e97113131fa739 1-105
+docs/rules.md
+  s_9adb0045239326::t_0ad19ab8763fcc 51-78,257-260,265-272,305-308,339-350,363-366,701-712,743-749
+  s_9adb0045239326::t_e32113bcc5f3a9 750
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c25c10c6ae02f4ea3fcd269a5effe4dc1ec1a432",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}

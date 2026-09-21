@@ -1,0 +1,24 @@
+src/schema.js
+  s_9adb0045239326::t_d7dc16de10b6fa 232,238,382,396,974,991,1002,1032,1090,1162,1202,1225,1525
+cli/validate.js
+  s_9adb0045239326::t_d7dc16de10b6fa 174,266,288,309,326,376,402,433
+  s_9adb0045239326::t_29240cf3b00b4f 10,20-21,35,37,507
+cli/validate-corpus.js
+  s_9adb0045239326::t_29240cf3b00b4f 17-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d2c35ef0511c353ca9861dd9a73596bda4bde082",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
