@@ -270,7 +270,19 @@ export default function aeo(userConfig = {}) {
           const runtimeClaims = pluginDispatcher.runtimeManifest.plugins.flatMap(
             (plugin) => plugin.claims,
           );
-          injectRuntimeFallbackRoutes(config, injectRoute, runtimeClaims, command === 'dev');
+          // `astro:config:done` is where `pagesDir` is normally recorded, and that runs
+          // after the only hook exposing `injectRoute`. Derive it here for the one
+          // question injection has to answer.
+          const setupPagesDir = astroConfig.srcDir
+            ? fileURLToPath(new URL('pages/', astroConfig.srcDir))
+            : '';
+          injectRuntimeFallbackRoutes(
+            config,
+            injectRoute,
+            runtimeClaims,
+            command === 'dev',
+            setupPagesDir,
+          );
         }
 
         const added = [];
@@ -807,12 +819,14 @@ function redirectOwnsNotFound(astroConfig) {
  * @param {(route: { pattern: string; entrypoint: string; prerender: boolean }) => void} injectRoute
  * @param {readonly import('./index.js').PluginArtifactClaim[]} [pluginClaims]
  * @param {boolean} [prerenderExactPaths] development only, see above
+ * @param {string} [pagesDir] absolute pages directory, for the collision check
  */
 function injectRuntimeFallbackRoutes(
   config,
   injectRoute,
   pluginClaims = [],
   prerenderExactPaths = false,
+  pagesDir = '',
 ) {
   if (config.markdown.enabled) {
     injectRoute({
@@ -843,8 +857,14 @@ function injectRuntimeFallbackRoutes(
     // Astro decodes concrete request pathnames before applying its generated
     // route regex. Inject the decoded identity while retaining the canonical
     // encoded spelling everywhere that is public or persisted.
+    const decoded = exactPathnameIdentity(pathname, 'runtime artifact pathname').key;
+    // The project already routes this exact path. Injecting a second route for it
+    // makes Astro warn that a static route is defined twice, and the duplicate can
+    // win the match and answer the fallback's 404 in place of the project's page.
+    // The page file carries the decoded spelling, which is why this reads the key.
+    if (projectRoutesExactPathname(pagesDir, decoded)) continue;
     patterns.push(
-      exactPathnameIdentity(pathname, 'runtime artifact pathname').key
+      decoded
         // Brackets are Astro's dynamic-route syntax. Its parser recognizes their
         // encoded spelling as literal brackets while still decoding ordinary URL
         // bytes before matching the generated regex.
@@ -907,6 +927,44 @@ function publicRuntimePathnames(publicDir) {
   };
   visit(root, []);
   return files.map(normalize);
+}
+
+/**
+ * Astro builds an endpoint route from a page file whose name carries the served
+ * extension, so `/llms.txt` comes from `src/pages/llms.txt` plus a module extension.
+ * @type {readonly string[]}
+ */
+const PROJECT_ENDPOINT_EXTENSIONS = ['.js', '.mjs', '.cjs', '.ts', '.mts', '.cts'];
+
+/**
+ * Whether the project already routes this exact artifact pathname itself.
+ *
+ * Astro warns that a static route cannot be defined more than once and says it will
+ * become a hard error. The injected fallback exists only to reach pre-middleware for
+ * a path nothing else answers, so it stands down where the project routes the path.
+ * `injectRoute` is exposed only in `astro:config:setup`, before any route is
+ * resolved, so this asks the filesystem about a handful of exact filenames rather
+ * than crawling the pages directory to discover routes.
+ *
+ * @param {string} pagesDir absolute pages directory
+ * @param {string} pathname decoded artifact pathname, leading slash
+ * @returns {boolean}
+ */
+function projectRoutesExactPathname(pagesDir, pathname) {
+  if (!pagesDir) return false;
+  const relativePath = pathname.replace(/^\/+/, '');
+  if (relativePath === '') return false;
+  const candidate = resolve(pagesDir, relativePath);
+  const fromPages = relative(pagesDir, candidate);
+  if (fromPages === '' || fromPages.startsWith('..') || isAbsolute(fromPages)) return false;
+  return PROJECT_ENDPOINT_EXTENSIONS.some((extension) => {
+    try {
+      const stats = lstatSync(`${candidate}${extension}`);
+      return stats.isFile() || stats.isSymbolicLink();
+    } catch {
+      return false;
+    }
+  });
 }
 
 /** @param {string} entrypoint @param {string} projectRoot */

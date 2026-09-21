@@ -280,6 +280,44 @@ describe('integration diagnostics and declarations', () => {
     expect(source).not.toContain('"projectPaths": ["/robots.txt"');
   });
 
+  // Astro warns that a static route cannot be defined more than once and intends to
+  // make it a hard error. `injectRoute` is available only before any route is
+  // resolved, so the only thing injection can consult is the project's page files.
+  test('does not inject an artifact path the project already routes itself', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-page-collision-'));
+    const rootUrl = pathToFileURL(`${root}/`);
+    const pages = join(root, 'src', 'pages');
+    mkdirSync(pages, { recursive: true });
+    writeFileSync(join(pages, 'llms.txt.ts'), 'export function GET() {}\n');
+    const injected = [];
+    const integration = aeo({ discovery: { sitemap: { mode: 'disabled' } } });
+    try {
+      await integration.hooks['astro:config:setup']({
+        config: {
+          adapter: { name: 'test-adapter' },
+          integrations: [],
+          root: rootUrl,
+          srcDir: new URL('src/', rootUrl),
+          site: new URL('https://example.test'),
+        },
+        command: 'build',
+        injectRoute: (route) => injected.push(route),
+        addMiddleware() {},
+        updateConfig() {},
+        logger: { warn() {}, info() {}, error() {}, debug() {} },
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+
+    const patterns = injected.map(({ pattern }) => pattern);
+    expect(patterns).not.toContain('/llms.txt');
+    // Standing down is per path. Everything the project does not route is unaffected,
+    // including the locale variant, which is a dynamic pattern and cannot collide.
+    expect(patterns).toContain('/llms-full.txt');
+    expect(patterns).toContain('/[astroAeoLocale]/llms.txt');
+  });
+
   test('does not inject fallback endpoints for a static build without an adapter', async () => {
     const injected = [];
     const integration = aeo({ discovery: { sitemap: { mode: 'disabled' } } });

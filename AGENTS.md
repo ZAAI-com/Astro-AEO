@@ -87,7 +87,10 @@ plain ESM with no package build step.
   `order: 'pre'`. Vite resolves it. `addMiddleware` itself must not introduce an adapter
   requirement.
 - Astro exposes `injectRoute` only in `astro:config:setup` and has no `removeRoute`, so the
-  injected fallback routes are unavoidably a superset of what a build turns out to need. When the
+  injected fallback routes are unavoidably a superset of what a build turns out to need. The one
+  case injection can rule out is an exact artifact path the project routes itself: no route is
+  resolved yet, but the page file is on disk, and injecting there would make Astro warn that a
+  static route is defined twice and could hand the request to the fallback's 404. When the
   build owns the corpus, the runtime declines the inventory-derived artifacts (`llms.txt`,
   `llms-full.txt`, the corpus paths, and the schema graph and map) instead of shadowing the
   emitted bytes with a shorter live render. It declines only when a dynamic page route exists,

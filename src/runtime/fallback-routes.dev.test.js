@@ -282,15 +282,12 @@ describe.sequential('development artifacts survive a redirect-owned 404', () => 
     await stopServer(running);
   });
 
-  // KNOWN FAILING. `corpus.small` is enabled here, so `/llms-small.txt` is injected,
-  // and the project's own route at that path is then shadowed: the request reaches
-  // the injected fallback, Astro-AEO declines because the project owns the path, and
-  // the fallback answers 404 instead of the project's body. AGENTS.md states the
-  // opposite invariant, that explicit project artifact routes are preserved. Astro
-  // exposes no `removeRoute` and routes are not resolved when `injectRoute` is
-  // available, so this needs a fix at dispatch rather than at injection. Marked
-  // `fails` so the suite stays honest and flips the moment it is fixed.
-  test.fails('the injected routes do not claim ownership away from Astro-AEO', async () => {
+  // `corpus.small` is enabled here, so `/llms-small.txt` is injected and the project's
+  // own route at that path competes with it. Astro has no `removeRoute` and resolves
+  // no routes while `injectRoute` is available, so the injected route cannot be
+  // withdrawn once routes are known, so it is never injected: the project's own page
+  // file is the one thing injection can ask about before any route is resolved.
+  test('the injected routes do not claim ownership away from Astro-AEO', async () => {
     // `corpus.small` defaults to disabled, and an artifact that is off is never
     // injected. The fixture has to enable it, or the request below would bypass the
     // fallback routes entirely and pass no matter how they registered.
@@ -322,6 +319,9 @@ export function GET() {
     const llms = await request(`${running.base}/llms.txt`);
     expect(llms.status).toBe(200);
     expect(await llms.text()).toContain('/about.md');
+
+    // Standing down also means Astro never sees two routes for one static path.
+    expect(running.output()).not.toContain('cannot be defined more than once');
 
     await stopServer(unowned);
     await stopServer(running);
