@@ -1,0 +1,27 @@
+README.md
+  s_9adb0045239326::t_a29947124b610e 234-246,1076-1122
+  s_9adb0045239326::t_844033ee825ce9 1123
+SECURITY.md
+  s_9adb0045239326::t_a29947124b610e 82-84,86-95
+  s_9adb0045239326::t_bd016563d24ad0 85
+.changeset/audit-command.md
+  s_9adb0045239326::t_a29947124b610e 1-16
+AGENTS.md
+  s_9adb0045239326::t_a29947124b610e 77-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8c15e7490f058632c6cb681f0c0e6c1b533e5f24",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
