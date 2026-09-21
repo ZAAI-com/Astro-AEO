@@ -1,0 +1,45 @@
+cli/audit-cli.test.js
+  s_9adb0045239326::t_fd1f818a5be86b 1-126
+cli/formats/markdown.js
+  s_9adb0045239326::t_5bfb377faaca9a 1-37
+scripts/package-smoke.mjs
+  s_9adb0045239326::t_bd016563d24ad0 83-84
+cli/formats/terminal.js
+  s_9adb0045239326::t_5bfb377faaca9a 1-30
+cli/audit.js
+  s_9adb0045239326::t_f0d0889c8ed59c 1-58,60-96,98-139
+  s_9adb0045239326::t_52dc54004b2c31 59,97
+cli/formats/junit.js
+  s_9adb0045239326::t_5bfb377faaca9a 1-38
+cli/formats/shared.js
+  s_9adb0045239326::t_1f8a4871aa76fc 1-43
+cli/formats/html.js
+  s_9adb0045239326::t_e8c80c4d3e6bad 1-49
+cli/formats/sarif.js
+  s_9adb0045239326::t_e8c80c4d3e6bad 1-60
+cli/formats/github.js
+  s_9adb0045239326::t_5bfb377faaca9a 1-27
+cli/formats/formats.test.js
+  s_9adb0045239326::t_fd1f818a5be86b 1-105
+bin/astro-aeo.js
+  s_9adb0045239326::t_37f73577152ea7 12,18,32-43,70-81
+  s_9adb0045239326::t_64c1508e127828 82-84
+cli/formats/index.js
+  s_9adb0045239326::t_5bfb377faaca9a 1-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6c9d60f7c8418400920d26ef993003b40d50455b",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
