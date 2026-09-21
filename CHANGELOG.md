@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## 1.4.0
+
+In progress. Entries are recorded as Changesets and folded in here before the tag.
+
 ## 1.3.2
 
 ### Patch Changes
