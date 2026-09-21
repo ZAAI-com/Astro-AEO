@@ -289,6 +289,9 @@ describe('integration diagnostics and declarations', () => {
     const pages = join(root, 'src', 'pages');
     mkdirSync(pages, { recursive: true });
     writeFileSync(join(pages, 'llms.txt.ts'), 'export function GET() {}\n');
+    // The index spelling routes to the same path, and a page extension counts too.
+    mkdirSync(join(pages, 'llms-full.txt'), { recursive: true });
+    writeFileSync(join(pages, 'llms-full.txt', 'index.astro'), '<p>owned</p>\n');
     const injected = [];
     const integration = aeo({ discovery: { sitemap: { mode: 'disabled' } } });
     try {
@@ -312,10 +315,11 @@ describe('integration diagnostics and declarations', () => {
 
     const patterns = injected.map(({ pattern }) => pattern);
     expect(patterns).not.toContain('/llms.txt');
+    expect(patterns).not.toContain('/llms-full.txt');
     // Standing down is per path. Everything the project does not route is unaffected,
-    // including the locale variant, which is a dynamic pattern and cannot collide.
-    expect(patterns).toContain('/llms-full.txt');
+    // including the locale variants, which are dynamic patterns and cannot collide.
     expect(patterns).toContain('/[astroAeoLocale]/llms.txt');
+    expect(patterns).toContain('/[astroAeoLocale]/llms-full.txt');
   });
 
   test('does not inject fallback endpoints for a static build without an adapter', async () => {

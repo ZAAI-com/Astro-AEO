@@ -35,6 +35,18 @@ const ANSI = new RegExp(String.fromCharCode(27) + '\\[[0-9;]*m', 'g');
 const roots = [];
 const servers = new Set();
 
+// The two shapes a project can route an artifact path with: an endpoint module and
+// an ordinary page. Both spellings have to be recognized before any route exists.
+const ENDPOINT_PAGE = `
+export const prerender = true;
+export function GET() {
+  return new Response('project owned', { headers: { 'content-type': 'text/plain' } });
+}
+`;
+const ASTRO_PAGE = `
+<html><head><title>Owned</title></head><body><h1>project owned</h1></body></html>
+`;
+
 /** @param {string} root @param {string} pathname @param {string} contents */
 function write(root, pathname, contents) {
   const target = join(root, pathname);
@@ -284,10 +296,19 @@ describe.sequential('development artifacts survive a redirect-owned 404', () => 
 
   // `corpus.small` is enabled here, so `/llms-small.txt` is injected and the project's
   // own route at that path competes with it. Astro has no `removeRoute` and resolves
-  // no routes while `injectRoute` is available, so the injected route cannot be
-  // withdrawn once routes are known, so it is never injected: the project's own page
-  // file is the one thing injection can ask about before any route is resolved.
-  test('the injected routes do not claim ownership away from Astro-AEO', async () => {
+  // no routes while `injectRoute` is available, so the route is never injected in the
+  // first place: the project's page file is the one thing injection can ask about
+  // before any route is resolved. Both spellings Astro accepts are covered, because
+  // standing down for a file that is not actually a route would drop the artifact.
+  test.each([
+    ['an endpoint at the path', 'src/pages/llms-small.txt.js', ENDPOINT_PAGE],
+    ['an endpoint index under the path', 'src/pages/llms-small.txt/index.js', ENDPOINT_PAGE],
+    ['a page at the path', 'src/pages/llms-small.txt.astro', ASTRO_PAGE],
+  ])('the injected routes do not claim ownership away from Astro-AEO, %s', async (
+    _label,
+    pageFile,
+    pageSource,
+  ) => {
     // `corpus.small` defaults to disabled, and an artifact that is off is never
     // injected. The fixture has to enable it, or the request below would bypass the
     // fallback routes entirely and pass no matter how they registered.
@@ -295,25 +316,20 @@ describe.sequential('development artifacts survive a redirect-owned 404', () => 
     // A project route at an artifact's served path must still win, which it cannot do
     // if the fallback routes registered as project claims: in that case the runtime
     // would decline the artifact and this body would never be reachable either.
-    write(root, 'src/pages/llms-small.txt.js', `
-export const prerender = true;
-export function GET() {
-  return new Response('project owned', { headers: { 'content-type': 'text/plain' } });
-}
-`);
+    write(root, pageFile, pageSource);
     const running = await startServer(root);
     const unowned = await startServer(createFixture({ small: true }));
 
     const owned = await request(`${running.base}/llms-small.txt`);
     expect(owned.status).toBe(200);
-    expect(await owned.text()).toBe('project owned');
+    expect(await owned.text()).toContain('project owned');
 
     // Negative control: the same server, the same artifact, no project route. This
     // is what the assertion above is distinguishing itself from, and it is what
     // fails if `corpus.small` ever stops being injected here.
     const unclaimed = await request(`${unowned.base}/llms-small.txt`);
     expect(unclaimed.status).toBe(200);
-    expect(await unclaimed.text()).not.toBe('project owned');
+    expect(await unclaimed.text()).not.toContain('project owned');
 
     // Positive control on the same server: Astro-AEO still owns what it claimed.
     const llms = await request(`${running.base}/llms.txt`);

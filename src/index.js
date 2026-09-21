@@ -930,11 +930,14 @@ function publicRuntimePathnames(publicDir) {
 }
 
 /**
- * Astro builds an endpoint route from a page file whose name carries the served
- * extension, so `/llms.txt` comes from `src/pages/llms.txt` plus a module extension.
+ * Astro's file-based routing drops the module extension, so `/llms.txt` comes from
+ * `src/pages/llms.txt` plus any supported page or endpoint extension.
  * @type {readonly string[]}
  */
-const PROJECT_ENDPOINT_EXTENSIONS = ['.js', '.mjs', '.cjs', '.ts', '.mts', '.cts'];
+const PROJECT_ROUTE_EXTENSIONS = [
+  '.js', '.mjs', '.cjs', '.ts', '.mts', '.cts',
+  '.astro', '.md', '.mdx', '.markdown', '.html',
+];
 
 /**
  * Whether the project already routes this exact artifact pathname itself.
@@ -957,14 +960,16 @@ function projectRoutesExactPathname(pagesDir, pathname) {
   const candidate = resolve(pagesDir, relativePath);
   const fromPages = relative(pagesDir, candidate);
   if (fromPages === '' || fromPages.startsWith('..') || isAbsolute(fromPages)) return false;
-  return PROJECT_ENDPOINT_EXTENSIONS.some((extension) => {
-    try {
-      const stats = lstatSync(`${candidate}${extension}`);
-      return stats.isFile() || stats.isSymbolicLink();
-    } catch {
-      return false;
-    }
-  });
+  // `llms.txt.js` and `llms.txt/index.js` both route to `/llms.txt`.
+  return [candidate, resolve(candidate, 'index')].some((routeBase) =>
+    PROJECT_ROUTE_EXTENSIONS.some((extension) => {
+      try {
+        const stats = lstatSync(`${routeBase}${extension}`);
+        return stats.isFile() || stats.isSymbolicLink();
+      } catch {
+        return false;
+      }
+    }));
 }
 
 /** @param {string} entrypoint @param {string} projectRoot */
