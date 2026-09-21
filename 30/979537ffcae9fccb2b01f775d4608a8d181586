@@ -1,0 +1,25 @@
+src/core/extract/marker.js
+  s_9adb0045239326::t_f0fa5d42d74b73 6-7,26,34-35
+src/audit/rules.js
+  s_9adb0045239326::t_f0fa5d42d74b73 57
+src/core/page-model.js
+  s_9adb0045239326::t_f0fa5d42d74b73 317-326
+docs/rules.md
+  s_9adb0045239326::t_f0fa5d42d74b73 319-322
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "30979537ffcae9fccb2b01f775d4608a8d181586",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
