@@ -1,0 +1,21 @@
+src/core/head.js
+  s_9adb0045239326::t_a5a14e94d86b42 865-869
+src/core/head.test.js
+  s_9adb0045239326::t_dfa9fc189f88b3 342-349
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d43e494acf4569920cfccca0b5ba60b761d43d6d",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
