@@ -1,0 +1,40 @@
+scripts/package-smoke.mjs
+  s_9adb0045239326::t_bda70383d2c8a2 82-83
+src/content.test.js
+  s_9adb0045239326::t_a8a422c556fd51 1-95
+fixtures/types-consumer/consumer.ts
+  s_9adb0045239326::t_7ede79ee89ac67 81,787
+  s_9adb0045239326::t_ec49b01cd70616 872
+  s_9adb0045239326::t_44b3d7b9cf466d 867-871,873-882
+.changeset/content-cms-versions.md
+  s_9adb0045239326::t_44b3d7b9cf466d 1-16
+.github/workflows/W1-Test.yml
+  s_9adb0045239326::t_bda70383d2c8a2 139
+AGENTS.md
+  s_9adb0045239326::t_bda70383d2c8a2 126,128
+package.json
+  s_9adb0045239326::t_bda70383d2c8a2 33-36
+README.md
+  s_9adb0045239326::t_bda70383d2c8a2 411,500-539
+  s_9adb0045239326::t_d587eb8e728c6d 540
+src/content.d.ts
+  s_9adb0045239326::t_a8a422c556fd51 1-49
+src/content.js
+  s_9adb0045239326::t_4f2e853ca8da76 1-128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c07273fecb44b6aa467298008e1c35da9f3a8191",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
