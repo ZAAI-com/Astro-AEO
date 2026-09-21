@@ -126,6 +126,31 @@ describe('isForbiddenPrerenderedRewriteError', () => {
     ).toBe(true);
   });
 
+  // Astro only throws this error when the rewrite target is prerendered, and it
+  // builds a prerendered render's request with blank headers and no query. So a
+  // forbidden rewrite proves the in-process render would have been anonymous too,
+  // which is what lets `htmlFetcher` answer a direct `.md` through the anonymous
+  // development loopback without dropping anything Astro would have kept. Pinned
+  // against the installed Astro: if a release changes either half, the loopback
+  // branch stops being equivalent and this fails instead of leaking headers.
+  test('is thrown only for a prerendered target, whose render Astro makes anonymous', async () => {
+    const { readFileSync } = await import('node:fs');
+    const read = (/** @type {string} */ relative) =>
+      readFileSync(new URL(`../../node_modules/astro/dist/core/${relative}`, import.meta.url), 'utf8');
+
+    // The throw site: guarded by the target route's own `prerender` flag.
+    expect(read('middleware/sequence.js')).toContain('routeData.prerender === true');
+
+    // The request that target would have received: headers replaced wholesale.
+    expect(read('routing/rewrite.js')).toContain('headers: isPrerendered ? {} : oldRequest.headers');
+
+    // And the query string dropped, so the loopback's preserved query cannot make
+    // the loopback render see more than the in-process render would have.
+    const request = read('request.js');
+    expect(request).toContain('const headersObj = isPrerendered ? void 0');
+    expect(request).toContain('url.search = ""');
+  });
+
   test('does not claim unrelated failures', () => {
     expect(isForbiddenPrerenderedRewriteError(noMatchingStaticPath())).toBe(false);
     expect(isForbiddenPrerenderedRewriteError(new Error('boom'))).toBe(false);

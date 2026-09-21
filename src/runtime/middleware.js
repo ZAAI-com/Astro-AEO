@@ -940,6 +940,15 @@ function htmlFetcher(context, next, opts = {}) {
         // with the routing bug this fallback exists for, which only
         // `getStaticPaths()` routes produce, or the target route is prerendered,
         // which is exactly what the forbidden rewrite reports.
+        //
+        // The third case drops nothing, even though this request arrived with its
+        // caller's headers. Astro throws the forbidden rewrite only when the target
+        // route's own `prerender` is true, and it builds a prerendered render's
+        // request with `headers: {}` and an emptied `url.search`. The in-process
+        // rewrite this replaces would therefore have rendered anonymously as well,
+        // so the loopback is equivalent to it rather than a downgrade from it.
+        // `rewrite-diagnostics.test.js` pins both halves against the installed
+        // Astro so a release that changes either one fails there.
         if (
           !headersAvailable ||
           isNoMatchingStaticPathError(error) ||
