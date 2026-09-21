@@ -28,6 +28,13 @@ All notable changes to this project are documented here. This project follows [S
   still injects nothing, and projects that saw a 301 on `llms.txt` or a `.md` companion in development
   were never affected in production.
 
+  One combination is not covered on Astro 6 and older: a project that also sets
+  `trailingSlash: 'always'`. Those versions derive a dynamic route's trailing-slash pattern from the
+  project configuration alone, so the injected `.md` catch-all matches `/about.md/` and not
+  `/about.md`, and the redirect keeps answering the slashless spelling. The exact artifact paths are
+  fixed on every supported Astro, and Astro 7 exempts dynamic endpoint patterns with a file
+  extension, so companions work there as well.
+
 ## 1.3.1
 
 A correctness release that clears the full review backlog raised against 1.3.0. There are no new

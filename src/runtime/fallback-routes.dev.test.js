@@ -18,7 +18,13 @@ const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const TEMP_PARENT = join(REPO, '.astro');
 mkdirSync(TEMP_PARENT, { recursive: true });
 const astroDir = join(REPO, 'node_modules', 'astro');
-const astroBinField = JSON.parse(readFileSync(join(astroDir, 'package.json'), 'utf8')).bin;
+const astroPkg = JSON.parse(readFileSync(join(astroDir, 'package.json'), 'utf8'));
+const astroBinField = astroPkg.bin;
+// Astro 6 and older derive a dynamic route's trailing-slash pattern from the project
+// configuration alone, so under `trailingSlash: 'always'` the injected `.md` catch-all
+// only matches `/about.md/`. Astro 7 relaxes that for any endpoint route whose pattern
+// carries a file extension, which is what makes `/about.md` reachable there.
+const dynamicRoutesIgnoreTrailingSlash = Number.parseInt(astroPkg.version, 10) >= 7;
 const astroBin = join(
   astroDir,
   typeof astroBinField === 'string' ? astroBinField : astroBinField.astro,
@@ -36,13 +42,14 @@ function write(root, pathname, contents) {
   writeFileSync(target, contents);
 }
 
-/** @param {{ redirects?: boolean; adapter?: boolean }} [options] */
+/** @param {{ redirects?: boolean; adapter?: boolean; trailingSlash?: 'always' }} [options] */
 function createFixture(options = {}) {
   const root = mkdtempSync(join(TEMP_PARENT, 'dev-fallback-routes-'));
   roots.push(root);
   write(root, 'package.json', '{"type":"module"}\n');
   // No adapter, and deliberately no `src/pages/404.astro`: the redirect must be the
   // route Astro resolves for an unmatched path.
+  const slash = options.trailingSlash === 'always' ? '/' : '';
   write(root, 'astro.config.mjs', `
 import { defineConfig } from 'astro/config';
 ${options.adapter ? "import node from '@astrojs/node';" : ''}
@@ -50,9 +57,9 @@ import aeo from 'astro-aeo';
 
 export default defineConfig({
   site: 'https://redirects.example.test',
-  trailingSlash: 'always',
+  ${options.trailingSlash ? `trailingSlash: '${options.trailingSlash}',` : ''}
   ${options.adapter ? "adapter: node({ mode: 'standalone' })," : ''}
-  ${options.redirects === false ? '' : "redirects: { '/404/': '/error/' },"}
+  ${options.redirects === false ? '' : `redirects: { '/404${slash}': '/error/' },`}
   integrations: [aeo({
     site: { profile: { enabled: true } },
     corpus: { manifest: { enabled: true } },
@@ -99,6 +106,20 @@ function childEnv(extra = {}) {
   return env;
 }
 
+/**
+ * Astro does not use Vite's `strictPort`, so `--port` is a request rather than a
+ * guarantee: a port freed by `freePort()` can be claimed by another process before
+ * the child binds it, and the child then quietly moves to the next free one. Read
+ * the port the server actually bound from its startup banner, falling back to the
+ * requested one until the banner appears.
+ *
+ * @param {string} output @param {number} fallback @returns {string}
+ */
+function resolveBase(output, fallback) {
+  const match = /Local\s+http:\/\/127\.0\.0\.1:(\d+)/.exec(output);
+  return `http://127.0.0.1:${match ? match[1] : fallback}`;
+}
+
 /** @param {string} root */
 async function startServer(root) {
   const port = await freePort();
@@ -111,8 +132,9 @@ async function startServer(root) {
   servers.add(child);
   child.stdout.on('data', (chunk) => { output += String(chunk).replace(ANSI, ''); });
   child.stderr.on('data', (chunk) => { output += String(chunk).replace(ANSI, ''); });
-  const base = `http://127.0.0.1:${port}`;
+  let base = `http://127.0.0.1:${port}`;
   await waitFor(async () => {
+    base = resolveBase(output, port);
     try {
       return (await fetch(`${base}/`)).ok;
     } catch {
@@ -220,6 +242,42 @@ describe.sequential('development artifacts survive a redirect-owned 404', () => 
     // failure the developer has to act on, so it must stay out of the terminal.
     expect(running.output()).not.toContain('could not be rendered');
     expect(running.output()).not.toContain('marked as prerendered');
+
+    await stopServer(running);
+  });
+
+  // `trailingSlash: 'always'` is the one configuration where the injected routes cannot
+  // cover everything on every supported Astro. The exact artifact paths are unaffected
+  // on all of them, because Astro exempts a static endpoint path with a file extension.
+  test('trailingSlash always keeps the exact artifact paths on every Astro', async () => {
+    const root = createFixture({ trailingSlash: 'always' });
+    const running = await startServer(root);
+
+    const unknown = await request(`${running.base}/nope/`);
+    expect(unknown.status).toBe(301);
+
+    const llms = await request(`${running.base}/llms.txt`);
+    expect(llms.status).toBe(200);
+    expect(await llms.text()).toContain('/about.md');
+
+    const robots = await request(`${running.base}/robots.txt`);
+    expect(robots.status).toBe(200);
+
+    const profile = await request(`${running.base}/.well-known/domain-profile.json`);
+    expect(profile.status).toBe(200);
+
+    // The companion rides the dynamic catch-all, so it is reachable only where Astro
+    // matches that route without a trailing slash. Asserting the older behaviour too
+    // keeps this honest: it is Astro's routing, not a claim Astro-AEO declined.
+    const companion = await request(`${running.base}/about.md`);
+    if (dynamicRoutesIgnoreTrailingSlash) {
+      expect(companion.status).toBe(200);
+      expect(companion.headers.get('content-type')).toContain('text/markdown');
+      expect(await companion.text()).toContain('Redirect fixture about body.');
+    } else {
+      expect(companion.status).toBe(301);
+      expect(companion.headers.get('location')).toContain('/error/');
+    }
 
     await stopServer(running);
   });

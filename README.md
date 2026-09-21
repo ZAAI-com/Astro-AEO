@@ -773,6 +773,15 @@ shows. Any other `/404`, including none at all, dispatches middleware on its own
 injected and nothing changes. Build output is never affected: a build without an adapter still
 injects nothing.
 
+One combination stays out of reach on Astro 6 and older: a project that sets
+`trailingSlash: 'always'` and redirects its own `/404`. Those Astro versions derive a dynamic
+route's trailing-slash pattern from the project configuration alone, so the injected `.md`
+catch-all matches `/about.md/` but not `/about.md`, and the redirect answers the slashless
+spelling. The exact artifact paths (`llms.txt`, `llms-full.txt`, `robots.txt`,
+`/.well-known/domain-profile.json`, `/llms/manifest.json`) are unaffected on every supported
+Astro, because a static endpoint path carrying a file extension is already exempt. Astro 7 extends
+that exemption to dynamic endpoint patterns, so companions work there too.
+
 Release gates build Node, Cloudflare, Deno, Vercel, and Netlify fixtures. Request
 contracts run locally for Node, Cloudflare in workerd, Deno, and the emitted Vercel and Netlify
 handlers. Separate assertions verify that Vercel routes runtime artifacts to `_render` before its
