@@ -74,6 +74,13 @@ plain ESM with no package build step.
   stripped before conversion or forwarding, including errors and opted-out pages.
 - `components/` holds `AeoPage` and the six JSON-LD components. `cli/validate.js` and
   `cli/report.js`, entered through `bin/astro-aeo.js`, implement the validator.
+- `src/audit/` is the 1.4 audit engine (Node allowed, never imported by `src/core/` or
+  `src/runtime/`). `rules.js` is the immutable registry: a `ruleId` is an existing `code` verbatim,
+  and its completeness test fails when any emitter gains a code the registry lacks. `site-rules.js`
+  runs over `PageFacts`, which `local.js` (a build directory), `live.js` (an anonymous, origin
+  allowlisted crawl) and `build.js` (`validation.onBuild: 'recommended'`) each produce. `report.js`
+  builds the deterministic `AuditReportV1`; `cli/audit.js` and `cli/formats/` only parse flags and
+  render. `validate` and `ValidateResult` are frozen: new checks go to `audit`.
 
 ### Runtime invariants
 

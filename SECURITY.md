@@ -79,3 +79,17 @@ the [1.2 semantic validation record](docs/release-evidence/1.2.0-semantic-valida
 - Generated files are confined to validated exact paths. A prior ownership manifest permits stale
   cleanup only when Astro-AEO proves ownership and the file hash is unchanged; unknown or modified
   files are preserved.
+
+### Audit command
+
+- A local audit (`astro-aeo audit <dir>`) makes no network request. It never reads through a symlink, and an
+  internal link is resolved only beneath the audited directory.
+- A live audit (`astro-aeo audit <url>`) is anonymous. It sends no cookie, authorization, or caller
+  header, refuses a URL that carries credentials, and keeps no cookie a response sets. It contacts only
+  the start origin and origins named with `--allow-origin`; every redirect hop is checked against that
+  list before it is followed, and at most five hops are followed.
+- Live requests are bounded by a page cap, a per-request timeout, a concurrency limit, and a 5 MiB
+  response cap. Response bodies are parsed as inert documents: no script runs and no subresource loads.
+- Reports carry no absolute path, no source body, and no diagnostic `details`. Text from the audited
+  site is escaped for each format, and control characters are replaced in terminal, GitHub annotation,
+  Markdown, JUnit, and HTML output so audited content cannot forge a log line or an annotation.

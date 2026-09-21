@@ -231,7 +231,19 @@ aeo({
 
 All 1.3 corpus, i18n, cache, crawler, and IndexNow outputs shown above are implemented. New corpus
 families, gzip, crawler presets, Content Signals, and IndexNow remain disabled until configured.
-The 1.4 audit, doctor, provider-fix, SARIF, and static edge-negotiation roadmap remains out of scope.
+The 1.4 `audit` command and its SARIF, JUnit, HTML, Markdown, and GitHub report formats are implemented
+(see [Audit](#audit)). The 1.4 doctor, provider-fix, and static edge-negotiation work is not released yet.
+
+`validation.onBuild` decides what can fail a build, at the severity chosen by `validation.failOn`:
+
+- `'artifacts'` (default): diagnostics raised while generating and writing artifacts.
+- `'recommended'`: the above, plus each page's own diagnostics (extraction, renderer, metadata), plus
+  the audit rules a build can answer from its page model: `markdown-empty`, `markdown-thin`,
+  `markdown-no-h1`, `markdown-html-residue`, `description-missing`, and the `title-duplicate`,
+  `description-duplicate` and `canonical-duplicate` checks. Only `markdown-empty` is an error, so with
+  the default `failOn: 'error'` a page whose companion has no text is what newly stops a build. Link,
+  anchor and hreflang rules need the rendered site and run only in `astro-aeo audit`.
+- `'off'`: nothing optional. Artifact integrity errors that would corrupt output still stop the build.
 
 ### Migrating to 1.3
 
@@ -1060,6 +1072,54 @@ alternate metadata, robots references, page metadata, and domain profiles. Stand
 does not import arbitrary project tokenizer code.
 
 Exit codes: `0` pass, `1` validation errors (or warnings with `--strict`), `2` usage or IO error.
+
+`validate` and its JSON output are frozen. New checks are added to `audit`.
+
+## Audit
+
+```bash
+npx astro-aeo audit                          # audits ./dist
+npx astro-aeo audit dist --format sarif --output aeo.sarif
+npx astro-aeo audit https://example.com/ --max-pages 200
+```
+
+`audit` runs everything `validate` checks and adds site-wide rules: broken internal links and missing
+anchors, duplicate titles, descriptions and canonicals, Markdown companion quality, JSON-LD validity
+through the schema graph validator, and hreflang targets and return links. When the project's
+`.astro/aeo-cache` manifests sit beside the build directory, the build's own diagnostics and ownership
+conflicts are reported too. Every rule ID is listed in [docs/rules.md](docs/rules.md); an ID is the same
+string the build and `validate` already use as `code`.
+
+| Option | Meaning |
+|---|---|
+| `--format <name>` | `terminal` (default), `json`, `sarif`, `html`, `markdown`, `github`, or `junit`. All seven render the same report. |
+| `--output <file>` | Write the report to a file (temporary file, then rename) and print nothing to standard output. |
+| `--fail-on <level>` | `error` (default), `warning`, or `none`. |
+| `--no-score` | Omit scores and per-finding deductions. |
+| `--base <path>` | Base path of a build directory. |
+| `--max-pages <n>` | URL only. Page cap, default `500`, or `unlimited`. |
+| `--allow-origin <origin>` | URL only, repeatable. Another origin the crawl may follow. |
+| `--timeout <ms>` | URL only. Per-request timeout, default `10000`. |
+| `--concurrency <n>` | URL only. Parallel requests from `1` to `32`, default `8`. |
+
+Exit codes: `0` pass, `1` findings at or above `--fail-on`, `2` bad invocation or a target that cannot
+be reached. Scores never affect the exit code.
+
+A URL target is crawled anonymously: no cookies, no authorization, and no request to any origin outside
+the start origin and `--allow-origin`, including through redirects. Queries and fragments are stripped
+from page identities, at most five redirects are followed, and a response over 5 MiB is skipped. Pages
+are fetched level by level in sorted order, so a capped crawl audits the same pages every time. A page
+the crawl did not reach is unknown, never "broken". The JSON report records the crawl scope.
+
+The JSON format is `AuditReportV1` (exported from `astro-aeo`, with a JSON Schema at
+`astro-aeo/audit-report.schema.json`). It has no timestamp and no absolute path, so two audits of the
+same input are byte-identical.
+
+Scores use the `astro-aeo-readiness-v1` rubric and are advisory. Each category starts at 100. An error
+removes 15 points and a warning 5, one rule can remove at most 30 points from its category (errors
+count first), and a category never goes below 0. The internationalization category is left out when the
+site has one language or none. The overall score is the mean of the scored categories, rounded to two
+decimals.
 
 ## How It Works
 
