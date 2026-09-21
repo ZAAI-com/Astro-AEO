@@ -71,6 +71,13 @@ export function isNoMatchingStaticPathError(error) {
  * build compiles that component to a file the runtime cannot render. The injected
  * development fallback routes are on demand, so every companion whose page is
  * prerendered hits this. Matched by `name` first, then by title, then by message.
+ *
+ * The message fallback exists so a reworded Astro release degrades to the generic
+ * diagnostic rather than to silence, but a true answer here also lets the caller
+ * re-request the page anonymously, which is only equivalent because Astro throws
+ * this solely for a prerendered target. So the fallback requires the two other
+ * fixed parts of Astro's sentence as well, not just the prerendered phrase an
+ * application error could coincidentally carry.
  * @param {unknown} error
  * @returns {boolean}
  */
@@ -79,8 +86,10 @@ export function isForbiddenPrerenderedRewriteError(error) {
   const candidate = /** @type {{ title?: unknown; name?: unknown; message?: unknown }} */ (error);
   if (candidate.name === 'ForbiddenRewrite') return true;
   if (candidate.title === 'Forbidden rewrite to a static route.') return true;
-  return typeof candidate.message === 'string' &&
-    candidate.message.includes('is marked as prerendered');
+  if (typeof candidate.message !== 'string') return false;
+  return candidate.message.includes('is marked as prerendered') &&
+    candidate.message.includes('tried to rewrite the on-demand route') &&
+    candidate.message.includes('with the static route');
 }
 
 /** @param {unknown} error @returns {string} */

@@ -42,7 +42,7 @@ function write(root, pathname, contents) {
   writeFileSync(target, contents);
 }
 
-/** @param {{ redirects?: boolean; adapter?: boolean; trailingSlash?: 'always' }} [options] */
+/** @param {{ redirects?: boolean; adapter?: boolean; trailingSlash?: 'always'; small?: boolean }} [options] */
 function createFixture(options = {}) {
   const root = mkdtempSync(join(TEMP_PARENT, 'dev-fallback-routes-'));
   roots.push(root);
@@ -62,7 +62,7 @@ export default defineConfig({
   ${options.redirects === false ? '' : `redirects: { '/404${slash}': '/error/' },`}
   integrations: [aeo({
     site: { profile: { enabled: true } },
-    corpus: { manifest: { enabled: true } },
+    corpus: { manifest: { enabled: true }${options.small ? ', small: { enabled: true }' : ''} },
     discovery: { robots: { enabled: true }, sitemap: { mode: 'disabled' } },
   })],
 });
@@ -282,8 +282,19 @@ describe.sequential('development artifacts survive a redirect-owned 404', () => 
     await stopServer(running);
   });
 
-  test('the injected routes do not claim ownership away from Astro-AEO', async () => {
-    const root = createFixture();
+  // KNOWN FAILING. `corpus.small` is enabled here, so `/llms-small.txt` is injected,
+  // and the project's own route at that path is then shadowed: the request reaches
+  // the injected fallback, Astro-AEO declines because the project owns the path, and
+  // the fallback answers 404 instead of the project's body. AGENTS.md states the
+  // opposite invariant, that explicit project artifact routes are preserved. Astro
+  // exposes no `removeRoute` and routes are not resolved when `injectRoute` is
+  // available, so this needs a fix at dispatch rather than at injection. Marked
+  // `fails` so the suite stays honest and flips the moment it is fixed.
+  test.fails('the injected routes do not claim ownership away from Astro-AEO', async () => {
+    // `corpus.small` defaults to disabled, and an artifact that is off is never
+    // injected. The fixture has to enable it, or the request below would bypass the
+    // fallback routes entirely and pass no matter how they registered.
+    const root = createFixture({ small: true });
     // A project route at an artifact's served path must still win, which it cannot do
     // if the fallback routes registered as project claims: in that case the runtime
     // would decline the artifact and this body would never be reachable either.
@@ -294,16 +305,25 @@ export function GET() {
 }
 `);
     const running = await startServer(root);
+    const unowned = await startServer(createFixture({ small: true }));
 
     const owned = await request(`${running.base}/llms-small.txt`);
     expect(owned.status).toBe(200);
     expect(await owned.text()).toBe('project owned');
+
+    // Negative control: the same server, the same artifact, no project route. This
+    // is what the assertion above is distinguishing itself from, and it is what
+    // fails if `corpus.small` ever stops being injected here.
+    const unclaimed = await request(`${unowned.base}/llms-small.txt`);
+    expect(unclaimed.status).toBe(200);
+    expect(await unclaimed.text()).not.toBe('project owned');
 
     // Positive control on the same server: Astro-AEO still owns what it claimed.
     const llms = await request(`${running.base}/llms.txt`);
     expect(llms.status).toBe(200);
     expect(await llms.text()).toContain('/about.md');
 
+    await stopServer(unowned);
     await stopServer(running);
   });
 

@@ -107,6 +107,7 @@ describe('isForbiddenPrerenderedRewriteError', () => {
     );
     expect(errorsData).toContain('name: "ForbiddenRewrite"');
     expect(errorsData).toContain('title: "Forbidden rewrite to a static route."');
+    const { AstroErrorData } = await import('astro/errors');
 
     const error = new Error(
       "You tried to rewrite the on-demand route '/about.md' with the static route " +
@@ -121,9 +122,26 @@ describe('isForbiddenPrerenderedRewriteError', () => {
     expect(
       isForbiddenPrerenderedRewriteError({ title: 'Forbidden rewrite to a static route.' }),
     ).toBe(true);
+    // The message fallback needs the whole sentence, so it cannot be satisfied by
+    // the prerendered phrase alone. Pin the two other parts against the installed
+    // Astro, because a release that rewords them turns this branch off.
+    const message = AstroErrorData.ForbiddenRewrite.message('/a.md', '/a/', 'src/pages/a.astro');
+    expect(message).toContain('tried to rewrite the on-demand route');
+    expect(message).toContain('with the static route');
+    expect(isForbiddenPrerenderedRewriteError({ message })).toBe(true);
+  });
+
+  // A true answer here sends the request to the anonymous development loopback, so
+  // an application error that happens to mention prerendering must not reach it.
+  test('does not claim an application error that merely says prerendered', () => {
     expect(
-      isForbiddenPrerenderedRewriteError({ message: "'/a.astro', which is marked as prerendered" }),
-    ).toBe(true);
+      isForbiddenPrerenderedRewriteError(
+        new Error("the cache entry for '/a.astro' is marked as prerendered"),
+      ),
+    ).toBe(false);
+    expect(
+      isForbiddenPrerenderedRewriteError({ message: 'is marked as prerendered' }),
+    ).toBe(false);
   });
 
   // Astro only throws this error when the rewrite target is prerendered, and it

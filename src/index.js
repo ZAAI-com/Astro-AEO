@@ -738,21 +738,56 @@ function escapeViteGlobPath(value) {
 }
 
 /**
+ * The path segments Astro routes as locale prefixes. A locale is either a code or
+ * an object naming the path it is served under, and only the path spelling can
+ * appear in a URL.
+ * @param {unknown} i18n
+ * @returns {Set<string>}
+ */
+function localePathSegments(i18n) {
+  /** @type {Set<string>} */
+  const paths = new Set();
+  if (!i18n || typeof i18n !== 'object') return paths;
+  const locales = /** @type {{ locales?: unknown }} */ (i18n).locales;
+  if (!Array.isArray(locales)) return paths;
+  for (const locale of locales) {
+    if (typeof locale === 'string') {
+      paths.add(locale);
+      continue;
+    }
+    const path = locale && typeof locale === 'object'
+      ? /** @type {{ path?: unknown }} */ (locale).path
+      : null;
+    if (typeof path === 'string' && path) paths.add(path);
+  }
+  return paths;
+}
+
+/**
  * True when the project routes its own `/404` to a redirect. Astro resolves a
  * redirect route before middleware dispatch, so such a project reaches no
  * middleware for any path it does not otherwise route, including every generated
- * artifact. Locale-prefixed spellings count, and a trailing slash is not
- * significant. Anything else at `/404`, including no custom 404 at all, still
- * dispatches middleware and needs nothing injected.
- * @param {{ redirects?: unknown }} astroConfig
+ * artifact. A trailing slash is not significant. Anything else at `/404`,
+ * including no custom 404 at all, still dispatches middleware and needs nothing
+ * injected.
+ *
+ * A locale-prefixed spelling counts, but only under a segment the project
+ * actually configures as a locale. `redirects: { '/blog/404/': '/error/' }` in a
+ * project with no `blog` locale redirects one concrete page and leaves the
+ * router's own 404 alone, so injecting for it would change a development server
+ * this gate exists to leave untouched.
+ * @param {{ redirects?: unknown; i18n?: unknown }} astroConfig
  * @returns {boolean}
  */
 function redirectOwnsNotFound(astroConfig) {
   const redirects = astroConfig.redirects;
   if (!redirects || typeof redirects !== 'object') return false;
+  const locales = localePathSegments(astroConfig.i18n);
   return Object.keys(redirects).some((pattern) => {
     const trimmed = pattern.replace(/\/+$/, '');
-    return trimmed === '/404' || /^\/[^/]+\/404$/.test(trimmed);
+    if (trimmed === '/404') return true;
+    const prefixed = /^\/([^/]+)\/404$/.exec(trimmed);
+    return prefixed !== null && locales.has(prefixed[1]);
   });
 }
 

@@ -386,6 +386,9 @@ describe('integration diagnostics and declarations', () => {
       { '/old/': '/new/' },
       { '/404-page/': '/error/' },
       { '/blog/archive/404/': '/error/' },
+      // One segment deep, but `blog` is not a configured locale, so this redirects
+      // one concrete page and leaves the router's own 404 dispatching middleware.
+      { '/blog/404/': '/error/' },
     ];
     for (const redirects of cases) {
       const injected = [];
@@ -409,11 +412,26 @@ describe('integration diagnostics and declarations', () => {
   // A locale-prefixed 404 redirect swallows artifacts exactly the same way, and a
   // trailing slash is not significant to Astro's routing.
   test('recognizes a locale-prefixed and slashless 404 redirect', async () => {
-    for (const redirects of [{ '/de/404': '/de/error/' }, { '/404': '/error' }]) {
+    // `de` has to be a locale the project configures, in either spelling Astro
+    // accepts, for the prefixed form to mean the router's 404 rather than a page.
+    const cases = [
+      { redirects: { '/de/404': '/de/error/' }, i18n: { defaultLocale: 'en', locales: ['en', 'de'] } },
+      {
+        redirects: { '/de/404': '/de/error/' },
+        i18n: { defaultLocale: 'en', locales: ['en', { path: 'de', codes: ['de-AT'] }] },
+      },
+      { redirects: { '/404': '/error' } },
+    ];
+    for (const { redirects, i18n } of cases) {
       const injected = [];
       const integration = aeo({ discovery: { sitemap: { mode: 'disabled' } } });
       await integration.hooks['astro:config:setup']({
-        config: { integrations: [], site: new URL('https://example.test'), redirects },
+        config: {
+          integrations: [],
+          site: new URL('https://example.test'),
+          redirects,
+          ...(i18n ? { i18n } : {}),
+        },
         command: 'dev',
         injectRoute: (route) => injected.push(route),
         addMiddleware() {},
@@ -423,6 +441,27 @@ describe('integration diagnostics and declarations', () => {
       expect(injected.map(({ pattern }) => pattern), JSON.stringify(redirects))
         .toContain('/[...astroAeoMarkdown].md');
     }
+  });
+
+  // The prefix gate reads the configured locales, so the same redirect decides
+  // differently in a project that does not declare the segment as a locale.
+  test('ignores a locale-shaped 404 redirect for a segment that is not a locale', async () => {
+    const injected = [];
+    const integration = aeo({ discovery: { sitemap: { mode: 'disabled' } } });
+    await integration.hooks['astro:config:setup']({
+      config: {
+        integrations: [],
+        site: new URL('https://example.test'),
+        redirects: { '/de/404/': '/de/error/' },
+        i18n: { defaultLocale: 'en', locales: ['en', 'fr'] },
+      },
+      command: 'dev',
+      injectRoute: (route) => injected.push(route),
+      addMiddleware() {},
+      updateConfig() {},
+      logger: { warn() {}, info() {}, error() {}, debug() {} },
+    });
+    expect(injected).toEqual([]);
   });
 
   // `serverOutput` is module private, and inline-renderer validation short-circuits
