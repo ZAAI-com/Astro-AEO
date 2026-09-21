@@ -1,0 +1,42 @@
+cli/fix/shared.js
+  s_9adb0045239326::t_5d823b457f5557 1-10
+package.json
+  s_9adb0045239326::t_77502c694ec238 177
+  s_9adb0045239326::t_7f84b850149b8b 164
+  s_9adb0045239326::t_06539ffa36defb 134-135
+cli/fix/index.js
+  s_9adb0045239326::t_c47bfcfc5357b6 45,69,101,106-107,131-132
+  s_9adb0045239326::t_e7a43e1fddffe3 1-44,46-68,70-100,102-105,108-130,133-148
+cli/fix/snippets.js
+  s_9adb0045239326::t_e7a43e1fddffe3 1-14
+cli/fix/render-yaml.js
+  s_9adb0045239326::t_5d823b457f5557 1-58
+cli/fix/fix.test.js
+  s_9adb0045239326::t_c47bfcfc5357b6 1-231
+cli/fix/headers.js
+  s_9adb0045239326::t_5d823b457f5557 1-47
+cli/fix/vercel-json.js
+  s_9adb0045239326::t_5d823b457f5557 1-55
+src/core/boundary.test.js
+  s_9adb0045239326::t_1908ca816c48d2 73-88,91-101
+  s_9adb0045239326::t_ec6e4b17212a56 89-90
+  s_9adb0045239326::t_c123583ea819a9 70-72
+pnpm-lock.yaml
+  s_9adb0045239326::t_c4cc2c0075f33b 23-25,29,32,35,38,41,47,59,77,5276-5277,5327,5331-5332,5334,5446,5450,5453,5459,5461,5464,5505,5508,5524,5527,5533-5534,5570,5577,5813,5818,5855,5857,6464,6686,6691,7318,7324,7530,7532,7536,7586-7587,11048,11060,11062,11064,11066,11069,11086,11235
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "19a9af259f1a120c26ffa960ee9707802c6ef2b5",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
