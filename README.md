@@ -762,6 +762,17 @@ exist so provider routing reaches that middleware before a custom-404 fallback. 
 `.md` routes retain ownership unless their exact served pathname is listed in
 `artifacts.replace`.
 
+`astro dev` receives the same routes, adapter or not, when the project routes its own `/404` to a
+redirect (`redirects: { '/404/': '/error/' }`). Astro resolves a redirect route in its routing
+layer, before middleware runs, so such a project would otherwise answer `llms.txt`, `robots.txt`,
+`/.well-known/domain-profile.json`, and every `.md` companion with that redirect instead of letting
+Astro-AEO respond. Two consequences apply to those development servers only: an unclaimed `.md`
+path returns a bodyless `404` rather than reaching the 404 route, and companions of prerendered
+pages are rendered through a loopback request to the development server, which the terminal log
+shows. Any other `/404`, including none at all, dispatches middleware on its own, so nothing is
+injected and nothing changes. Build output is never affected: a build without an adapter still
+injects nothing.
+
 Release gates build Node, Cloudflare, Deno, Vercel, and Netlify fixtures. Request
 contracts run locally for Node, Cloudflare in workerd, Deno, and the emitted Vercel and Netlify
 handlers. Separate assertions verify that Vercel routes runtime artifacts to `_render` before its
@@ -1049,7 +1060,7 @@ On `astro build`, generated files and targeted HTML enrichments are buffered unt
 ownership checks finish, then committed atomically. No separate package build step, external
 service, or network self-fetch is required. Redirect stubs and non-HTML outputs are skipped.
 
-In `astro dev`, a middleware serves `robots.txt`, `domain-profile.json`, and `.md` companions live, and renders the aggregate corpora on request. `pages.devDynamicDiscovery` defaults to `'startup'`, so prerendered dynamic routes are enumerated in development as well; see "Dynamic routes and catalogs" for what each mode does, when a restart is needed, and how overlapping dynamic route patterns are handled. On-demand, CMS-only, and other externally inventoried paths still need a `pages.catalogs` module, and the build output remains the source of truth.
+In `astro dev`, a middleware serves `robots.txt`, `domain-profile.json`, and `.md` companions live, and renders the aggregate corpora on request. `pages.devDynamicDiscovery` defaults to `'startup'`, so prerendered dynamic routes are enumerated in development as well; see "Dynamic routes and catalogs" for what each mode does, when a restart is needed, and how overlapping dynamic route patterns are handled. On-demand, CMS-only, and other externally inventoried paths still need a `pages.catalogs` module, and the build output remains the source of truth. If your project redirects its own `/404`, those paths are matched by development-only injected routes so the redirect cannot intercept them; see "Serving .md companions".
 
 Last-modified dates come from `<meta property="article:modified_time">` when present, otherwise from the git commit history of a static route's source file. Emit `article:modified_time` for precise dates on content-collection pages.
 

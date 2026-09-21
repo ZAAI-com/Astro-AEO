@@ -52,6 +52,7 @@ import { RuntimeDynamicRouteDiscoveryError } from './dynamic-routes.js';
 import {
   companionRewriteWarning,
   createFetchFailureSink,
+  isForbiddenPrerenderedRewriteError,
   isNoMatchingStaticPathError,
   warnDevCompanionRewriteFailure,
   warnDevCorpusRewriteFailure,
@@ -861,7 +862,9 @@ function htmlFetcher(context, next, opts = {}) {
       // Only a rewrite that actually threw earns the fallback. A page that
       // legitimately produced no HTML must stay absent.
       if ((opts.failures?.count ?? 0) === before) return null;
-      return devLoopbackHtml(`${targetUrl.pathname}${targetUrl.search}`, collect);
+      const loopback = await devLoopbackHtml(`${targetUrl.pathname}${targetUrl.search}`, collect);
+      if (loopback !== null) opts.failures?.forgive(before);
+      return loopback;
     }
 
     try {
@@ -922,16 +925,27 @@ function htmlFetcher(context, next, opts = {}) {
         restore();
         return { response: settled, html: null };
       } catch (error) {
-        opts.failures?.record(sourcePathname, error);
+        // Astro forbids an on-demand route from rewriting to a prerendered one.
+        // The injected development fallback routes are on demand, so this is the
+        // ordinary path for a prerendered page's companion rather than a failure
+        // worth naming: the loopback re-request below answers it. Recording it
+        // would print a rewrite-failure warning for routine `.md` requests.
+        const forbiddenPrerendered = isForbiddenPrerenderedRewriteError(error);
+        if (!forbiddenPrerendered) opts.failures?.record(sourcePathname, error);
         cancelResponseBody(response);
         restore();
         // A direct `.md` request keeps its caller's credentials, so it must not
-        // be answered by an anonymous loopback render in general. Two cases are
-        // safe because the in-process render was already anonymous: Astro had
-        // blanked the request headers, or the rewrite failed with the routing
-        // bug this fallback exists for, which only `getStaticPaths()` routes
-        // produce and those never see request headers either way.
-        if (!headersAvailable || isNoMatchingStaticPathError(error)) {
+        // be answered by an anonymous loopback render in general. Three cases are
+        // safe because the render was already anonymous or the target cannot read
+        // headers at all: Astro had blanked the request headers, the rewrite failed
+        // with the routing bug this fallback exists for, which only
+        // `getStaticPaths()` routes produce, or the target route is prerendered,
+        // which is exactly what the forbidden rewrite reports.
+        if (
+          !headersAvailable ||
+          isNoMatchingStaticPathError(error) ||
+          forbiddenPrerendered
+        ) {
           // The loopback URL must be the rewrite target, query included, so a
           // preserved query cannot change meaning between the two paths.
           return devLoopbackHtml(`${targetUrl.pathname}${targetUrl.search}`, collect);

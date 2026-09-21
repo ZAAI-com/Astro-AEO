@@ -4,6 +4,7 @@ import {
   companionRewriteWarning,
   corpusRewriteWarning,
   createFetchFailureSink,
+  isForbiddenPrerenderedRewriteError,
   isNoMatchingStaticPathError,
   resetRewriteWarningsForTest,
   rewriteFailureCause,
@@ -39,6 +40,31 @@ describe('createFetchFailureSink', () => {
     expect(sink.count).toBe(2);
     expect(sink.first).toEqual({ pathname: '/a/', error: first });
   });
+
+  test('forgives a rescued suffix without forgetting what came before it', () => {
+    const sink = createFetchFailureSink();
+    const first = new Error('first');
+    sink.record('/a/', first);
+    sink.forgive(1);
+    expect(sink.count).toBe(1);
+    expect(sink.first).toEqual({ pathname: '/a/', error: first });
+    sink.record('/b/', new Error('second'));
+    sink.forgive(1);
+    expect(sink.count).toBe(1);
+    expect(sink.first).toEqual({ pathname: '/a/', error: first });
+    sink.forgive(0);
+    expect(sink.count).toBe(0);
+    expect(sink.first).toBeNull();
+  });
+
+  test('never invents failures from a larger count', () => {
+    const sink = createFetchFailureSink();
+    sink.forgive(5);
+    expect(sink.count).toBe(0);
+    sink.record('/a/', new Error('boom'));
+    sink.forgive(5);
+    expect(sink.count).toBe(1);
+  });
 });
 
 describe('isNoMatchingStaticPathError', () => {
@@ -54,6 +80,44 @@ describe('isNoMatchingStaticPathError', () => {
     expect(isNoMatchingStaticPathError(new Error('boom'))).toBe(false);
     expect(isNoMatchingStaticPathError(null)).toBe(false);
     expect(isNoMatchingStaticPathError('no matching static path was found')).toBe(false);
+  });
+});
+
+describe('isForbiddenPrerenderedRewriteError', () => {
+  // Read out of the installed Astro so a reworded release fails here instead of
+  // silently turning the development companion fallback into a 404.
+  test('recognizes the error Astro throws for a rewrite to a prerendered route', async () => {
+    const { readFileSync } = await import('node:fs');
+    const errorsData = readFileSync(
+      new URL('../../node_modules/astro/dist/core/errors/errors-data.js', import.meta.url),
+      'utf8',
+    );
+    expect(errorsData).toContain('name: "ForbiddenRewrite"');
+    expect(errorsData).toContain('title: "Forbidden rewrite to a static route."');
+
+    const error = new Error(
+      "You tried to rewrite the on-demand route '/about.md' with the static route " +
+        "'/about/', when using the 'server' output. The component 'src/pages/about.astro' " +
+        'is marked as prerendered.',
+    );
+    error.name = 'ForbiddenRewrite';
+    // @ts-expect-error AstroError carries a title; plain Errors do not.
+    error.title = 'Forbidden rewrite to a static route.';
+    expect(isForbiddenPrerenderedRewriteError(error)).toBe(true);
+    expect(isForbiddenPrerenderedRewriteError({ name: 'ForbiddenRewrite' })).toBe(true);
+    expect(
+      isForbiddenPrerenderedRewriteError({ title: 'Forbidden rewrite to a static route.' }),
+    ).toBe(true);
+    expect(
+      isForbiddenPrerenderedRewriteError({ message: "'/a.astro', which is marked as prerendered" }),
+    ).toBe(true);
+  });
+
+  test('does not claim unrelated failures', () => {
+    expect(isForbiddenPrerenderedRewriteError(noMatchingStaticPath())).toBe(false);
+    expect(isForbiddenPrerenderedRewriteError(new Error('boom'))).toBe(false);
+    expect(isForbiddenPrerenderedRewriteError(null)).toBe(false);
+    expect(isForbiddenPrerenderedRewriteError('is marked as prerendered')).toBe(false);
   });
 });
 

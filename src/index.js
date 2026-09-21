@@ -255,11 +255,22 @@ export default function aeo(userConfig = {}) {
         sitemapState.expected = plan.expected;
 
         adapterFallbacks = Boolean(astroConfig.adapter);
-        if (adapterFallbacks && injectRoute) {
+        // A generated artifact is a middleware claim, not a route, so Astro's router
+        // treats its path as unmatched and falls back to `/404`. A page or endpoint
+        // there still dispatches middleware, which is why an ordinary development
+        // server serves artifacts with nothing injected. A redirect there does not:
+        // Astro answers redirect routes in its routing layer, before middleware, so
+        // every artifact path becomes that redirect and Astro-AEO is never asked.
+        // Those projects need the same concrete routes an adapter build receives.
+        //
+        // This stays separate from `adapterFallbacks`, which also promotes a build to
+        // server output: `astro dev` must imply nothing about the build.
+        const devFallbackRoutes = command === 'dev' && redirectOwnsNotFound(astroConfig);
+        if ((adapterFallbacks || devFallbackRoutes) && injectRoute) {
           const runtimeClaims = pluginDispatcher.runtimeManifest.plugins.flatMap(
             (plugin) => plugin.claims,
           );
-          injectRuntimeFallbackRoutes(config, injectRoute, runtimeClaims);
+          injectRuntimeFallbackRoutes(config, injectRoute, runtimeClaims, command === 'dev');
         }
 
         const added = [];
@@ -413,6 +424,8 @@ export default function aeo(userConfig = {}) {
           // ownership. Every other route, including routes contributed by an
           // integration, must win over Astro-AEO at runtime. Our tagged fallback
           // routes returned above and are the only external routes omitted here.
+          // That omission applies in `astro dev` too, where the same routes are
+          // injected for a project whose 404 is a redirect.
           const ownedRoute = origin !== 'internal';
           if (ownedRoute && normalizedPathname) resolvedRoutePaths.add(normalizedPathname);
           if (ownedRoute && pathname && entrypoint) {
@@ -725,14 +738,47 @@ function escapeViteGlobPath(value) {
 }
 
 /**
- * Give adapters concrete manifest routes that reach pre-middleware before the
- * provider's status-404 fallback. The endpoint itself succeeds at nothing: it
- * returns 404 only after Astro-AEO declines the request.
- * @param {ReturnType<typeof resolveConfig>} config
- * @param {(route: { pattern: string; entrypoint: string; prerender: false }) => void} injectRoute
- * @param {readonly import('./index.js').PluginArtifactClaim[]} [pluginClaims]
+ * True when the project routes its own `/404` to a redirect. Astro resolves a
+ * redirect route before middleware dispatch, so such a project reaches no
+ * middleware for any path it does not otherwise route, including every generated
+ * artifact. Locale-prefixed spellings count, and a trailing slash is not
+ * significant. Anything else at `/404`, including no custom 404 at all, still
+ * dispatches middleware and needs nothing injected.
+ * @param {{ redirects?: unknown }} astroConfig
+ * @returns {boolean}
  */
-function injectRuntimeFallbackRoutes(config, injectRoute, pluginClaims = []) {
+function redirectOwnsNotFound(astroConfig) {
+  const redirects = astroConfig.redirects;
+  if (!redirects || typeof redirects !== 'object') return false;
+  return Object.keys(redirects).some((pattern) => {
+    const trimmed = pattern.replace(/\/+$/, '');
+    return trimmed === '/404' || /^\/[^/]+\/404$/.test(trimmed);
+  });
+}
+
+/**
+ * Give the router concrete manifest routes that reach pre-middleware before the
+ * provider's status-404 fallback in an adapter build, and before the development
+ * server's redirect and 404 routing in `astro dev`. The endpoint itself succeeds at
+ * nothing: it returns 404 only after Astro-AEO declines the request.
+ *
+ * A dynamic pattern must render on demand or Astro refuses to dispatch it without
+ * `getStaticPaths()` paths, and middleware would never run. An exact path has no such
+ * constraint, so the development server prerenders those: Astro forbids an on-demand
+ * route from rewriting to a prerendered page, and every internal rewrite a corpus
+ * needs would otherwise take the loopback detour. A build keeps every fallback on
+ * demand, which is what makes adapter routing reach pre-middleware at all.
+ * @param {ReturnType<typeof resolveConfig>} config
+ * @param {(route: { pattern: string; entrypoint: string; prerender: boolean }) => void} injectRoute
+ * @param {readonly import('./index.js').PluginArtifactClaim[]} [pluginClaims]
+ * @param {boolean} [prerenderExactPaths] development only, see above
+ */
+function injectRuntimeFallbackRoutes(
+  config,
+  injectRoute,
+  pluginClaims = [],
+  prerenderExactPaths = false,
+) {
   if (config.markdown.enabled) {
     injectRoute({
       pattern: '/[...astroAeoMarkdown].md',
@@ -788,7 +834,11 @@ function injectRuntimeFallbackRoutes(config, injectRoute, pluginClaims = []) {
   }
 
   for (const pattern of patterns) {
-    injectRoute({ pattern, entrypoint: FALLBACK_ENTRYPOINT, prerender: false });
+    injectRoute({
+      pattern,
+      entrypoint: FALLBACK_ENTRYPOINT,
+      prerender: prerenderExactPaths && !pattern.includes('['),
+    });
   }
 }
 
