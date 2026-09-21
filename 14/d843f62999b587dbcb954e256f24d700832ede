@@ -1,0 +1,19 @@
+src/runtime/rewrite-diagnostics.test.js
+  s_06926f239378a8::t_0e691b3ef78468 110-114,132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "14d843f62999b587dbcb954e256f24d700832ede",
+  "prompts": {},
+  "sessions": {
+    "s_06926f239378a8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2a06f9f1-0f79-4902-a6bb-36900ccc2a16",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
