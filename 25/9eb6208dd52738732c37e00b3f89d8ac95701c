@@ -1,0 +1,21 @@
+test/contracts/accept.js
+  s_9adb0045239326::t_40a4e4ebf99069 1-41
+src/runtime/negotiate.test.js
+  s_9adb0045239326::t_40a4e4ebf99069 2,82-83,85-87,90-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "259eb6208dd52738732c37e00b3f89d8ac95701c",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
