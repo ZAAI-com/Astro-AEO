@@ -1,0 +1,128 @@
+recipes/i18n/README.md
+  s_9adb0045239326::t_18e08e4c2acc8b 1-9
+README.md
+  s_9adb0045239326::t_77502c694ec238 235-236,249-269,1036,1125-1189
+  s_9adb0045239326::t_63f9119cca33eb 1190
+recipes/marketing/src/pages/index.astro
+  s_9adb0045239326::t_18e08e4c2acc8b 1-23
+recipes/saas/astro.config.mjs
+  s_9adb0045239326::t_18e08e4c2acc8b 1-7
+recipes/marketing/README.md
+  s_9adb0045239326::t_18e08e4c2acc8b 1-9
+recipes/ssr/astro.config.mjs
+  s_9adb0045239326::t_18e08e4c2acc8b 1-16
+recipes/local-business/README.md
+  s_9adb0045239326::t_18e08e4c2acc8b 1-9
+scripts/release-check.mjs
+  s_9adb0045239326::t_77502c694ec238 52-53,66-67
+benchmarks/audit-fixture.mjs
+  s_9adb0045239326::t_b4eebde3dabb81 1-36
+recipes/i18n/package.json
+  s_9adb0045239326::t_18e08e4c2acc8b 1-14
+recipes/commerce/README.md
+  s_9adb0045239326::t_18e08e4c2acc8b 1-9
+recipes/commerce/src/pages/index.astro
+  s_9adb0045239326::t_18e08e4c2acc8b 1-21
+vitest.recipes.config.js
+  s_9adb0045239326::t_7f84b850149b8b 1-11
+recipes/ssr/README.md
+  s_9adb0045239326::t_18e08e4c2acc8b 1-16
+recipes/commerce/src/pages/products/mug.astro
+  s_9adb0045239326::t_18e08e4c2acc8b 1-28
+recipes/saas/README.md
+  s_9adb0045239326::t_18e08e4c2acc8b 1-9
+recipes/local-business/astro.config.mjs
+  s_9adb0045239326::t_18e08e4c2acc8b 1-14
+recipes/commerce/src/pages/cart.astro
+  s_9adb0045239326::t_18e08e4c2acc8b 1-20
+benchmarks/audit.mjs
+  s_9adb0045239326::t_77502c694ec238 15-17
+  s_9adb0045239326::t_b4eebde3dabb81 1-14,18-50
+recipes/marketing/astro.config.mjs
+  s_9adb0045239326::t_18e08e4c2acc8b 1-7
+recipes/saas/src/pages/app/dashboard.astro
+  s_9adb0045239326::t_18e08e4c2acc8b 1-21
+recipes/marketing/package.json
+  s_9adb0045239326::t_18e08e4c2acc8b 1-14
+recipes/saas/src/pages/index.astro
+  s_9adb0045239326::t_18e08e4c2acc8b 1-21
+SECURITY.md
+  s_9adb0045239326::t_77502c694ec238 110-122
+recipes/local-business/src/pages/index.astro
+  s_9adb0045239326::t_18e08e4c2acc8b 1-28
+recipes/starlight/src/content.config.ts
+  s_9adb0045239326::t_18e08e4c2acc8b 1-7
+recipes/starlight/package.json
+  s_9adb0045239326::t_18e08e4c2acc8b 1-15
+recipes/local-business/package.json
+  s_9adb0045239326::t_18e08e4c2acc8b 1-14
+test/recipes/recipes.test.js
+  s_9adb0045239326::t_7f84b850149b8b 1-27,30-33
+  s_9adb0045239326::t_f10bd0e46a75af 28-29
+recipes/blog/src/pages/index.astro
+  s_9adb0045239326::t_18e08e4c2acc8b 1-21
+recipes/blog/astro.config.mjs
+  s_9adb0045239326::t_18e08e4c2acc8b 1-12
+recipes/i18n/src/pages/index.astro
+  s_9adb0045239326::t_18e08e4c2acc8b 1-23
+.changeset/doctor-fix-action.md
+  s_9adb0045239326::t_77502c694ec238 1-24
+recipes/starlight/astro.config.mjs
+  s_9adb0045239326::t_18e08e4c2acc8b 1-13
+recipes/ssr/src/pages/index.astro
+  s_9adb0045239326::t_18e08e4c2acc8b 1-21
+recipes/commerce/package.json
+  s_9adb0045239326::t_18e08e4c2acc8b 1-14
+recipes/ssr/src/pages/items/[slug].astro
+  s_9adb0045239326::t_18e08e4c2acc8b 1-22
+recipes/blog/README.md
+  s_9adb0045239326::t_18e08e4c2acc8b 1-9
+recipes/README.md
+  s_9adb0045239326::t_18e08e4c2acc8b 1-14
+recipes/marketing/src/pages/pricing.astro
+  s_9adb0045239326::t_18e08e4c2acc8b 1-21
+recipes/saas/package.json
+  s_9adb0045239326::t_18e08e4c2acc8b 1-14
+recipes/starlight/README.md
+  s_9adb0045239326::t_18e08e4c2acc8b 1-9
+AGENTS.md
+  s_9adb0045239326::t_77502c694ec238 107-118,165-171,208-209
+recipes/i18n/src/pages/de/index.astro
+  s_9adb0045239326::t_18e08e4c2acc8b 1-23
+recipes/starlight/src/content/docs/index.md
+  s_9adb0045239326::t_18e08e4c2acc8b 1-10
+recipes/blog/package.json
+  s_9adb0045239326::t_18e08e4c2acc8b 1-14
+recipes/ssr/package.json
+  s_9adb0045239326::t_18e08e4c2acc8b 1-15
+recipes/commerce/astro.config.mjs
+  s_9adb0045239326::t_18e08e4c2acc8b 1-7
+recipes/blog/src/pages/blog/first-post.astro
+  s_9adb0045239326::t_18e08e4c2acc8b 1-22
+recipes/i18n/astro.config.mjs
+  s_9adb0045239326::t_18e08e4c2acc8b 1-8
+recipes/saas/src/pages/faq.astro
+  s_9adb0045239326::t_18e08e4c2acc8b 1-22
+recipes/ssr/src/aeo-catalog.js
+  s_9adb0045239326::t_18e08e4c2acc8b 1-8
+scripts/package-smoke.mjs
+  s_9adb0045239326::t_77502c694ec238 95-98
+recipes/starlight/src/content/docs/guides/install.md
+  s_9adb0045239326::t_18e08e4c2acc8b 1-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7f8460124dfa9c847c29b9efac923b79b994f874",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
