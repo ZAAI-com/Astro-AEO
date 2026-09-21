@@ -24,6 +24,19 @@ function noMatchingStaticPath(pathname = '/alpha/') {
   return error;
 }
 
+/** The shape Astro throws when an on-demand route rewrites to a prerendered one. */
+function forbiddenRewrite(pathname = '/about/') {
+  const error = new Error(
+    `You tried to rewrite the on-demand route '/about.md' with the static route ` +
+      `'${pathname}', when using the 'server' output. The component ` +
+      "'src/pages/about.astro' is marked as prerendered.",
+  );
+  error.name = 'ForbiddenRewrite';
+  // @ts-expect-error AstroError carries a title; plain Errors do not.
+  error.title = 'Forbidden rewrite to a static route.';
+  return error;
+}
+
 afterEach(() => {
   resetRewriteWarningsForTest();
   vi.restoreAllMocks();
@@ -184,6 +197,18 @@ describe('message builders', () => {
     sink.record('/only/', noMatchingStaticPath('/only/'));
     expect(corpusRewriteWarning(sink)).toContain('/only/ could not be rendered');
     expect(corpusRewriteWarning(sink)).not.toContain('other page(s)');
+  });
+
+  // The middleware records a forbidden prerendered rewrite and forgives it only once
+  // the development loopback has answered. A loopback that never answers leaves the
+  // record standing, and that is the only thing between the developer and a silent 404.
+  test('name the forbidden-rewrite cause when the loopback never rescued the page', () => {
+    const sink = createFetchFailureSink();
+    sink.record('/about/', forbiddenRewrite());
+    expect(companionRewriteWarning('/about.md', sink)).toContain(
+      'the Markdown companion for /about.md could not be rendered',
+    );
+    expect(companionRewriteWarning('/about.md', sink)).toContain('is marked as prerendered');
   });
 
   test('describe a failure with no error object without throwing', () => {

@@ -18,9 +18,11 @@ All notable changes to this project are documented here. This project follows [S
   Two behaviors follow for the affected development servers: an unclaimed `.md` path returns a
   bodyless 404 rather than reaching the 404 route, and a companion whose page is prerendered is
   rendered through a loopback request, because Astro forbids an on-demand route from rewriting to a
-  prerendered page. That forbidden rewrite is no longer reported as a rewrite failure, and a corpus
-  page the loopback rescued no longer warns either, since nothing was dropped. Development servers
-  with an adapter gain the same companion fix, where the forbidden rewrite previously produced a 404.
+  prerendered page. A rewrite the loopback rescued is no longer reported as a rewrite failure, for a
+  companion and for a corpus page alike, since nothing was dropped. A loopback that never loaded at all
+  still names its cause in the terminal rather than leaving every companion of a prerendered page to
+  404 silently. Development servers with an adapter gain the same companion fix, where the forbidden
+  rewrite previously produced a 404.
 
   Build output, adapter builds, and server-output promotion are unchanged: a build without an adapter
   still injects nothing, and projects that saw a 301 on `llms.txt` or a `.md` companion in development

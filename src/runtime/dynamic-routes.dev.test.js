@@ -139,6 +139,20 @@ async function freePort() {
   return port;
 }
 
+/**
+ * Astro does not use Vite's `strictPort`, so `--port` is a request rather than a
+ * guarantee: a port freed by `freePort()` can be claimed by another process before
+ * the child binds it, and the child then quietly moves to the next free one. Read
+ * the port the server actually bound from its startup banner, falling back to the
+ * requested one until the banner appears.
+ *
+ * @param {string} output @param {number} fallback @returns {string}
+ */
+function resolveBase(output, fallback) {
+  const match = /Local\s+http:\/\/127\.0\.0\.1:(\d+)/.exec(output);
+  return `http://127.0.0.1:${match ? match[1] : fallback}`;
+}
+
 /** @param {string} root */
 async function startServer(root) {
   const port = await freePort();
@@ -159,8 +173,9 @@ async function startServer(root) {
   servers.add(child);
   child.stdout.on('data', (chunk) => { output += String(chunk).replace(ANSI, ''); });
   child.stderr.on('data', (chunk) => { output += String(chunk).replace(ANSI, ''); });
-  const base = `http://127.0.0.1:${port}`;
+  let base = `http://127.0.0.1:${port}`;
   await waitFor(async () => {
+    base = resolveBase(output, port);
     try {
       return (await fetch(`${base}/`)).ok;
     } catch {
