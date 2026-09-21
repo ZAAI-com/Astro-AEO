@@ -457,7 +457,10 @@ export default function aeo(userConfig = {}) {
             ownedRoute &&
             !normalizedPathname &&
             pattern instanceof RegExp &&
-            (type !== 'page' || Boolean(routePattern && /\.[^/]+$/.test(routePattern)));
+            // The dots of a rest parameter are not a file extension: `/[...slug]` is a
+            // generic page like `/[slug]`, while `/[...slug].json` does claim one.
+            (type !== 'page' ||
+              Boolean(routePattern && /\.[^/]+$/.test(routePattern.replace(/\[\.\.\.[^\]]*\]/g, '[rest]'))));
           // A generic dynamic page such as /[slug] is not a literal artifact
           // claim. Treating it as one would suppress every one-segment .md or
           // text artifact even though Astro's static asset layer owns those
