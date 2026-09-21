@@ -316,6 +316,10 @@ Severity: warning. Raised by: offline.
 
 ## Category: markdown
 
+### authored-source-fallback
+
+Severity: info. Raised by: build.
+
 ### defuddle-failed
 
 Severity: warning. Raised by: build.

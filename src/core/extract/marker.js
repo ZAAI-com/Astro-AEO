@@ -3,6 +3,8 @@ import { htmlTagAttribute, removeHtmlElements } from '../html-head-ranges.js';
 
 export const MARKER_SELECTOR = 'script[data-astro-aeo-marker]';
 export const MARKER_MIME = 'application/vnd.astro-aeo+json';
+// A marker an ecosystem plugin derived from route data. An authored `<AeoPage>` marker always wins over it.
+export const INFERRED_MARKER = 'inferred';
 // The component emits source only while this private collection flag is set.
 export const COLLECT_FLAG = 'astroAeoCollect';
 
@@ -21,6 +23,7 @@ export const COLLECT_FLAG = 'astroAeoCollect';
  * @property {unknown[]} [authors]
  * @property {unknown[]} [entities]
  * @property {{ index?: boolean; includeInLlms?: boolean; includeInLlmsFull?: boolean; generateMarkdown?: boolean }} [directives]
+ * @property {string} [sourceFallback] Why an inferred marker could not supply Markdown; rendered extraction is used.
  */
 
 /**
@@ -28,7 +31,8 @@ export const COLLECT_FLAG = 'astroAeoCollect';
  * @returns {PageMarker | null}
  */
 export function readMarker(document) {
-  const el = document.querySelector(MARKER_SELECTOR);
+  const el = document.querySelector(`${MARKER_SELECTOR}:not([data-astro-aeo-marker="${INFERRED_MARKER}"])`)
+    ?? document.querySelector(MARKER_SELECTOR);
   if (!el) return null;
   try {
     const parsed = JSON.parse(el.textContent ?? '');

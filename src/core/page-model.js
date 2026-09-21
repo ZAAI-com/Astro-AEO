@@ -314,6 +314,16 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
       },
       diagnostics: [
         ...rendererDiagnostics,
+        ...(typeof marker?.sourceFallback === 'string' && !markerWins
+          ? [{
+            version: /** @type {const} */ (1),
+            code: 'authored-source-fallback',
+            severity: /** @type {const} */ ('info'),
+            // The reason is a fixed slug from the plugin that wrote the marker, never page content.
+            message: `The authored source could not be used (${marker.sourceFallback.replace(/[^a-z-]/g, '').slice(0, 40)}); rendered extraction was used.`,
+            pathname,
+          }]
+          : []),
         ...(authoredLink.conflict
           ? [{
             version: /** @type {const} */ (1),
