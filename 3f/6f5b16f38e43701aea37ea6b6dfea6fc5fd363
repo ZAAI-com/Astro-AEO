@@ -1,0 +1,25 @@
+docs/release-evidence/1.3.2-semantic-validation.md
+  s_b522d3cb70a21a::t_fc328cf5925578 56-57
+  s_b522d3cb70a21a::t_116612054169aa 33
+  s_b522d3cb70a21a::t_e443983b4b4c71 15-17,29,34,53-55,80
+  s_b522d3cb70a21a::t_5af864c1d02610 30
+  s_b522d3cb70a21a::t_31318078b709a0 31
+CHANGELOG.md
+  s_b522d3cb70a21a::t_8958fb4d052077 38-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3f6f5b16f38e43701aea37ea6b6dfea6fc5fd363",
+  "prompts": {},
+  "sessions": {
+    "s_b522d3cb70a21a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "650a4609-ddb8-4940-9a27-124363c8e666",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
