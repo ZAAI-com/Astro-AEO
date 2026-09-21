@@ -1,0 +1,25 @@
+src/build/artifacts.test.js
+  s_9adb0045239326::t_c384b3ae67f575 15
+  s_9adb0045239326::t_02411239d1c7fb 439-486
+src/build/artifacts.js
+  s_9adb0045239326::t_a8cf01ca4e6512 32
+  s_9adb0045239326::t_d03d8de17a8460 58-61,545-548,551-553,586,589,815-819,821,823-827
+  s_9adb0045239326::t_343119c5f2eb9b 20,820,822
+  s_9adb0045239326::t_b360b636dee531 828-829
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "65386906e408c6a8f326de1aab858866daf5896d",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
