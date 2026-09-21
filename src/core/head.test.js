@@ -339,6 +339,14 @@ describe('managed page head', () => {
     expect(JSON.stringify(result.diagnostics)).not.toMatch(/first-secret|second-secret/);
   });
 
+  test('accepts more than one generator meta tag', () => {
+    const result = enrichHtmlHead({
+      html: document('<meta name="generator" content="Astro v7"><meta name="generator" content="Starlight v0.42">'),
+      page: page(), config: resolveConfig(), site,
+    });
+    expect(result.diagnostics.filter((diagnostic) => diagnostic.code.startsWith('metadata-'))).toEqual([]);
+  });
+
   test('authored JSON-LD bytes remain stable and suppress duplicate managed facts', () => {
     const authored = '<script type="application/ld+json"> { "@id":"https://example.com/about#webpage", "@type":"WebPage", "name":"Authored" } </script>';
     const result = enrichHtmlHead({ html: document(authored), page: page(), config: resolveConfig(), site });

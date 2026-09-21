@@ -862,7 +862,11 @@ function metadataDiagnostics(html, pathname) {
     const name = attr(tag, 'name')?.toLowerCase();
     const property = attr(tag, 'property')?.toLowerCase();
     const key = property ? `property:${property}` : name ? `name:${name}` : undefined;
-    if (!key || key === 'name:author' || key.startsWith('property:og:image') || key === 'property:og:locale:alternate') {
+    // `generator` is legitimately repeated: Astro and a framework on top of it (Starlight) each add one.
+    if (
+      !key || key === 'name:author' || key === 'name:generator' ||
+      key.startsWith('property:og:image') || key === 'property:og:locale:alternate'
+    ) {
       continue;
     }
     add(key, attr(tag, 'content'));
