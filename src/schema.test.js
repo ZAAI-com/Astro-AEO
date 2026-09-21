@@ -4,6 +4,7 @@ import {
   connect,
   createArticle,
   createBlogPosting,
+  createTechArticle,
   createBreadcrumbList,
   createEntity,
   createEvent,
@@ -32,7 +33,7 @@ import {
 const pageId = 'https://example.com/docs/page#webpage';
 
 describe('schema entity builders', () => {
-  test('all 17 P0 builders own their exact type without inventing facts', () => {
+  test('all 18 builders own their exact type without inventing facts', () => {
     const builders = [
       [createWebSite, 'WebSite'],
       [createWebPage, 'WebPage'],
@@ -40,6 +41,7 @@ describe('schema entity builders', () => {
       [createOrganization, 'Organization'],
       [createArticle, 'Article'],
       [createBlogPosting, 'BlogPosting'],
+      [createTechArticle, 'TechArticle'],
       [createBreadcrumbList, 'BreadcrumbList'],
       [createImageObject, 'ImageObject'],
       [createVideoObject, 'VideoObject'],
@@ -66,6 +68,7 @@ describe('schema entity builders', () => {
       [createOrganization, 'Organization'],
       [createArticle, 'Article'],
       [createBlogPosting, 'BlogPosting'],
+      [createTechArticle, 'TechArticle'],
       [createBreadcrumbList, 'BreadcrumbList'],
       [createImageObject, 'ImageObject'],
       [createVideoObject, 'VideoObject'],

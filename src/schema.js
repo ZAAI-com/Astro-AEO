@@ -504,6 +504,11 @@ export function createBlogPosting(input) {
 }
 
 /** @param {unknown} input @returns {ReturnType<typeof createEntity>} */
+export function createTechArticle(input) {
+  return buildEntity('TechArticle', input);
+}
+
+/** @param {unknown} input @returns {ReturnType<typeof createEntity>} */
 export function createBreadcrumbList(input) {
   return buildEntity('BreadcrumbList', input);
 }
