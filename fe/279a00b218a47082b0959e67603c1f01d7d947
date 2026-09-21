@@ -1,0 +1,35 @@
+package.json
+  s_9adb0045239326::t_7ebdd0c48dbdbd 50
+fixtures/types-consumer/consumer.ts
+  s_9adb0045239326::t_8d9896c617654a 13-14,32,575-594
+scripts/generate-schema.mjs
+  s_9adb0045239326::t_b7db38af17e59c 6,14-17
+src/index.d.ts
+  s_9adb0045239326::t_8d9896c617654a 118-188
+scripts/audit-report-schema.mjs
+  s_9adb0045239326::t_b7db38af17e59c 18,70-71
+  s_9adb0045239326::t_fa99967160eeac 1-17,19-69,72
+schema/audit-report-v1.schema.json
+  s_9adb0045239326::t_b7db38af17e59c 1
+scripts/package-smoke.mjs
+  s_9adb0045239326::t_7ebdd0c48dbdbd 81-82
+scripts/check-schema.mjs
+  s_9adb0045239326::t_b7db38af17e59c 6,14-18
+  s_9adb0045239326::t_995a67077da623 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fe279a00b218a47082b0959e67603c1f01d7d947",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
