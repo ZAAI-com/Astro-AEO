@@ -1,0 +1,74 @@
+AGENTS.md
+  s_9adb0045239326::t_c45d6600362092 93-106,148,150-151,191
+scripts/release-check.mjs
+  s_9adb0045239326::t_c45d6600362092 51,63
+SECURITY.md
+  s_9adb0045239326::t_c45d6600362092 96-109
+.github/workflows/W1-Test.yml
+  s_9adb0045239326::t_c45d6600362092 139
+test/contracts/accept.js
+  s_9adb0045239326::t_40a4e4ebf99069 1-41
+fixtures/types-consumer/consumer.ts
+  s_9adb0045239326::t_c45d6600362092 895-922
+fixtures/edge-static/package.json
+  s_9adb0045239326::t_540b7ad2561024 1
+scripts/package-smoke.mjs
+  s_9adb0045239326::t_c45d6600362092 82-87
+test/edge/cloudflare-workerd.test.js
+  s_9adb0045239326::t_007c0fe7a89fe0 1-67
+src/index.js
+  s_9adb0045239326::t_7ac8cd80f92fc8 47,111-114,263-278,418-419,506-511,668-670
+fixtures/edge-static/public/displaced.md
+  s_9adb0045239326::t_540b7ad2561024 1
+fixtures/edge-static/src/pages/guide/index.astro
+  s_9adb0045239326::t_540b7ad2561024 1-4
+fixtures/edge-static/src/pages/index.astro
+  s_9adb0045239326::t_540b7ad2561024 1-4
+src/hooks/build-done.js
+  s_9adb0045239326::t_0020bb4c931f3b 80-82
+  s_9adb0045239326::t_7ac8cd80f92fc8 47-48,337-352,727-738
+  s_9adb0045239326::t_4da7633b8ce421 739
+fixtures/edge-static/src/pages/displaced.astro
+  s_9adb0045239326::t_540b7ad2561024 1-4
+vitest.edge.config.js
+  s_9adb0045239326::t_007c0fe7a89fe0 1-13
+fixtures/edge-static/worker.js
+  s_9adb0045239326::t_540b7ad2561024 1-4
+fixtures/edge-static/wrangler.jsonc
+  s_9adb0045239326::t_540b7ad2561024 1-7
+src/build/edge-manifest.js
+  s_9adb0045239326::t_1e03daf25818be 1-32
+src/edge.test.js
+  s_9adb0045239326::t_4a86d29e0f7e5f 2-3,26-37
+  s_9adb0045239326::t_e7c0838b5d3df8 1,4-25,38-131
+.changeset/static-edge-negotiation.md
+  s_9adb0045239326::t_c45d6600362092 1-19
+src/edge.e2e.test.js
+  s_9adb0045239326::t_540b7ad2561024 1-35,37-75
+  s_9adb0045239326::t_3c6a07c7a6f183 36
+fixtures/edge-static/astro.config.mjs
+  s_9adb0045239326::t_540b7ad2561024 1-16
+README.md
+  s_9adb0045239326::t_c45d6600362092 235-236,620-621,1104-1163
+  s_9adb0045239326::t_91779e9e8a1ade 1164
+src/build/deployment-facts.js
+  s_9adb0045239326::t_1e03daf25818be 1-40
+src/runtime/negotiate.test.js
+  s_9adb0045239326::t_40a4e4ebf99069 2,82-83,85-87,90-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c319f988404c2cefeff9fc24b5c39d874cbdc62b",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
