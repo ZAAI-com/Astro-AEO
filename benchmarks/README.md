@@ -44,10 +44,9 @@ framework code that both builds share.
 
 `--enforce` applies the 1.3 safety ceilings embedded in the report:
 
-- Packed package at most 500,000 bytes and unpacked package at most 1,600,000 bytes. The 1.4
-  development tree measures 350,713 packed and 1,358,848 unpacked bytes; both ceilings are tightened
-  to the measured 1.4.0 tarball before the tag. 1.3.1 was 290,286 and 1,163,361 (1.3 was 272,377 and
-  1,106,331).
+- Packed package at most 450,000 bytes and unpacked package at most 1,380,000 bytes. The measured
+  1.4.0 package is 350,713 packed and 1,358,848 unpacked bytes. 1.3.1 was 290,286 and 1,163,361
+  (1.3 was 272,377 and 1,106,331).
   The packed ceiling is deliberately loose: it exists to catch a dependency-scale mistake, not to
   gate ordinary correctness work, and the unpacked ceiling plus the absolute bundle, startup,
   memory, and request ceilings below stay close to their measurements.

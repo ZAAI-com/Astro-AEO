@@ -17,10 +17,11 @@ export const RELEASE_THRESHOLDS = Object.freeze({
   // contracts) alone measured 1,200,204 unpacked, past the 1.3 ceiling, so both
   // ceilings move once here for the whole release instead of creeping per
   // workstream. None of the new code enters a consumer's runtime bundle unless it
-  // is imported, and that is held by the bundle and startup limits below. Tighten
-  // these to the measured 1.4.0 tarball before the tag.
-  packagePackedBytes: 500_000,
-  packageUnpackedBytes: 1_600_000,
+  // is imported, and that is held by the bundle and startup limits below. 1.4.0
+  // measured 350,713 packed and 1,358,848 unpacked across 164 files. The unpacked
+  // ceiling sits close to that measurement, as before; the packed one stays loose.
+  packagePackedBytes: 450_000,
+  packageUnpackedBytes: 1_380_000,
   parse100KbP95Ms: 50,
   convert100KbP95Ms: 150,
   requestP95OverheadMs: 10,
