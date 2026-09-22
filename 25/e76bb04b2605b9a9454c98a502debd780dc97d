@@ -1,0 +1,21 @@
+benchmarks/thresholds.mjs
+  s_9adb0045239326::t_a807723566ee2c 20-24
+benchmarks/README.md
+  s_9adb0045239326::t_a807723566ee2c 47-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "25e76bb04b2605b9a9454c98a502debd780dc97d",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
