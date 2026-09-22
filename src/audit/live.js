@@ -76,6 +76,9 @@ export async function auditLive(startUrl, options = {}) {
       if (url === batch[0] && visited.size === 0 && !page.facts) {
         throw new AuditTargetError(`could not audit ${url}: ${page.failure?.message ?? 'no HTML response'}`);
       }
+      // Two spellings of one page can land in the same batch: a redirect to a target that
+      // is itself queued. Whichever is processed first claims the page for both.
+      if (visited.has(url)) continue;
       if (page.finalUrl && page.finalUrl !== url && visited.has(page.finalUrl)) {
         // A redirect onto a page already audited: one page, two spellings.
         visited.set(url, visited.get(page.finalUrl));

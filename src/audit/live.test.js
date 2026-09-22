@@ -103,6 +103,23 @@ describe('live audit', () => {
     expect(allowed.pagesChecked).toBe(2);
   });
 
+  it('counts a page once when a redirect to it and the page itself share a batch', async () => {
+    // With hostnames the batch order is fixed: a.test/hop/ sorts before b.test/, so the
+    // redirect is processed first and must claim the page for the direct fetch too.
+    const html = (/** @type {string} */ title, /** @type {string} */ body = '') =>
+      new Response(page(title, body), { headers: { 'content-type': 'text/html' } });
+    const fetch = /** @type {typeof globalThis.fetch} */ (async (input, init) => {
+      const url = new URL(new Request(input, init).url);
+      if (url.href === 'http://a.test/') return html('Home', '<a href="http://b.test/">b</a><a href="/hop/">hop</a>');
+      if (url.href === 'http://a.test/hop/') return new Response(null, { status: 302, headers: { location: 'http://b.test/' } });
+      if (url.href === 'http://b.test/') return html('B');
+      return new Response('missing', { status: 404 });
+    });
+    const result = await auditLive('http://a.test/', { fetch, allowOrigins: ['http://b.test'], concurrency: 4 });
+    expect(result.pagesChecked).toBe(2);
+    expect(result.findings.filter((finding) => finding.ruleId.endsWith('-duplicate'))).toEqual([]);
+  });
+
   it('stops at the page cap deterministically and says so', async () => {
     const links = ['/c/', '/a/', '/b/'].map((href) => `<a href="${href}">x</a>`).join('');
     const { origin, seen } = site({ '/': page('Home', links), '/a/': page('A'), '/b/': page('B'), '/c/': page('C') });
