@@ -1,0 +1,21 @@
+src/audit/live.js
+  s_9adb0045239326::t_951a1827a2e596 79-81
+src/audit/live.test.js
+  s_9adb0045239326::t_951a1827a2e596 106-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4b404829f4464a9113ae81e7ffd1983639c62883",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
