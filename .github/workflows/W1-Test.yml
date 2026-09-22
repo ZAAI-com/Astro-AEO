@@ -150,6 +150,37 @@ jobs:
       - name: The failure was reported, and only after the report existed
         run: test "${{ steps.broken.outcome }}" = "failure" && test -s broken.sarif
 
+  action-upload:
+    # A real code-scanning upload needs security-events: write, which a fork pull request
+    # never has, so this runs only on a manual dispatch from the repository itself.
+    name: audit action real upload
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Audit the valid fixture and upload its SARIF to code scanning
+        id: upload
+        uses: ./
+        with:
+          target: fixtures/dist-valid
+          sarif-file: astro-aeo-upload.sarif
+      - name: Record what was uploaded
+        run: |
+          echo "uploaded ${{ steps.upload.outputs.sarif-file }} (exit ${{ steps.upload.outputs.exit-code }})"
+          node -e "const s=JSON.parse(require('fs').readFileSync('astro-aeo-upload.sarif','utf8'));console.log(s.runs[0].results.length,'results')"
+
   astro-node-runtime:
     uses: ./.github/workflows/W-Node-Compat.yml
 
