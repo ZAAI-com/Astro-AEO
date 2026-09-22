@@ -1,0 +1,23 @@
+benchmarks/baseline-1.4.json
+  s_9adb0045239326::t_daf7110e514d97 1-179
+benchmarks/run.mjs
+  s_9adb0045239326::t_daf7110e514d97 30,33
+scripts/update-benchmark-baseline.mjs
+  s_9adb0045239326::t_daf7110e514d97 12-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b725be19a0d5526d89a08002fd02b01bcda128c3",
+  "prompts": {},
+  "sessions": {
+    "s_9adb0045239326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bf9be72-4cc4-4dec-92ca-f9bef6d8d2ff",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
