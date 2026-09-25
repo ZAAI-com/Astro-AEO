@@ -1,0 +1,27 @@
+src/plugins/dispatcher.test.js
+  s_55a54689f9ffa6::t_23c06120de9ed7 180-241
+  s_55a54689f9ffa6::t_536fd8991a6c99 3,6-28
+  s_55a54689f9ffa6::t_e78b8ce89fdf0a 29
+src/plugins/dispatcher.js
+  s_55a54689f9ffa6::t_d1c9079a392010 30
+src/index.d.ts
+  s_55a54689f9ffa6::t_9e9161f0f713c8 1070
+README.md
+  s_55a54689f9ffa6::t_bc827dae9c3392 1100-1112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a718e9d2dd07fea6a1e46eab09ff550ec8926b60",
+  "prompts": {},
+  "sessions": {
+    "s_55a54689f9ffa6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "87106679-6321-4542-b6d3-18c482668d0d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
