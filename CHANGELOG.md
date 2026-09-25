@@ -131,7 +131,7 @@ bytes as before, and an invalid label is ignored with `catalog-invalid-version`.
 ### Package size
 
 Benchmark regression explanation: against the committed 1.3 baseline the published package grows from
-272,377 to about 350,713 packed bytes (about 29 percent) and from 1,106,331 to about 1,358,848 unpacked
+272,377 to about 351,101 packed bytes (about 29 percent) and from 1,106,331 to about 1,359,816 unpacked
 bytes (about 23 percent; about 17 percent over 1.3.1). 1.4 ships the audit engine with seven report
 formats, the doctor and fix commands, the content and Starlight helpers, and three static edge handlers
 as new source files. All of it is opt-in and none of it is imported by the integration entry or the
