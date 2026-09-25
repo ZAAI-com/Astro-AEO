@@ -1,6 +1,31 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { AeoConfigError } from '../lib/errors.js';
 import { createPluginDispatcher, PLUGIN_PAGE_LOSS_CODES } from './dispatcher.js';
+
+/**
+ * Setup rewrites every throw as "failed during setup", so capture the error
+ * `api.on` raises inside setup to see which validation branch rejected it.
+ * @param {string} stage
+ * @param {unknown} cache
+ */
+async function rejectedCacheDeclaration(stage, cache) {
+  let error;
+  const dispatcher = await createPluginDispatcher({
+    command: 'build',
+    plugins: [{
+      name: 'declares', apiVersion: 1,
+      setup(api) {
+        try {
+          api.on(/** @type {any} */ (stage), () => {}, /** @type {any} */ ({ cache }));
+        } catch (caught) {
+          error = caught;
+        }
+      },
+    }],
+  });
+  return { error, registered: dispatcher.hasUserHooks(/** @type {any} */ (stage)) };
+}
 
 describe('plugin dispatcher', () => {
   test('exports every isolating failure code the dispatcher emits as a page loss', () => {
@@ -150,6 +175,68 @@ describe('plugin dispatcher', () => {
     });
     expect(dispatcher.claims).toEqual([{ id: 'feed', pathname: '/feed.txt', plugin: 'feed' }]);
     expect(dispatcher.runtimeManifest.plugins[0]).toMatchObject({ name: 'feed', stages: [] });
+  });
+
+  test('rejects cache declarations outside the page and graph stages', async () => {
+    for (const stage of ['artifact:generate', 'artifact:validate', 'build:complete']) {
+      const { error, registered } = await rejectedCacheDeclaration(stage, { pure: true, version: '1' });
+      expect(error).toBeInstanceOf(AeoConfigError);
+      expect(error.message).toBe(`astro-aeo: plugin "declares" cannot declare cache behavior for ${stage}.`);
+      expect(registered).toBe(false);
+    }
+  });
+
+  test('rejects malformed cache declarations', async () => {
+    for (const cache of [
+      null,
+      'v1',
+      [],
+      { pure: false, version: '1' },
+      { pure: 'true', version: '1' },
+      { pure: true },
+      { pure: true, version: 1 },
+      { pure: true, version: '   ' },
+    ]) {
+      const { error, registered } = await rejectedCacheDeclaration('page:metadata', cache);
+      expect(error).toBeInstanceOf(AeoConfigError);
+      expect(error.message).toBe('astro-aeo: plugin "declares" registered an invalid cache declaration for page:metadata.');
+      expect(registered).toBe(false);
+    }
+  });
+
+  test('records trimmed cache declarations per hook in the runtime manifest', async () => {
+    const dispatcher = await createPluginDispatcher({
+      command: 'build',
+      plugins: [
+        {
+          name: 'first', apiVersion: 1,
+          runtime: { entrypoint: './first.js' },
+          setup(api) {
+            api.on('graph:build', () => {}, { cache: { pure: true, version: 'graph-1' } });
+            api.on('page:metadata', () => {}, { cache: { pure: true, version: ' 2 ' } });
+            api.on('page:metadata', () => {});
+          },
+        },
+        {
+          name: 'second', apiVersion: 1,
+          runtime: { entrypoint: './second.js' },
+          setup(api) { api.on('page:metadata', () => {}); },
+        },
+      ],
+    });
+    const [first, second] = dispatcher.runtimeManifest.plugins;
+
+    // Stage order follows the lifecycle, not registration order, and ordinals
+    // count per plugin per stage, so the runtime gate can pair each hook.
+    expect(first.stages).toEqual(['page:metadata', 'graph:build']);
+    expect(first.hookManifest).toEqual([
+      { stage: 'page:metadata', ordinal: 0, cache: { pure: true, version: '2' } },
+      { stage: 'page:metadata', ordinal: 1 },
+      { stage: 'graph:build', ordinal: 0, cache: { pure: true, version: 'graph-1' } },
+    ]);
+    expect(first.hookManifest[1]).not.toHaveProperty('cache');
+    expect(second.hookManifest).toEqual([{ stage: 'page:metadata', ordinal: 0 }]);
+    expect(second.hookManifest[0]).not.toHaveProperty('cache');
   });
 
   test('distinguishes omitted runtime options from explicit null', async () => {

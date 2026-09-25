@@ -1067,6 +1067,7 @@ export interface AstroAeoPluginApi {
   readonly options?: JsonValue;
   on<T>(stage: AstroAeoPluginStage, hook: AstroAeoPluginHook<T>): void;
   on<T>(
+    // Edit together with CACHEABLE_STAGES in src/plugins/dispatcher.js.
     stage: 'page:discovered' | 'page:extract' | 'page:transform' | 'page:metadata' | 'graph:build',
     hook: AstroAeoPluginHook<T>,
     options: { cache?: CacheDeclaration },

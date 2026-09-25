@@ -1097,6 +1097,19 @@ build and runtime corpora use the same final graph. Artifact claims are exact
 app-relative pathnames, and runtime page access never exposes raw requests, cookies, credentials,
 or arbitrary rendering. The built-in semantic pipeline uses this same dispatcher.
 
+Hooks on `page:discovered`, `page:extract`, `page:transform`, `page:metadata`, and `graph:build`
+may declare themselves pure:
+
+```js
+api.on('page:metadata', hook, { cache: { pure: true, version: '2' } });
+```
+
+The declaration is recorded in the build's hook manifest and checked when the runtime module
+loads. A runtime module that registers different hooks or different declarations than the build
+fails to load, and its stages isolate. Bump `version` whenever the hook's output changes for the
+same input. The declaration does not currently let a build skip hook execution: every hook runs
+on every build.
+
 ## JSON-LD Components
 
 Import from `astro-aeo/components` and drop into any layout or page.
