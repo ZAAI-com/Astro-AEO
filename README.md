@@ -655,10 +655,19 @@ extraction falls back to `<body>`.
 converting them, for a widget whose markup carries meaning. Removal wins over
 keeping, and the always-dropped tags can never be reintroduced this way.
 
-Figures and captions, definition lists, tables and captions, `time`, `address`, and
-`cite` are retained as cleaned raw HTML because flattening them would discard
-semantics Markdown cannot express. Empty links and images inherit accessible names
-from `alt`, `aria-label`, `aria-labelledby`, then `title`.
+Buttons (except disclosure toggles with `aria-expanded` or `aria-controls`), `svg`,
+`template`, `[hidden]`, and `[aria-hidden="true"]` elements are dropped as interface
+chrome, unless they wrap an image with alt text.
+
+Figures become an image followed by the caption in emphasis, definition lists become a
+bold term followed by its description, and tables whose cells are single-span inline
+content become GFM pipe tables. `time`, `address`, and `cite` convert to their text.
+Tables with `colspan`, `rowspan`, or block content in a cell, and `audio` and `video`,
+stay HTML because Markdown cannot express them; that HTML keeps only meaningful
+attributes (`href`, `src`, `alt`, `title`, `scope`, `colspan`, `rowspan`, `headers`,
+`datetime`, `lang`, `aria-label`, `poster`, `type`) and drops bare `div` and `span`
+wrappers. Empty links and images inherit accessible names from `alt`, `aria-label`,
+`aria-labelledby`, then `title`.
 
 Selector options must be arrays. A non-array value, invalid selector, or empty
 selector string is a configuration error, not a silent no-op; an empty array is valid.

@@ -210,6 +210,8 @@ export interface ExtractionDiagnostics {
   inputCharacters: number;
   outputCharacters: number;
   removedNodes: number;
+  /** Blocks emitted as raw HTML (complex tables, audio, video, `keepSelectors`). */
+  keptHtmlBlocks?: number;
   fallbackReason?: string;
 }
 

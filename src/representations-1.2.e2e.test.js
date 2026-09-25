@@ -66,11 +66,12 @@ describe('the real 1.2 representation fixture', () => {
 
   test('preserves tables, captions, media, code languages, callouts, and resolved assets', () => {
     const markdown = read('rich.md');
-    expect(markdown).toContain('<caption>Quarterly totals</caption>');
-    expect(markdown).toContain('<figcaption>Accessible media caption</figcaption>');
-    expect(markdown).toContain('src="https://representations.example.com/media/chart.png"');
+    expect(markdown).toContain('_Quarterly totals_\n\n| Quarter | Total |');
+    expect(markdown).toContain('_Accessible media caption_');
+    expect(markdown).toContain('![Quarterly chart](https://representations.example.com/media/chart.png)');
     expect(markdown).toContain('src="https://representations.example.com/media/demo.mp4"');
     expect(markdown).toContain('poster="https://representations.example.com/media/poster.jpg"');
+    expect(markdown).toContain('src="https://representations.example.com/media/narration.mp3"');
     expect(markdown).toContain('```typescript');
     expect(markdown).toContain('<aside class="callout">');
     expect(markdown).toContain('href="https://representations.example.com/docs/evidence.pdf"');

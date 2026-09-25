@@ -18,7 +18,8 @@ import { createFinding, fromGraphFinding } from './finding.js';
 
 export const THIN_MARKDOWN_WORDS = 40;
 
-const RESIDUE = /<\/?(?:div|span|section|article|nav|header|footer|script|style|iframe)\b/i;
+// Layout elements, and any tag still carrying presentation (classes, inline styles, data attributes).
+const RESIDUE = /<\/?(?:div|span|section|article|nav|header|footer|script|style|iframe|figure|figcaption|dl|dt|dd)\b|<[a-z][\w-]*\s[^>]*\b(?:class|style|data-[\w-]+)=/i;
 
 /**
  * @param {readonly PageFacts[]} pages

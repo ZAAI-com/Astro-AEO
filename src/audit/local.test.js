@@ -105,6 +105,12 @@ describe('offline audit', () => {
       'dist/thin/index.md': '# Thin\n\nshort\n',
       'dist/residue/index.html': html({ title: 'Residue', description: 'd' }),
       'dist/residue/index.md': `${WORDS}\n\n<div class="x">left over</div>\n`,
+      'dist/figure/index.html': html({ title: 'Figure', description: 'd' }),
+      'dist/figure/index.md': `# Figure\n\n${WORDS}\n\n<figure><img src="/a.png" alt="A"></figure>\n`,
+      'dist/styled/index.html': html({ title: 'Styled', description: 'd' }),
+      'dist/styled/index.md': `# Styled\n\n${WORDS}\n\n<table class="min-w-full"><tr><td>1</td></tr></table>\n`,
+      'dist/table/index.html': html({ title: 'Table', description: 'd' }),
+      'dist/table/index.md': `# Table\n\n${WORDS}\n\n<table><tr><td colspan="2">1</td></tr></table>\n`,
       'dist/good/index.html': html({ title: 'Good', description: 'd' }),
       'dist/good/index.md': `# Good\n\n${WORDS}\n\n\`\`\`html\n<div>example</div>\n\`\`\`\n`,
     });
@@ -114,7 +120,9 @@ describe('offline audit', () => {
       .sort();
     expect(markdown).toEqual([
       'markdown-empty /empty/',
+      'markdown-html-residue /figure/',
       'markdown-html-residue /residue/',
+      'markdown-html-residue /styled/',
       'markdown-no-h1 /residue/',
       'markdown-thin /thin/',
     ]);
