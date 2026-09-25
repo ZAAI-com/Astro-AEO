@@ -1,0 +1,22 @@
+CHANGELOG.md
+  s_55a54689f9ffa6::t_d7b10a08beb5dd 134
+docs/release-evidence/1.4.0-semantic-validation.md
+  s_55a54689f9ffa6::t_01fbbd4758bf30 46
+  s_55a54689f9ffa6::t_d7b10a08beb5dd 15,20,47,49,51-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c49ecfeb596dd71f6b1a4f74c7f33fa534ba5663",
+  "prompts": {},
+  "sessions": {
+    "s_55a54689f9ffa6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "87106679-6321-4542-b6d3-18c482668d0d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
