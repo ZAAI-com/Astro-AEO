@@ -119,6 +119,15 @@ bytes as before, and an invalid label is ignored with `catalog-invalid-version`.
 
 `defineAeoPage()` is now typed consistently: its JSDoc return type matches the declared `AeoPageProps`.
 
+### Internal
+
+- Documented the plugin `cache: { pure, version }` declaration. It is a build/runtime parity check,
+  not a cache: a runtime module whose hooks or declarations differ from the build fails to load and
+  its stages isolate, and every hook still runs on every build. Wiring declarations into the
+  processing cache remains deferred until a benchmark shows plugin hooks dominating a warm build.
+- Covered the dispatcher's cache-declaration validation and its runtime manifest projection, which
+  had no tests.
+
 ### Package size
 
 Benchmark regression explanation: against the committed 1.3 baseline the published package grows from
