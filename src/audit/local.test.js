@@ -40,6 +40,90 @@ function rulesOf(project, options) {
 }
 
 describe('offline audit', () => {
+  it('finds root, nested directory, and file-format companions using the build mapping', () => {
+    const project = site({
+      'dist/index.html': html({ title: 'Home' }),
+      'dist/index.md': '',
+      'dist/guide/install/index.html': html({ title: 'Install' }),
+      'dist/guide/install.md': '',
+      'dist/about.html': html({ title: 'About' }),
+      'dist/about.md': '',
+    });
+    expect(rulesOf(project).filter((finding) => finding.ruleId === 'markdown-empty').map((finding) => finding.url).sort())
+      .toEqual(['/', '/about', '/guide/install/']);
+  });
+
+  it('does not read symlinked companions or directories as Markdown', () => {
+    const project = site({
+      'outside.md': '',
+      'dist/guide/index.html': html({ title: 'Guide' }),
+      'dist/other/index.html': html({ title: 'Other' }),
+    });
+    symlinkSync(join(project, 'outside.md'), join(project, 'dist/guide.md'));
+    mkdirSync(join(project, 'dist/other.md'));
+    expect(rulesOf(project).filter((finding) => finding.ruleId.startsWith('markdown-'))).toEqual([]);
+  });
+
+  it.each(['explicit', 'manifest', 'profile'])('resolves absolute local links using the %s origin', (source) => {
+    const origin = 'https://example.com';
+    const project = site({
+      'dist/index.html': html({
+        title: 'Home',
+        body: '<a href="https://example.com/docs/gone/">gone</a>'
+          + '<a href="//example.com/docs/de/#missing">anchor</a>'
+          + '<a href="https://example.com/docs/de/#top">ok</a>'
+          + '<a href="https://external.example/docs/gone/">external</a>'
+          + '<a href="https://example.com/elsewhere/">outside base</a><a href="mailto:x@example.com">mail</a>',
+        head: '<link rel="alternate" hreflang="de" href="https://example.com/docs/de/">'
+          + '<link rel="alternate" hreflang="fr" href="https://example.com/docs/fr/">'
+          + '<link rel="alternate" hreflang="es" href="https://example.com/docs/es/">',
+      }),
+      'dist/de/index.html': html({ title: 'Deutsch', head: '<link rel="alternate" hreflang="en" href="//example.com/docs/">' }),
+      'dist/es/index.html': html({ title: 'Español' }),
+      // Deliberately contradict lower-priority metadata to test precedence.
+      'dist/.well-known/domain-profile.json': JSON.stringify({ url: source === 'profile' ? origin : 'https://other.example' }),
+      ...(source === 'profile' ? {} : {
+        'dist/llms/manifest.json': JSON.stringify({
+          version: 1, origin: source === 'manifest' ? origin : 'https://other.example', base: '/docs',
+          tokenizer: { name: 'test', version: '1', approximate: true },
+          locales: [{ origin, locale: null, language: null, canonicalArtifact: '/docs/llms.txt' }],
+          pages: [],
+          artifacts: [{ origin, pathname: '/docs/llms.txt', kind: 'index', locale: null, section: null, part: null,
+            tokenCount: 0, hash: `sha256:${'0'.repeat(64)}`, encoding: 'identity', sourcePathname: null }],
+        }),
+      }),
+    });
+    const findings = rulesOf(project, { base: '/docs', ...(source === 'explicit' ? { siteUrl: origin } : {}) });
+    expect(findings.filter((finding) => ['link-internal-broken', 'link-anchor-missing', 'hreflang-target-missing', 'hreflang-return-missing'].includes(finding.ruleId))
+      .map((finding) => [finding.ruleId, finding.evidence])).toEqual([
+      ['link-internal-broken', 'https://example.com/docs/gone/'],
+      ['link-anchor-missing', '//example.com/docs/de/#missing'],
+      ['hreflang-target-missing', 'https://example.com/docs/fr/'],
+      ['hreflang-return-missing', 'https://example.com/docs/es/'],
+    ]);
+  });
+
+  it('falls back from an invalid manifest to a profile and never infers an origin from canonical links', () => {
+    const project = site({
+      'dist/index.html': html({ title: 'Home', canonical: 'https://example.com/',
+        body: '<a href="https://example.com/gone/">absolute</a><a href="/missing/">relative</a>' }),
+      'dist/llms/manifest.json': JSON.stringify({ version: 99, origin: 'https://example.com' }),
+      'dist/.well-known/domain-profile.json': '{bad json',
+    });
+    const broken = () => rulesOf(project).filter((finding) => finding.ruleId === 'link-internal-broken').map((finding) => finding.evidence);
+    expect(broken()).toEqual(['/missing/']);
+    writeFileSync(join(project, 'dist/.well-known/domain-profile.json'), JSON.stringify({ url: 'https://example.com/' }));
+    expect(broken()).toEqual(['https://example.com/gone/', '/missing/']);
+  });
+
+  it('reports missing HTML language offline except for noindex pages', () => {
+    const project = site({
+      'dist/index.html': html({ title: 'Home', lang: '' }),
+      'dist/private.html': html({ title: 'Private', lang: '', head: '<meta name="robots" content="noindex">' }),
+    });
+    expect(rulesOf(project).filter((finding) => finding.ruleId === 'html-lang-missing').map((finding) => finding.url)).toEqual(['/']);
+  });
+
   it('reports the legacy validator findings under their original codes', () => {
     const findings = auditDist('fixtures/dist-broken').findings;
     expect(findings.map((finding) => finding.ruleId)).toEqual(expect.arrayContaining(['missing-md', 'orphan-md', 'no-llms-full']));
@@ -100,19 +184,19 @@ describe('offline audit', () => {
   it('checks Markdown quality without counting fenced code as prose or residue', () => {
     const project = site({
       'dist/empty/index.html': html({ title: 'Empty', description: 'd' }),
-      'dist/empty/index.md': '```html\n<div>only code</div>\n```\n',
+      'dist/empty.md': '```html\n<div>only code</div>\n```\n',
       'dist/thin/index.html': html({ title: 'Thin', description: 'd' }),
-      'dist/thin/index.md': '# Thin\n\nshort\n',
+      'dist/thin.md': '# Thin\n\nshort\n',
       'dist/residue/index.html': html({ title: 'Residue', description: 'd' }),
-      'dist/residue/index.md': `${WORDS}\n\n<div class="x">left over</div>\n`,
+      'dist/residue.md': `${WORDS}\n\n<div class="x">left over</div>\n`,
       'dist/figure/index.html': html({ title: 'Figure', description: 'd' }),
-      'dist/figure/index.md': `# Figure\n\n${WORDS}\n\n<figure><img src="/a.png" alt="A"></figure>\n`,
+      'dist/figure.md': `# Figure\n\n${WORDS}\n\n<figure><img src="/a.png" alt="A"></figure>\n`,
       'dist/styled/index.html': html({ title: 'Styled', description: 'd' }),
-      'dist/styled/index.md': `# Styled\n\n${WORDS}\n\n<table class="min-w-full"><tr><td>1</td></tr></table>\n`,
+      'dist/styled.md': `# Styled\n\n${WORDS}\n\n<table class="min-w-full"><tr><td>1</td></tr></table>\n`,
       'dist/table/index.html': html({ title: 'Table', description: 'd' }),
-      'dist/table/index.md': `# Table\n\n${WORDS}\n\n<table><tr><td colspan="2">1</td></tr></table>\n`,
+      'dist/table.md': `# Table\n\n${WORDS}\n\n<table><tr><td colspan="2">1</td></tr></table>\n`,
       'dist/good/index.html': html({ title: 'Good', description: 'd' }),
-      'dist/good/index.md': `# Good\n\n${WORDS}\n\n\`\`\`html\n<div>example</div>\n\`\`\`\n`,
+      'dist/good.md': `# Good\n\n${WORDS}\n\n\`\`\`html\n<div>example</div>\n\`\`\`\n`,
     });
     const markdown = rulesOf(project)
       .filter((finding) => finding.ruleId.startsWith('markdown-'))

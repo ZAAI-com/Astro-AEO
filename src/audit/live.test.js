@@ -54,6 +54,72 @@ function site(routes) {
 const ids = (findings) => findings.map((finding) => finding.ruleId).sort();
 
 describe('live audit', () => {
+  it.each(['timeout', 'interrupted'])('isolates %s response bodies on pages and companions', async (mode) => {
+    const origin = await serve((request, response) => {
+      response.writeHead(200, { 'content-type': 'text/html' });
+      if (request.url?.startsWith('/bad')) {
+        response.write('<html>partial body');
+        if (mode === 'interrupted') setTimeout(() => response.destroy(), 20);
+        return;
+      }
+      const home = page('Home', '<a href="/bad/">bad</a><a href="/good/">good</a>')
+        .replace('</head>', '<link rel="alternate" type="text/markdown" href="/bad.md"></head>');
+      response.end(request.url === '/' ? home : page('Good'));
+    });
+    const result = await auditLive(`${origin}/`, { timeout: 150 });
+    expect(result.pagesChecked).toBe(2);
+    const failures = result.findings.filter((finding) => finding.ruleId === 'live-target-unreachable');
+    expect(failures.map((finding) => finding.url).sort()).toEqual([`${origin}/bad.md`, `${origin}/bad/`]);
+    expect(failures.every((finding) => finding.message.includes(mode === 'timeout' ? 'timed out' : 'could not be fetched'))).toBe(true);
+    await expect(auditLive(`${origin}/bad/`, { timeout: 150 })).rejects.toBeInstanceOf(AuditTargetError);
+  });
+
+  it.each([404, 500])('reports HTTP %s for an advertised companion without losing the HTML page', async (status) => {
+    const { origin } = site({
+      '/': page('Home').replace('</head>', '<link rel="alternate" type="text/markdown" href="/index.md"></head>'),
+      '/index.md': { status, body: 'missing' },
+    });
+    const base = await origin;
+    const result = await auditLive(`${base}/`);
+    expect(result.pagesChecked).toBe(1);
+    expect(result.findings).toEqual([expect.objectContaining({ ruleId: 'live-fetch-failed', severity: 'error', url: `${base}/index.md`, message: `HTTP ${status}: ${base}/index.md` })]);
+  });
+
+  it('preserves companion size and redirect findings', async () => {
+    const { origin } = site({
+      '/': page('Home', '<a href="/other/">other</a>').replace('</head>', '<link rel="alternate" type="text/markdown" href="/big.md"></head>'),
+      '/big.md': { body: 'x'.repeat(MAX_BODY_BYTES + 1) },
+      '/other/': page('Other').replace('</head>', '<link rel="alternate" type="text/markdown" href="/external.md"></head>'),
+      '/external.md': { status: 302, headers: { location: 'https://external.invalid/x.md' } },
+    });
+    const result = await auditLive(`${await origin}/`);
+    expect(ids(result.findings)).toEqual(['live-body-too-large', 'live-external-skipped']);
+    expect(result.pagesChecked).toBe(2);
+  });
+
+  it('releases a response body reader after success or failure', async () => {
+    for (const failed of [false, true]) {
+      const body = new ReadableStream({ start(controller) {
+        if (failed) controller.error(new Error('interrupted'));
+        else { controller.enqueue(new TextEncoder().encode(page('Home'))); controller.close(); }
+      } });
+      const fetch = /** @type {typeof globalThis.fetch} */ (async () => new Response(body, { headers: { 'content-type': 'text/html' } }));
+      if (failed) await expect(auditLive('https://example.com/', { fetch })).rejects.toBeInstanceOf(AuditTargetError);
+      else await auditLive('https://example.com/', { fetch });
+      expect(body.locked).toBe(false);
+    }
+  });
+
+  it('reports missing language on fetched HTML but respects noindex', async () => {
+    const { origin } = site({
+      '/': page('Home', '<a href="/private/">private</a>').replace(' lang="en"', ''),
+      '/private/': page('Private').replace(' lang="en"', '').replace('</head>', '<meta name="robots" content="noindex"></head>'),
+    });
+    const base = await origin;
+    const result = await auditLive(`${base}/`);
+    expect(result.findings).toEqual([expect.objectContaining({ ruleId: 'html-lang-missing', url: `${base}/` })]);
+  });
+
   it('crawls same-origin pages, reports a broken link, and strips queries and fragments from identities', async () => {
     const { origin, seen } = site({
       '/': page('Home', '<a href="/about/?utm=1#top">a</a><a href="/about/#top">b</a><a href="/gone/">c</a><a href="/about/#nope">d</a>'),

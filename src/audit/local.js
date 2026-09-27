@@ -2,9 +2,11 @@
 import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { validateDist } from '../../cli/validate.js';
+import { basicManifestShape } from '../../cli/validate-corpus.js';
 import { diagnosticsManifestPath, sanitizeDiagnostics } from '../build/diagnostics.js';
-import { readOwnershipManifest } from '../build/ownership.js';
+import { isSafeOutputPath, readOwnershipManifest } from '../build/ownership.js';
 import { isRedirectStub } from '../core/page-meta.js';
+import { mdPathnameFor } from '../core/page-model.js';
 import { extractPageFacts } from './facts.js';
 import { createFinding, fromDiagnostic, fromLegacyFinding } from './finding.js';
 import { auditPages } from './site-rules.js';
@@ -33,9 +35,10 @@ export function auditDist(distDir, options = {}) {
   }
 
   const base = normalizeBase(options.base);
+  const origin = localOrigin(root, options.siteUrl);
   const pages = readPages(root);
   findings.push(...auditPages(pages, {
-    links: createResolver(root, base, pages),
+    links: createResolver(root, base, pages, origin),
     ...(options.siteUrl ? { siteUrl: options.siteUrl } : {}),
   }));
   findings.push(...manifestFindings(options.projectRoot ?? resolve(root, '..')));
@@ -53,11 +56,13 @@ function readPages(root) {
     const html = readFileSync(path, 'utf8');
     if (isRedirectStub(html)) continue;
     const file = `/${relative(root, path).split(sep).join('/')}`;
-    const companion = path.replace(/\.html$/, '.md');
+    const pathname = pageUrl(file);
+    const companion = join(root, mdPathnameFor(pathname.replace(/\/$/, '') || '/'));
     pages.push(extractPageFacts(html, {
-      url: pageUrl(file),
+      url: pathname,
       file,
-      ...(existsSync(companion) ? { markdown: readFileSync(companion, 'utf8') } : {}),
+      ...(isSafeOutputPath(root, companion) && existsSync(companion) && lstatSync(companion).isFile()
+        ? { markdown: readFileSync(companion, 'utf8') } : {}),
     }));
   }
   return pages;
@@ -73,9 +78,10 @@ function pageUrl(file) {
  * @param {string} root
  * @param {string} base
  * @param {PageFacts[]} pages
+ * @param {string | undefined} origin
  * @returns {import('./site-rules.js').LinkResolver}
  */
-function createResolver(root, base, pages) {
+function createResolver(root, base, pages, origin) {
   /** @type {Map<string, PageFacts>} */
   const byPath = new Map();
   for (const page of pages) {
@@ -84,13 +90,14 @@ function createResolver(root, base, pages) {
   }
   return {
     resolve(from, href) {
-      if (/^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(href)) return null;
+      if (!origin && /^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(href)) return null;
       let url;
       try {
-        url = new URL(href, `http://audit.invalid${base}${from.url}`);
+        url = new URL(href, `${origin ?? 'http://audit.invalid'}${base}${from.url}`);
       } catch {
         return null;
       }
+      if (url.origin !== (origin ?? 'http://audit.invalid') || !/^https?:$/.test(url.protocol)) return null;
       let pathname;
       try {
         pathname = decodeURIComponent(url.pathname);
@@ -118,6 +125,38 @@ function createResolver(root, base, pages) {
       return existsSync(target) ? null : undefined;
     },
   };
+}
+
+/** Only build metadata or an explicit caller option establishes the local origin.
+ * @param {string} root @param {string | undefined} siteUrl
+ */
+function localOrigin(root, siteUrl) {
+  if (siteUrl !== undefined) return httpOrigin(siteUrl);
+  const manifest = readJson('llms/manifest.json');
+  if (basicManifestShape(manifest)) return httpOrigin(manifest.origin);
+  return httpOrigin(readJson('.well-known/domain-profile.json')?.url);
+
+  /** @param {string} name */
+  function readJson(name) {
+    const path = join(root, name);
+    try {
+      return isSafeOutputPath(root, path) && lstatSync(path).isFile()
+        ? JSON.parse(readFileSync(path, 'utf8')) : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+}
+
+/** @param {unknown} value */
+function httpOrigin(value) {
+  if (typeof value !== 'string') return undefined;
+  try {
+    const url = new URL(value);
+    return /^https?:$/.test(url.protocol) && !url.username && !url.password ? url.origin : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** @param {string} projectRoot @returns {Finding[]} */

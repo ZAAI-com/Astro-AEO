@@ -174,7 +174,14 @@ export async function auditLive(startUrl, options = {}) {
     const markdownUrl = markdownHref ? resolveHref(response.url, markdownHref) : null;
     if (markdownUrl && origins.has(markdownUrl.origin)) {
       const markdown = await request(identity(markdownUrl), 'text/markdown');
-      if (!('failure' in markdown) && markdown.status < 400) {
+      if ('failure' in markdown) {
+        findings.push(markdown.failure);
+      } else if (markdown.status >= 400) {
+        findings.push(createFinding({
+          ruleId: 'live-fetch-failed', severity: 'error',
+          message: `HTTP ${markdown.status}: ${identity(markdownUrl)}`, url: identity(markdownUrl),
+        }));
+      } else {
         facts.markdown = markdown.body;
         if (!/^text\/markdown\b/i.test(markdown.contentType)) {
           findings.push(createFinding({
@@ -202,43 +209,45 @@ function createRequester(context) {
   return async function request(url, accept) {
     let current = url;
     for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-      let response;
+      const signal = AbortSignal.timeout(context.timeout);
       try {
-        response = await context.fetch(current, {
+        const response = await context.fetch(current, {
           method: 'GET',
           redirect: 'manual',
           credentials: 'omit',
           headers: { accept, 'user-agent': context.userAgent },
-          signal: AbortSignal.timeout(context.timeout),
+          signal,
         });
-      } catch (error) {
-        const reason = error instanceof Error && error.name === 'TimeoutError' ? 'timed out' : 'could not be fetched';
-        return { failure: createFinding({ ruleId: 'live-target-unreachable', severity: 'error', message: `${current} ${reason}`, url }) };
-      }
-      const location = response.headers.get('location');
-      if (response.status >= 300 && response.status < 400 && location) {
-        await response.body?.cancel();
-        const target = resolveHref(current, location);
-        if (!target || !context.origins.has(target.origin)) {
+        const location = response.headers.get('location');
+        if (response.status >= 300 && response.status < 400 && location) {
+          await response.body?.cancel();
+          const target = resolveHref(current, location);
+          if (!target || !context.origins.has(target.origin)) {
+            return {
+              failure: createFinding({
+                ruleId: 'live-external-skipped',
+                severity: 'info',
+                message: `${url} redirects outside the allowed origins and was not followed`,
+                url,
+              }),
+            };
+          }
+          current = identity(target);
+          continue;
+        }
+        const body = await readCapped(response);
+        if (body === null) {
           return {
-            failure: createFinding({
-              ruleId: 'live-external-skipped',
-              severity: 'info',
-              message: `${url} redirects outside the allowed origins and was not followed`,
-              url,
-            }),
+            failure: createFinding({ ruleId: 'live-body-too-large', severity: 'warning', message: `the response exceeds ${MAX_BODY_BYTES} bytes and was not audited: ${current}`, url }),
           };
         }
-        current = identity(target);
-        continue;
+        return { status: response.status, url: current, contentType: response.headers.get('content-type') ?? '', body };
+      } catch (error) {
+        const timedOut = (signal.aborted && signal.reason?.name === 'TimeoutError') ||
+          (error instanceof Error && error.name === 'TimeoutError');
+        const reason = timedOut ? 'timed out' : 'could not be fetched';
+        return { failure: createFinding({ ruleId: 'live-target-unreachable', severity: 'error', message: `${current} ${reason}`, url }) };
       }
-      const body = await readCapped(response);
-      if (body === null) {
-        return {
-          failure: createFinding({ ruleId: 'live-body-too-large', severity: 'warning', message: `the response exceeds ${MAX_BODY_BYTES} bytes and was not audited: ${current}`, url }),
-        };
-      }
-      return { status: response.status, url: current, contentType: response.headers.get('content-type') ?? '', body };
     }
     return {
       failure: createFinding({ ruleId: 'live-redirect-limit', severity: 'warning', message: `more than ${MAX_REDIRECTS} redirects: ${url}`, url }),
@@ -253,23 +262,27 @@ async function readCapped(response) {
   /** @type {Uint8Array[]} */
   const chunks = [];
   let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > MAX_BODY_BYTES) {
-      await reader.cancel();
-      return null;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_BODY_BYTES) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
     }
-    chunks.push(value);
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return new TextDecoder().decode(bytes);
+  } finally {
+    reader.releaseLock();
   }
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder().decode(bytes);
 }
 
 /**

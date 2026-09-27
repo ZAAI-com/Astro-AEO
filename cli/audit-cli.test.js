@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
-import { runAudit } from './audit.js';
+import { AuditInvocationError, runAudit } from './audit.js';
 
 const BIN = resolve('bin/astro-aeo.js');
 const VALID = resolve('fixtures/dist-valid');
@@ -19,6 +19,30 @@ afterEach(() => {
 const audit = (args, cwd) => spawnSync(process.execPath, [BIN, 'audit', ...args], { encoding: 'utf8', ...(cwd ? { cwd } : {}) });
 
 describe('audit CLI', () => {
+  test.each(['http', 'network', 'body'])('fails on a %s companion error unless --fail-on none', async (failure) => {
+    const fetch = /** @type {typeof globalThis.fetch} */ (async (input) => {
+      if (String(input).endsWith('.md')) {
+        if (failure === 'http') return new Response('missing', { status: 404 });
+        if (failure === 'network') throw new Error('unreachable');
+        return new Response(new ReadableStream({ start(controller) { controller.error(new Error('interrupted')); } }));
+      }
+      return new Response('<html lang="en"><head><title>Home</title><meta name="description" content="Home"><link rel="alternate" type="text/markdown" href="/index.md"></head></html>', { headers: { 'content-type': 'text/html' } });
+    });
+    const context = { version: '1.4.0', fetch };
+    const result = await runAudit(['https://example.com/', '--format', 'json'], context);
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.output).summary).toMatchObject({ errors: 1, pagesChecked: 1 });
+    expect((await runAudit(['https://example.com/', '--fail-on', 'none'], context)).exitCode).toBe(0);
+  });
+
+  test('maps a failed starting response body to an invocation error', async () => {
+    const fetch = /** @type {typeof globalThis.fetch} */ (async () => new Response(
+      new ReadableStream({ start(controller) { controller.error(new Error('interrupted')); } }),
+      { headers: { 'content-type': 'text/html' } },
+    ));
+    await expect(runAudit(['https://example.com/'], { version: '1.4.0', fetch })).rejects.toBeInstanceOf(AuditInvocationError);
+  });
+
   test('exits 0 on warnings by default and 1 under --fail-on warning', () => {
     expect(audit([VALID]).status).toBe(0);
     expect(audit([VALID, '--fail-on', 'warning']).status).toBe(1);

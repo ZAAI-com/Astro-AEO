@@ -8,6 +8,7 @@ import { parseDocument } from '../core/html-document.js';
  *
  * @typedef {object} PageFacts
  * @property {string} url                 Page identity: a pathname offline, an absolute URL live.
+ * @property {boolean} renderedHtml       Whether metadata was observed in rendered HTML.
  * @property {string} [file]              Audited file, relative to the audited root.
  * @property {string} [title]
  * @property {string} [description]
@@ -65,6 +66,7 @@ export function extractPageFacts(html, identity) {
   const language = document.documentElement?.getAttribute('lang')?.trim();
   return {
     url: identity.url,
+    renderedHtml: true,
     ...(identity.file ? { file: identity.file } : {}),
     ...(title ? { title } : {}),
     ...(text('meta[name="description" i]', 'content') ? { description: text('meta[name="description" i]', 'content') } : {}),
@@ -90,6 +92,7 @@ export function extractPageFacts(html, identity) {
 export function factsFromPageRecord(page) {
   return {
     url: page.pathname,
+    renderedHtml: false,
     ...(page.title ? { title: page.title } : {}),
     ...(page.description ? { description: page.description } : {}),
     ...(page.canonicalUrl ? { canonical: page.canonicalUrl } : {}),

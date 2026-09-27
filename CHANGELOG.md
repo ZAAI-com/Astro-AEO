@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Fixed
+
+- Audit directory-format pages using their generated Markdown companion paths instead of looking
+  for `index.md` inside each page directory. Companion reads remain confined and symlink-free.
+- Resolve same-origin absolute links and hreflang offline using explicit site information or
+  generated corpus/domain-profile metadata, without treating external links as local files.
+- Preserve live audit reports when response bodies time out or are interrupted, and report failed
+  advertised Markdown companions instead of silently skipping them.
+- Report missing HTML language attributes during live audits as well as offline audits, while
+  preserving noindex exemptions and build-model behavior.
+
+Corrected audits may now report failures that previous versions missed. The `validate` command,
+public configuration, and audit report format are unchanged.
+
 ## 1.4.0
 
 The quality and ecosystem release: a site-wide audit with seven report formats, deployment checks and

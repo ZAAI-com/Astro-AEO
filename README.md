@@ -1361,6 +1361,18 @@ through the schema graph validator, and hreflang targets and return links. When 
 conflicts are reported too. Every rule ID is listed in [docs/rules.md](docs/rules.md); an ID is the same
 string the build and `validate` already use as `code`.
 
+Offline audits resolve absolute and protocol-relative internal links, including hreflang, when the
+local origin is known from the generated `llms/manifest.json` or, as a fallback,
+`.well-known/domain-profile.json`. An explicit `auditDist(distDir, { siteUrl })` option takes precedence for
+internal callers. Without this metadata, relative links are still checked, but absolute URLs are
+skipped: a canonical link alone does not establish the deployment's origin. External links are
+never fetched by an offline audit.
+
+Markdown quality checks use the generated companion paths (`/guide.md` for `/guide/index.html`).
+Live audits report failed advertised companions and isolate response-body timeouts to the affected
+request, so a broken linked page does not discard the rest of the report. Missing HTML language
+attributes are checked both offline and live, except on noindex pages.
+
 | Option | Meaning |
 |---|---|
 | `--format <name>` | `terminal` (default), `json`, `sarif`, `html`, `markdown`, `github`, or `junit`. All seven render the same report. |

@@ -4,6 +4,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readEdgeManifest } from './runtime/edge/handler.js';
+import { auditDist } from './audit/local.js';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
 const FIXTURE = join(REPO, 'fixtures', 'edge-static');
@@ -24,6 +25,11 @@ beforeAll(() => {
 });
 
 describe('static edge negotiation build', () => {
+  test('audits the generated directory-page companion at its real output path', () => {
+    const findings = auditDist(DIST).findings;
+    expect(findings).toContainEqual(expect.objectContaining({ ruleId: 'markdown-thin', url: '/guide/' }));
+  });
+
   test('emits a manifest of exactly the companions the build wrote', () => {
     const manifest = JSON.parse(readFileSync(join(DIST, '.well-known', 'astro-aeo-edge-v1.json'), 'utf8'));
     expect(manifest).toEqual({

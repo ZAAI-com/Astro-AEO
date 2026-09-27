@@ -52,7 +52,7 @@ function auditMetadata(page, findings) {
   if (!page.description) {
     findings.push(at(page, 'description-missing', 'warning', `no meta description: ${page.url}`));
   }
-  if (!page.language && page.file) {
+  if (!page.language && page.renderedHtml) {
     findings.push(at(page, 'html-lang-missing', 'warning', `the html element has no lang attribute: ${page.url}`));
   }
 }
