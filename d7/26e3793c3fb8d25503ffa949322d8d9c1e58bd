@@ -1,0 +1,101 @@
+src/core/plugin-validation.js
+  s_6336494b9435cc::t_2ca0657ae0fc87 124
+fixtures/extract-real/figure-screenshots.md
+  s_6336494b9435cc::t_ce4fa296533f75 1
+fixtures/extract-real/powerbeat-insights-chart.html
+  s_6336494b9435cc::t_28a7d3626fc438 1-3
+fixtures/extract-real/git-same-kept-table.html
+  s_6336494b9435cc::t_28a7d3626fc438 1-3
+src/audit/site-rules.js
+  s_6336494b9435cc::t_2ca0657ae0fc87 20-22,26,86-92
+  s_6336494b9435cc::t_9eb05fb74c3c85 84-85
+  s_6336494b9435cc::t_02fb8fbffaae4e 93
+fixtures/extract-real/powerbeat-early-access.html
+  s_6336494b9435cc::t_28a7d3626fc438 1-3
+src/core/extract/index.js
+  s_6336494b9435cc::t_debf323e7c162e 233-234
+  s_6336494b9435cc::t_8e33e42d7e0d8a 211
+  s_6336494b9435cc::t_8d1a1e7cb788ab 242-246
+  s_6336494b9435cc::t_0c8ee2b7b7d371 208-209,217-219,232,235-236,351-358,397,414,556
+  s_6336494b9435cc::t_c5d1794dfae96c 274-280
+  s_6336494b9435cc::t_affce6c5aca77b 210,212-216
+  s_6336494b9435cc::t_970252d5507041 220-231
+src/core/extract/real-pages.test.js
+  s_6336494b9435cc::t_c0caec15f0599d 1,21-23
+fixtures/extract-real/git-same-figure.md
+  s_6336494b9435cc::t_7b6adfa7174f99 1-2
+  s_6336494b9435cc::t_17fc9b16eac4e2 3
+fixtures/extract-real/powerbeat-insights-chart.md
+  s_6336494b9435cc::t_52be59ad6d4109 1
+  s_6336494b9435cc::t_7b6adfa7174f99 2-5
+fixtures/extract-real/git-same-kept-table.options.json
+  s_6336494b9435cc::t_28a7d3626fc438 1
+fixtures/extract-real/git-same-kept-table.md
+  s_6336494b9435cc::t_7b6adfa7174f99 1
+README.md
+  s_6336494b9435cc::t_8324d33b08f1e3 654-656,663-665,675-676
+  s_6336494b9435cc::t_22bedf4a7cd0d1 677
+  s_6336494b9435cc::t_990fafc81f413c 125,678-679
+  s_6336494b9435cc::t_d99dc51670538f 680
+src/core/extract/index.test.js
+  s_6336494b9435cc::t_8c619e6374ac15 118,124-125,138,142-150,342-344,347-349,351
+  s_6336494b9435cc::t_affce6c5aca77b 345-346
+  s_6336494b9435cc::t_997aeaedf69832 350
+  s_6336494b9435cc::t_970252d5507041 352,354-358
+  s_0f13ff7763c025::t_ee86e22fea454d 353
+fixtures/extract-real/powerbeat-agent-list.md
+  s_6336494b9435cc::t_7b6adfa7174f99 1-2,4-6
+  s_6336494b9435cc::t_17fc9b16eac4e2 3,7
+fixtures/extract-real/git-same-figure.html
+  s_6336494b9435cc::t_28a7d3626fc438 1-3
+.changeset/markdown-without-layout-html.md
+  s_6336494b9435cc::t_8324d33b08f1e3 13-14,20-21
+src/representations-1.2.e2e.test.js
+  s_6336494b9435cc::t_a4863a8bbd8d94 76-77
+docs/rules.md
+  s_6336494b9435cc::t_98d938062a1501 355-358
+fixtures/extract-real/powerbeat-early-access.md
+  s_6336494b9435cc::t_7b6adfa7174f99 1-3
+src/index.d.ts
+  s_6336494b9435cc::t_8324d33b08f1e3 783-784
+src/audit/site-rules.test.js
+  s_6336494b9435cc::t_9eb05fb74c3c85 24-25,38
+  s_6336494b9435cc::t_fda2bde6070a3d 1-21,23,26-37,39-40
+  s_6336494b9435cc::t_af2433fa9f5dd2 22
+src/audit/live.test.js
+  s_6336494b9435cc::t_dccb923e6db004 172-183
+src/audit/rules.js
+  s_6336494b9435cc::t_2ca0657ae0fc87 67
+fixtures/extract-real/astro-aeo-copy-button.html
+  s_6336494b9435cc::t_dc36b86b083e26 3
+  s_6336494b9435cc::t_c0caec15f0599d 1-2,4
+fixtures/extract-real/astro-aeo-copy-button.md
+  s_6336494b9435cc::t_7b6adfa7174f99 1-2
+  s_6336494b9435cc::t_f07bb838b4908b 3
+fixtures/extract-real/powerbeat-agent-list.html
+  s_6336494b9435cc::t_28a7d3626fc438 1-3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d726e3793c3fb8d25503ffa949322d8d9c1e58bd",
+  "prompts": {},
+  "sessions": {
+    "s_0f13ff7763c025": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e1cc-3394-77d2-9d18-621414738efb",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_6336494b9435cc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dfad-34db-78d2-94c6-6b14b86e83da",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
