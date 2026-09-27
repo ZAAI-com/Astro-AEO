@@ -169,4 +169,16 @@ describe('live audit', () => {
     const result = await auditLive(`${await origin}/`, { timeout: 2000 });
     expect(ids(result.findings)).toEqual(['live-markdown-mime']);
   });
+
+  it('reports HTML-heavy companions fetched by live audit', async () => {
+    const head = '<link rel="alternate" type="text/markdown" href="/index.md">';
+    const html = Array.from({ length: 3 }, () =>
+      '<table><tr><td>one</td><td>two</td><td>three</td></tr></table>').join('\n\n');
+    const { origin } = site({
+      '/': page('Home').replace('</head>', `${head}</head>`),
+      '/index.md': { headers: { 'content-type': 'text/markdown' }, body: `# Home\n\n${WORDS}\n\n${html}` },
+    });
+    const result = await auditLive(`${await origin}/`, { timeout: 2000 });
+    expect(ids(result.findings)).toEqual(['markdown-raw-html']);
+  });
 });

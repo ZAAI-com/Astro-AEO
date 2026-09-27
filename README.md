@@ -122,7 +122,7 @@ aeo({
     extraction: {
       selectors: ['article', 'main'],     // tried in order, first with a match wins
       removeSelectors: ['nav', 'footer'], // dropped before conversion
-      keepSelectors: [],                  // preserved as raw HTML in the Markdown
+      keepSelectors: [],                  // preserved as minimized HTML in the Markdown
     },
   },
 
@@ -651,15 +651,18 @@ inside another match is skipped so its content is not emitted twice. With no mat
 extraction falls back to `<body>`.
 
 `script`, `style`, `noscript`, `iframe`, and `head` are always dropped, in addition to
-`removeSelectors`. `keepSelectors` emits matching elements as raw HTML instead of
-converting them, for a widget whose markup carries meaning. Removal wins over
+`removeSelectors`. `keepSelectors` emits matching elements as minimized raw HTML instead of
+converting them, for a widget whose markup carries meaning. It removes presentation
+attributes and bare `div`/`span` wrappers, including on a selected root. Removal wins over
 keeping, and the always-dropped tags can never be reintroduced this way.
 
 Buttons (except disclosure toggles with `aria-expanded` or `aria-controls`), `svg`,
 `template`, `[hidden]`, and `[aria-hidden="true"]` elements are dropped as interface
 chrome, unless they wrap an image with alt text.
 
-Figures become an image followed by the caption in emphasis, definition lists become a
+Figures become one image (the first described image for light/dark variants) followed by the
+caption in emphasis. Image-free charts retain readable text or their accessible label.
+Definition lists become a
 bold term followed by its description, and tables whose cells are single-span inline
 content become GFM pipe tables. `time`, `address`, and `cite` convert to their text.
 Tables with `colspan`, `rowspan`, or block content in a cell, and `audio` and `video`,
@@ -668,6 +671,12 @@ attributes (`href`, `src`, `alt`, `title`, `scope`, `colspan`, `rowspan`, `heade
 `datetime`, `lang`, `aria-label`, `poster`, `type`) and drops bare `div` and `span`
 wrappers. Empty links and images inherit accessible names from `alt`, `aria-label`,
 `aria-labelledby`, then `title`.
+
+`astro-aeo audit` reports `markdown-html-residue` for layout markup or presentation
+attributes. It separately reports `markdown-raw-html` when at least three non-code
+Markdown blocks contain HTML and either the companion contains 30 or more HTML tags,
+or tag markup exceeds 25% of the non-code Markdown. A single necessary complex table
+does not trigger the volume warning.
 
 Selector options must be arrays. A non-array value, invalid selector, or empty
 selector string is a configuration error, not a silent no-op; an empty array is valid.

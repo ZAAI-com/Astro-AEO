@@ -4,8 +4,6 @@ import { AeoConfigError } from '../../lib/errors.js';
 export const NEVER_CONTENT = ['script', 'style', 'noscript', 'iframe', 'head', 'meta', 'base', 'link'];
 
 const KEEP_ATTRIBUTE = 'data-astro-aeo-keep';
-/** Marker value for HTML kept by the converter itself rather than by `keepSelectors`. */
-const KEEP_MINIMIZED = 'minimized';
 
 /**
  * Interface chrome with no reading value: copy buttons (disclosure toggles
@@ -207,11 +205,45 @@ function hasDescribedImage(el) {
 function normalizeFigures(root) {
   const document = root.ownerDocument;
   for (const figure of matchingElements(root, 'figure').reverse()) {
+    const images = [...figure.querySelectorAll('img')].filter((image) => image.closest('figure') === figure);
+    // Responsive light/dark screenshots describe one subject, not two images.
+    const themed = (/** @type {Element} */ image) => {
+      for (let el = /** @type {Element | null} */ (image); el && el !== figure; el = el.parentElement) {
+        if (/(?:^|\s)(?:dark:|hidden\b)/.test(el.getAttribute('class') ?? '')) return true;
+      }
+      return false;
+    };
+    if (images.length > 1 && images.some(themed)) {
+      const chosen = images.find((image) => (image.getAttribute('alt') ?? '').trim()) ?? images[0];
+      for (const image of images) if (image !== chosen) image.remove();
+    }
+    if (!images.length && !figure.querySelector('table')) {
+      // Chart legends often use adjacent styled elements with no source space.
+      for (const parent of [figure, ...figure.querySelectorAll('*')]) {
+        for (const child of [...parent.children]) {
+          const next = child.nextSibling;
+          if (next?.nodeType === 1 && (child.textContent ?? '').trim() &&
+              (next.textContent ?? '').trim()) {
+            parent.insertBefore(document.createTextNode(' '), next);
+          }
+        }
+      }
+    }
+    if (!images.length && !(figure.textContent ?? '').trim()) {
+      const label = (figure.getAttribute('aria-label') ??
+        figure.querySelector('[aria-label]')?.getAttribute('aria-label') ?? '').trim();
+      if (label) figure.appendChild(document.createTextNode(label));
+    }
     for (const caption of [...figure.querySelectorAll('figcaption')]) {
       if (caption.closest('figure') !== figure) continue;
       const paragraph = document.createElement('p');
       const emphasis = document.createElement('em');
       emphasis.innerHTML = caption.innerHTML;
+      for (const block of [...emphasis.querySelectorAll('h1, h2, h3, h4, h5, h6, p, div')]) {
+        block.before(document.createTextNode(' '));
+        block.after(document.createTextNode(' '));
+        replaceTag(block, 'span');
+      }
       paragraph.appendChild(emphasis);
       if ((caption.textContent ?? '').trim()) caption.replaceWith(paragraph);
       else caption.remove();
@@ -239,6 +271,13 @@ function normalizeDefinitionLists(root) {
     }
     for (const description of [...list.querySelectorAll('dd')]) {
       if (description.closest('dl') !== list) continue;
+      // CSS block children such as <strong>0</strong><span>Explanation</span>
+      // otherwise collapse into "**0**Explanation" in Turndown.
+      for (const child of [...description.childNodes]) {
+        if (child.nodeType === 1 && child.nextSibling?.nodeType === 1) {
+          description.insertBefore(document.createTextNode(' '), child.nextSibling);
+        }
+      }
       replaceTag(description, 'div');
     }
     if (list !== root) replaceTag(list, 'div');
@@ -309,6 +348,14 @@ function minimizeRawHtml(root) {
   }
 }
 
+/** @param {Element} root @returns {string} */
+function minimizedHtml(root) {
+  minimizeRawHtml(root);
+  return (root.localName === 'div' || root.localName === 'span') && root.attributes.length === 0
+    ? root.innerHTML
+    : root.outerHTML;
+}
+
 /** @param {Element} root @returns {number} */
 export function sanitizeRoot(root) {
   let removed = 0;
@@ -347,7 +394,7 @@ function markTopLevelRawHtml(root, selector, predicate) {
   const matches = matchingElements(root, selector).filter(predicate);
   for (const element of matches) {
     if (matches.some((other) => other !== element && other.contains(element))) continue;
-    element.setAttribute(KEEP_ATTRIBUTE, KEEP_MINIMIZED);
+    element.setAttribute(KEEP_ATTRIBUTE, '');
   }
 }
 
@@ -360,13 +407,11 @@ export function addKeepRule(td) {
     filter: (node) => Boolean(node.getAttribute && node.getAttribute(KEEP_ATTRIBUTE) !== null),
     replacement: (_content, node) => {
       const el = /** @type {any} */ (node);
-      const minimize = el.getAttribute(KEEP_ATTRIBUTE) === KEEP_MINIMIZED;
       el.removeAttribute(KEEP_ATTRIBUTE);
       for (const nested of el.querySelectorAll?.(`[${KEEP_ATTRIBUTE}]`) ?? []) {
         nested.removeAttribute(KEEP_ATTRIBUTE);
       }
-      if (minimize) minimizeRawHtml(el);
-      return `\n\n${el.outerHTML}\n\n`;
+      return `\n\n${minimizedHtml(el)}\n\n`;
     },
   });
   td.addRule('astroAeoTable', {
@@ -504,13 +549,11 @@ export function extractMarkdown(document, options, td, context = {}) {
       (el) => el === root || !el.parentElement?.closest(`[${KEEP_ATTRIBUTE}]`),
     ).length;
     if (root.getAttribute(KEEP_ATTRIBUTE) !== null) {
-      const minimize = root.getAttribute(KEEP_ATTRIBUTE) === KEEP_MINIMIZED;
       root.removeAttribute(KEEP_ATTRIBUTE);
       for (const nested of root.querySelectorAll(`[${KEEP_ATTRIBUTE}]`)) {
         nested.removeAttribute(KEEP_ATTRIBUTE);
       }
-      if (minimize) minimizeRawHtml(root);
-      return root.outerHTML;
+      return minimizedHtml(root);
     }
     // Turndown accepts an Element but converts only its children. Supplying the
     // serialized root preserves selected links, images, and other semantic

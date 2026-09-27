@@ -352,6 +352,10 @@ Severity: warning. Raised by: build, offline, live.
 
 Severity: warning. Raised by: build, offline, live.
 
+### markdown-raw-html
+
+Severity: warning. Raised by: build, offline, live.
+
 ### markdown-renderer-duplicate-name
 
 Severity: warning. Raised by: build.

@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { test, expect, describe, beforeAll } from 'vitest';
 import { parseDocument } from '../html-document.js';
@@ -18,7 +18,9 @@ beforeAll(async () => {
 describe('real-page markup', () => {
   test.each(fixtures)('%s', async (file) => {
     const html = `<!doctype html><html><body>${readFileSync(dir + file, 'utf8')}</body></html>`;
-    const { markdown } = extractMarkdown(parseDocument(html), DEFAULT_EXTRACTION, td, {
+    const optionsFile = `${dir}${file.replace('.html', '.options.json')}`;
+    const overrides = existsSync(optionsFile) ? JSON.parse(readFileSync(optionsFile, 'utf8')) : {};
+    const { markdown } = extractMarkdown(parseDocument(html), { ...DEFAULT_EXTRACTION, ...overrides }, td, {
       baseUrl: 'https://example.com/page/',
     });
     expect(markdown).not.toMatch(/class=|data-|style=|<div|<span|<figure|<dl/);

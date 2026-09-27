@@ -64,7 +64,7 @@ const RULE_LIST = Object.freeze([
   ]),
   ...rules('markdown', 'error', ['build', 'offline', 'live'], ['markdown-empty']),
   ...rules('markdown', 'warning', ['build', 'offline', 'live'], [
-    'markdown-html-residue', 'markdown-no-h1', 'markdown-thin',
+    'markdown-html-residue', 'markdown-no-h1', 'markdown-raw-html', 'markdown-thin',
   ]),
   ...rules('internationalization', 'error', ['offline', 'live'], ['hreflang-target-missing']),
   ...rules('internationalization', 'warning', ['offline', 'live'], [

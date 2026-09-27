@@ -115,13 +115,14 @@ describe('extractMarkdown', () => {
   });
 
   test('keepSelectors preserves an element as raw HTML', () => {
-    const d = doc(page('<main><p>Before.</p><div class="widget"><b>raw</b></div></main>'));
+    const d = doc(page('<main><p>Before.</p><div class="widget" data-shot="x"><b class="bold">raw</b></div></main>'));
     const { markdown } = extractMarkdown(
       d,
       { ...DEFAULT_EXTRACTION, keepSelectors: ['.widget'] },
       td,
     );
-    expect(markdown).toContain('<div class="widget"><b>raw</b></div>');
+    expect(markdown).toContain('<b>raw</b>');
+    expect(markdown).not.toMatch(/class=|data-shot|<div/);
     expect(markdown).toContain('Before.');
     // The marker attribute must not survive into the output.
     expect(markdown).not.toContain('data-astro-aeo-keep');
@@ -134,8 +135,17 @@ describe('extractMarkdown', () => {
       { ...DEFAULT_EXTRACTION, selectors: ['.root-widget'], keepSelectors: ['.root-widget'] },
       td,
     );
-    expect(markdown).toBe('<article class="root-widget"><b>raw root</b></article>');
+    expect(markdown).toBe('<article><b>raw root</b></article>');
     expect(markdown).not.toContain('data-astro-aeo-keep');
+  });
+
+  test('keepSelectors minimizes a selected div root and retains semantic attributes', () => {
+    const { markdown, diagnostics } = extractMarkdown(
+      doc(page('<div class="selected" data-shot="x"><a href="/guide" class="link">Guide</a></div>')),
+      { ...DEFAULT_EXTRACTION, selectors: ['.selected'], keepSelectors: ['.selected'] }, td,
+    );
+    expect(markdown).toBe('<a href="/guide">Guide</a>');
+    expect(diagnostics.keptHtmlBlocks).toBe(1);
   });
 
   test('separate roots are joined with a blank line', () => {
@@ -327,6 +337,23 @@ describe('conversion fidelity', () => {
       '<main><figure class="rounded shadow" data-shot="x"><div class="wrap"><img src="/chart.png" alt="Chart"></div><figcaption>Quarterly <b>results</b></figcaption></figure></main>',
     );
     expect(md).toBe('![Chart](/chart.png)\n\n_Quarterly **results**_');
+  });
+
+  test('light and dark screenshots emit only the first described image', () => {
+    const md = convert('<main><figure><img class="dark:hidden" src="/light.png" alt="Dashboard"><img class="hidden dark:block" src="/dark.png" alt="Dashboard dark mode"><figcaption>Dashboard</figcaption></figure></main>');
+    expect(md).toBe('![Dashboard](/light.png)\n\n_Dashboard_');
+    const wrapped = convert('<main><figure><div class="dark:hidden"><img src="/light.png" alt="Dashboard"></div><div class="hidden dark:block"><img src="/dark.png" alt="Dashboard dark mode"></div></figure></main>');
+    expect(wrapped).toBe('![Dashboard](/light.png)');
+  });
+
+  test('image-free charts retain their label when they have no readable text', () => {
+    const md = convert('<main><figure><div role="region" aria-label="Solar production by day"><svg><path/></svg></div></figure></main>');
+    expect(md).toBe('Solar production by day');
+  });
+
+  test('image-free chart labels do not concatenate adjacent legend items', () => {
+    const md = convert('<main><figure><div><span>Under 20 kWh</span><span>20 to 40 kWh</span></div><figcaption>Daily solar</figcaption></figure></main>');
+    expect(md).toBe('Under 20 kWh 20 to 40 kWh\n\n_Daily solar_');
   });
 
   test('definition lists become bold terms with their descriptions', () => {

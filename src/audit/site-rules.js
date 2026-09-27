@@ -17,9 +17,13 @@ import { createFinding, fromGraphFinding } from './finding.js';
  */
 
 export const THIN_MARKDOWN_WORDS = 40;
+export const RAW_HTML_MIN_BLOCKS = 3;
+export const RAW_HTML_MIN_TAGS = 30;
+export const RAW_HTML_MARKUP_RATIO = 0.25;
 
 // Layout elements, and any tag still carrying presentation (classes, inline styles, data attributes).
 const RESIDUE = /<\/?(?:div|span|section|article|nav|header|footer|script|style|iframe|figure|figcaption|dl|dt|dd)\b|<[a-z][\w-]*\s[^>]*\b(?:class|style|data-[\w-]+)=/i;
+const HTML_TAG = /<\/?[a-z][a-z0-9-]*(?:\s[^<>]*?)?\s*\/?>/gi;
 
 /**
  * @param {readonly PageFacts[]} pages
@@ -76,6 +80,16 @@ function auditMarkdown(page, findings) {
       ...at(page, 'markdown-html-residue', 'warning', `the Markdown companion still contains layout HTML: ${page.url}`),
       evidence: residue[0],
     });
+  }
+  const htmlBlocks = prose.split(/\n\s*\n/).map((block) =>
+    [...block.matchAll(HTML_TAG)].filter((tag) => !tag[0].includes('\\>')));
+  const blocks = htmlBlocks.filter((tags) => tags.length > 0).length;
+  const tags = htmlBlocks.flat();
+  const markupCharacters = tags.reduce((length, tag) => length + tag[0].length, 0);
+  if (blocks >= RAW_HTML_MIN_BLOCKS &&
+      (tags.length >= RAW_HTML_MIN_TAGS || markupCharacters / prose.length > RAW_HTML_MARKUP_RATIO)) {
+    findings.push(at(page, 'markdown-raw-html', 'warning',
+      `the Markdown companion contains ${tags.length} HTML tags across ${blocks} blocks: ${page.url}`));
   }
 }
 

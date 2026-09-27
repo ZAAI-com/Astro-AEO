@@ -780,7 +780,8 @@ export interface ExtractionOptions {
    */
   removeSelectors?: string[];
   /**
-   * Preserved as raw HTML in the Markdown. Removal takes precedence, and the
+   * Preserved as minimized raw HTML in the Markdown. Presentation attributes
+   * and bare div/span wrappers are removed. Removal takes precedence, and the
    * always-dropped tags above can never be restored this way. Default: [].
    */
   keepSelectors?: string[];

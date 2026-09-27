@@ -73,7 +73,8 @@ describe('the real 1.2 representation fixture', () => {
     expect(markdown).toContain('poster="https://representations.example.com/media/poster.jpg"');
     expect(markdown).toContain('src="https://representations.example.com/media/narration.mp3"');
     expect(markdown).toContain('```typescript');
-    expect(markdown).toContain('<aside class="callout">');
+    expect(markdown).toContain('<aside>');
+    expect(markdown).not.toContain('class="callout"');
     expect(markdown).toContain('href="https://representations.example.com/docs/evidence.pdf"');
   });
 
