@@ -2,6 +2,8 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## 1.5.0
+
 ## 1.4.0
 
 The quality and ecosystem release: a site-wide audit with seven report formats, deployment checks and
