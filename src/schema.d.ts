@@ -15,6 +15,7 @@ import type {
   Product,
   Service,
   SoftwareApplication,
+  TechArticle,
   Thing,
   VideoObject,
   WebPage,
@@ -38,6 +39,7 @@ export type {
   Product,
   Service,
   SoftwareApplication,
+  TechArticle,
   Thing,
   VideoObject,
   WebPage,
@@ -253,6 +255,7 @@ type PersonEntity = ExactSchemaType<Person, 'Person'>;
 type OrganizationEntity = ExactSchemaType<Organization, 'Organization'>;
 type ArticleEntity = ExactSchemaType<Article, 'Article'>;
 type BlogPostingEntity = ExactSchemaType<BlogPosting, 'BlogPosting'>;
+type TechArticleEntity = ExactSchemaType<TechArticle, 'TechArticle'>;
 type BreadcrumbListEntity = ExactSchemaType<BreadcrumbList, 'BreadcrumbList'>;
 type ImageObjectEntity = ExactSchemaType<ImageObject, 'ImageObject'>;
 type VideoObjectEntity = ExactSchemaType<VideoObject, 'VideoObject'>;
@@ -275,6 +278,9 @@ export declare function createArticle(input: SchemaBuilderInput<ArticleEntity>):
 export declare function createBlogPosting(
   input: SchemaBuilderInput<BlogPostingEntity>,
 ): SchemaEntity<BlogPostingEntity>;
+export declare function createTechArticle(
+  input: SchemaBuilderInput<TechArticleEntity>,
+): SchemaEntity<TechArticleEntity>;
 export declare function createBreadcrumbList(
   input: SchemaBuilderInput<BreadcrumbListEntity>,
 ): SchemaEntity<BreadcrumbListEntity>;

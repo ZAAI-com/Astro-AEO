@@ -11,6 +11,12 @@ import { fileURLToPath } from 'node:url';
 const CORE = fileURLToPath(new URL('.', import.meta.url));
 const RUNTIME = fileURLToPath(new URL('../runtime/', import.meta.url));
 const SCHEMA = fileURLToPath(new URL('../schema.js', import.meta.url));
+// The Starlight route middleware and everything it imports run inside the consumer's
+// SSR bundle on every collected page, exactly like the runtime directory.
+const STARLIGHT = fileURLToPath(new URL('../starlight/', import.meta.url));
+// The edge subpaths are bundled into a Worker, an Edge Function or Routing Middleware.
+const EDGE = fileURLToPath(new URL('../edge/', import.meta.url));
+const EDGE_ENTRY = fileURLToPath(new URL('../edge.js', import.meta.url));
 
 /** @returns {string[]} every .js file under `dir`, excluding tests. */
 function sourceFiles(dir) {
@@ -24,7 +30,7 @@ function sourceFiles(dir) {
 describe('src/core and src/runtime safety', () => {
   // The public schema entry is also bundled into edge/runtime consumers. It
   // lives at the package root to pair with its hand-written declaration.
-  const files = [...sourceFiles(CORE), ...sourceFiles(RUNTIME), SCHEMA];
+  const files = [...sourceFiles(CORE), ...sourceFiles(RUNTIME), ...sourceFiles(STARLIGHT), ...sourceFiles(EDGE), EDGE_ENTRY, SCHEMA];
 
   test('the boundary covers a real set of modules, so an empty pass means nothing', () => {
     expect(files.length).toBeGreaterThan(10);
@@ -51,11 +57,67 @@ describe('src/core and src/runtime safety', () => {
         // Both safe directories may import from each other and from themselves.
         if (!relative(CORE, target).startsWith('..')) continue;
         if (!relative(RUNTIME, target).startsWith('..')) continue;
+        if (!relative(STARLIGHT, target).startsWith('..')) continue;
+        if (!relative(EDGE, target).startsWith('..')) continue;
         if (target === SCHEMA) continue;
         if (target.endsWith(join('lib', 'errors.js'))) continue;
+        // Pure string escaping, shared with the components.
+        if (target.endsWith(join('lib', 'serialize-jsonld.js'))) continue;
         offenders.push(`${relative(CORE, file)} -> ${specifier}`);
       }
     }
     expect(offenders).toEqual([]);
+  });
+});
+
+describe('bare imports in bundled modules', () => {
+  // Everything here is bundled into a consumer's server or edge output, so a new
+  // package import is a new runtime dependency for every project. `yaml` in
+  // particular belongs to `astro-aeo fix` alone and must never appear.
+  const ALLOWED = [
+    /^turndown$/,
+    /^linkedom\/worker$/,
+    /^astro:/,
+    /^astro-aeo:/,
+    /^virtual:astro-aeo\//,
+  ];
+
+  test('come only from the runtime dependency allowlist', () => {
+    const files = [...sourceFiles(CORE), ...sourceFiles(RUNTIME), ...sourceFiles(STARLIGHT), ...sourceFiles(EDGE), EDGE_ENTRY, SCHEMA];
+    const offenders = [];
+    for (const file of files) {
+      // JSDoc `import('astro')` type references are not imports.
+      const source = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+      const specifiers = [
+        ...source.matchAll(/^\s*(?:import|export)\s[^'"\n]*?from\s*['"]([^'"]+)['"]/gm),
+        ...source.matchAll(/^\s*import\s*['"]([^'"]+)['"]/gm),
+        ...source.matchAll(/\bimport\(\s*['"]([^'"]+)['"]\s*\)/g),
+      ].map((match) => match[1]);
+      for (const specifier of specifiers) {
+        if (specifier.startsWith('.') || ALLOWED.some((pattern) => pattern.test(specifier))) continue;
+        offenders.push(`${relative(CORE, file)} -> ${specifier}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+
+describe('static edge bundles', () => {
+  /** @param {string} entry @param {Set<string>} [seen] @returns {Set<string>} */
+  function closure(entry, seen = new Set()) {
+    if (seen.has(entry)) return seen;
+    seen.add(entry);
+    for (const [, specifier] of readFileSync(entry, 'utf8').matchAll(/from\s*['"](\.[^'"]+)['"]/g)) {
+      closure(join(entry, '..', specifier), seen);
+    }
+    return seen;
+  }
+
+  test.each(['cloudflare', 'netlify', 'vercel'])('%s reaches no development-only or build module', (provider) => {
+    const reached = [...closure(join(EDGE, `${provider}.js`))].map((file) => relative(join(CORE, '..'), file));
+    expect(reached).toContain(join('runtime', 'edge', 'handler.js'));
+    expect(reached.filter((file) => /dev-loopback|rewrite-diagnostics|^build|^hooks|^audit|^virtual|middleware\.js$/.test(file))).toEqual([]);
+    // Small on purpose: an edge bundle pays for every module on every cold start.
+    expect(reached.length).toBeLessThan(12);
   });
 });

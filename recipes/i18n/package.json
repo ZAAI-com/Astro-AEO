@@ -1,0 +1,14 @@
+{
+  "name": "astro-aeo-recipe-i18n",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "astro build",
+    "audit": "astro-aeo audit dist"
+  },
+  "dependencies": {
+    "astro": "^7.3.1",
+    "astro-aeo": "^1.4.0"
+  }
+}

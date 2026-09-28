@@ -79,3 +79,44 @@ the [1.2 semantic validation record](docs/release-evidence/1.2.0-semantic-valida
 - Generated files are confined to validated exact paths. A prior ownership manifest permits stale
   cleanup only when Astro-AEO proves ownership and the file hash is unchanged; unknown or modified
   files are preserved.
+
+### Audit command
+
+- A local audit (`astro-aeo audit <dir>`) makes no network request. It never reads through a symlink, and an
+  internal link is resolved only beneath the audited directory.
+- A live audit (`astro-aeo audit <url>`) is anonymous. It sends no cookie, authorization, or caller
+  header, refuses a URL that carries credentials, and keeps no cookie a response sets. It contacts only
+  the start origin and origins named with `--allow-origin`; every redirect hop is checked against that
+  list before it is followed, and at most five hops are followed.
+- Live requests are bounded by a page cap, a per-request timeout, a concurrency limit, and a 5 MiB
+  response cap. Response bodies are parsed as inert documents: no script runs and no subresource loads.
+- Reports carry no absolute path, no source body, and no diagnostic `details`. Text from the audited
+  site is escaped for each format, and control characters are replaced in terminal, GitHub annotation,
+  Markdown, JUnit, and HTML output so audited content cannot forge a log line or an annotation.
+
+### Static edge negotiation
+
+- The edge handlers read one public build artifact, `/.well-known/astro-aeo-edge-v1.json`, and treat it
+  as untrusted: a manifest that is missing, malformed, from another version, oversized, or that names an
+  unsafe or non-Markdown companion path is rejected whole, and the request continues to the unmodified
+  HTML response.
+- They act only on `GET` and `HEAD` for exact listed routes, fetch only the manifest and listed `.md`
+  companions from the deployment's own static assets, and never contact another origin. They hold no
+  request state between requests and read no cookie or credential.
+- The manifest lists only companions the build emitted after ownership arbitration, so it cannot
+  advertise a path owned by a project route or a `public/` file.
+- `.astro/aeo-cache/deployment-v1.json` is private (mode `0o600`, confined to the project root). It
+  records names and modes only: no absolute path, environment value, or secret.
+
+### Doctor and fix commands
+
+- `astro-aeo fix` is a dry run unless `--write` is passed. It edits exactly one provider file, inside the
+  project, and refuses (writing nothing) on a symbolic link at or above the target, a path outside the
+  project, a malformed document, malformed or duplicated markers, a competing rule, or an ambiguous
+  provider or service. The original is backed up with its file mode before the write, and both writes
+  go through one transaction that rolls back on error.
+- `astro-aeo doctor` makes no network request without `--url`. With it, it sends a bounded, fixed set of
+  anonymous requests to that one origin: no cookie, no authorization, no redirect followed, and a URL
+  that carries credentials is refused. Local configuration is never reported as a verified deployment.
+- The GitHub Action passes its inputs to the shell as environment variables, never by interpolation
+  into the script, and runs the CLI the project itself installed.

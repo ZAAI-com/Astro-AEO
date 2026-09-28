@@ -10,6 +10,8 @@ import type {
   AeoGraph,
   AeoPage,
   AeoPageRecord,
+  AuditCategory,
+  AuditReportV1,
   Artifact,
   ArtifactOwner,
   ArtifactOwnershipManifestV1,
@@ -27,6 +29,7 @@ import type {
   EntityReference,
   EntityType,
   ExtractionOptions,
+  Finding,
   ExtractionDiagnostics,
   ExtractedDocument,
   Diagnostic,
@@ -75,6 +78,7 @@ import {
   connect,
   createArticle,
   createBlogPosting,
+  createTechArticle,
   createBreadcrumbList,
   createEntity,
   createEvent,
@@ -569,6 +573,26 @@ export const recordOrigin: string | undefined = record.origin;
 export const recordLocale: string | undefined = record.locale;
 export const recordAlternateLanguage: string | undefined = record.alternates?.[0]?.language;
 export const extraction: ExtractionDiagnostics | undefined = record.extraction;
+export const auditCategory: AuditCategory = 'structured-data';
+export const finding: Finding = {
+  version: 1,
+  ruleId: 'schema.invalid-id',
+  severity: 'error',
+  category: auditCategory,
+  message: 'Example',
+  file: 'index.html',
+  location: { line: 1, column: 1 },
+  deduction: 15,
+};
+export const auditReport: AuditReportV1 = {
+  version: 1,
+  tool: { name: 'astro-aeo', version: '1.4.0' },
+  target: { kind: 'dist', value: 'dist' },
+  summary: { errors: 1, warnings: 0, infos: 0, pagesChecked: 1 },
+  scores: { rubric: 'astro-aeo-readiness-v1', overall: 97.86, categories: [{ category: auditCategory, score: 85, findings: 1 }] },
+  findings: [finding],
+};
+export const auditRuleId: string = auditReport.findings[0].ruleId;
 export const diagnostic: Diagnostic = { version: 1, code: 'example', severity: 'info', message: 'Example' };
 export const extractionDefaults: string[] = DEFAULT_EXTRACTION.selectors;
 export const extractedPromise: Promise<ExtractedDocument> = extractHtml('<main>Hello</main>');
@@ -760,6 +784,7 @@ export const p0Entities: SchemaEntity[] = [
   createOrganization({ name: 'Example' }),
   createArticle({ headline: 'Article' }),
   createBlogPosting({ headline: 'Post' }),
+  createTechArticle({ headline: 'Install', proficiencyLevel: 'Beginner' }),
   createBreadcrumbList({ name: 'Breadcrumbs' }),
   createImageObject({ name: 'Image' }),
   createVideoObject({ name: 'Video' }),
@@ -839,3 +864,63 @@ export const badPluginVersion: AstroAeoPlugin = { name: 'future', apiVersion: 2,
 export const badHeadCanonical: AeoHeadProps = { canonical: 42 };
 // @ts-expect-error AeoHead's component value must retain the same canonical prop contract
 export const badInferredHeadCanonical: ComponentProps<typeof AeoHead> = { canonical: 42 };
+
+// The content subpath: helpers return the same props and catalog contracts as `astro-aeo/page`.
+import { contentDescriptor, contentPage, defineCmsAdapter, defineContentCatalog } from 'astro-aeo/content';
+import type { CmsAdapter, CmsPage, ContentCatalogOptions } from 'astro-aeo/content';
+
+export const contentProps: AeoPageProps = contentPage({ body: '# Hi' }, { version: 'v2' });
+export const contentPageDescriptor: PageDescriptor = contentDescriptor({ body: '# Hi' }, { pathname: '/hi', version: 'v2' });
+export const contentPageVersion: string | undefined = contentPageDescriptor.version;
+const contentOptions: ContentCatalogOptions<{ slug: string }> = {
+  entries: () => [{ slug: 'a' }],
+  toPage: (entry) => (entry.slug ? { pathname: `/${entry.slug}` } : null),
+};
+export const contentCatalog: PageCatalog = defineContentCatalog(contentOptions);
+const cmsPage: CmsPage = { id: 'record-1', pathname: '/cms/one', version: 'v2' };
+const cmsAdapter: CmsAdapter = { name: 'sanity', listPages: async () => [cmsPage] };
+export const cmsCatalog: PageCatalog = defineCmsAdapter(cmsAdapter);
+
+// The Starlight subpath types load without Starlight installed.
+import starlightAeo from 'astro-aeo/starlight';
+import type { StarlightAeoOptions, StarlightAeoPlugin } from 'astro-aeo/starlight';
+
+const starlightOptions: StarlightAeoOptions = {
+  aeo: { markdown: { negotiation: 'response' } },
+  links: { pagination: true, edit: false },
+  techArticle: true,
+};
+export const starlightPlugin: StarlightAeoPlugin = starlightAeo(starlightOptions);
+export const starlightPluginName: string = starlightPlugin.name;
+
+// The edge subpaths share one declaration file.
+import { decideEdgeRepresentation, readEdgeManifest } from 'astro-aeo/edge';
+import type { EdgeDecision, StaticEdgeManifestV1 } from 'astro-aeo/edge';
+import { cloudflareEdge, createCloudflareHandler } from 'astro-aeo/edge/cloudflare';
+import { createNetlifyHandler, netlifyEdge } from 'astro-aeo/edge/netlify';
+import { createVercelHandler, vercelEdge } from 'astro-aeo/edge/vercel';
+// @ts-expect-error Provider factories are not exported from the shared edge entry.
+import { cloudflareEdge as absentFromBase } from 'astro-aeo/edge';
+// @ts-expect-error Each provider subpath exposes only its own handler and plugin.
+import { netlifyEdge as absentFromCloudflare } from 'astro-aeo/edge/cloudflare';
+
+export const edgeManifest: StaticEdgeManifestV1 = {
+  version: 1,
+  provider: 'cloudflare',
+  mode: 'response',
+  base: '/',
+  routes: [{ html: '/', markdown: '/index.md' }],
+};
+export const edgeDecision: EdgeDecision = decideEdgeRepresentation(
+  new Request('https://example.com/'),
+  readEdgeManifest(edgeManifest),
+);
+export const edgePlugins: AstroAeoPlugin[] = [cloudflareEdge(), netlifyEdge(), vercelEdge()];
+export const edgeConfig: AstroAeoConfig = { markdown: { negotiation: 'response' }, plugins: [cloudflareEdge()] };
+export const cloudflareOnRequest = createCloudflareHandler({ base: '/docs', assetsBinding: 'ASSETS' }).onRequest;
+export const netlifyHandler: (request: Request, context: { next(request?: Request): Promise<Response> }) => Promise<Response> =
+  createNetlifyHandler();
+export const vercelMiddleware: (request: Request) => Promise<Response> = createVercelHandler({
+  next: () => new Response(null),
+  rewrite: () => new Response(null),
+});

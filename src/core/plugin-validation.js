@@ -121,6 +121,7 @@ function isExtractionDiagnostics(value) {
   return safeString(extraction.strategy, true) &&
     nonNegativeInteger(extraction.selectedNodes) &&
     nonNegativeInteger(extraction.removedNodes) &&
+    (extraction.keptHtmlBlocks === undefined || nonNegativeInteger(extraction.keptHtmlBlocks)) &&
     nonNegativeInteger(extraction.inputCharacters) &&
     nonNegativeInteger(extraction.outputCharacters) &&
     optionalString(extraction.fallbackReason);

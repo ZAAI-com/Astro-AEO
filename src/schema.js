@@ -229,13 +229,13 @@ const PARAGRAPH_SEPARATOR_RE = new RegExp(String.fromCharCode(0x2029), 'g');
  *   entityId?: string,
  *   pointer?: string,
  *   pathname?: string,
- * }} Finding
+ * }} GraphFinding
  */
 /** @typedef {{version: 1, entries: Entry[], conflicts: Conflict[]}} RuntimeGraph */
 
 export class SchemaGraphError extends Error {
   /**
-   * @param {{valid: boolean, graph: RuntimeGraph, findings: Finding[], conflicts: Conflict[]}} result
+   * @param {{valid: boolean, graph: RuntimeGraph, findings: GraphFinding[], conflicts: Conflict[]}} result
    */
   constructor(result) {
     super('Schema graph validation failed');
@@ -379,7 +379,7 @@ export function deduplicateGraph(input, options = {}) {
  *   knownEntityIds?: readonly string[],
  *   strictReferences?: boolean,
  * }} [options]
- * @returns {{valid: boolean, graph: RuntimeGraph, findings: Finding[], conflicts: Conflict[]}}
+ * @returns {{valid: boolean, graph: RuntimeGraph, findings: GraphFinding[], conflicts: Conflict[]}}
  */
 export function validateGraph(input, options = {}) {
   /** @type {RuntimeGraph} */
@@ -393,7 +393,7 @@ export function validateGraph(input, options = {}) {
     return { valid: false, graph: empty, findings, conflicts: empty.conflicts };
   }
 
-  /** @type {Finding[]} */
+  /** @type {GraphFinding[]} */
   const findings = [];
   const documentCanonical = normalizeOptionalAbsoluteUrl(options.documentCanonical, 'Document canonical', findings);
   const siteUrl = normalizeOptionalAbsoluteUrl(options.siteUrl, 'Site URL', findings);
@@ -501,6 +501,11 @@ export function createArticle(input) {
 /** @param {unknown} input @returns {ReturnType<typeof createEntity>} */
 export function createBlogPosting(input) {
   return buildEntity('BlogPosting', input);
+}
+
+/** @param {unknown} input @returns {ReturnType<typeof createEntity>} */
+export function createTechArticle(input) {
+  return buildEntity('TechArticle', input);
 }
 
 /** @param {unknown} input @returns {ReturnType<typeof createEntity>} */
@@ -971,7 +976,7 @@ function normalizeTypes(value) {
   return values.filter((item) => typeof item === 'string');
 }
 
-/** @param {Entry[]} entries @param {Finding[]} findings */
+/** @param {Entry[]} entries @param {GraphFinding[]} findings */
 function validateSingletonRoles(entries, findings) {
   for (const role of SINGLETON_ROLES) {
     const claimants = entries.filter((entry) => entry.roles.includes(role));
@@ -988,7 +993,7 @@ function validateSingletonRoles(entries, findings) {
  *
  * @param {Record<string, any>} entity
  * @param {string | undefined} base
- * @param {Finding[]} findings
+ * @param {GraphFinding[]} findings
  * @returns {Record<string, any>}
  */
 function normalizeEntityUrls(entity, base, findings) {
@@ -999,7 +1004,7 @@ function normalizeEntityUrls(entity, base, findings) {
  * @param {unknown} value
  * @param {string} pointer
  * @param {string | undefined} base
- * @param {Finding[]} findings
+ * @param {GraphFinding[]} findings
  * @returns {unknown}
  */
 function normalizeNestedUrls(value, pointer, base, findings) {
@@ -1029,7 +1034,7 @@ function normalizeNestedUrls(value, pointer, base, findings) {
  * @param {unknown} value
  * @param {string} pointer
  * @param {string | undefined} base
- * @param {Finding[]} findings
+ * @param {GraphFinding[]} findings
  * @param {boolean} urlLikeOnly
  * @returns {unknown}
  */
@@ -1087,7 +1092,7 @@ function looksLikeUrl(value) {
  * @param {string | undefined} siteUrl
  * @param {Set<string> | undefined} knownIds
  * @param {boolean} strict
- * @param {Finding[]} findings
+ * @param {GraphFinding[]} findings
  */
 function validateReferences(entries, documentCanonical, siteUrl, knownIds, strict, findings) {
   const definitions = new Set();
@@ -1159,7 +1164,7 @@ function collectReferences(value, pointer, topLevel, definitions, references) {
 /**
  * @param {Record<string, any>} entity
  * @param {string | undefined} base
- * @param {Finding[]} findings
+ * @param {GraphFinding[]} findings
  * @returns {Record<string, any>}
  */
 function normalizeEntityIds(entity, base, findings) {
@@ -1199,7 +1204,7 @@ function mapJson(value, pointer, transform, key) {
 /**
  * @param {readonly string[] | undefined} ids
  * @param {string | undefined} base
- * @param {Finding[]} findings
+ * @param {GraphFinding[]} findings
  * @returns {Set<string> | undefined}
  */
 function normalizeKnownIds(ids, base, findings) {
@@ -1222,7 +1227,7 @@ function normalizeKnownIds(ids, base, findings) {
 /**
  * @param {string | URL | undefined} value
  * @param {string} label
- * @param {Finding[]} findings
+ * @param {GraphFinding[]} findings
  * @returns {string | undefined}
  */
 function normalizeOptionalAbsoluteUrl(value, label, findings) {
@@ -1522,7 +1527,7 @@ function isWithinSite(candidate, site) {
  * @param {'info' | 'warning' | 'error'} severity
  * @param {string} message
  * @param {{entityId?: string, pointer?: string, pathname?: string}} [location]
- * @returns {Finding}
+ * @returns {GraphFinding}
  */
 function finding(code, severity, message, location = {}) {
   return { version: GRAPH_VERSION, code, severity, message, ...location };

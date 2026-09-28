@@ -62,7 +62,7 @@ export function serializeDiagnosticsManifest(pages, diagnostics = [], now = new 
 }
 
 /** @param {unknown} diagnostics @returns {import('../index.js').Diagnostic[]} */
-function sanitizeDiagnostics(diagnostics) {
+export function sanitizeDiagnostics(diagnostics) {
   if (!Array.isArray(diagnostics)) return [];
   return diagnostics.flatMap((value) => {
     if (!value || typeof value !== 'object') return [];

@@ -56,6 +56,17 @@ describe('URL helpers', () => {
 describe('buildPage', () => {
   const config = resolveConfig();
 
+  test('carries a valid version from the authored input and omits the field otherwise', async () => {
+    const build = (/** @type {any} */ authored) =>
+      buildPage({ pathname: '/docs/', html: page('<h1>Docs</h1><p>Body.</p>'), config, site, authored });
+    const versioned = await build({ version: 'v2' });
+    expect('page' in versioned && versioned.page.version).toBe('v2');
+    for (const authored of [undefined, {}, { version: '../v2' }, { version: 2 }]) {
+      const result = await build(authored);
+      expect('page' in result && 'version' in result.page).toBe(false);
+    }
+  });
+
   test('produces a normalized record from rendered HTML', async () => {
     const result = await buildPage({
       pathname: '/about/',

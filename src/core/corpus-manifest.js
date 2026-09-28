@@ -62,6 +62,7 @@ export function normalizeCorpusManifest(manifest) {
     hash: entry.hash ?? null,
     sourceStrategy: entry.sourceStrategy,
     ...(entry.modified === undefined ? {} : { modified: entry.modified }),
+    ...(entry.version === undefined ? {} : { version: entry.version }),
     chunks: [...entry.chunks].sort(compareChunkReferences),
   })).sort(comparePageRecords);
 

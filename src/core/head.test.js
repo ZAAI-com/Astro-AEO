@@ -192,6 +192,18 @@ describe('managed page head', () => {
       .toMatchObject({ name: 'Explicit title', description: 'Explicit description', inLanguage: 'de-DE' });
   });
 
+  test('the shared WebSite entity carries a language only on a single-language site', () => {
+    const websiteOf = (/** @type {Record<string, unknown>} */ siteFacts) => enrichHtmlHead({
+      html: document(''), page: { ...page(), language: 'de' }, config: resolveConfig(), site: { ...site, ...siteFacts },
+    }).graph?.entries.find(({ entity }) => entity['@type'] === 'WebSite')?.entity;
+    expect(websiteOf({})).toMatchObject({ inLanguage: 'de' });
+    expect(websiteOf({ i18n: { locales: [{}] } })).toMatchObject({ inLanguage: 'de' });
+    // Two locales would each claim the one WebSite, and the merged site graph would conflict.
+    const multilingual = websiteOf({ i18n: { locales: [{}, {}] } });
+    expect(multilingual).toBeDefined();
+    expect(multilingual).not.toHaveProperty('inLanguage');
+  });
+
   test('targeted metadata edits preserve tag-like authored script bytes', () => {
     const json = '<script type="application/ld+json">{"@type":"Thing","name":"<title>Literal</title><meta name=description>"}</script>';
     const ordinary = '<script>const literal = "<meta property=og:title>"; const close = "</head>";</script>';
@@ -337,6 +349,14 @@ describe('managed page head', () => {
       expect.objectContaining({ code: 'metadata-duplicate', message: expect.stringContaining('name:robots') }),
     ]));
     expect(JSON.stringify(result.diagnostics)).not.toMatch(/first-secret|second-secret/);
+  });
+
+  test('accepts more than one generator meta tag', () => {
+    const result = enrichHtmlHead({
+      html: document('<meta name="generator" content="Astro v7"><meta name="generator" content="Starlight v0.42">'),
+      page: page(), config: resolveConfig(), site,
+    });
+    expect(result.diagnostics.filter((diagnostic) => diagnostic.code.startsWith('metadata-'))).toEqual([]);
   });
 
   test('authored JSON-LD bytes remain stable and suppress duplicate managed facts', () => {

@@ -159,6 +159,8 @@ export interface AeoPageProps {
   description?: string;
   image?: string;
   language?: string;
+  /** Documentation version label, such as `v2`. */
+  version?: string;
   /** ISO date. */
   published?: string;
   /** ISO date. */

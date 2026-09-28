@@ -1,0 +1,22 @@
+---
+const { slug } = Astro.params;
+---
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Ledger Inventory Item Detail and Stock Page</title>
+    <meta name="description" content="Live stock for one item." />
+    <meta name="robots" content="index, follow" />
+    <meta property="og:title" content="Ledger Inventory Item Detail and Stock Page" />
+    <meta property="og:description" content="Live stock for one item." />
+    <meta property="og:image" content="https://recipe.example.com/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+  </head>
+  <body>
+    <main>
+      <h1>Ledger Inventory Item Detail and Stock Page</h1>
+      <p>This recipe page carries enough plain prose for a useful Markdown companion. It explains what the page is for, who it helps, and what a reader can do next, in ordinary sentences an answer engine can quote. Replace this text with your own content and keep each page focused on one question.</p>
+      <p>Item: {slug}</p>
+    </main>
+  </body>
+</html>

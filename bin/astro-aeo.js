@@ -9,11 +9,17 @@ import { formatReport, formatJson } from '../cli/report.js';
 import { prepareIndexNow } from '../cli/indexnow-prepare.js';
 import { submitIndexNow } from '../cli/indexnow-submit.js';
 import { IndexNowInvocationError } from '../cli/indexnow-io.js';
+import { AuditInvocationError, runAudit } from '../cli/audit.js';
+import { DoctorInvocationError, runDoctor } from '../cli/doctor.js';
+import { FixRefusal, runFix } from '../cli/fix/index.js';
 
 const HELP = `astro-aeo - Answer Engine Optimization for Astro
 
 Usage:
   astro-aeo validate [distDir]   Validate AEO outputs in a build directory (default: ./dist)
+  astro-aeo audit [distDir|URL]  Audit a build directory (default: ./dist) or a deployed site
+  astro-aeo doctor [projectDir]  Check how this project is set up to deploy (default: .)
+  astro-aeo fix [projectDir]     Make a static host serve .md as text/markdown (dry run by default)
   astro-aeo indexnow prepare [distDir] [--source cache|config] [--input <file>]
                                Prepare the private IndexNow queue (default: ./dist)
   astro-aeo indexnow submit [queueFile]
@@ -26,6 +32,30 @@ Options for "validate":
   --json          Print a machine-readable JSON report
   --quiet         Suppress warnings in human output
   --base <path>   Site base path, if the build was generated with one
+
+Options for "audit":
+  --format <name>   terminal (default), json, sarif, html, markdown, github, or junit
+  --output <file>   Write the report to a file instead of standard output
+  --fail-on <level> Exit 1 on findings at this level: error (default), warning, or none
+  --no-score        Omit the advisory readiness scores and deductions
+  --base <path>     Site base path, for a build directory
+  --max-pages <n>   URL only: page cap, or "unlimited" (default: 500)
+  --allow-origin <origin>
+                    URL only, repeatable: another origin the crawl may follow
+  --timeout <ms>    URL only: per-request timeout (default: 10000)
+  --concurrency <n> URL only: parallel requests, 1 to 32 (default: 8)
+
+Options for "doctor":
+  --url <page>      Also probe one deployed page. Without it, local files prove nothing deployed
+  --dist <dir>      Build output directory (default: dist)
+  --public-dir <d>  Public directory (default: public)
+  --json            Print a machine-readable report
+
+Options for "fix":
+  --write           Apply the change. The current file is backed up under .astro/aeo-backups/
+  --provider <name> cloudflare, netlify, vercel or render; nginx, apache, node, workers or deno print a snippet
+  --service <name>  render only: the static site service to edit
+  --public-dir <d>  Public directory (default: public)
 
 Options for "indexnow prepare":
   --source <mode> Read sanitized cache input (default) or explicitly load config
@@ -50,6 +80,38 @@ async function main() {
 
   if (command === 'validate') {
     runValidate(argv.slice(1));
+    return;
+  }
+
+  if (command === 'audit') {
+    try {
+      const result = await runAudit(argv.slice(1), { version: readVersion() });
+      if (result.written) process.stderr.write(`astro-aeo audit: wrote ${result.written}\n`);
+      process.stdout.write(result.output);
+      process.exitCode = result.exitCode;
+    } catch (error) {
+      // An unexpected failure is not a finding, so it never reports as exit 1.
+      const prefix = error instanceof AuditInvocationError ? '' : 'audit failed: ';
+      process.stderr.write(`astro-aeo: ${prefix}${error instanceof Error ? error.message : String(error)}\n`);
+      process.exitCode = 2;
+    }
+    return;
+  }
+
+  if (command === 'doctor' || command === 'fix') {
+    try {
+      if (command === 'doctor') {
+        const result = await runDoctor(argv.slice(1));
+        process.stdout.write(result.output);
+        process.exitCode = result.exitCode;
+      } else {
+        process.stdout.write((await runFix(argv.slice(1))).output);
+      }
+    } catch (error) {
+      const refused = error instanceof DoctorInvocationError || error instanceof FixRefusal;
+      process.stderr.write(`astro-aeo: ${refused ? '' : `${command} failed: `}${error instanceof Error ? error.message : String(error)}\n`);
+      process.exitCode = 2;
+    }
     return;
   }
 

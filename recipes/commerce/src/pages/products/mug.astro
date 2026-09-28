@@ -1,0 +1,28 @@
+---
+import { createOffer, createProduct } from 'astro-aeo/schema';
+const product = createProduct({
+  '@id': 'https://recipe.example.com/products/mug/#product',
+  name: 'The Everyday Mug',
+  offers: createOffer({ price: '28.00', priceCurrency: 'EUR' }),
+});
+const jsonLd = JSON.stringify({ '@context': 'https://schema.org', ...product });
+---
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>The Everyday Stoneware Mug by Kiln and Clay</title>
+    <meta name="description" content="A 350 ml stoneware mug, dishwasher safe." />
+    <meta name="robots" content="index, follow" />
+    <meta property="og:title" content="The Everyday Stoneware Mug by Kiln and Clay" />
+    <meta property="og:description" content="A 350 ml stoneware mug, dishwasher safe." />
+    <meta property="og:image" content="https://recipe.example.com/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script type="application/ld+json" set:html={jsonLd} />
+  </head>
+  <body>
+    <main>
+      <h1>The Everyday Stoneware Mug by Kiln and Clay</h1>
+      <p>This recipe page carries enough plain prose for a useful Markdown companion. It explains what the page is for, who it helps, and what a reader can do next, in ordinary sentences an answer engine can quote. Replace this text with your own content and keep each page focused on one question.</p>
+    </main>
+  </body>
+</html>

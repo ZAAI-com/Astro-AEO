@@ -2,6 +2,192 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## 1.4.0
+
+The quality and ecosystem release: a site-wide audit with seven report formats, deployment checks and
+fixes, a Starlight plugin, content and CMS helpers, and opt-in static edge negotiation. No
+configuration key changes. Markdown extraction also changes existing companions as described below,
+even without enabling the new features. Node and Cloudflare bundle sizes remain within the release
+limits.
+
+### Behavior changes worth reading before upgrading
+
+- `validation.onBuild: 'recommended'` also gates on the audit rules a build can answer from its page
+  model. With the default `failOn: 'error'` the one new blocking rule is `markdown-empty`, a Markdown
+  companion with no text. `'artifacts'` and `'off'` are unchanged.
+- A catch-all page rendered on demand (`/[...slug]`) no longer owns every `.md` companion and text
+  artifact path. Those requests answered a bodyless `404` before and are served now.
+- On a site with more than one Astro i18n locale, the inferred site-wide `WebSite` entity no longer
+  carries `inLanguage`, which previously failed the build with `schema.scalar-conflict`.
+- Repeated `<meta name="generator">` tags no longer report `metadata-conflict`.
+- Every build writes a private `.astro/aeo-cache/deployment-v1.json`. It is never published.
+- `yaml` is a new runtime dependency, loaded on demand by `astro-aeo fix` alone.
+
+### Review fixes before release
+
+- Refuse symlinked project and build-directory roots, including linked parents, before editing
+  provider configuration or reading an offline audit target.
+- Make edge declarations match each public subpath's runtime exports and reject duplicate
+  normalized routes in an untrusted static edge manifest instead of replacing an earlier entry.
+- Return the rendered response from Starlight route middleware after its marker handling.
+
+### Markdown companions
+
+Convert figures, definition lists and simple tables to Markdown instead of copying them as raw HTML.
+Real sites were getting whole `<figure>`, `<dl>` and `<table>` blocks, complete with utility classes and
+`data-*` attributes, in their `.md` companions. Figures now become `![alt](src)` with the caption as an
+emphasized line, definition lists become a bold term followed by its description, and tables whose cells
+are single-span inline content become GFM pipe tables. `time`, `address` and `cite` convert to their text.
+
+Tables with `colspan`, `rowspan` or block content in a cell, and `audio` and `video` (which Markdown cannot
+express), stay HTML, reduced to meaningful attributes (`href`, `src`, `alt`, `scope`, `colspan`, `poster`
+and similar) with attribute-less `div` and `span` wrappers unwrapped. `keepSelectors` now uses
+the same minimization, including when the selected element is the extraction root.
+
+Interface chrome is dropped before conversion: buttons (disclosure toggles with `aria-expanded` or
+`aria-controls` stay), `svg`, `template`, `[hidden]` and `[aria-hidden="true"]` elements, unless they wrap
+an image with alt text. Extraction diagnostics gain `keptHtmlBlocks`, and the `markdown-html-residue`
+audit rule now also flags figures, definition lists and any tag still carrying `class`, `style` or
+`data-*` attributes. A separate `markdown-raw-html` warning catches companions with at least
+three HTML-containing blocks and either 30 tags or more than 25% tag markup outside code.
+
+### Audit correctness
+
+- Audit directory-format pages using their generated Markdown companion paths instead of looking
+  for `index.md` inside each page directory. Companion reads remain confined and symlink-free.
+- Resolve same-origin absolute links and hreflang offline using explicit site information or
+  generated corpus/domain-profile metadata, without treating external links as local files.
+- Preserve live audit reports when response bodies time out or are interrupted, and report failed
+  advertised Markdown companions instead of silently skipping them.
+- Report missing HTML language attributes during live audits as well as offline audits, while
+  preserving noindex exemptions and build-model behavior.
+
+Corrected audits may now report failures that previous versions missed. The `validate` command,
+public configuration, and audit report format are unchanged.
+
+### Audit
+
+Add the 1.4 finding contracts. `Finding`, `SourceLocation`, `AuditCategory`, `AuditScores` and
+`AuditReportV1` are exported from `astro-aeo`, and the report wire format ships as
+`astro-aeo/audit-report.schema.json`. Every existing build diagnostic, validator, sitemap and schema
+graph `code` is registered unchanged as a `ruleId` with a category, a usual severity and a help link
+into the new `docs/rules.md`. The advisory `astro-aeo-readiness-v1` score weighs an error at 15 and a
+warning at 5, caps one rule at 30 points per category, and never affects an exit status. The
+`validate` command and its JSON output are unchanged.
+
+Add `astro-aeo audit [distDir|URL]`. It runs every `validate` check and adds site-wide rules for
+broken internal links and anchors, duplicate titles, descriptions and canonicals, Markdown companion
+quality, JSON-LD validity and hreflang targets, and it reads the build's private diagnostics and
+ownership manifests when they are present. Reports render as `terminal`, `json`, `sarif`, `html`,
+`markdown`, `github` or `junit` from one deterministic `AuditReportV1`, with `--output`, `--fail-on`,
+and `--no-score`. A URL target is crawled anonymously within an origin allowlist, bounded by
+`--max-pages`, `--timeout`, `--concurrency`, five redirects and a 5 MiB body cap. Exit codes are `0`
+pass, `1` findings at or above the gate, and `2` for a bad invocation or an unreachable target.
+
+`validation.onBuild: 'recommended'` now also gates on the audit rules a build can answer from its page
+model. With the default `failOn: 'error'` the one new blocking rule is `markdown-empty`, a Markdown
+companion with no text. `'artifacts'` and `'off'` are unchanged, and so is `validate`.
+
+### Deployment: doctor, fix and the GitHub Action
+
+Add `astro-aeo doctor [projectDir]`, which reports how a project is set up to deploy as `configured`,
+`missing`, `conflicting` or `unverified`. Local files never earn `configured`: `--url <page>` probes the
+deployment anonymously with the same Accept contract the middleware and edge handlers are tested
+against, and what the deployment does replaces what the files suggest.
+
+Add `astro-aeo fix [projectDir]`, which makes a static host serve `.md` companions as
+`text/markdown; charset=utf-8` by editing `public/_headers` (Cloudflare Pages, Netlify), `vercel.json`
+or `render.yaml`, keeping everything else in the file. It is a dry run unless `--write`, backs the
+original up under `.astro/aeo-backups/`, is a no-op the second time, and refuses ambiguous providers,
+malformed documents, competing rules, symbolic links and paths outside the project. nginx, Apache, Node,
+Workers and Deno get a printed snippet. `yaml` becomes a runtime dependency for the `render.yaml` edit
+alone and is loaded on demand.
+
+Add a composite GitHub Action at the repository root that audits a build or a URL, uploads SARIF to code
+scanning, and reports the exit status after the upload.
+
+Fix a build failure on multilingual sites: the inferred site-wide `WebSite` entity took `inLanguage`
+from each page, so two Astro i18n locales conflicted in the merged site graph
+(`schema.scalar-conflict`). The shared entity now carries no language on a multilingual site; every
+`WebPage` keeps its own, and single-language output is unchanged.
+
+### Static edge negotiation
+
+Add opt-in static edge negotiation for sites without an adapter. `cloudflareEdge()`, `netlifyEdge()` and
+`vercelEdge()` (from `astro-aeo/edge/cloudflare`, `/netlify` and `/vercel`) make the build emit
+`/.well-known/astro-aeo-edge-v1.json`, listing only the companions it really emitted, and
+`createCloudflareHandler()`, `createNetlifyHandler()` and `createVercelHandler()` negotiate from it in
+the host's edge layer with the same rules as the Astro middleware: `GET` and `HEAD`, exact routes,
+Markdown only when it strictly outranks HTML, `303` in redirect mode, `Vary: Accept` on every listed
+route, and the unmodified HTML response whenever the manifest or a companion is missing, malformed or
+stale. `astro-aeo/edge` exports the manifest type and the shared decision function. The plugin is
+rejected when the project has an adapter, renders a page on demand, or sets `markdown.negotiation` to
+`'off'`. The Cloudflare handler is tested in workerd; no handler has been verified on a deployed provider.
+
+Every build now also writes the private `.astro/aeo-cache/deployment-v1.json` (mode `0o600`) with the
+output mode, adapter name, base, build format, trailing slash, negotiation mode, edge provider and an
+ownership digest. It contains no path and no secret. This private deployment record does not itself
+change public artifacts.
+
+### Starlight
+
+Add `astro-aeo/starlight`, a Starlight plugin (`@astrojs/starlight` 0.32 or newer, an optional peer).
+`starlightAeo()` registers the integration itself, publishes each docs page's authored Markdown with
+asides, tabs and cards as labeled sections, appends previous and next links, and can add a minimal
+`TechArticle` entity. MDX it would have to evaluate falls back to the rendered `.sl-markdown-content`
+region with the new `authored-source-fallback` diagnostic. An explicit `<AeoPage>` always wins, and the
+inferred source is emitted only during collection and removed before anything is written or served.
+
+Fix request-time ownership for catch-all pages. The dots of a rest parameter were read as a file
+extension, so a project or integration page at `/[...slug]` rendered on demand owned every `.md`
+companion and text artifact path, and those requests answered a bodyless `404`. A rest-parameter page
+is now treated like any other generic dynamic page; `/[...slug].json` and dynamic endpoints still own
+their paths.
+
+Stop reporting `metadata-conflict` for repeated `<meta name="generator">` tags, which Astro and a
+framework built on it each add.
+
+### Content, CMS and versions
+
+Add `astro-aeo/content` with `contentPage`, `contentDescriptor`, `defineContentCatalog` and
+`defineCmsAdapter`. They build `<AeoPage>` props and page catalogs from content-collection entries and
+headless CMS records, stay loadable by Node, and load through the existing catalog failure isolation.
+CMS pages always carry `source.kind: 'cms'` and the source path `cms:<name>:<id>`.
+
+Add `createTechArticle()` to `astro-aeo/schema`.
+
+Add an optional `version` label to `PageDescriptor`, `defineAeoPage`, `AeoPageRecord`, plugin page
+records and corpus manifest page entries. It is metadata only; a site without versions produces the same
+bytes as before, and an invalid label is ignored with `catalog-invalid-version`.
+
+`defineAeoPage()` is now typed consistently: its JSDoc return type matches the declared `AeoPageProps`.
+
+### Internal
+
+- Run the complete release gate, including performance ceilings, in a read-only, manual W1-Test job
+  before tagging. Publication remains exclusive to the strict tag workflow.
+
+- Avoid serializing and reparsing the cleaned content subtree during Markdown conversion. A normalized
+  DOM clone preserves selected-root semantics, source labels, and existing Markdown output.
+
+- Documented the plugin `cache: { pure, version }` declaration. It is a build/runtime parity check,
+  not a cache: a runtime module whose hooks or declarations differ from the build fails to load and
+  its stages isolate, and every hook still runs on every build. Wiring declarations into the
+  processing cache remains deferred until a benchmark shows plugin hooks dominating a warm build.
+- Covered the dispatcher's cache-declaration validation and its runtime manifest projection, which
+  had no tests.
+
+### Package size
+
+Benchmark regression explanation: against the committed 1.3 baseline the published package grows from
+272,377 to about 355,650 packed bytes (about 31 percent) and from 1,106,331 to about 1,375,031 unpacked
+bytes (about 24 percent; about 18 percent over 1.3.1). 1.4 ships the audit engine with seven report
+formats, the doctor and fix commands, the content and Starlight helpers, and three static edge handlers
+as new source files. All of it is opt-in and none of it is imported by the integration entry or the
+runtime middleware: the Node and Cloudflare bundle comparisons in the same report show no regression,
+and startup, memory and request overhead stay under their unchanged ceilings. The accepted tradeoff is
+install size for features that need no additional package.
+
 ## 1.3.2
 
 ### Patch Changes

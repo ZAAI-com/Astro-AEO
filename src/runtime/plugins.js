@@ -492,6 +492,7 @@ function sanitizeRuntimePage(value) {
     ...(typeof page.language === 'string' ? { language: page.language } : {}),
     ...(typeof page.origin === 'string' ? { origin: page.origin } : {}),
     ...(typeof page.locale === 'string' ? { locale: page.locale } : {}),
+    ...(typeof page.version === 'string' ? { version: page.version } : {}),
     ...(Array.isArray(page.alternates) ? { alternates: page.alternates } : {}),
     ...(page.metadata && typeof page.metadata === 'object' ? { metadata: page.metadata } : {}),
     representations: {

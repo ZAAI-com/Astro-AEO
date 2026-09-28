@@ -74,6 +74,47 @@ plain ESM with no package build step.
   stripped before conversion or forwarding, including errors and opted-out pages.
 - `components/` holds `AeoPage` and the six JSON-LD components. `cli/validate.js` and
   `cli/report.js`, entered through `bin/astro-aeo.js`, implement the validator.
+- `src/audit/` is the 1.4 audit engine (Node allowed, never imported by `src/core/` or
+  `src/runtime/`). `rules.js` is the immutable registry: a `ruleId` is an existing `code` verbatim,
+  and its completeness test fails when any emitter gains a code the registry lacks. `site-rules.js`
+  runs over `PageFacts`, which `local.js` (a build directory), `live.js` (an anonymous, origin
+  allowlisted crawl) and `build.js` (`validation.onBuild: 'recommended'`) each produce. `report.js`
+  builds the deterministic `AuditReportV1`; `cli/audit.js` and `cli/formats/` only parse flags and
+  render. `validate` and `ValidateResult` are frozen: new checks go to `audit`.
+
+- `src/starlight.js` is a Starlight plugin that registers `aeo()` itself and uses only Starlight's
+  public plugin and route-data APIs; it never imports Starlight, so the peer stays optional.
+  `src/starlight/route-data.js` is route middleware inside the consumer's SSR bundle (the boundary
+  test covers `src/starlight/`). It writes an `inferred` marker only under the collection flag, and
+  `readMarker` prefers an authored marker over an inferred one. `src/starlight/markdown.js` converts
+  source line by line and returns a fallback, never partial output, for anything it would have to
+  evaluate. Its fixtures are Astro 7 only and declare their dependencies so Vite bundles Starlight.
+
+- Static edge negotiation is for sites with no adapter. `src/edge/` holds the provider plugin
+  factories and re-exports the handlers; `src/runtime/edge/handler.js` is the one decision function and
+  `cloudflare.js`, `netlify.js` and `vercel.js` only adapt a host to it. All of it is bundled into an
+  edge runtime, so the boundary test covers it and pins each provider's import closure. The edge plugin
+  registers no hook: `src/index.js` recognizes its `astroAeoEdge` field, gates on the raw
+  `astroConfig.adapter` plus `hasOnDemandProjectPage` (never `serverOutput`, which any adapter turns
+  on), and `build-done` writes the manifest as the core artifact `edgeManifest`. Its body comes from a
+  `produce` callback the deferred writer runs after ownership resolution and before anything hashes
+  it. That callback is core only: plugin envelopes keep a string body. `test/contracts/accept.js` is
+  the single Accept table for the middleware, the handlers and the workerd suite (`test:edge`).
+- `src/build/deployment-facts.js` stages the private `.astro/aeo-cache/deployment-v1.json` (mode
+  `0o600`): output mode, adapter name, base, build format, trailing slash, negotiation mode, edge
+  provider and an ownership digest. Names and modes only, never a path or an environment value.
+
+- `cli/doctor.js` reports `configured`, `missing`, `conflicting` or `unverified`. Local files never
+  earn `configured`: only the `--url` probe does, and a probe result replaces the local reading. Its
+  Markdown MIME check calls the same editors as `cli/fix/`, so the two commands cannot disagree, and
+  its probe uses `cli/accept-contract.js`, the table the middleware and edge handlers are tested
+  against (`test/contracts/accept.js` re-exports it). `cli/fix/` is a dry run unless `--write`, edits
+  exactly one file, refuses anything ambiguous, malformed, symlinked or outside the project, and
+  backs the original up under `.astro/aeo-backups/<UTC timestamp>/` through `commitFileTransaction`.
+- `action.yml` is a composite action that runs the project's installed CLI. Inputs reach the shell
+  only as environment variables, and the exit status is reported after the SARIF upload.
+  `recipes/` are complete projects outside the published folders; `test:recipes` builds each one
+  and requires an audit with no errors.
 
 ### Runtime invariants
 
@@ -116,13 +157,19 @@ plain ESM with no package build step.
 - Use plain ESM JavaScript with `// @ts-check` and JSDoc. The published folders are `src`,
   `components`, `bin`, `cli`, and `schema`, so every shipped source file must run as published and
   remain installable from a git dependency.
-- Public declarations are hand-written in exactly seven files: `src/index.d.ts`,
+- Public declarations are hand-written in thirteen files: `src/index.d.ts`,
   `components/index.d.ts`, `src/page.d.ts`, `src/extract.d.ts`,
-  `src/runtime/middleware.d.ts`, `src/schema.d.ts`, and `src/adapters.d.ts`. Update declarations
+  `src/runtime/middleware.d.ts`, `src/schema.d.ts`, `src/adapters.d.ts`, `src/content.d.ts`,
+  `src/starlight.d.ts`, `src/edge.d.ts`, and the three provider-specific declarations under
+  `src/edge/`. Provider subpaths must declare only the runtime exports they actually provide. Update declarations
   and consumer type tests with their code.
-- There are four runtime dependencies: `@astrojs/sitemap`, `turndown`, `linkedom` via
-  `linkedom/worker`, and the type-only Schema.org vocabulary package `schema-dts`. Do not add
-  another without a comparably strong reason.
+- There are five runtime dependencies: `@astrojs/sitemap`, `turndown`, `linkedom` via
+  `linkedom/worker`, the type-only Schema.org vocabulary package `schema-dts`, and `yaml`. `yaml`
+  exists for one reason: `astro-aeo fix` edits `render.yaml` in place, and only a document-level
+  YAML API keeps a project's comments, anchors and key order. It is loaded by a dynamic `import()`
+  in `cli/fix/render-yaml.js` and nowhere else; the boundary test's bare-import allowlist keeps it
+  and every other new package out of the bundled runtime code. Do not add another without a
+  comparably strong reason.
 - House style forbids em dashes. Use a colon, comma, or parentheses.
 - Contributor tooling uses pnpm 11 and requires Node 22.13 or newer. The published package must
   continue to run on Node 20.19.5 or newer and Astro 5 or newer. CI installs dependencies with a
@@ -158,6 +205,9 @@ pnpm run test:watch
 pnpm run test:dev
 pnpm run test:ssr
 pnpm run test:adapters
+pnpm run test:edge
+pnpm run test:recipes
+pnpm run benchmark:audit
 pnpm run typecheck
 pnpm run test:types
 pnpm run schema:check

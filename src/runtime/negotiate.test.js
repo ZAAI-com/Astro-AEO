@@ -1,4 +1,5 @@
 import { test, expect, describe } from 'vitest';
+import { ACCEPT_CONTRACT } from '../../test/contracts/accept.js';
 import { parseAccept, prefersMarkdown } from './negotiate.js';
 
 describe('parseAccept', () => {
@@ -78,72 +79,15 @@ describe('parseAccept', () => {
   });
 });
 
+// The cases live in one shared table so the static edge handlers and the deployment
+// probe are held to exactly the header semantics the middleware implements.
 describe('prefersMarkdown', () => {
-  test('true only when markdown is asked for and strictly outranks html', () => {
-    expect(prefersMarkdown('text/markdown')).toBe(true);
-    expect(prefersMarkdown('text/markdown, text/html;q=0.5')).toBe(true);
-    expect(prefersMarkdown('text/markdown;q=0.9, text/html;q=0.8')).toBe(true);
+  test('the contract table is not empty and covers both outcomes', () => {
+    expect(ACCEPT_CONTRACT.length).toBeGreaterThan(20);
+    expect(new Set(ACCEPT_CONTRACT.map((entry) => entry.markdown))).toEqual(new Set([true, false]));
   });
 
-  test('a tie resolves to HTML, which is what a browser can display', () => {
-    expect(prefersMarkdown('text/markdown, text/html')).toBe(false);
-    expect(prefersMarkdown('text/markdown;q=0.5, text/html;q=0.5')).toBe(false);
-  });
-
-  test('html winning resolves to HTML', () => {
-    expect(prefersMarkdown('text/html, text/markdown;q=0.8')).toBe(false);
-    expect(
-      prefersMarkdown('text/html;charset=UTF-8, text/markdown;q=0.8'),
-    ).toBe(false);
-  });
-
-  test('a wildcard is not a request for markdown', () => {
-    // Every curl and most crawlers send */*. Treating it as consent would serve
-    // Markdown to almost everything.
-    expect(prefersMarkdown('*/*')).toBe(false);
-    expect(prefersMarkdown('text/*')).toBe(false);
-    expect(prefersMarkdown('*/*;q=1.0')).toBe(false);
-    expect(prefersMarkdown('text/markdown;q=0.5, text/*;q=0.9')).toBe(false);
-    expect(prefersMarkdown('text/markdown;q=0.9, text/*;q=0.5')).toBe(true);
-  });
-
-  test('a browser Accept header resolves to HTML', () => {
-    expect(
-      prefersMarkdown('text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,*/*;q=0.8'),
-    ).toBe(false);
-  });
-
-  test('a missing or malformed header resolves to HTML', () => {
-    expect(prefersMarkdown(null)).toBe(false);
-    expect(prefersMarkdown('')).toBe(false);
-    expect(prefersMarkdown(';;;')).toBe(false);
-    expect(prefersMarkdown('text/markdown;q=notanumber')).toBe(false);
-    expect(prefersMarkdown('text/markdown, text/html;q=garbage')).toBe(false);
-  });
-
-  test('markdown at q=0 is a refusal, not a request', () => {
-    expect(prefersMarkdown('text/markdown;q=0')).toBe(false);
-  });
-
-  test('matches required parameters against the emitted UTF-8 representation', () => {
-    expect(prefersMarkdown('text/markdown;charset=UTF-8, text/html;q=0.5')).toBe(true);
-    expect(prefersMarkdown('text/markdown;charset=iso-8859-1, text/html;q=0.5')).toBe(false);
-    expect(prefersMarkdown('text/markdown;level=1, text/html;q=0.5')).toBe(false);
-    expect(
-      prefersMarkdown(
-        'text/markdown;charset=iso-8859-1;q=1, text/markdown;q=0.8, text/html;q=0.5',
-      ),
-    ).toBe(true);
-  });
-
-  test('does not alias legacy text/x-markdown to the emitted media type', () => {
-    expect(prefersMarkdown('text/x-markdown')).toBe(false);
-    expect(
-      prefersMarkdown('text/x-markdown;q=1, text/markdown;q=0, text/html;q=0.5'),
-    ).toBe(false);
-  });
-
-  test('application/xhtml+xml counts as html for ranking', () => {
-    expect(prefersMarkdown('text/markdown;q=0.5, application/xhtml+xml;q=0.9')).toBe(false);
+  test.each(ACCEPT_CONTRACT)('$name', ({ accept, markdown }) => {
+    expect(prefersMarkdown(accept)).toBe(markdown);
   });
 });

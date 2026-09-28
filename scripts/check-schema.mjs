@@ -3,12 +3,19 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { buildSchema, serializeSchema } from './schema-definition.mjs';
+import { serializeAuditReportSchema } from './audit-report-schema.mjs';
 import { resolveConfig } from '../src/config.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const destination = resolve(root, 'schema/astro-aeo.schema.json');
 const committed = await readFile(destination, 'utf8').catch(() => '');
 const expected = serializeSchema();
+
+const auditDestination = resolve(root, 'schema/audit-report-v1.schema.json');
+if (await readFile(auditDestination, 'utf8').catch(() => '') !== serializeAuditReportSchema()) {
+  console.error('schema/audit-report-v1.schema.json is stale. Run: node scripts/generate-schema.mjs');
+  process.exitCode = 1;
+}
 
 if (committed !== expected) {
   console.error('schema/astro-aeo.schema.json is stale. Run: node scripts/generate-schema.mjs');

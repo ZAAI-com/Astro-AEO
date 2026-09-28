@@ -1,4 +1,5 @@
 // @ts-check
+import { isPageVersion } from './core/page-version.js';
 import { isSourceKind, sourceKindFor } from './core/source-kind.js';
 
 /**
@@ -9,6 +10,7 @@ import { isSourceKind, sourceKindFor } from './core/source-kind.js';
  * @property {string} [description]
  * @property {string} [image]
  * @property {string} [language]
+ * @property {string} [version]       Documentation version label, such as `v2`.
  * @property {Date | string} [published]
  * @property {Date | string} [lastModified]
  * @property {unknown[]} [authors]
@@ -20,7 +22,7 @@ import { isSourceKind, sourceKindFor } from './core/source-kind.js';
 
 /**
  * @param {AeoPageInput} input
- * @returns {import('./core/extract/marker.js').PageMarker}
+ * @returns {import('../components/index.js').AeoPageProps}
  */
 export function defineAeoPage(input = {}) {
   const entry = /** @type {any} */ (input.source);
@@ -41,6 +43,9 @@ export function defineAeoPage(input = {}) {
 
   const language = input.language ?? entry?.data?.language ?? entry?.data?.lang;
   if (typeof language === 'string' && language) marker.language = language;
+
+  const version = input.version ?? entry?.data?.version;
+  if (isPageVersion(version)) marker.version = version;
 
   const published = input.published ?? entry?.data?.published ?? entry?.data?.pubDate;
   const publishedIso = toIsoDate(published);
@@ -69,7 +74,8 @@ export function defineAeoPage(input = {}) {
     );
   }
 
-  return marker;
+  // The marker is the wire shape of the component props; authors and entities were typed on the way in.
+  return /** @type {import('../components/index.js').AeoPageProps} */ (marker);
 }
 
 /** @param {unknown} value @returns {string | undefined} */

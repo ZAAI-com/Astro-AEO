@@ -1,0 +1,1 @@
+<table><thead><tr><th>Command</th><th>Description</th></tr></thead><tbody><tr><td><code>git-same</code></td><td>Launch the interactive TUI (no subcommand)</td></tr><tr><td><code>git-same init</code></td><td>Create config file with sensible defaults</td></tr></tbody></table>

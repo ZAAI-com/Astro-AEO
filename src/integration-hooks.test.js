@@ -663,6 +663,10 @@ describe('integration diagnostics and declarations', () => {
     expect(source).not.toContain('/_image');
     expect(source).not.toContain('_internal');
     expect(source).not.toContain('integrationPage');
+    // The serialized owner is the regular expression, not the parameter name. The dots
+    // of a rest parameter once read as a file extension, so a catch-all page owned every
+    // `.md` and text artifact path at request time and the name check above still passed.
+    expect(source).not.toContain('(.*?)');
   });
 
   test('treats app-relative public files as runtime owners under the configured base', async () => {

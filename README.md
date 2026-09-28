@@ -122,7 +122,7 @@ aeo({
     extraction: {
       selectors: ['article', 'main'],     // tried in order, first with a match wins
       removeSelectors: ['nav', 'footer'], // dropped before conversion
-      keepSelectors: [],                  // preserved as raw HTML in the Markdown
+      keepSelectors: [],                  // preserved as minimized HTML in the Markdown
     },
   },
 
@@ -231,7 +231,41 @@ aeo({
 
 All 1.3 corpus, i18n, cache, crawler, and IndexNow outputs shown above are implemented. New corpus
 families, gzip, crawler presets, Content Signals, and IndexNow remain disabled until configured.
-The 1.4 audit, doctor, provider-fix, SARIF, and static edge-negotiation roadmap remains out of scope.
+The 1.4 `audit` command and its SARIF, JUnit, HTML, Markdown, and GitHub report formats are implemented
+(see [Audit](#audit)), and so are [static edge negotiation](#static-edge-negotiation) and the
+[`doctor` and `fix`](#doctor-and-fix) deployment commands.
+
+`validation.onBuild` decides what can fail a build, at the severity chosen by `validation.failOn`:
+
+- `'artifacts'` (default): diagnostics raised while generating and writing artifacts.
+- `'recommended'`: the above, plus each page's own diagnostics (extraction, renderer, metadata), plus
+  the audit rules a build can answer from its page model: `markdown-empty`, `markdown-thin`,
+  `markdown-no-h1`, `markdown-html-residue`, `description-missing`, and the `title-duplicate`,
+  `description-duplicate` and `canonical-duplicate` checks. Only `markdown-empty` is an error, so with
+  the default `failOn: 'error'` a page whose companion has no text is what newly stops a build. Link,
+  anchor and hreflang rules need the rendered site and run only in `astro-aeo audit`.
+- `'off'`: nothing optional. Artifact integrity errors that would corrupt output still stop the build.
+
+### Migrating to 1.4
+
+1.4 adds features and changes no configuration key. A project that uses none of them emits the same
+public files as 1.3.2. Four behaviors are worth knowing before you upgrade:
+
+- `validation.onBuild: 'recommended'` also gates on the audit rules a build can answer from its page
+  model. With the default `failOn: 'error'`, the one new blocking rule is `markdown-empty`: a Markdown
+  companion with no text, such as a page whose content is only an image. `'artifacts'` and `'off'` are
+  unchanged.
+- A catch-all page rendered on demand (`src/pages/[...slug].astro`, or an integration's equivalent) no
+  longer owns every `.md` companion and text artifact path. Those requests answered a bodyless `404`
+  before and are served now. `/[...slug].json` and dynamic endpoints still own their paths.
+- On a site with more than one Astro i18n locale, the inferred site-wide `WebSite` entity no longer
+  carries `inLanguage`. Each page would otherwise claim its own language for the one shared entity, and
+  the merged site graph failed the build with `schema.scalar-conflict`. Every `WebPage` keeps its
+  language, and single-language sites are unchanged.
+- Repeated `<meta name="generator">` tags no longer report `metadata-conflict`.
+
+Every build also writes a private `.astro/aeo-cache/deployment-v1.json` beside the existing manifests. It
+holds names and modes only and is never published.
 
 ### Migrating to 1.3
 
@@ -396,7 +430,7 @@ const { Content } = await render(post);
 <Content />
 ```
 
-`defineAeoPage` reads `body`, `data.title`, `data.description`, image, language, and dates from a
+`defineAeoPage` reads `body`, `data.title`, `data.description`, image, language, version, and dates from a
 content-collection entry, or accepts explicit authored Markdown/MDX, source kind/path, authors,
 Schema.org entities, and directive hints. Every field is optional; supplying none is the same as
 not using it at all, and extraction runs as usual.
@@ -485,6 +519,47 @@ export default {
 };
 ```
 
+### Content and CMS helpers
+
+`astro-aeo/content` removes the boilerplate above. Every helper is plain data in, plain data out, so a
+catalog built with them is still loadable by Node before Vite exists (a catalog module cannot import
+`astro:content`; read a JSON export, a file glob, or an index your project builds).
+
+```js
+// src/aeo-catalog.js
+import { defineCmsAdapter } from 'astro-aeo/content';
+
+export default defineCmsAdapter({
+  name: 'sanity',
+  async listPages() {
+    const posts = await fetchPostsFromYourCms();
+    return posts.map((p) => ({ id: p.id, pathname: `/blog/${p.slug}`, title: p.title, markdown: p.markdown }));
+  },
+});
+```
+
+- `contentPage(entry, overrides?)` returns `<AeoPage>` props from a content-collection entry. It is
+  `defineAeoPage({ source: entry, ...overrides })`.
+- `contentDescriptor(entry, { pathname, ...overrides })` returns a serializable catalog descriptor from
+  an entry: title, description, image, language, version, dates, Markdown body, and source path.
+- `defineContentCatalog({ name?, entries, toPage })` builds a catalog. `entries(context)` loads your
+  entries and `toPage(entry, context)` returns `{ pathname, ...overrides }`, or `null` to leave one out.
+- `defineCmsAdapter({ name, listPages })` builds a catalog whose pages always carry
+  `source.kind: 'cms'` and the source path `cms:<name>:<id>`, whatever the adapter reported. Fetching,
+  credentials, and caching stay in your adapter; Astro-AEO adds no network access.
+
+These catalogs load through the same failure isolation as a hand-written one: a catalog that throws
+warns, records `catalog-load-failed`, and contributes nothing.
+
+### Page versions
+
+A page may carry a documentation version label: `version: 'v2'` on a catalog descriptor, on
+`defineAeoPage`, or as `data.version` on a content entry. A label is one path segment of letters,
+digits, `.`, `_` or `-` (at most 64 characters); anything else is ignored, and a catalog reports
+`catalog-invalid-version`. The label appears on `AeoPageRecord`, on plugin page records, and on the
+page's corpus manifest entry. It is metadata only: it changes no generated artifact, and a site without
+versions produces exactly the bytes it did before.
+
 A catalog that cannot resolve, import, evaluate, or run `listPages()` warns and
 contributes nothing rather than failing the build or server startup. Catalogs run in
 configured order in both builds and server bundles; the first descriptor wins when
@@ -563,7 +638,8 @@ a prerendered route, deliberately: those pages become static files, so honouring
 request header would work in `astro dev` and then silently stop working once
 deployed. A project with no adapter prerenders everything and cannot negotiate
 anywhere, and Astro-AEO warns if you configure it there. The `.md` companions are
-unaffected and work on any hosting.
+unaffected and work on any hosting. A fully static site can still negotiate in its host's
+edge layer: see [Static edge negotiation](#static-edge-negotiation).
 
 ### Extraction
 
@@ -575,14 +651,32 @@ inside another match is skipped so its content is not emitted twice. With no mat
 extraction falls back to `<body>`.
 
 `script`, `style`, `noscript`, `iframe`, and `head` are always dropped, in addition to
-`removeSelectors`. `keepSelectors` emits matching elements as raw HTML instead of
-converting them, for a widget whose markup carries meaning. Removal wins over
+`removeSelectors`. `keepSelectors` emits matching elements as minimized raw HTML instead of
+converting them, for a widget whose markup carries meaning. It removes presentation
+attributes and bare `div`/`span` wrappers, including on a selected root. Removal wins over
 keeping, and the always-dropped tags can never be reintroduced this way.
 
-Figures and captions, definition lists, tables and captions, `time`, `address`, and
-`cite` are retained as cleaned raw HTML because flattening them would discard
-semantics Markdown cannot express. Empty links and images inherit accessible names
-from `alt`, `aria-label`, `aria-labelledby`, then `title`.
+Buttons (except disclosure toggles with `aria-expanded` or `aria-controls`), `svg`,
+`template`, `[hidden]`, and `[aria-hidden="true"]` elements are dropped as interface
+chrome, unless they wrap an image with alt text.
+
+Figures become one image (the first described image for light/dark variants) followed by the
+caption in emphasis. Image-free charts retain readable text or their accessible label.
+Definition lists become a
+bold term followed by its description, and tables whose cells are single-span inline
+content become GFM pipe tables. `time`, `address`, and `cite` convert to their text.
+Tables with `colspan`, `rowspan`, or block content in a cell, and `audio` and `video`,
+stay HTML because Markdown cannot express them; that HTML keeps only meaningful
+attributes (`href`, `src`, `alt`, `title`, `scope`, `colspan`, `rowspan`, `headers`,
+`datetime`, `lang`, `aria-label`, `poster`, `type`) and drops bare `div` and `span`
+wrappers. Empty links and images inherit accessible names from `alt`, `aria-label`,
+`aria-labelledby`, then `title`.
+
+`astro-aeo audit` reports `markdown-html-residue` for layout markup or presentation
+attributes. It separately reports `markdown-raw-html` when at least three non-code
+Markdown blocks contain HTML and either the companion contains 30 or more HTML tags,
+or tag markup exceeds 25% of the non-code Markdown. A single necessary complex table
+does not trigger the volume warning.
 
 Selector options must be arrays. A non-array value, invalid selector, or empty
 selector string is a configuration error, not a silent no-op; an empty array is valid.
@@ -957,7 +1051,7 @@ const jsonLd = serializeGraph(result.graph, { siteUrl: 'https://example.com/' })
 ```
 
 The package exports builders for `WebSite`, `WebPage`, `Person`, `Organization`, `Article`,
-`BlogPosting`, `BreadcrumbList`, `ImageObject`, `VideoObject`, `Product`,
+`BlogPosting`, `TechArticle`, `BreadcrumbList`, `ImageObject`, `VideoObject`, `Product`,
 `SoftwareApplication`, `Service`, `Offer`, `FAQPage`, `HowTo`, `Event`, and `LocalBusiness`, plus
 `createEntity`, `createGraph`, `createId`, `ref`, `connect`, `mergeGraph`, `deduplicateGraph`,
 `validateGraph`, and `serializeGraph`.
@@ -1021,6 +1115,19 @@ build and runtime corpora use the same final graph. Artifact claims are exact
 app-relative pathnames, and runtime page access never exposes raw requests, cookies, credentials,
 or arbitrary rendering. The built-in semantic pipeline uses this same dispatcher.
 
+Hooks on `page:discovered`, `page:extract`, `page:transform`, `page:metadata`, and `graph:build`
+may declare themselves pure:
+
+```js
+api.on('page:metadata', hook, { cache: { pure: true, version: '2' } });
+```
+
+The declaration is recorded in the build's hook manifest and checked when the runtime module
+loads. A runtime module that registers different hooks or different declarations than the build
+fails to load, and its stages isolate. Bump `version` whenever the hook's output changes for the
+same input. The declaration does not currently let a build skip hook execution: every hook runs
+on every build.
+
 ## JSON-LD Components
 
 Import from `astro-aeo/components` and drop into any layout or page.
@@ -1046,6 +1153,182 @@ Each compatibility component renders a single, XSS-safe `<script type="applicati
 They use the graph builders internally while preserving their established props and serialized
 output. New semantic pages should prefer `AeoHead` and `astro-aeo/schema`.
 
+## Doctor and fix
+
+```bash
+npx astro-aeo doctor                       # what this project is set up to deploy
+npx astro-aeo doctor --url https://example.com/   # and what the deployment really does
+npx astro-aeo fix                          # dry run: shows the change
+npx astro-aeo fix --write                  # applies it, after a backup
+```
+
+Static hosts often serve `.md` files as `text/plain` or as a download. `fix` makes the host serve them as
+`text/markdown; charset=utf-8` by editing exactly one file:
+
+| Provider | File | Edit |
+|---|---|---|
+| Cloudflare Pages, Netlify | `public/_headers` | one block between `# astro-aeo:start markdown-mime` and `# astro-aeo:end markdown-mime`; every byte outside it, and CRLF line endings, are kept |
+| Vercel | `vercel.json` | one `headers` rule; unknown fields, key order and indentation are kept |
+| Render | `render.yaml` | one header on the static site service; comments, anchors and key order are kept |
+
+It is a dry run unless you pass `--write`. Before writing, the original is copied with its file mode to
+`.astro/aeo-backups/<UTC timestamp>/`. A second `--write` finds nothing to do and makes no backup. `fix`
+refuses, without writing anything, when it finds several providers (choose one with `--provider`),
+several Render static services (`--service`), a malformed document or markers, a competing rule for
+`.md` paths, a symbolic link (including in the project directory), or a path outside the project. For nginx, Apache, Node, Cloudflare Workers
+and Deno it prints a snippet and edits nothing: `astro-aeo fix --provider nginx`.
+
+`doctor` reads the facts the last build recorded and the same provider files, and reports each check as:
+
+| Status | Meaning |
+|---|---|
+| `configured` | verified against the deployment (only `--url` can say this), or nothing is needed |
+| `unverified` | the local files look right, which proves nothing about what is deployed |
+| `missing` | nothing provides it; the hint says what to run |
+| `conflicting` | something contradicts it, locally or in the deployment |
+
+`--url <page>` probes one deployed page anonymously with a fixed number of requests: the companion's
+content type, every case of the Accept contract the middleware and edge handlers are tested against,
+`Vary: Accept`, `HEAD`, and `If-None-Match`. What the deployment does replaces what the local files
+suggest. Exit codes: `0` when nothing is missing or conflicting, `1` otherwise, `2` for a bad invocation
+or an unreachable URL. `--json` prints the checks.
+
+## GitHub Action
+
+```yaml
+permissions:
+  contents: read
+  security-events: write   # only needed for the SARIF upload
+steps:
+  - uses: actions/checkout@v4
+  - run: npm ci && npm run build
+  - uses: ZAAI-com/Astro-AEO@1.4.0
+    with:
+      target: dist            # or a deployed URL
+      fail-on: error          # error, warning or none
+```
+
+The action runs the `astro-aeo` your project installed, writes a SARIF report, uploads it to GitHub code
+scanning, adds a Markdown summary to the job, and only then reports the audit's exit status, so findings
+are uploaded even when they fail the job. Set `upload-sarif: 'false'` where the workflow lacks
+`security-events: write`, such as a pull request from a fork. Other inputs: `working-directory`,
+`sarif-file`, and `args` for extra `audit` flags.
+
+## Recipes
+
+[`recipes/`](recipes/) holds eight small, complete projects: marketing, blog, Starlight, SaaS, commerce,
+local business, i18n, and SSR. Each builds on its own and passes `astro-aeo audit` with no errors.
+
+## Static edge negotiation
+
+A site with no adapter is only files, so Astro cannot negotiate for it. On Cloudflare, Netlify, and
+Vercel the host's edge layer can. This is opt-in and has two halves: a plugin that makes the build emit a
+manifest, and a small handler you deploy.
+
+```js
+// astro.config.mjs
+import aeo from 'astro-aeo';
+import { cloudflareEdge } from 'astro-aeo/edge/cloudflare'; // or netlifyEdge, vercelEdge
+
+export default defineConfig({
+  site: 'https://example.com',
+  integrations: [aeo({ markdown: { negotiation: 'response' }, plugins: [cloudflareEdge()] })],
+});
+```
+
+```js
+// Cloudflare Pages: functions/_middleware.js
+import { createCloudflareHandler } from 'astro-aeo/edge/cloudflare';
+export const onRequest = createCloudflareHandler().onRequest;
+// A Worker with a static assets binding instead: export default { fetch: createCloudflareHandler().fetch };
+```
+
+```js
+// Netlify: netlify/edge-functions/aeo.js
+import { createNetlifyHandler } from 'astro-aeo/edge/netlify';
+export default createNetlifyHandler();
+export const config = { path: '/*' };
+```
+
+```js
+// Vercel: middleware.js (Routing Middleware). The platform helpers are yours to install.
+import { next, rewrite } from '@vercel/functions';
+import { createVercelHandler } from 'astro-aeo/edge/vercel';
+export default createVercelHandler({ next, rewrite });
+```
+
+Pass `{ base: '/docs' }` to a handler when the site sets Astro's `base`.
+
+The build writes `/.well-known/astro-aeo-edge-v1.json`: `{ version: 1, provider, mode, base, routes:
+[{ html, markdown }] }`, sorted, listing only the companions the build really emitted. A companion that a
+project route or a `public/` file displaced is never advertised. `mode` is your `markdown.negotiation`.
+
+The handlers follow the Astro middleware's rules exactly, and one shared contract table tests both: `GET`
+and `HEAD` only, exact manifest routes only (with or without a trailing slash), Markdown only when it
+strictly outranks HTML, `303` with the query preserved in `'redirect'` mode, and `Vary: Accept` on every
+listed route whichever representation is chosen. They fail closed to the unmodified HTML response when
+the manifest is missing, malformed, from a future version, or stale. On Cloudflare and Netlify the
+handler serves the companion itself as `text/markdown; charset=utf-8` with the asset's `ETag` and cache
+policy, `304` for a matching `If-None-Match`, and no body for `HEAD`. Vercel middleware cannot read a
+response, so there the handler rewrites to the companion and the platform serves it.
+
+The plugin is rejected with an error when the project configures an adapter (the Astro middleware already
+negotiates there), when a page renders on demand, or when `markdown.negotiation` is `'off'`. Without the
+plugin nothing changes: no manifest is written and no output byte differs.
+
+The Cloudflare handler is tested in real workerd and all three against the shared contract locally. None
+of them has been verified on a deployed provider yet, so treat a first deployment as your own check:
+`curl -H 'Accept: text/markdown' https://example.com/` should answer `text/markdown`.
+
+## Starlight
+
+```js
+// astro.config.mjs
+import starlight from '@astrojs/starlight';
+import starlightAeo from 'astro-aeo/starlight';
+
+export default defineConfig({
+  site: 'https://docs.example.com',
+  integrations: [
+    starlight({
+      title: 'Docs',
+      plugins: [starlightAeo({ aeo: { discovery: { robots: { enabled: true } } } })],
+    }),
+  ],
+});
+```
+
+`starlightAeo()` is a Starlight plugin (Starlight 0.32 or newer). It registers the Astro-AEO integration
+itself, so do not also add `aeo()` to `integrations`: that is rejected with an error. Pass the
+integration's options as `aeo`.
+
+Each docs page publishes its authored Markdown, not a conversion of the rendered HTML:
+
+- The page title becomes the top-level heading, and `:::note`, `:::tip`, `:::caution` and `:::danger`
+  asides become labeled blockquotes (`> **Caution: Back up first**`).
+- In MDX, `<Tabs>` and `<TabItem label="...">` become labeled sections, `<Aside>`, `<Card>` and
+  `<LinkCard>` are converted, and `import` lines are dropped. Code fences are never touched.
+- A page that renders a value (an expression, an `export`, any other component, or an attribute computed
+  at run time) is not guessed at. It falls back to extracting the rendered `.sl-markdown-content` region
+  and records the `authored-source-fallback` diagnostic.
+- An explicit `<AeoPage>` on a page always wins over what the plugin infers.
+
+| Option | Default | Meaning |
+|---|---|---|
+| `aeo` | `{}` | Options for the Astro-AEO integration. |
+| `links.pagination` | `true` | Append Starlight's previous and next page links to each companion. |
+| `links.edit` | `false` | Append the "edit this page" URL when Starlight resolved one. |
+| `techArticle` | `true` | Add a minimal `TechArticle` entity from the page's own title, description, language and modified date. Nothing is inferred. |
+
+Three integration defaults differ under Starlight, and each yields to what you set in `aeo`:
+`discovery.sitemap.mode` is `'external'` because Starlight registers `@astrojs/sitemap` itself,
+`markdown.extraction.selectors` starts with `.sl-markdown-content`, and `/404` is added to
+`pages.exclude`.
+
+The page source travels through the same private marker as `<AeoPage>`: it is emitted only while
+Astro-AEO collects a page, never on a visitor's request, and it is removed before anything is written or
+served.
+
 ## Validator CLI
 
 ```bash
@@ -1060,6 +1343,67 @@ alternate metadata, robots references, page metadata, and domain profiles. Stand
 does not import arbitrary project tokenizer code.
 
 Exit codes: `0` pass, `1` validation errors (or warnings with `--strict`), `2` usage or IO error.
+
+`validate` and its JSON output are frozen. New checks are added to `audit`.
+
+## Audit
+
+```bash
+npx astro-aeo audit                          # audits ./dist
+npx astro-aeo audit dist --format sarif --output aeo.sarif
+npx astro-aeo audit https://example.com/ --max-pages 200
+```
+
+`audit` runs everything `validate` checks and adds site-wide rules: broken internal links and missing
+anchors, duplicate titles, descriptions and canonicals, Markdown companion quality, JSON-LD validity
+through the schema graph validator, and hreflang targets and return links. When the project's
+`.astro/aeo-cache` manifests sit beside the build directory, the build's own diagnostics and ownership
+conflicts are reported too. Every rule ID is listed in [docs/rules.md](docs/rules.md); an ID is the same
+string the build and `validate` already use as `code`.
+
+Offline audits resolve absolute and protocol-relative internal links, including hreflang, when the
+local origin is known from the generated `llms/manifest.json` or, as a fallback,
+`.well-known/domain-profile.json`. An explicit `auditDist(distDir, { siteUrl })` option takes precedence for
+internal callers. Without this metadata, relative links are still checked, but absolute URLs are
+skipped: a canonical link alone does not establish the deployment's origin. External links are
+never fetched by an offline audit.
+
+Markdown quality checks use the generated companion paths (`/guide.md` for `/guide/index.html`).
+An offline audit refuses a build directory reached through a symbolic link, including a linked parent.
+Live audits report failed advertised companions and isolate response-body timeouts to the affected
+request, so a broken linked page does not discard the rest of the report. Missing HTML language
+attributes are checked both offline and live, except on noindex pages.
+
+| Option | Meaning |
+|---|---|
+| `--format <name>` | `terminal` (default), `json`, `sarif`, `html`, `markdown`, `github`, or `junit`. All seven render the same report. |
+| `--output <file>` | Write the report to a file (temporary file, then rename) and print nothing to standard output. |
+| `--fail-on <level>` | `error` (default), `warning`, or `none`. |
+| `--no-score` | Omit scores and per-finding deductions. |
+| `--base <path>` | Base path of a build directory. |
+| `--max-pages <n>` | URL only. Page cap, default `500`, or `unlimited`. |
+| `--allow-origin <origin>` | URL only, repeatable. Another origin the crawl may follow. |
+| `--timeout <ms>` | URL only. Per-request timeout, default `10000`. |
+| `--concurrency <n>` | URL only. Parallel requests from `1` to `32`, default `8`. |
+
+Exit codes: `0` pass, `1` findings at or above `--fail-on`, `2` bad invocation or a target that cannot
+be reached. Scores never affect the exit code.
+
+A URL target is crawled anonymously: no cookies, no authorization, and no request to any origin outside
+the start origin and `--allow-origin`, including through redirects. Queries and fragments are stripped
+from page identities, at most five redirects are followed, and a response over 5 MiB is skipped. Pages
+are fetched level by level in sorted order, so a capped crawl audits the same pages every time. A page
+the crawl did not reach is unknown, never "broken". The JSON report records the crawl scope.
+
+The JSON format is `AuditReportV1` (exported from `astro-aeo`, with a JSON Schema at
+`astro-aeo/audit-report.schema.json`). It has no timestamp and no absolute path, so two audits of the
+same input are byte-identical.
+
+Scores use the `astro-aeo-readiness-v1` rubric and are advisory. Each category starts at 100. An error
+removes 15 points and a warning 5, one rule can remove at most 30 points from its category (errors
+count first), and a category never goes below 0. The internationalization category is left out when the
+site has one language or none. The overall score is the mean of the scored categories, rounded to two
+decimals.
 
 ## How It Works
 

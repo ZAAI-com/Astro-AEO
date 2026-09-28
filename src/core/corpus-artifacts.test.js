@@ -157,6 +157,21 @@ describe('logical corpus artifact planner', () => {
     expect(plan.manifest.pages[0].chunks.length).toBeGreaterThan(0);
   });
 
+  test('records a page version in the manifest and leaves unversioned bytes untouched', async () => {
+    const config = resolveConfig({ corpus: { manifest: { enabled: true } } });
+    const plan = (/** @type {any[]} */ pages) =>
+      planCorpusArtifacts({ pages, config, siteMeta, origin: 'https://example.test', base: '' });
+
+    const plain = await plan([page('/guide', 'en')]);
+    expect(plain.manifestText).not.toContain('"version":"');
+    expect(plain.manifest.pages[0]).not.toHaveProperty('version');
+
+    const versioned = await plan([{ ...page('/guide', 'en'), version: 'v2' }]);
+    expect(versioned.manifest.pages[0].version).toBe('v2');
+    // A version is metadata: it changes no corpus artifact.
+    expect(versioned.artifacts).toEqual(plain.artifacts);
+  });
+
   // Chunks are planned per locale group, so the chunk map is scoped by locale as
   // well as origin. Two pages sharing a pathname across locales (domain-routed
   // i18n, or catalog pages while the site origin is empty) must each be credited

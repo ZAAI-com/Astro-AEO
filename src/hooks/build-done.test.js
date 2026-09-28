@@ -345,6 +345,26 @@ describe('staged build plugin pipeline', () => {
     ]);
   });
 
+  test('recommended validation gates on the offline audit rules, and the other modes never run them', async () => {
+    // A page whose main content is an image alone converts to an empty companion.
+    const html = '<!doctype html><html><head><title>Home</title></head><body><main><img src="/a.png" alt=""></main></body></html>';
+    const commit = async (/** @type {Record<string, string>} */ validation) => {
+      const files = fixture(html);
+      const writer = await onBuildDone(
+        config({ validation }),
+        { dir: files.dir, pages: [{ pathname: '/' }], logger },
+        environment(files.root),
+      );
+      return () => writer.commit();
+    };
+
+    expect(await commit({ onBuild: 'recommended', failOn: 'error' })).toThrow(
+      'astro-aeo: artifact validation failed with 1 blocking diagnostic(s).',
+    );
+    expect(await commit({ onBuild: 'artifacts', failOn: 'warning' })).not.toThrow();
+    expect(await commit({ onBuild: 'off', failOn: 'warning' })).not.toThrow();
+  });
+
   test('accepts page replacements when Astro has no configured site', async () => {
     const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
     const resolved = config();

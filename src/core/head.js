@@ -606,6 +606,7 @@ function graphInputs(input, provenance) {
 function inferredEntities({ page, html, config, site, canonicalUrl, infer, breadcrumbTrail }) {
   const entities = [];
   const siteUrl = stableCanonical(site.siteUrl);
+  const multilingual = (/** @type {any} */ (site).i18n?.locales?.length ?? 0) > 1;
   if (siteUrl && infer.includes('website')) {
     entities.push({
       entity: {
@@ -613,7 +614,10 @@ function inferredEntities({ page, html, config, site, canonicalUrl, infer, bread
         '@type': 'WebSite',
         url: siteUrl,
         ...(config.site.name ? { name: config.site.name } : {}),
-        ...(page.language ? { inLanguage: page.language } : {}),
+        // One WebSite entity is shared by every page. On a multilingual site each page
+        // would claim its own language for it, and the merged graph would conflict.
+        // The language stays on each WebPage, where it is a fact about that page.
+        ...(page.language && !multilingual ? { inLanguage: page.language } : {}),
       },
       roles: 'site',
       provenance: { source: 'inference', pathname: page.pathname },
@@ -862,7 +866,11 @@ function metadataDiagnostics(html, pathname) {
     const name = attr(tag, 'name')?.toLowerCase();
     const property = attr(tag, 'property')?.toLowerCase();
     const key = property ? `property:${property}` : name ? `name:${name}` : undefined;
-    if (!key || key === 'name:author' || key.startsWith('property:og:image') || key === 'property:og:locale:alternate') {
+    // `generator` is legitimately repeated: Astro and a framework on top of it (Starlight) each add one.
+    if (
+      !key || key === 'name:author' || key === 'name:generator' ||
+      key.startsWith('property:og:image') || key === 'property:og:locale:alternate'
+    ) {
       continue;
     }
     add(key, attr(tag, 'content'));

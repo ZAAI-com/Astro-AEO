@@ -211,6 +211,7 @@ export async function pageFromHtml(pathname, html, runtime, opts = {}) {
         ...(descriptor?.description !== undefined ? { description: descriptor.description } : {}),
         ...(descriptor?.image !== undefined ? { image: descriptor.image } : {}),
         ...(descriptor?.language !== undefined ? { language: descriptor.language } : {}),
+        ...(descriptor?.version !== undefined ? { version: descriptor.version } : {}),
         ...(descriptor?.dates?.published !== undefined ? { published: descriptor.dates.published } : {}),
         ...(descriptor?.dates?.modified !== undefined || descriptor?.lastModified !== undefined
           ? { lastModified: descriptor?.dates?.modified ?? descriptor?.lastModified }

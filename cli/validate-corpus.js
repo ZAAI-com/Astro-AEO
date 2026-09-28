@@ -14,8 +14,8 @@ const ARTIFACT_KINDS = new Set(['index', 'full', 'small', 'chunk', 'alias']);
 const decoder = new TextDecoder('utf-8', { fatal: true });
 
 /**
- * @typedef {import('./validate.js').Finding} Finding
- * @typedef {{ errors: Finding[]; warnings: Finding[] }} FindingOutput
+ * @typedef {import('./validate.js').LegacyFinding} LegacyFinding
+ * @typedef {{ errors: LegacyFinding[]; warnings: LegacyFinding[] }} FindingOutput
  */
 
 /**
@@ -363,8 +363,8 @@ function validateDiscoveredFiles(distDir, files, base, referencedMarkdown, out) 
   return checked;
 }
 
-/** @param {unknown} value */
-function basicManifestShape(value) {
+/** Shared with the offline audit to identify versioned build metadata. @param {unknown} value */
+export function basicManifestShape(value) {
   if (!record(value) || value.version !== 1 || !isOrigin(value.origin) || !validBase(value.base)) return false;
   if (!record(value.tokenizer) || typeof value.tokenizer.name !== 'string' || !value.tokenizer.name || typeof value.tokenizer.version !== 'string' || !value.tokenizer.version || typeof value.tokenizer.approximate !== 'boolean') return false;
   return Array.isArray(value.locales) && value.locales.length > 0 && Array.isArray(value.pages) &&

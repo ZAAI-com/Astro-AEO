@@ -115,13 +115,14 @@ describe('extractMarkdown', () => {
   });
 
   test('keepSelectors preserves an element as raw HTML', () => {
-    const d = doc(page('<main><p>Before.</p><div class="widget"><b>raw</b></div></main>'));
+    const d = doc(page('<main><p>Before.</p><div class="widget" data-shot="x"><b class="bold">raw</b></div></main>'));
     const { markdown } = extractMarkdown(
       d,
       { ...DEFAULT_EXTRACTION, keepSelectors: ['.widget'] },
       td,
     );
-    expect(markdown).toContain('<div class="widget"><b>raw</b></div>');
+    expect(markdown).toContain('<b>raw</b>');
+    expect(markdown).not.toMatch(/class=|data-shot|<div/);
     expect(markdown).toContain('Before.');
     // The marker attribute must not survive into the output.
     expect(markdown).not.toContain('data-astro-aeo-keep');
@@ -134,8 +135,17 @@ describe('extractMarkdown', () => {
       { ...DEFAULT_EXTRACTION, selectors: ['.root-widget'], keepSelectors: ['.root-widget'] },
       td,
     );
-    expect(markdown).toBe('<article class="root-widget"><b>raw root</b></article>');
+    expect(markdown).toBe('<article><b>raw root</b></article>');
     expect(markdown).not.toContain('data-astro-aeo-keep');
+  });
+
+  test('keepSelectors minimizes a selected div root and retains semantic attributes', () => {
+    const { markdown, diagnostics } = extractMarkdown(
+      doc(page('<div class="selected" data-shot="x"><a href="/guide" class="link">Guide</a></div>')),
+      { ...DEFAULT_EXTRACTION, selectors: ['.selected'], keepSelectors: ['.selected'] }, td,
+    );
+    expect(markdown).toBe('<a href="/guide">Guide</a>');
+    expect(diagnostics.keptHtmlBlocks).toBe(1);
   });
 
   test('separate roots are joined with a blank line', () => {
@@ -237,12 +247,13 @@ describe('resolveUrls', () => {
     expect(md).toContain('(https://x.com/logo.png)');
   });
 
-  test('URLs inside preserved semantic HTML are resolved', () => {
+  test('URLs inside figures and raw tables are resolved', () => {
     const md = extract(
-      '<main><figure><img src="/chart.png" alt="Chart"><figcaption><a href="/data">Data</a></figcaption></figure></main>',
+      '<main><figure><img src="/chart.png" alt="Chart"><figcaption><a href="/data">Data</a></figcaption></figure><table><tr><td colspan="2"><a href="/cell">Cell</a></td></tr></table></main>',
     ).markdown;
-    expect(md).toContain('src="https://x.com/chart.png"');
-    expect(md).toContain('href="https://x.com/data"');
+    expect(md).toContain('![Chart](https://x.com/chart.png)');
+    expect(md).toContain('[Data](https://x.com/data)');
+    expect(md).toContain('href="https://x.com/cell"');
   });
 
   test('absolute URLs are left untouched', () => {
@@ -288,6 +299,19 @@ describe('conversion fidelity', () => {
   const convert = (body) =>
     extractMarkdown(doc(page(body)), DEFAULT_EXTRACTION, td).markdown;
 
+  test('conversion preserves the source tree and cross-root accessible labels', () => {
+    const d = doc(page('<article><span id="label">Account  &amp; settings</span></article>' +
+      '<article><a href="/account" aria-labelledby="label"></a>' +
+      '<pre><code>&lt;tag&gt; &amp;amp;  two spaces\nnext</code></pre></article>'));
+    const roots = [...d.querySelectorAll('article')];
+    const { markdown } = extractMarkdown(d, DEFAULT_EXTRACTION, td);
+    expect(markdown).toBe('Account & settings\n\n[Account & settings](/account)\n\n' +
+      '```\n<tag> &amp;  two spaces\nnext\n```');
+    expect([...d.querySelectorAll('article')]).toEqual(roots);
+    expect(d.getElementById('label').textContent).toBe('Account  & settings');
+    expect(d.querySelector('code').textContent).toBe('<tag> &amp;  two spaces\nnext');
+  });
+
   test('a code language class survives as a fence info string', () => {
     const md = convert('<main><pre><code class="language-js">const a = 1;</code></pre></main>');
     expect(md).toContain('```js');
@@ -298,48 +322,96 @@ describe('conversion fidelity', () => {
     expect(convert('<main>   <h1>T</h1>  <p>B.</p>   </main>')).toBe('# T\n\nB.');
   });
 
-  test('tables convert without dropping their cells', () => {
-    const md = convert('<main><table><caption>Totals</caption><tr><th>A</th></tr><tr><td colspan="2">1</td></tr></table></main>');
-    expect(md).toContain('<table>');
-    expect(md).toContain('<caption>Totals</caption>');
-    expect(md).toContain('colspan="2"');
-    expect(md).not.toContain('data-astro-aeo-keep');
-  });
-
-  test('definition lists and figures retain their authored structure', () => {
+  test('simple tables become GFM pipe tables', () => {
     const md = convert(
-      '<main><dl><dt>Term</dt><dd>Definition</dd></dl><figure><img src="/chart.png" alt="Chart"><figcaption>Quarterly results</figcaption></figure></main>',
+      '<main><table class="grid"><caption>Totals</caption><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody><tr><td><div class="cell"><b>A</b></div></td><td>1 | 2</td></tr><tr><td>B</td></tr></tbody></table></main>',
     );
-    expect(md).toContain('<dl>');
-    expect(md).toContain('<dt>Term</dt>');
-    expect(md).toContain('<figure>');
-    expect(md).toContain('<figcaption>Quarterly results</figcaption>');
+    expect(md).toBe('_Totals_\n\n| Name | Value |\n| --- | --- |\n| **A** | 1 \\| 2 |\n| B |  |');
   });
 
-  test('time, address, and citations stay semantic HTML', () => {
+  test('complex tables stay HTML without presentational attributes', () => {
+    const md = convert(
+      '<main><table class="min-w-full" data-astro-cid-x=""><caption>Totals</caption><tr><th scope="col" class="px-4">A</th></tr><tr><td colspan="2"><div class="p-2"><span>1</span></div></td></tr></table></main>',
+    );
+    expect(md).toContain('<table><caption>Totals</caption>');
+    expect(md).toContain('<th scope="col">A</th>');
+    expect(md).toContain('<td colspan="2">1</td>');
+    expect(md).not.toMatch(/class=|data-astro|<div|<span/);
+  });
+
+  test('tables with block content in a cell stay HTML', () => {
+    const md = convert('<main><table><tr><td><p>One</p><p>Two</p></td></tr></table></main>');
+    expect(md).toContain('<table>');
+    expect(md).toContain('<p>One</p>');
+  });
+
+  test('figures become an image and an emphasized caption', () => {
+    const md = convert(
+      '<main><figure class="rounded shadow" data-shot="x"><div class="wrap"><img src="/chart.png" alt="Chart"></div><figcaption>Quarterly <b>results</b></figcaption></figure></main>',
+    );
+    expect(md).toBe('![Chart](/chart.png)\n\n_Quarterly **results**_');
+  });
+
+  test('light and dark screenshots emit only the first described image', () => {
+    const md = convert('<main><figure><img class="dark:hidden" src="/light.png" alt="Dashboard"><img class="hidden dark:block" src="/dark.png" alt="Dashboard dark mode"><figcaption>Dashboard</figcaption></figure></main>');
+    expect(md).toBe('![Dashboard](/light.png)\n\n_Dashboard_');
+    const wrapped = convert('<main><figure><div class="dark:hidden"><img src="/light.png" alt="Dashboard"></div><div class="hidden dark:block"><img src="/dark.png" alt="Dashboard dark mode"></div></figure></main>');
+    expect(wrapped).toBe('![Dashboard](/light.png)');
+  });
+
+  test('image-free charts retain their label when they have no readable text', () => {
+    const md = convert('<main><figure><div role="region" aria-label="Solar production by day"><svg><path/></svg></div></figure></main>');
+    expect(md).toBe('Solar production by day');
+  });
+
+  test('image-free chart labels do not concatenate adjacent legend items', () => {
+    const md = convert('<main><figure><div><span>Under 20 kWh</span><span>20 to 40 kWh</span></div><figcaption>Daily solar</figcaption></figure></main>');
+    expect(md).toBe('Under 20 kWh 20 to 40 kWh\n\n_Daily solar_');
+  });
+
+  test('definition lists become bold terms with their descriptions', () => {
+    const md = convert(
+      '<main><dl class="grid"><div class="card"><dt class="t">Term</dt><dd class="d">Definition <a href="/x">link</a>.</dd></div><dt>Other</dt><dd><p>One.</p><p>Two.</p></dd></dl></main>',
+    );
+    expect(md).toBe('**Term**\n\nDefinition [link](/x).\n\n**Other**\n\nOne.\n\nTwo.');
+  });
+
+  test('time, address, and citations convert to their text', () => {
     const md = convert(
       '<main><p>Published <time datetime="2026-08-05">today</time>.</p><address>Berlin</address><p><cite>Primary source</cite></p></main>',
     );
-    expect(md).toContain('<time datetime="2026-08-05">today</time>');
-    expect(md).toContain('<address>Berlin</address>');
-    expect(md).toContain('<cite>Primary source</cite>');
+    expect(md).toBe('Published today.\n\nBerlin\n\nPrimary source');
   });
 
-  test('raw semantic HTML drops active attributes and unsafe protocols', () => {
+  test('interface chrome is dropped before conversion', () => {
     const md = convert(
-      '<main><figure onclick="steal()" style="background:url(javascript:steal())"><a href="java&#10;script:steal()" ping="https://tracker.test">Unsafe</a><img src="data:image/svg+xml,unsafe" onerror="steal()" srcset="unsafe 2x"><object data="javascript:steal()">Object</object><figcaption aria-label="Safe caption">Caption</figcaption></figure></main>',
+      '<main><p>Path<button>Copy</button><span aria-hidden="true">Copied</span></p><svg><text>icon</text></svg><template><p>Inert</p></template><p hidden>Hidden</p><div aria-hidden="true"><img src="/shot.png" alt="Screenshot"></div></main>',
     );
-    expect(md).toContain('<figure>');
-    expect(md).toContain('aria-label="Safe caption"');
+    expect(md).toBe('Path\n\n![Screenshot](/shot.png)');
+  });
+
+  test('disclosure toggles keep their label', () => {
+    const md = convert(
+      '<main><button aria-expanded="false" aria-controls="a">Does it work?</button><div id="a">Yes.</div></main>',
+    );
+    expect(md).toContain('Does it work?');
+    expect(md).toContain('Yes.');
+  });
+
+  test('raw HTML drops active attributes and unsafe protocols', () => {
+    const md = convert(
+      '<main><table onclick="steal()" style="background:url(javascript:steal())"><tr><td rowspan="2"><a href="java&#10;script:steal()" ping="https://tracker.test">Unsafe</a><img src="data:image/svg+xml,unsafe" onerror="steal()" srcset="unsafe 2x"><object data="javascript:steal()">Object</object><span aria-label="Safe label">Label</span></td></tr></table></main>',
+    );
+    expect(md).toContain('<table>');
+    expect(md).toContain('aria-label="Safe label"');
     expect(md).not.toMatch(/onclick|onerror|style=|javascript:|data:image|srcset|ping=|object data=/i);
   });
 
-  test('raw semantic HTML drops active metadata and resource elements', () => {
+  test('raw HTML drops active metadata and resource elements', () => {
     const md = convert(
-      '<main><figure><meta http-equiv="refresh" content="0;url=javascript:evil"><base href="https://evil.test/"><link rel="stylesheet" href="javascript:evil"><figcaption>Safe</figcaption></figure></main>',
+      '<main><table><tr><td colspan="2"><meta http-equiv="refresh" content="0;url=javascript:evil"><base href="https://evil.test/"><link rel="stylesheet" href="javascript:evil">Safe</td></tr></table></main>',
     );
-    expect(md).toContain('<figure>');
-    expect(md).toContain('<figcaption>Safe</figcaption>');
+    expect(md).toContain('<td colspan="2">Safe</td>');
     expect(md).not.toMatch(/<meta|<base|<link|javascript:/i);
   });
 

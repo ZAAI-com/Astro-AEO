@@ -75,6 +75,8 @@ export interface CorpusManifestPageV1 {
   hash: `sha256:${string}` | null;
   sourceStrategy: string;
   modified?: string;
+  /** Documentation version label. Absent for unversioned pages. */
+  version?: string;
   chunks: string[];
 }
 
@@ -115,6 +117,77 @@ export interface Diagnostic {
   details?: JsonValue;
 }
 
+/** Report category. The order here is the order categories appear in a report. */
+export type AuditCategory =
+  | 'discovery'
+  | 'metadata'
+  | 'markdown'
+  | 'corpus'
+  | 'structured-data'
+  | 'internationalization'
+  | 'links'
+  | 'build';
+
+/** One-based position inside `Finding.file`. */
+export interface SourceLocation {
+  line: number;
+  column?: number;
+  endLine?: number;
+  endColumn?: number;
+}
+
+/**
+ * The 1.4 finding. `ruleId` is the pre-1.4 diagnostic or validator `code`,
+ * unchanged. `file` is relative to the audited root and never absolute.
+ */
+export interface Finding {
+  version: 1;
+  ruleId: string;
+  severity: 'info' | 'warning' | 'error';
+  category: AuditCategory;
+  message: string;
+  file?: string;
+  /** Page pathname for a local audit, absolute URL for a live one. */
+  url?: string;
+  location?: SourceLocation;
+  evidence?: string;
+  helpUrl?: string;
+  /** Points this finding removed from its category. Absent when scoring is off. */
+  deduction?: number;
+}
+
+export interface AuditCategoryScore {
+  category: AuditCategory;
+  score: number;
+  findings: number;
+}
+
+/** Advisory only: scores never decide an exit status. */
+export interface AuditScores {
+  rubric: 'astro-aeo-readiness-v1';
+  overall: number;
+  categories: AuditCategoryScore[];
+}
+
+export interface AuditCrawlScope {
+  origins: string[];
+  maxPages: number | 'unlimited';
+  pagesFetched: number;
+  truncated: boolean;
+  skippedExternal: number;
+}
+
+export interface AuditReportV1 {
+  version: 1;
+  tool: { name: 'astro-aeo'; version: string };
+  target: { kind: 'dist' | 'url'; value: string };
+  /** Present for live audits only. */
+  scope?: AuditCrawlScope;
+  summary: { errors: number; warnings: number; infos: number; pagesChecked: number };
+  scores?: AuditScores;
+  findings: Finding[];
+}
+
 export interface DiagnosticManifestPageV1 {
   pathname: string;
   /** Sanitized source strategy only. Source bodies never enter this manifest. */
@@ -137,6 +210,8 @@ export interface ExtractionDiagnostics {
   inputCharacters: number;
   outputCharacters: number;
   removedNodes: number;
+  /** Blocks emitted as raw HTML (complex tables, audio, video, `keepSelectors`). */
+  keptHtmlBlocks?: number;
   fallbackReason?: string;
 }
 
@@ -165,6 +240,8 @@ export interface AeoPageRecord extends AeoPage {
   origin?: string;
   locale?: string;
   language?: string;
+  /** Documentation version label. Absent for unversioned pages. */
+  version?: string;
   alternates?: PageAlternate[];
   metadata: {
     title: string;
@@ -703,7 +780,8 @@ export interface ExtractionOptions {
    */
   removeSelectors?: string[];
   /**
-   * Preserved as raw HTML in the Markdown. Removal takes precedence, and the
+   * Preserved as minimized raw HTML in the Markdown. Presentation attributes
+   * and bare div/span wrappers are removed. Removal takes precedence, and the
    * always-dropped tags above can never be restored this way. Default: [].
    */
   keepSelectors?: string[];
@@ -940,6 +1018,7 @@ export interface RuntimePluginPageRecord {
   readonly pathname: string;
   readonly origin?: string;
   readonly locale?: string;
+  readonly version?: string;
   readonly routePattern?: string;
   readonly rendering?: 'prerendered' | 'on-demand';
   readonly canonicalUrl?: string;
@@ -991,6 +1070,7 @@ export interface AstroAeoPluginApi {
   readonly options?: JsonValue;
   on<T>(stage: AstroAeoPluginStage, hook: AstroAeoPluginHook<T>): void;
   on<T>(
+    // Edit together with CACHEABLE_STAGES in src/plugins/dispatcher.js.
     stage: 'page:discovered' | 'page:extract' | 'page:transform' | 'page:metadata' | 'graph:build',
     hook: AstroAeoPluginHook<T>,
     options: { cache?: CacheDeclaration },

@@ -27,6 +27,7 @@ export const PLUGIN_PAGE_LOSS_CODES = Object.freeze([
 ]);
 
 const STAGE_SET = new Set(PLUGIN_STAGES);
+// Edit together with the `on()` overload's stage union in src/index.d.ts.
 const CACHEABLE_STAGES = new Set([
   'page:discovered',
   'page:extract',

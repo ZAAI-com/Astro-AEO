@@ -9,8 +9,8 @@ const argv = process.argv.slice(2);
 // Recording its noisy samples under a runner class would let a later run on the
 // same laptop compare against them, so size-only references omit them instead.
 const sizesOnly = argv.includes('--sizes-only');
-const input = resolve(root, argv.find((value) => !value.startsWith('--')) ?? '.astro/aeo-benchmarks/1.3-reference.json');
-const output = resolve(root, 'benchmarks/baseline-1.3.json');
+const input = resolve(root, argv.find((value) => !value.startsWith('--')) ?? '.astro/aeo-benchmarks/1.4-reference.json');
+const output = resolve(root, 'benchmarks/baseline-1.4.json');
 const report = JSON.parse(await readFile(input, 'utf8'));
 
 if (!report.environment?.runnerClass) {
