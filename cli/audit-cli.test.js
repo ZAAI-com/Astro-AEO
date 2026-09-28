@@ -1,5 +1,5 @@
 // @ts-check
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -19,6 +19,16 @@ afterEach(() => {
 const audit = (args, cwd) => spawnSync(process.execPath, [BIN, 'audit', ...args], { encoding: 'utf8', ...(cwd ? { cwd } : {}) });
 
 describe('audit CLI', () => {
+  test('refuses a symlinked build root with invocation status 2', () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'astro-aeo-audit-cli-')));
+    roots.push(root);
+    symlinkSync(VALID, join(root, 'linked-dist'));
+    const result = audit([join(root, 'linked-dist')]);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('symbolic link');
+    expect(result.stdout).toBe('');
+  });
+
   test.each(['http', 'network', 'body'])('fails on a %s companion error unless --fail-on none', async (failure) => {
     const fetch = /** @type {typeof globalThis.fetch} */ (async (input) => {
       if (String(input).endsWith('.md')) {

@@ -2,7 +2,7 @@
 import { existsSync, mkdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { auditDist } from '../src/audit/local.js';
+import { UnsafeAuditRootError, auditDist } from '../src/audit/local.js';
 import { AuditTargetError, LIVE_DEFAULTS, auditLive } from '../src/audit/live.js';
 import { createAuditReport } from '../src/audit/report.js';
 import { isAuditFormat, renderAuditReport } from './formats/index.js';
@@ -82,7 +82,12 @@ export async function runAudit(args, context) {
     if (!existsSync(distDir) || !statSync(distDir).isDirectory()) {
       throw new AuditInvocationError(`build directory not found: ${target}`);
     }
-    result = auditDist(distDir, { base: values.base });
+    try {
+      result = auditDist(distDir, { base: values.base });
+    } catch (error) {
+      if (error instanceof UnsafeAuditRootError) throw new AuditInvocationError(error.message);
+      throw error;
+    }
   }
 
   const report = createAuditReport({

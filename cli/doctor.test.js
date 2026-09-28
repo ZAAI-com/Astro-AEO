@@ -1,5 +1,5 @@
 // @ts-check
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -18,7 +18,7 @@ afterEach(() => {
 
 /** @param {Record<string, string>} files @param {Record<string, unknown> | null} [facts] */
 function project(files, facts = {}) {
-  const root = mkdtempSync(join(tmpdir(), 'astro-aeo-doctor-'));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'astro-aeo-doctor-')));
   roots.push(root);
   const all = { ...files };
   if (facts) {

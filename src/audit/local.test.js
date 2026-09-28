@@ -1,9 +1,9 @@
 // @ts-check
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { auditDist } from './local.js';
+import { UnsafeAuditRootError, auditDist } from './local.js';
 import { createAuditReport, serializeAuditReport } from './report.js';
 
 /** @type {string[]} */
@@ -24,7 +24,7 @@ function html(page) {
 
 /** @param {Record<string, string>} files */
 function site(files) {
-  const project = mkdtempSync(join(tmpdir(), 'astro-aeo-audit-'));
+  const project = realpathSync(mkdtempSync(join(tmpdir(), 'astro-aeo-audit-')));
   roots.push(project);
   for (const [name, contents] of Object.entries(files)) {
     const path = join(project, name);
@@ -40,6 +40,14 @@ function rulesOf(project, options) {
 }
 
 describe('offline audit', () => {
+  it('refuses a symlinked build root or parent before reading outside files', () => {
+    const project = site({ 'dist/index.html': html({ title: 'Home' }) });
+    symlinkSync(join(project, 'dist'), join(project, 'linked-dist'));
+    symlinkSync(project, join(project, 'linked-parent'));
+    expect(() => auditDist(join(project, 'linked-dist'))).toThrow(UnsafeAuditRootError);
+    expect(() => auditDist(join(project, 'linked-parent', 'dist'))).toThrow(UnsafeAuditRootError);
+  });
+
   it('finds root, nested directory, and file-format companions using the build mapping', () => {
     const project = site({
       'dist/index.html': html({ title: 'Home' }),

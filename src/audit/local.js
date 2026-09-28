@@ -4,7 +4,7 @@ import { join, relative, resolve, sep } from 'node:path';
 import { validateDist } from '../../cli/validate.js';
 import { basicManifestShape } from '../../cli/validate-corpus.js';
 import { diagnosticsManifestPath, sanitizeDiagnostics } from '../build/diagnostics.js';
-import { isSafeOutputPath, readOwnershipManifest } from '../build/ownership.js';
+import { isSafeOutputPath, isUnlinkedDirectory, readOwnershipManifest } from '../build/ownership.js';
 import { isRedirectStub } from '../core/page-meta.js';
 import { mdPathnameFor } from '../core/page-model.js';
 import { extractPageFacts } from './facts.js';
@@ -15,6 +15,9 @@ import { auditPages } from './site-rules.js';
  * @typedef {import('./facts.js').PageFacts} PageFacts
  * @typedef {import('../index.js').Finding} Finding
  */
+
+/** The requested build root is reached through a symbolic link. */
+export class UnsafeAuditRootError extends Error {}
 
 /**
  * Audit a built output directory without touching the network. The private
@@ -27,6 +30,9 @@ import { auditPages } from './site-rules.js';
  */
 export function auditDist(distDir, options = {}) {
   const root = resolve(distDir);
+  if (existsSync(root) && !isUnlinkedDirectory(root)) {
+    throw new UnsafeAuditRootError('build directory is reached through a symbolic link');
+  }
   const legacy = validateDist(root, { base: options.base });
   /** @type {Finding[]} */
   const findings = [...legacy.errors, ...legacy.warnings].map(fromLegacyFinding);

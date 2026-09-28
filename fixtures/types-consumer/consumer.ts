@@ -899,6 +899,10 @@ import type { EdgeDecision, StaticEdgeManifestV1 } from 'astro-aeo/edge';
 import { cloudflareEdge, createCloudflareHandler } from 'astro-aeo/edge/cloudflare';
 import { createNetlifyHandler, netlifyEdge } from 'astro-aeo/edge/netlify';
 import { createVercelHandler, vercelEdge } from 'astro-aeo/edge/vercel';
+// @ts-expect-error Provider factories are not exported from the shared edge entry.
+import { cloudflareEdge as absentFromBase } from 'astro-aeo/edge';
+// @ts-expect-error Each provider subpath exposes only its own handler and plugin.
+import { netlifyEdge as absentFromCloudflare } from 'astro-aeo/edge/cloudflare';
 
 export const edgeManifest: StaticEdgeManifestV1 = {
   version: 1,

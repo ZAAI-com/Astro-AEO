@@ -1,5 +1,5 @@
 // @ts-check
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
@@ -17,7 +17,7 @@ afterEach(() => {
 
 /** @param {Record<string, string>} files */
 function project(files) {
-  const root = mkdtempSync(join(tmpdir(), 'astro-aeo-fix-'));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'astro-aeo-fix-')));
   roots.push(root);
   for (const [name, contents] of Object.entries(files)) {
     mkdirSync(dirname(join(root, name)), { recursive: true });
@@ -214,6 +214,22 @@ describe('astro-aeo fix', () => {
     await expect(runFix([linkedDir, '--write'])).rejects.toThrow(/symbolic link/);
     expect(readFileSync(join(outside, 'real_headers'), 'utf8')).toBe('/x\n');
     expect(readFileSync(join(outside, 'realpublic/_headers'), 'utf8')).toBe('/y\n');
+  });
+
+  test('refuses a symlinked project root and parent without writing outside it', async () => {
+    const outside = project({
+      'netlify.toml': '', 'public/_headers': '/x\n',
+      'subproject/netlify.toml': '', 'subproject/public/_headers': '/y\n',
+    });
+    const aliases = project({});
+    symlinkSync(outside, join(aliases, 'root'));
+    symlinkSync(outside, join(aliases, 'parent'));
+    const before = tree(outside);
+    for (const linked of [join(aliases, 'root'), join(aliases, 'parent', 'subproject')]) {
+      await expect(runFix([linked, '--write'])).rejects.toThrow(/symbolic link/);
+    }
+    expect(tree(outside)).toEqual(before);
+    expect(readFileSync(join(outside, 'public/_headers'), 'utf8')).toBe('/x\n');
   });
 
   test('refuses a public directory outside the project', async () => {

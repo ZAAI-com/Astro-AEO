@@ -44,15 +44,15 @@
       "default": "./src/edge.js"
     },
     "./edge/cloudflare": {
-      "types": "./src/edge.d.ts",
+      "types": "./src/edge/cloudflare.d.ts",
       "default": "./src/edge/cloudflare.js"
     },
     "./edge/netlify": {
-      "types": "./src/edge.d.ts",
+      "types": "./src/edge/netlify.d.ts",
       "default": "./src/edge/netlify.js"
     },
     "./edge/vercel": {
-      "types": "./src/edge.d.ts",
+      "types": "./src/edge/vercel.d.ts",
       "default": "./src/edge/vercel.js"
     },
     "./mdx": {

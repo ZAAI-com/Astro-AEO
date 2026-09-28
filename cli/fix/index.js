@@ -2,7 +2,7 @@
 import { existsSync, lstatSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { parseArgs } from 'node:util';
-import { isSafeOutputPath } from '../../src/build/ownership.js';
+import { isSafeOutputPath, isUnlinkedDirectory } from '../../src/build/ownership.js';
 import { commitFileTransaction } from '../../src/build/transaction.js';
 import { fixHeadersFile } from './headers.js';
 import { fixRenderYaml } from './render-yaml.js';
@@ -63,6 +63,7 @@ export async function runFix(args, context = {}) {
   if (parsed.positionals.length > 1) throw new FixRefusal('fix accepts at most one projectDir');
   const projectDir = resolve(context.cwd ?? process.cwd(), parsed.positionals[0] ?? '.');
   if (!existsSync(projectDir) || !statSync(projectDir).isDirectory()) throw new FixRefusal(`project directory not found: ${parsed.positionals[0]}`);
+  if (!isUnlinkedDirectory(projectDir)) throw new FixRefusal('project directory is reached through a symbolic link; nothing was changed');
 
   const requested = parsed.values.provider;
   if (requested !== undefined && Object.hasOwn(SNIPPETS, requested)) {

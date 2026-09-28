@@ -23,6 +23,14 @@ limits.
 - Every build writes a private `.astro/aeo-cache/deployment-v1.json`. It is never published.
 - `yaml` is a new runtime dependency, loaded on demand by `astro-aeo fix` alone.
 
+### Review fixes before release
+
+- Refuse symlinked project and build-directory roots, including linked parents, before editing
+  provider configuration or reading an offline audit target.
+- Make edge declarations match each public subpath's runtime exports and reject duplicate
+  normalized routes in an untrusted static edge manifest instead of replacing an earlier entry.
+- Return the rendered response from Starlight route middleware after its marker handling.
+
 ### Markdown companions
 
 Convert figures, definition lists and simple tables to Markdown instead of copying them as raw HTML.

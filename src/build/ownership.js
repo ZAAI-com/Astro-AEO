@@ -1,11 +1,20 @@
 // @ts-check
 import { createHash } from 'node:crypto';
-import { lstatSync, readFileSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { lstatSync, readFileSync, realpathSync } from 'node:fs';
+import { join, relative, resolve, sep } from 'node:path';
 import { exactPathnameIdentity } from '../core/artifact-path.js';
 
 export const OWNERSHIP_MANIFEST_VERSION = 1;
 export const OWNERSHIP_MANIFEST_FILENAME = 'ownership-v1.json';
+
+/** A supplied directory must not escape through itself or any ancestor. @param {string} path */
+export function isUnlinkedDirectory(path) {
+  try {
+    return lstatSync(path).isDirectory() && realpathSync(path) === resolve(path);
+  } catch {
+    return false;
+  }
+}
 
 /** @param {string} projectRoot @returns {string} */
 export function ownershipManifestPath(projectRoot) {

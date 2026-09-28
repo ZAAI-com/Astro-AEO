@@ -12,18 +12,19 @@ import options from 'virtual:astro-aeo/starlight-options';
  * removed again by the same redaction pass that removes authored markers.
  *
  * @param {import('astro').APIContext} context
- * @param {() => Promise<void>} next
+ * @param {() => Promise<Response>} next
  */
 export async function onRequest(context, next) {
-  await next();
+  const response = await next();
   const locals = /** @type {any} */ (context.locals);
-  if (!locals?.[COLLECT_FLAG]) return;
+  if (!locals?.[COLLECT_FLAG]) return response;
   const route = locals.starlightRoute;
   const marker = starlightMarker(route, options);
-  if (!marker || !Array.isArray(route?.head)) return;
+  if (!marker || !Array.isArray(route?.head)) return response;
   route.head.push({
     tag: 'script',
     attrs: { type: MARKER_MIME, 'data-astro-aeo-marker': INFERRED_MARKER },
     content: serializeJsonLd(marker),
   });
+  return response;
 }

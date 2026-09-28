@@ -170,6 +170,10 @@ describe.each(Object.keys(FACTORIES))('%s edge handler', (name) => {
     ['an unsafe companion path', { ...manifest('response'), routes: [{ html: '/guide/', markdown: '/../secret.md' }] }],
     ['a companion that is not Markdown', { ...manifest('response'), routes: [{ html: '/guide/', markdown: '/guide.html' }] }],
     ['a malformed route', { ...manifest('response'), routes: [{ html: '/guide/' }] }],
+    ['duplicate normalized routes', { ...manifest('response'), routes: [
+      { html: '/guide', markdown: '/guide.md' },
+      { html: '/guide/', markdown: '/other.md' },
+    ] }],
   ])('fails closed to HTML when the manifest is %s', async (_label, body) => {
     const { run } = create(body);
     expect((await run(request('/guide/', { accept: 'text/markdown' }))).kind).toBe('pass');

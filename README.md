@@ -1175,7 +1175,7 @@ It is a dry run unless you pass `--write`. Before writing, the original is copie
 `.astro/aeo-backups/<UTC timestamp>/`. A second `--write` finds nothing to do and makes no backup. `fix`
 refuses, without writing anything, when it finds several providers (choose one with `--provider`),
 several Render static services (`--service`), a malformed document or markers, a competing rule for
-`.md` paths, a symbolic link, or a path outside the project. For nginx, Apache, Node, Cloudflare Workers
+`.md` paths, a symbolic link (including in the project directory), or a path outside the project. For nginx, Apache, Node, Cloudflare Workers
 and Deno it prints a snippet and edits nothing: `astro-aeo fix --provider nginx`.
 
 `doctor` reads the facts the last build recorded and the same provider files, and reports each check as:
@@ -1369,6 +1369,7 @@ skipped: a canonical link alone does not establish the deployment's origin. Exte
 never fetched by an offline audit.
 
 Markdown quality checks use the generated companion paths (`/guide.md` for `/guide/index.html`).
+An offline audit refuses a build directory reached through a symbolic link, including a linked parent.
 Live audits report failed advertised companions and isolate response-body timeouts to the affected
 request, so a broken linked page does not discard the rest of the report. Missing HTML language
 attributes are checked both offline and live, except on noindex pages.

@@ -40,7 +40,9 @@ export function readEdgeManifest(value) {
     } catch {
       return null;
     }
-    routes.set(routeKey(route.html), route.markdown);
+    const key = routeKey(route.html);
+    if (routes.has(key)) return null;
+    routes.set(key, route.markdown);
   }
   return { mode: manifest.mode, routes };
 }
