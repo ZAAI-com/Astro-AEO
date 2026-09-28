@@ -555,10 +555,14 @@ export function extractMarkdown(document, options, td, context = {}) {
       }
       return minimizedHtml(root);
     }
-    // Turndown accepts an Element but converts only its children. Supplying the
-    // serialized root preserves selected links, images, and other semantic
-    // elements that are themselves the extraction root.
-    return td.turndown(root.outerHTML).trim();
+    // Turndown converts only an Element's children. Wrap a clone so selected
+    // links and images keep their semantics without serializing and reparsing
+    // the entire subtree. Keep the source tree intact for other roots' labels.
+    const wrapper = document.createElement('div');
+    wrapper.appendChild(root.cloneNode(true));
+    // Cleanup can leave adjacent text nodes; reparsing used to merge them.
+    wrapper.normalize();
+    return td.turndown(wrapper).trim();
   });
 
   const markdown = parts.filter(Boolean).join('\n\n');

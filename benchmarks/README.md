@@ -1,4 +1,4 @@
-# Astro-AEO 1.3 Benchmarks
+# Astro-AEO 1.4 Benchmarks
 
 The benchmark harness records extraction time, retained heap, package size, runtime corpus fan-out,
 optional request latency, and optional adapter bundle sizes as JSON.
@@ -8,7 +8,7 @@ node --expose-gc benchmarks/run.mjs
 node --expose-gc benchmarks/run.mjs --enforce
 ```
 
-Results are written to `.astro/aeo-benchmarks/1.3.json`. That path is ignored by git. Use the same
+Results are written to `.astro/aeo-benchmarks/1.4.json`. That path is ignored by git. Use the same
 Node version and runner class when comparing results; absolute timing from unrelated machines is
 not meaningful.
 
@@ -42,10 +42,10 @@ The release check builds minimal Node and Cloudflare fixtures without Astro-AEO,
 with the equivalent adapter fixtures. This keeps the reported delta separate from Astro and adapter
 framework code that both builds share.
 
-`--enforce` applies the 1.3 safety ceilings embedded in the report:
+`--enforce` applies the 1.4 safety ceilings embedded in the report:
 
 - Packed package at most 450,000 bytes and unpacked package at most 1,380,000 bytes. The measured
-  1.4.0 package is 350,713 packed and 1,358,848 unpacked bytes. 1.3.1 was 290,286 and 1,163,361
+  1.4.0 package is 355,650 packed and 1,375,031 unpacked bytes. 1.3.1 was 290,286 and 1,163,361
   (1.3 was 272,377 and 1,106,331).
   The packed ceiling is deliberately loose: it exists to catch a dependency-scale mistake, not to
   gate ordinary correctness work, and the unpacked ceiling plus the absolute bundle, startup,
@@ -59,8 +59,8 @@ framework code that both builds share.
 - Cloudflare output at most 51.2 MB raw and 2.4 MB gzip, with locally profiled Worker startup
   active time below 800 ms.
 
-The committed 1.3 baseline records measured package and Node/Cloudflare bundle byte counts. Those
-portable measurements always receive the 10 percent comparison in tag CI. The initial 1.2
+The committed 1.4 baseline records package and Node/Cloudflare bundle byte counts plus a complete
+reference measurement on the declared M2 Pro runner. The portable measurements always receive the 10 percent comparison in tag CI. The initial 1.2
 reference deliberately omits timing and memory samples because it was recorded on a shared,
 non-idle machine; the absolute timing, memory, request, and Worker-startup ceilings remain enforced
 by every complete release run. A later complete reference may add those comparisons only after it
@@ -90,12 +90,17 @@ complete passing report on the declared reference runner, then update the baseli
 ASTRO_AEO_BENCHMARK_RUNNER=astro-aeo-m2-pro-reference \
   node scripts/run-release-benchmark.mjs \
   --baseline none \
-  --output .astro/aeo-benchmarks/1.3-reference.json
+  --output .astro/aeo-benchmarks/1.4-reference.json
 pnpm run benchmark:baseline
 ```
 
 The updater refuses reports without a runner class or with a failed safety ceiling. Raw request
 samples remain in the private report and are intentionally omitted from the committed summary.
+
+A manual W1-Test dispatch also runs the complete release gate on a fresh GitHub-hosted runner,
+without publishing or using a release tag. Use that job to check the candidate when unrelated
+local workloads prevent a repeatable timing result. It enforces the same absolute ceilings, does
+not claim a reference-runner timing comparison, and does not replace final semantic sign-off.
 
 A shared machine can measure the deterministic sizes but not the timings. Pass `--sizes-only` to
 record just the package and bundle byte counts:
@@ -104,7 +109,7 @@ record just the package and bundle byte counts:
 ASTRO_AEO_BENCHMARK_RUNNER=portable-size-only \
   node scripts/run-release-benchmark.mjs \
   --baseline none \
-  --output .astro/aeo-benchmarks/1.3-reference.json
+  --output .astro/aeo-benchmarks/1.4-reference.json
 node scripts/update-benchmark-baseline.mjs --sizes-only
 ```
 

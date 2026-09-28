@@ -299,6 +299,19 @@ describe('conversion fidelity', () => {
   const convert = (body) =>
     extractMarkdown(doc(page(body)), DEFAULT_EXTRACTION, td).markdown;
 
+  test('conversion preserves the source tree and cross-root accessible labels', () => {
+    const d = doc(page('<article><span id="label">Account  &amp; settings</span></article>' +
+      '<article><a href="/account" aria-labelledby="label"></a>' +
+      '<pre><code>&lt;tag&gt; &amp;amp;  two spaces\nnext</code></pre></article>'));
+    const roots = [...d.querySelectorAll('article')];
+    const { markdown } = extractMarkdown(d, DEFAULT_EXTRACTION, td);
+    expect(markdown).toBe('Account & settings\n\n[Account & settings](/account)\n\n' +
+      '```\n<tag> &amp;  two spaces\nnext\n```');
+    expect([...d.querySelectorAll('article')]).toEqual(roots);
+    expect(d.getElementById('label').textContent).toBe('Account  & settings');
+    expect(d.querySelector('code').textContent).toBe('<tag> &amp;  two spaces\nnext');
+  });
+
   test('a code language class survives as a fence info string', () => {
     const md = convert('<main><pre><code class="language-js">const a = 1;</code></pre></main>');
     expect(md).toContain('```js');

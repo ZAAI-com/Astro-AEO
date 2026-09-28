@@ -8,6 +8,34 @@ on:
   workflow_dispatch:
 
 jobs:
+  release-readiness:
+    name: full release readiness (no publish)
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      # Run the publication gate before tagging on a fresh runner. Tag and
+      # human-sign-off metadata remain the strict W2-Release prerequisite.
+      - name: Verify the full candidate without publishing
+        run: pnpm run release:check -- --require-clean
+        env:
+          ASTRO_AEO_ADAPTER_RUNTIMES: node,cloudflare,deno
+
   test:
     name: test (astro ${{ matrix.astro }})
     runs-on: ubuntu-latest

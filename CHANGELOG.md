@@ -2,28 +2,13 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
-## Unreleased
-
-### Fixed
-
-- Audit directory-format pages using their generated Markdown companion paths instead of looking
-  for `index.md` inside each page directory. Companion reads remain confined and symlink-free.
-- Resolve same-origin absolute links and hreflang offline using explicit site information or
-  generated corpus/domain-profile metadata, without treating external links as local files.
-- Preserve live audit reports when response bodies time out or are interrupted, and report failed
-  advertised Markdown companions instead of silently skipping them.
-- Report missing HTML language attributes during live audits as well as offline audits, while
-  preserving noindex exemptions and build-model behavior.
-
-Corrected audits may now report failures that previous versions missed. The `validate` command,
-public configuration, and audit report format are unchanged.
-
 ## 1.4.0
 
 The quality and ecosystem release: a site-wide audit with seven report formats, deployment checks and
 fixes, a Starlight plugin, content and CMS helpers, and opt-in static edge negotiation. No
-configuration key changes. A project that uses none of the new features emits the same public files
-as 1.3.2, and the release gate's Node and Cloudflare bundle comparisons show no regression.
+configuration key changes. Markdown extraction also changes existing companions as described below,
+even without enabling the new features. Node and Cloudflare bundle sizes remain within the release
+limits.
 
 ### Behavior changes worth reading before upgrading
 
@@ -37,6 +22,40 @@ as 1.3.2, and the release gate's Node and Cloudflare bundle comparisons show no 
 - Repeated `<meta name="generator">` tags no longer report `metadata-conflict`.
 - Every build writes a private `.astro/aeo-cache/deployment-v1.json`. It is never published.
 - `yaml` is a new runtime dependency, loaded on demand by `astro-aeo fix` alone.
+
+### Markdown companions
+
+Convert figures, definition lists and simple tables to Markdown instead of copying them as raw HTML.
+Real sites were getting whole `<figure>`, `<dl>` and `<table>` blocks, complete with utility classes and
+`data-*` attributes, in their `.md` companions. Figures now become `![alt](src)` with the caption as an
+emphasized line, definition lists become a bold term followed by its description, and tables whose cells
+are single-span inline content become GFM pipe tables. `time`, `address` and `cite` convert to their text.
+
+Tables with `colspan`, `rowspan` or block content in a cell, and `audio` and `video` (which Markdown cannot
+express), stay HTML, reduced to meaningful attributes (`href`, `src`, `alt`, `scope`, `colspan`, `poster`
+and similar) with attribute-less `div` and `span` wrappers unwrapped. `keepSelectors` now uses
+the same minimization, including when the selected element is the extraction root.
+
+Interface chrome is dropped before conversion: buttons (disclosure toggles with `aria-expanded` or
+`aria-controls` stay), `svg`, `template`, `[hidden]` and `[aria-hidden="true"]` elements, unless they wrap
+an image with alt text. Extraction diagnostics gain `keptHtmlBlocks`, and the `markdown-html-residue`
+audit rule now also flags figures, definition lists and any tag still carrying `class`, `style` or
+`data-*` attributes. A separate `markdown-raw-html` warning catches companions with at least
+three HTML-containing blocks and either 30 tags or more than 25% tag markup outside code.
+
+### Audit correctness
+
+- Audit directory-format pages using their generated Markdown companion paths instead of looking
+  for `index.md` inside each page directory. Companion reads remain confined and symlink-free.
+- Resolve same-origin absolute links and hreflang offline using explicit site information or
+  generated corpus/domain-profile metadata, without treating external links as local files.
+- Preserve live audit reports when response bodies time out or are interrupted, and report failed
+  advertised Markdown companions instead of silently skipping them.
+- Report missing HTML language attributes during live audits as well as offline audits, while
+  preserving noindex exemptions and build-model behavior.
+
+Corrected audits may now report failures that previous versions missed. The `validate` command,
+public configuration, and audit report format are unchanged.
 
 ### Audit
 
@@ -99,8 +118,8 @@ rejected when the project has an adapter, renders a page on demand, or sets `mar
 
 Every build now also writes the private `.astro/aeo-cache/deployment-v1.json` (mode `0o600`) with the
 output mode, adapter name, base, build format, trailing slash, negotiation mode, edge provider and an
-ownership digest. It contains no path and no secret. A project that uses none of this emits the same
-public bytes as before.
+ownership digest. It contains no path and no secret. This private deployment record does not itself
+change public artifacts.
 
 ### Starlight
 
@@ -137,6 +156,12 @@ bytes as before, and an invalid label is ignored with `catalog-invalid-version`.
 
 ### Internal
 
+- Run the complete release gate, including performance ceilings, in a read-only, manual W1-Test job
+  before tagging. Publication remains exclusive to the strict tag workflow.
+
+- Avoid serializing and reparsing the cleaned content subtree during Markdown conversion. A normalized
+  DOM clone preserves selected-root semantics, source labels, and existing Markdown output.
+
 - Documented the plugin `cache: { pure, version }` declaration. It is a build/runtime parity check,
   not a cache: a runtime module whose hooks or declarations differ from the build fails to load and
   its stages isolate, and every hook still runs on every build. Wiring declarations into the
@@ -147,8 +172,8 @@ bytes as before, and an invalid label is ignored with `catalog-invalid-version`.
 ### Package size
 
 Benchmark regression explanation: against the committed 1.3 baseline the published package grows from
-272,377 to about 351,101 packed bytes (about 29 percent) and from 1,106,331 to about 1,359,816 unpacked
-bytes (about 23 percent; about 17 percent over 1.3.1). 1.4 ships the audit engine with seven report
+272,377 to about 355,650 packed bytes (about 31 percent) and from 1,106,331 to about 1,375,031 unpacked
+bytes (about 24 percent; about 18 percent over 1.3.1). 1.4 ships the audit engine with seven report
 formats, the doctor and fix commands, the content and Starlight helpers, and three static edge handlers
 as new source files. All of it is opt-in and none of it is imported by the integration entry or the
 runtime middleware: the Node and Cloudflare bundle comparisons in the same report show no regression,
