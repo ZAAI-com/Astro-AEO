@@ -1,0 +1,38 @@
+src/core/extract/index.test.js
+  s_8e850644764da8::t_70815a5a93e0b1 302-314
+CHANGELOG.md
+  s_8e850644764da8::t_748a17e87d6fab 9-11,26-59,121-122,176
+  s_8e850644764da8::t_8d777ac4bdcc7f 159-161
+  s_8e850644764da8::t_90d1c84c1b4f72 175
+  s_8e850644764da8::t_87e16a29c6c2bc 162-164
+benchmarks/README.md
+  s_8e850644764da8::t_90d1c84c1b4f72 48,63
+  s_8e850644764da8::t_8d777ac4bdcc7f 100-104
+  s_8e850644764da8::t_748a17e87d6fab 1,11,45,62,93,112
+docs/release-evidence/1.4.0-semantic-validation.md
+  s_8e850644764da8::t_f6b387ede789ef 20,107-109,180-183
+  s_8e850644764da8::t_d718ea12363857 120-122,124-171,176
+  s_8e850644764da8::t_b84c3997cdddb8 15,177
+  s_8e850644764da8::t_cad47ba9046cbc 21,46,49,51,97-106,110-119,123,172-175,178-179,184-186
+src/core/extract/index.js
+  s_8e850644764da8::t_7cb6bcc9e7b99b 558-562,565
+  s_8e850644764da8::t_e001f27268d9cc 563-564
+.github/workflows/W1-Test.yml
+  s_8e850644764da8::t_ed61163253dc69 11-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "94e46813174ccc245d9aa1f80a4b3155a4b55042",
+  "prompts": {},
+  "sessions": {
+    "s_8e850644764da8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e81e-2fdf-7800-b8d1-79f84532a54e",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
