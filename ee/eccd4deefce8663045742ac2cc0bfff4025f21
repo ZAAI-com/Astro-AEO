@@ -1,0 +1,70 @@
+cli/fix/fix.test.js
+  s_8e850644764da8::t_d381210f1acbd4 2,20,219,224-227,229-232
+  s_8e850644764da8::t_7b433ae6ea2667 220-223,228
+  s_e7c3afdc06bcee::t_9419ecf9453779 233-234
+scripts/package-smoke.mjs
+  s_8e850644764da8::t_1614a38c075943 84-86
+docs/release-evidence/1.4.0-semantic-validation.md
+  s_8e850644764da8::t_30996d766ec860 15,21,181,183,185-191
+cli/fix/index.js
+  s_8e850644764da8::t_5bcfc4426df531 5,66
+README.md
+  s_8e850644764da8::t_3e1da234ca44d7 1178,1372
+cli/audit.js
+  s_8e850644764da8::t_369bab93c1b94c 5,85-90
+src/audit/local.test.js
+  s_8e850644764da8::t_db839796b77d2e 2,6,27,43-50
+src/runtime/edge/handler.test.js
+  s_8e850644764da8::t_3dbea85b4db5fa 173-176
+AGENTS.md
+  s_8e850644764da8::t_6343a7a7283abf 160,163-164
+src/edge/cloudflare.d.ts
+  s_8e850644764da8::t_20e55370d58bc1 1-16
+cli/doctor.test.js
+  s_8e850644764da8::t_396e36c198b0ab 2,21
+src/edge/vercel.d.ts
+  s_8e850644764da8::t_3f848429b3a9f7 1-12
+cli/audit-cli.test.js
+  s_8e850644764da8::t_99d8d7c957e429 2,22-31
+CHANGELOG.md
+  s_8e850644764da8::t_6c8f7ef919b4f1 26-33
+src/audit/local.js
+  s_8e850644764da8::t_ce454a066bc160 7,19-21,33-35
+src/starlight/route-data.js
+  s_8e850644764da8::t_362a74a653a81e 15,18,20,23,29
+package.json
+  s_8e850644764da8::t_3a1449dff13a80 47,51,55
+src/build/ownership.js
+  s_8e850644764da8::t_b51cbbf7eb396e 3-4,10-17
+  s_8e850644764da8::t_35ffb64dc3d4ce 18
+src/runtime/edge/handler.js
+  s_8e850644764da8::t_a84ea7831f0e15 43-45
+fixtures/types-consumer/consumer.ts
+  s_8e850644764da8::t_a20c6e364fa96f 902-905
+src/edge/netlify.d.ts
+  s_8e850644764da8::t_870d78b51b1964 1-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "eeeccd4deefce8663045742ac2cc0bfff4025f21",
+  "prompts": {},
+  "sessions": {
+    "s_8e850644764da8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e81e-2fdf-7800-b8d1-79f84532a54e",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_e7c3afdc06bcee": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e845-e41d-7020-8487-e4c33f9b9c26",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
