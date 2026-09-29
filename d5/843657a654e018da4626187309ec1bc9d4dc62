@@ -1,0 +1,67 @@
+pnpm-workspace.yaml
+  s_bf091e8255d9a6::t_dc76025872db0d 14
+test/recipes/recipes.test.js
+  s_bf091e8255d9a6::t_03d11f8c60ff02 17,23
+recipes/emdash-cloudflare/astro.config.mjs
+  s_bf091e8255d9a6::t_8ba3b66982fcf9 12-14
+  s_bf091e8255d9a6::t_03b0cd1a8e6996 1-11,15-31
+AGENTS.md
+  s_bf091e8255d9a6::t_635e907b5c896a 101-102
+test/recipes/emdash.test.js
+  s_bf091e8255d9a6::t_4b888f65ee7dcb 3,14-15,27,100-110,152-165,205,211,214-215,219,224-229,231,237-241,245,325
+  s_bf091e8255d9a6::t_ec82ae7970298a 192-204,242-244
+  s_bf091e8255d9a6::t_d6188cefa0b082 33,55-56,81,284-287
+  s_bf091e8255d9a6::t_f2df6a6e45506f 206,288-289
+recipes/emdash-cloudflare/README.md
+  s_bf091e8255d9a6::t_8100ba6ae2dc57 1-54
+package.json
+  s_bf091e8255d9a6::t_78bbe37bde9c42 155
+pnpm-lock.yaml
+  s_bf091e8255d9a6::t_d9bbf6c50dce1f 29,51-53,95,539-542,608-610,692-713,4798-4802,6893,6897,6901,7581-7582,7613,7620,7642-7643,7805-7848,12168-12171,14517,14528
+recipes/emdash-cloudflare/.gitignore
+  s_bf091e8255d9a6::t_5cb47dccbd3306 1-13
+recipes/emdash-cloudflare/package.json
+  s_bf091e8255d9a6::t_c065ed356d75be 1-29
+recipes/emdash-cloudflare/seed/seed.json
+  s_bf091e8255d9a6::t_d276e7abdf9549 1-604
+recipes/emdash-cloudflare/src/layouts/Base.astro
+  s_bf091e8255d9a6::t_965b91bbd767e0 1-42
+recipes/emdash-cloudflare/src/live.config.js
+  s_bf091e8255d9a6::t_2943243da6ae31 1-6
+recipes/emdash-cloudflare/src/pages/404.astro
+  s_bf091e8255d9a6::t_078fa140cb4edd 1-8
+recipes/emdash-cloudflare/src/pages/blog/[year]/[month]/[slug].astro
+  s_bf091e8255d9a6::t_d07d97745a434c 1-35
+recipes/emdash-cloudflare/src/pages/blog/index.astro
+  s_bf091e8255d9a6::t_e8f7bd3ae681c3 1-17
+recipes/emdash-cloudflare/src/pages/customers/[slug].astro
+  s_bf091e8255d9a6::t_8d95669fd22da7 1-21
+recipes/emdash-cloudflare/src/pages/customers/index.astro
+  s_bf091e8255d9a6::t_f5f09fda6e7f7a 1-16
+recipes/emdash-cloudflare/src/pages/index.astro
+  s_bf091e8255d9a6::t_2683cbcca685a0 1-30
+recipes/emdash-cloudflare/src/pages/legal/[slug].astro
+  s_bf091e8255d9a6::t_56bb19b3eab220 1-14
+recipes/emdash-cloudflare/src/post-path.js
+  s_bf091e8255d9a6::t_12813c121b42a0 1-8
+recipes/emdash-cloudflare/src/worker.js
+  s_bf091e8255d9a6::t_d832f23dec75c5 1-9
+recipes/emdash-cloudflare/wrangler.jsonc
+  s_bf091e8255d9a6::t_9376e532f98534 1-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d5843657a654e018da4626187309ec1bc9d4dc62",
+  "prompts": {},
+  "sessions": {
+    "s_bf091e8255d9a6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b261f0a-3568-4193-998b-f27ca30a9a4a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
