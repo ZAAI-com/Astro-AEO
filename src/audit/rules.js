@@ -77,9 +77,8 @@ const RULE_LIST = Object.freeze([
   ...rules('discovery', 'info', ['live'], ['live-external-skipped']),
   ...rules('links', 'error', ['offline'], ['corpus-link-missing']),
   ...rules('metadata', 'warning', ['build'], ['metadata-conflict', 'metadata-duplicate']),
-  ...rules('corpus', 'warning', ['build'], [
-    'small-corpus-first-block-omitted', 'small-corpus-truncated',
-  ]),
+  ...rules('corpus', 'warning', ['build'], ['small-corpus-first-block-omitted']),
+  ...rules('corpus', 'info', ['build'], ['small-corpus-truncated']),
   ...rules('build', 'error', ['build'], [
     'artifact-commit-failed', 'artifact-generated-conflict', 'artifact-invalid-destination',
     'artifact-invalid-pathname', 'artifact-invalid-replacement-path',

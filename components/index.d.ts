@@ -68,6 +68,12 @@ export interface FaqItem {
 }
 export interface FaqJsonLdProps {
   items: FaqItem[];
+  /**
+   * Stable `@id` for the FAQPage, so the schema graph and map can list it instead
+   * of reporting an anonymous entity. A page-relative value such as `'#faq'`
+   * resolves against the page URL on the configured `site`. Default: none.
+   */
+  id?: string;
 }
 export declare const FaqJsonLd: AstroComponentFactory;
 

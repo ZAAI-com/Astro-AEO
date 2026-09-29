@@ -407,7 +407,10 @@ aliases such as `/llms-en.txt`.
 Astro string locale values are the directory identity. Locale objects use `path` as the directory
 and `codes[0]` as the primary BCP 47 language. Page language resolves after semantic enrichment.
 Invalid explicit declarations are errors; unresolved pages follow `i18n.unresolvedLanguage`.
-External public HTTPS `hreflang` links are allowed but never fetched.
+External public HTTPS `hreflang` links are allowed but never fetched. Plain `http:` alternates are
+accepted only on `localhost`, `127.0.0.1` and `[::1]`, and only while the page is served from one of
+those hosts or `astro dev` or `astro preview` is running, so a production build still rejects a
+stray local link.
 
 The private `.astro/aeo-cache` directory can contain normalized derived page content and IndexNow
 notification state. Keep `.astro` uncommitted, transfer the `indexnow` pending and acknowledgment
@@ -930,9 +933,11 @@ Globs are segment-aware: `*` stays inside one path segment, `**` crosses segment
 
 `corpus.small` builds a strict token-budgeted `llms-small.txt` from contiguous leading source
 blocks. It uses stable round-robin allocation across locales, sections, and pages, counts wrappers
-against the limit, and never summarizes or rewrites content. `corpus.chunks` splits full-corpus
-content at page, heading, paragraph, and fenced-code boundaries. Fences remain indivisible and an
-oversized unit is emitted with a diagnostic rather than silently truncated.
+against the limit, and never summarizes or rewrites content. A page cut short by the budget is
+reported as `small-corpus-truncated` with severity `info`, since that is the budget working; a page
+whose first block does not fit (`small-corpus-first-block-omitted`) is a warning. `corpus.chunks`
+splits full-corpus content at page, heading, paragraph, and fenced-code boundaries. Fences remain
+indivisible and an oversized unit is emitted with a diagnostic rather than silently truncated.
 
 The built-in `astro-aeo-approx@1` counter is deterministic and explicitly approximate. A custom
 local tokenizer module must default-export API version 1 with stable `name`, `version`,
@@ -975,7 +980,9 @@ To clear the cache by hand, delete only `.astro/aeo-cache/processing-v1`: deleti
 `discovery.robots.universalAllow` (default `true`) makes `robots.txt` lead with a `User-agent: *` / `Allow: /` group, so unlisted crawlers see an explicit open policy even when you also name specific bots in `allow`/`disallow`. It is suppressed automatically if you already declare a `User-agent: *` group yourself (via `allow`, `disallow`, or `extraLines`), so there is no duplicate group. Set it to `false` for a named-bots-only policy.
 
 The `custom` policy preserves this renderer. Presets use a frozen, first-party-documented crawler
-registry: `open`, `search-open-training-closed`, `retrieval-only`, and `closed`. Per-token
+registry: `open`, `search-open-training-closed`, `retrieval-only`, and `closed`. The registry
+covers OpenAI, Anthropic, Perplexity, Google, Microsoft, Apple (`Applebot-Extended`), Meta
+(`Meta-ExternalAgent`), Amazon (`Amazonbot`) and Common Crawl (`CCBot`) tokens. Per-token
 `allow`/`disallow` overrides are case-insensitive and cannot overlap. Content Signals are emitted
 only when all three booleans are supplied, and each `Content-Signal` line is placed inside every
 applicable `User-agent` group (Cloudflare treats it as a group directive). When
@@ -1317,7 +1324,7 @@ import { FaqJsonLd, BreadcrumbJsonLd, ArticleJsonLd } from 'astro-aeo/components
 
 | Component | Props | Notes |
 | --- | --- | --- |
-| `FaqJsonLd` | `items: { question, answer }[]` | FAQPage |
+| `FaqJsonLd` | `items: { question, answer }[]`, `id?` | FAQPage. `id` (such as `#faq`) sets a stable `@id`, resolved against the page URL, so the schema map can list it |
 | `HowToJsonLd` | `name`, `steps: { name, text, url?, image? }[]`, `description?`, `totalTime?` | HowTo |
 | `BreadcrumbJsonLd` | `items?`, `labels?`, `includeHome?` | Auto-derives the trail from the URL when `items` is omitted |
 | `OrganizationJsonLd` | `name`, `url?`, `logo?`, `sameAs?`, `contactEmail?` | `url` defaults to `site`. Place once, e.g. the homepage |
@@ -1377,7 +1384,7 @@ permissions:
 steps:
   - uses: actions/checkout@v4
   - run: npm ci && npm run build
-  - uses: ZAAI-com/Astro-AEO@1.5.0
+  - uses: ZAAI-com/Astro-AEO@1.5.1
     with:
       target: dist            # or a deployed URL
       fail-on: error          # error, warning or none

@@ -16,7 +16,7 @@ import { pageCatalogIdentity } from '../core/page-identity.js';
 import { cancelResponseBody, isIdentityEncoded, isNullBodyStatus } from './respond.js';
 import { enrichHtmlHead, stripAeoHeadMarkers } from '../core/head.js';
 import { renderSchemaCorpus } from '../core/schema-corpus.js';
-import { siteScopeUrl, stableCanonical } from '../core/canonical.js';
+import { isLocalDevelopmentHostname, siteScopeUrl, stableCanonical } from '../core/canonical.js';
 import { catalogBreadcrumbTrail } from '../core/catalog-breadcrumbs.js';
 import { reconcileSemanticEnvelope } from '../core/semantic-envelope.js';
 import {
@@ -614,7 +614,9 @@ export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {
       }
     }
   }
-  const alternates = normalizePageAlternates(localized);
+  const alternates = normalizePageAlternates(localized, {
+    localDevelopment: runtime.command === 'dev' || runtime.command === 'preview',
+  });
   // The build fails on hreflang validation errors; the runtime corpus must not
   // silently drop invalid or non-reciprocal links and serve a shorter plan.
   if (alternates.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
@@ -1102,11 +1104,6 @@ function originHostname(origin) {
   } catch {
     return '';
   }
-}
-
-/** @param {string} hostname */
-function isLocalDevelopmentHostname(hostname) {
-  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
 }
 
 /**

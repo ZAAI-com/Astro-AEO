@@ -2,6 +2,58 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## 1.5.1
+
+A patch release on top of 1.5.0 that lets multilingual sites run locally without hreflang errors,
+and lets builds that fail on warnings keep a token-budgeted small corpus and FAQ structured data.
+
+### Local hreflang alternates
+
+- Accept plain `http:` hreflang alternates on `localhost`, `127.0.0.1` and `[::1]` in a local
+  context: the page is served from one of those hosts (for example `site: 'http://localhost:4321'`,
+  or `astro dev` without a `site`), or `astro dev` or `astro preview` is running. Before, a page
+  served locally failed the build with `hreflang-invalid`, and a dev or preview server answered
+  `llms.txt`, `llms-full.txt` and the corpus artifacts with `500`, including on an https site whose
+  hreflang tags are built from `Astro.url`.
+- Apply the same rule to sitemap `xhtml:link` alternates in the build and in `astro-aeo validate`
+  and `astro-aeo audit`, so a sitemap built for a local origin no longer reports
+  `sitemap-hreflang-url-invalid`.
+- A production build for an https site still rejects a stray localhost alternate, in page markup and
+  in its sitemap. Credentials, fragments, other schemes and public `http:` hosts stay rejected
+  everywhere.
+
+### Crawler registry
+
+- Add `Applebot-Extended`, `Meta-ExternalAgent`, `Amazonbot` and `CCBot` to the frozen crawler
+  registry, each as a training crawler with its first-party documentation URL. Preset policies now
+  address them: `search-open-training-closed` adds a `Disallow: /` group for each, and
+  `retrieval-only` and `closed` keep them behind the wildcard `Disallow`. Overrides for these
+  tokens are now matched case-insensitively and rendered in their canonical spelling. The `custom`
+  policy is unchanged.
+- Undocumented tokens such as `anthropic-ai` and `cohere-ai` stay out of the registry. Name them
+  in `allow` or `disallow` to address them explicitly.
+
+### Small corpus truncation
+
+- `small-corpus-truncated` is now an `info` diagnostic instead of a `warning`. `llms-small.txt` is
+  built from each page's leading blocks, so dropping the rest of a page once the budget runs out is
+  the feature working, not a defect. Before, a site larger than its `corpus.small.maxTokens` budget
+  got one warning per cut page, which failed every build with `validation.failOn: 'warning'` and
+  every `astro-aeo audit --fail-on warning`.
+- `small-corpus-first-block-omitted`, `small-corpus-wrapper-omitted` and
+  `small-corpus-preamble-over-budget` stay warnings: each means content the corpus was meant to
+  carry is missing.
+- Audit reports count the truncations as `infos`, and the `build:complete` plugin summary moves them
+  from `warning` to `info`.
+
+### FaqJsonLd id
+
+- `FaqJsonLd` accepts an optional `id`. A page-relative value such as `id="#faq"` resolves against
+  the page URL on the configured `site`, so `/faq/` emits `"@id":"https://example.com/faq/#faq"`.
+  Before, every FAQPage from the component was anonymous, and with `schema.corpus.enabled` each one
+  reported `schema-map-anonymous-entity`, a warning no project could clear without dropping the
+  component. Without `id` the output is byte-identical to 1.5.0.
+
 ## 1.5.0
 
 The cache-integrity, Markdown-fidelity, and EmDash release. The incremental processing cache now

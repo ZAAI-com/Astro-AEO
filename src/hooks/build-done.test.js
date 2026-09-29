@@ -445,6 +445,25 @@ describe('staged build plugin pipeline', () => {
     expect(await commit({ onBuild: 'off', failOn: 'warning' })).not.toThrow();
   });
 
+  test('a small corpus that truncates pages passes a build gated on warnings', async () => {
+    const paragraphs = Array.from({ length: 40 }, () => '<p>One more detail about the product, in plain words.</p>').join('');
+    const files = fixture(`<!doctype html><html lang="en"><head><title>Home page title</title><meta name="description" content="A home page long enough to describe the site in one line."></head><body><main><h1>Home</h1>${paragraphs}</main></body></html>`);
+    /** @type {import('../index.js').Diagnostic[]} */
+    const diagnostics = [];
+    const writer = await onBuildDone(
+      config({
+        markdown: { enabled: true, alternateLink: 'never' },
+        corpus: { index: { enabled: false }, full: { enabled: false }, small: { enabled: true, maxTokens: 300 } },
+        validation: { onBuild: 'recommended', failOn: 'warning' },
+      }),
+      { dir: files.dir, pages: [{ pathname: '/' }], logger },
+      environment(files.root, undefined, diagnostics),
+    );
+
+    expect(diagnostics).toContainEqual(expect.objectContaining({ code: 'small-corpus-truncated', severity: 'info' }));
+    expect(() => writer.commit()).not.toThrow();
+  });
+
   test('accepts page replacements when Astro has no configured site', async () => {
     const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
     const resolved = config();

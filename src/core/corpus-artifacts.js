@@ -72,7 +72,7 @@ export function chunkTopology(mode, localeCount) {
  *   tokenizerProbed?: boolean;
  *   note?: string;
  * }} input
- * @returns {Promise<{ artifacts: CorpusTextArtifact[]; manifest?: any; manifestText?: string; diagnostics: Array<{ code: string; severity: 'warning'|'error'; message: string; pathname?: string; details?: unknown }>; tokenizer?: { name: string; version: string; approximate: boolean } }>}
+ * @returns {Promise<{ artifacts: CorpusTextArtifact[]; manifest?: any; manifestText?: string; diagnostics: Array<{ code: string; severity: 'info'|'warning'|'error'; message: string; pathname?: string; details?: unknown }>; tokenizer?: { name: string; version: string; approximate: boolean } }>}
  */
 export async function planCorpusArtifacts(input) {
   const origin = normalizeOrigin(input.origin) ?? '';
@@ -82,7 +82,7 @@ export async function planCorpusArtifacts(input) {
   const participatingPages = allParticipatingPages.filter((page) =>
     !origin || !page.origin || normalizeOrigin(page.origin) === origin);
   const locales = localeGroups(participatingPages, input.i18n, input.config);
-  /** @type {Array<{ code: string; severity: 'warning'|'error'; message: string; pathname?: string; details?: unknown }>} */
+  /** @type {Array<{ code: string; severity: 'info'|'warning'|'error'; message: string; pathname?: string; details?: unknown }>} */
   const diagnostics = [];
 
   // Locale-prefixed families spell the locale into a public path, so an
@@ -667,17 +667,25 @@ function selectCanonicalArtifact(locale, artifacts, mode, locales) {
   )[0];
 }
 
+/**
+ * Planner outcomes that are the configured budget working as intended, not a defect. A small
+ * corpus is built from each page's leading blocks, so cutting the rest of a page is its contract.
+ * Losing a page's first block, its wrapper, or the preamble still means content the corpus was
+ * meant to carry is missing, so those stay warnings.
+ */
+const PLANNER_INFO_CODES = new Set(['small-corpus-truncated']);
+
 /** @param {CorpusTextArtifact['kind']} kind */
 function kindOrder(kind) {
   return ({ index: 0, full: 1, small: 2, chunk: 3, alias: 4 })[kind];
 }
 
-/** @param {Array<{ code: string; severity: 'warning'|'error'; message: string; pathname?: string; details?: unknown }>} target @param {any[]} source @param {string|null} [locale] @param {string} [section] */
+/** @param {Array<{ code: string; severity: 'info'|'warning'|'error'; message: string; pathname?: string; details?: unknown }>} target @param {any[]} source @param {string|null} [locale] @param {string} [section] */
 function addPlannerDiagnostics(target, source, locale, section) {
   for (const item of source) {
     target.push({
       code: item.code,
-      severity: 'warning',
+      severity: PLANNER_INFO_CODES.has(item.code) ? 'info' : 'warning',
       message: item.message,
       ...(item.pageId ? { pathname: item.pageId } : {}),
       ...(locale !== undefined || section

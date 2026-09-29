@@ -246,6 +246,21 @@ describe('offline audit', () => {
       .toEqual(['hreflang-return-missing /de/', 'hreflang-target-missing /fr/']);
   });
 
+  it('checks hreflang targets and return links on a local development origin', () => {
+    const project = site({
+      'dist/index.html': html({
+        title: 'Home',
+        head: '<link rel="alternate" hreflang="de" href="http://localhost:4321/de/">'
+          + '<link rel="alternate" hreflang="fr" href="http://localhost:4321/fr/">',
+      }),
+      'dist/de/index.html': html({ title: 'Start', lang: 'de' }),
+    });
+    const findings = rulesOf(project, { siteUrl: 'http://localhost:4321' });
+    expect(findings.filter((finding) => finding.category === 'internationalization')
+      .map((finding) => `${finding.ruleId} ${finding.evidence}`).sort())
+      .toEqual(['hreflang-return-missing http://localhost:4321/de/', 'hreflang-target-missing http://localhost:4321/fr/']);
+  });
+
   it('reads the sanitized private manifests and never reports an absolute path', () => {
     const project = site({
       'dist/index.html': html({ title: 'Home', description: 'd' }),
@@ -263,6 +278,26 @@ describe('offline audit', () => {
     expect(serialized).not.toContain('SECRET');
     expect(serialized).not.toContain('/Users/someone');
     expect(serialized).not.toContain(project);
+  });
+
+  it('keeps the build severity of a manifest diagnostic, so a truncated small corpus is only an info', () => {
+    const project = site({
+      'dist/index.html': html({ title: 'Home', description: 'd' }),
+      '.astro/aeo-cache/diagnostics-v1.json': JSON.stringify({
+        version: 1,
+        generatedAt: '2026-01-01T00:00:00.000Z',
+        pages: [],
+        diagnostics: [
+          { version: 1, code: 'small-corpus-truncated', severity: 'info', message: 't', pathname: '/' },
+          { version: 1, code: 'small-corpus-first-block-omitted', severity: 'warning', message: 'f', pathname: '/' },
+        ],
+      }),
+    });
+    const findings = auditDist(join(project, 'dist')).findings
+      .filter((finding) => finding.ruleId.startsWith('small-corpus-'))
+      .map((finding) => `${finding.ruleId} ${finding.severity}`)
+      .sort();
+    expect(findings).toEqual(['small-corpus-first-block-omitted warning', 'small-corpus-truncated info']);
   });
 
   it('skips symlinks and redirect stubs', () => {

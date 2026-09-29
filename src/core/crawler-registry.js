@@ -1,9 +1,10 @@
 // @ts-check
 
 /**
- * Frozen crawler-policy facts captured for the 1.3 release. This registry is
- * intentionally data, not live documentation lookup: robots.txt generation
- * must be reproducible and must never depend on network access.
+ * Frozen crawler-policy facts captured for the 1.3 release and extended in
+ * 1.5.1. This registry is intentionally data, not live documentation lookup:
+ * robots.txt generation must be reproducible and must never depend on network
+ * access. Only tokens their operator documents first-party belong here.
  *
  * @typedef {'crawler'|'user-triggered'|'control-token'} CrawlerTokenKind
  * @typedef {'search'|'user-retrieval'|'training'} CrawlerPurpose
@@ -13,11 +14,12 @@
  *   operator: string;
  *   purposes: readonly CrawlerPurpose[];
  *   documentationUrl: string;
- *   verifiedAt: '2026-08-12';
+ *   verifiedAt: string;
  * }} CrawlerRegistryEntry
  */
 
-const VERIFIED_AT = '2026-08-12';
+const VERIFIED_AT_1_3 = '2026-08-12';
+const VERIFIED_AT_1_5_1 = '2026-09-29';
 
 /** @type {readonly CrawlerRegistryEntry[]} */
 export const CRAWLER_REGISTRY = Object.freeze([
@@ -32,6 +34,10 @@ export const CRAWLER_REGISTRY = Object.freeze([
   entry('Googlebot', 'crawler', 'Google', ['search'], 'https://developers.google.com/crawling/docs/crawlers-fetchers/google-common-crawlers'),
   entry('Google-Extended', 'control-token', 'Google', ['user-retrieval', 'training'], 'https://developers.google.com/crawling/docs/crawlers-fetchers/google-common-crawlers'),
   entry('bingbot', 'crawler', 'Microsoft', ['search'], 'https://www.bing.com/webmasters/help/help/which-crawlers-does-bing-use-8c184ec0'),
+  entry('Applebot-Extended', 'control-token', 'Apple', ['training'], 'https://support.apple.com/en-us/119829', VERIFIED_AT_1_5_1),
+  entry('Meta-ExternalAgent', 'crawler', 'Meta', ['training'], 'https://developers.facebook.com/docs/sharing/webmasters/web-crawlers/', VERIFIED_AT_1_5_1),
+  entry('Amazonbot', 'crawler', 'Amazon', ['training'], 'https://developer.amazon.com/amazonbot', VERIFIED_AT_1_5_1),
+  entry('CCBot', 'crawler', 'Common Crawl', ['training'], 'https://commoncrawl.org/ccbot', VERIFIED_AT_1_5_1),
 ]);
 
 /** @type {ReadonlyMap<string, CrawlerRegistryEntry>} */
@@ -52,15 +58,16 @@ export function crawlerRegistryEntry(token) {
  * @param {string} operator
  * @param {CrawlerPurpose[]} purposes
  * @param {string} documentationUrl
+ * @param {string} [verifiedAt]
  * @returns {CrawlerRegistryEntry}
  */
-function entry(token, kind, operator, purposes, documentationUrl) {
+function entry(token, kind, operator, purposes, documentationUrl, verifiedAt = VERIFIED_AT_1_3) {
   return Object.freeze({
     token,
     kind,
     operator,
     purposes: Object.freeze(purposes),
     documentationUrl,
-    verifiedAt: VERIFIED_AT,
+    verifiedAt,
   });
 }

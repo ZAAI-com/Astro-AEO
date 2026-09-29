@@ -735,6 +735,10 @@ describe('locale-aware request-time corpus planning', () => {
       .toBe('https://example.com');
     expect(runtimeArtifactOrigin({ ...requestRuntime, command: 'preview' }, 'http://127.0.0.1:4321'))
       .toBe('https://example.com');
+    expect(runtimeArtifactOrigin({ ...requestRuntime, command: 'dev' }, 'http://[::1]:4321'))
+      .toBe('https://example.com');
+    expect(runtimeArtifactOrigin({ ...requestRuntime, command: 'dev' }, 'http://app.localhost:4321'))
+      .toBeNull();
     expect(runtimeArtifactOrigin({ ...requestRuntime, command: 'build' }, 'http://localhost:4321'))
       .toBeNull();
     expect(runtimeArtifactOrigin({ ...requestRuntime, command: 'build' }, 'http://example.com'))
@@ -777,6 +781,27 @@ describe('locale-aware request-time corpus planning', () => {
 
     await expect(serveCorpusArtifact('/llms.txt', requestRuntime, fetcher, {
       catalogLoaders: [catalogLoader(catalog)],
+    })).rejects.toBeInstanceOf(RuntimeCorpusPlanError);
+  });
+
+  test('accepts a localhost hreflang only while a dev or preview server runs', async () => {
+    const catalog = {
+      listPages: () => [{
+        pathname: '/guide',
+        title: 'Guide',
+        alternates: [{ language: 'fr', url: 'http://localhost:4321/fr/guide/' }],
+      }],
+    };
+    const fetcher = async () => loaded(html('Guide'));
+
+    for (const command of ['dev', 'preview']) {
+      const artifact = await serveCorpusArtifact('/llms.txt', { ...runtime(['/guide'], 50), command }, fetcher, {
+        catalogLoaders: [catalogLoader(catalog, `./catalog-${command}.js`)],
+      });
+      expect(artifact.body).toContain('Guide');
+    }
+    await expect(serveCorpusArtifact('/llms.txt', { ...runtime(['/guide'], 50), command: 'build' }, fetcher, {
+      catalogLoaders: [catalogLoader(catalog, './catalog-build.js')],
     })).rejects.toBeInstanceOf(RuntimeCorpusPlanError);
   });
 
