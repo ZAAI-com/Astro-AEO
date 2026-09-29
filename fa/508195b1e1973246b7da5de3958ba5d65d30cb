@@ -1,0 +1,41 @@
+fixtures/extract-real/definition-icon-term.md
+  s_cdc4a3137771a2::t_1a0da13f607ec3 7-15
+  s_cdc4a3137771a2::t_aa1d8002901880 1-6
+src/core/html-to-md.test.js
+  s_cdc4a3137771a2::t_247eecc3f5f6d4 129-161
+  s_cdc4a3137771a2::t_474b20b760a9a8 1-2
+  s_cdc4a3137771a2::t_250552a6cd42cd 162
+fixtures/extract-real/definition-icon-term.html
+  s_cdc4a3137771a2::t_1a0da13f607ec3 1-3
+src/core/extract/index.test.js
+  s_ecf790cb56dd12::t_2085d521b93b25 379-397
+src/core/html-to-md.js
+  s_cdc4a3137771a2::t_ec24e567839a81 99-125,137-145
+  s_cdc4a3137771a2::t_ec5d84a3e2db3e 98
+src/core/extract/index.js
+  s_ecf790cb56dd12::t_2085d521b93b25 61-67,407,417-432,446-448
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fa508195b1e1973246b7da5de3958ba5d65d30cb",
+  "prompts": {},
+  "sessions": {
+    "s_cdc4a3137771a2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6ea4cf9a-5536-4107-8842-8296dd28e6bf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_ecf790cb56dd12": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f13db9b5effen4l0rmfiO7NDSX",
+        "model": "unknown"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
