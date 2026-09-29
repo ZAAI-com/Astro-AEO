@@ -1,0 +1,27 @@
+benchmarks/thresholds.mjs
+  s_cdc4a3137771a2::t_f94cf7e9febc7b 34-37
+  s_cdc4a3137771a2::t_8f4abb5a317f2a 38
+benchmarks/README.md
+  s_cdc4a3137771a2::t_b2017bddf10106 54-55
+  s_cdc4a3137771a2::t_52e1f305070927 56
+benchmarks/run.mjs
+  s_cdc4a3137771a2::t_f94cf7e9febc7b 370-371
+  s_cdc4a3137771a2::t_3b8d81ff1ccbc6 64-66
+  s_cdc4a3137771a2::t_4d9c802b247923 60-63,67-73,361,372,475-490
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ab140aa73c36fc74270653a3ee8e25cbcedee9db",
+  "prompts": {},
+  "sessions": {
+    "s_cdc4a3137771a2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6ea4cf9a-5536-4107-8842-8296dd28e6bf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
