@@ -90,6 +90,15 @@ plain ESM with no package build step.
   source line by line and returns a fallback, never partial output, for anything it would have to
   evaluate. Its fixtures are Astro 7 only and declare their dependencies so Vite bundles Starlight.
 
+- `src/emdash.js` is the EmDash integration: it registers `aeo()` itself with EmDash defaults and
+  serves `virtual:astro-aeo/emdash`, the only module that imports `emdash`. That bridge resolves from
+  the project root, so the peer stays optional. `src/emdash/catalog.js` (the `astro-aeo/emdash/catalog`
+  subpath) lazily imports the bridge: the native build pass cannot load it and lists nothing, while
+  the server bundle reads EmDash's public plugin read API over EmDash's own database connection.
+  `inventory.js` and `url-pattern.js` are pure and mirror EmDash's sitemap rules and URL patterns. The
+  boundary test covers `src/emdash/`. The `emdash` and `emdash-<template>` recipes need a seeded
+  database and a running server, so `test/recipes/emdash.test.js` builds and checks each one once.
+
 - Static edge negotiation is for sites with no adapter. `src/edge/` holds the provider plugin
   factories and re-exports the handlers; `src/runtime/edge/handler.js` is the one decision function and
   `cloudflare.js`, `netlify.js` and `vercel.js` only adapt a host to it. All of it is bundled into an
@@ -161,10 +170,10 @@ plain ESM with no package build step.
 - Use plain ESM JavaScript with `// @ts-check` and JSDoc. The published folders are `src`,
   `components`, `bin`, `cli`, and `schema`, so every shipped source file must run as published and
   remain installable from a git dependency.
-- Public declarations are hand-written in thirteen files: `src/index.d.ts`,
+- Public declarations are hand-written in fourteen files: `src/index.d.ts`,
   `components/index.d.ts`, `src/page.d.ts`, `src/extract.d.ts`,
   `src/runtime/middleware.d.ts`, `src/schema.d.ts`, `src/adapters.d.ts`, `src/content.d.ts`,
-  `src/starlight.d.ts`, `src/edge.d.ts`, and the three provider-specific declarations under
+  `src/starlight.d.ts`, `src/emdash.d.ts`, `src/edge.d.ts`, and the three provider-specific declarations under
   `src/edge/`. Provider subpaths must declare only the runtime exports they actually provide. Update declarations
   and consumer type tests with their code.
 - There are five runtime dependencies: `@astrojs/sitemap`, `turndown`, `linkedom` via

@@ -893,6 +893,29 @@ const starlightOptions: StarlightAeoOptions = {
 export const starlightPlugin: StarlightAeoPlugin = starlightAeo(starlightOptions);
 export const starlightPluginName: string = starlightPlugin.name;
 
+// The EmDash subpath types load without EmDash installed.
+import emdashAeo, { emdashDefaults } from 'astro-aeo/emdash';
+import type { EmDashAeoOptions } from 'astro-aeo/emdash';
+import type { AstroIntegration } from 'astro';
+
+const emdashOptions: EmDashAeoOptions = {
+  aeo: { pages: { exclude: ['/search'] } },
+  collections: {
+    posts: { section: 'Blog' },
+    customers: { section: { title: 'Customers', match: ['/customers/**'] } },
+    legal: false,
+  },
+  taxonomies: { category: '/category/{slug}' },
+  revalidate: 10,
+  maxEntries: 1000,
+};
+export const emdashIntegration: AstroIntegration = emdashAeo(emdashOptions);
+export const emdashConfig: AstroAeoConfig = emdashDefaults({ revalidate: false });
+// @ts-expect-error revalidate is seconds or false.
+emdashAeo({ revalidate: true });
+// @ts-expect-error a collection is false or an options object.
+emdashAeo({ collections: { posts: true } });
+
 // Catalogs accept a request-time revalidate window.
 export const revalidatingCatalogs: AstroAeoConfig = {
   pages: { catalogs: [{ module: './cms.js', revalidate: 10 }, { module: './fixed.js', revalidate: false }] },

@@ -39,6 +39,11 @@
       "default": "./src/starlight.js"
     },
     "./starlight/route-data": "./src/starlight/route-data.js",
+    "./emdash": {
+      "types": "./src/emdash.d.ts",
+      "default": "./src/emdash.js"
+    },
+    "./emdash/catalog": "./src/emdash/catalog.js",
     "./edge": {
       "types": "./src/edge.d.ts",
       "default": "./src/edge.js"
@@ -114,10 +119,14 @@
     "@astrojs/starlight": ">=0.32.0",
     "@mdx-js/mdx": "^3.1.1",
     "astro": ">=5.0.0",
-    "defuddle": "^0.19.2"
+    "defuddle": "^0.19.2",
+    "emdash": ">=1.0.1"
   },
   "peerDependenciesMeta": {
     "@astrojs/starlight": {
+      "optional": true
+    },
+    "emdash": {
       "optional": true
     },
     "@mdx-js/mdx": {
