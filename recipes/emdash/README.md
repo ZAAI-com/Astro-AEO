@@ -5,7 +5,8 @@ EmDash's templates are starting points: a real site often starts from one and ad
 recipe mixes the shapes of the Marketing, Blog, and Portfolio templates and shows how `emdashAeo()`
 handles all of them with one line of setup plus per-collection options. For a site that still matches
 one template, see [emdash-blog](../emdash-blog/), [emdash-marketing](../emdash-marketing/),
-[emdash-portfolio](../emdash-portfolio/), or [emdash-starter](../emdash-starter/).
+[emdash-portfolio](../emdash-portfolio/), or [emdash-starter](../emdash-starter/). The same site on
+Cloudflare (D1 and R2) is [emdash-cloudflare](../emdash-cloudflare/).
 
 | Collection | URL pattern | Rendered by | In `llms.txt` |
 |---|---|---|---|

@@ -3,7 +3,9 @@
 A thin mirror of EmDash's **Portfolio** template (`npm create emdash@latest -- --template portfolio`) at
 EmDash 1.0.1: the same routes, collections, and seed content, with plain markup instead of the
 template's styling and without the remote sample images. It shows what `emdashAeo()` does for a site
-scaffolded from that template. The [emdash](../emdash/) recipe shows a site that mixes templates.
+scaffolded from that template. The [emdash](../emdash/) recipe shows a site that mixes templates,
+and [emdash-cloudflare](../emdash-cloudflare/) shows the Cloudflare wiring, which leaves these
+options unchanged.
 
 To add Astro-AEO to your own Portfolio site, install `astro-aeo` and add one integration after
 `emdash()`:

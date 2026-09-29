@@ -15,6 +15,19 @@ You are setting up the `astro-aeo` integration in this Astro project. Do the fol
    - yarn: `yarn add astro-aeo`
    If the project prefers a git dependency, add `"astro-aeo": "github:ZAAI-com/Astro-AEO"` to `dependencies` and install.
 
+   **EmDash sites.** If `astro.config` registers `emdash()` from `emdash/astro` (an [EmDash CMS](https://emdashcms.com/) site), do not add `aeo()`. Add `emdashAeo()` after `emdash()` instead, and skip step 4:
+   ```js
+   import emdashAeo from 'astro-aeo/emdash';
+   // inside defineConfig, after emdash({ ... }):
+   emdashAeo({
+     // Blog and Starter templates: list their taxonomy archive pages.
+     taxonomies: { category: '/category/{slug}', tag: '/tag/{slug}' },
+     // Only current option names are accepted here, for example:
+     aeo: { pages: { exclude: ['/search'] } },
+   }),
+   ```
+   Drop `taxonomies` when the project has no `src/pages/category` or `src/pages/tag` routes, and drop the `/search` exclusion when it has no `src/pages/search.astro`. `emdashAeo()` already excludes the admin, turns on content negotiation, and leaves `robots.txt` and sitemaps to EmDash. For steps 6 and 7, EmDash pages render on demand, so start the site (`npm run dev`, or `npm run build && npm start`) and fetch `/llms.txt` and one `.md` companion from it instead of reading `dist/`. See the [EmDash CMS section](https://github.com/ZAAI-com/Astro-AEO#emdash-cms).
+
 3. Make sure `astro.config` sets a `site` URL (Astro-AEO needs it for absolute links). If it is missing, ask me for the production URL.
 
 4. Add the integration:

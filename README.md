@@ -9,6 +9,11 @@ crawler policies, and domain identity metadata with no external services or clie
 
 It is the Astro sibling of [Jekyll-AEO](https://github.com/ZAAI-com/Jekyll-AEO).
 
+> **New in 1.5: [EmDash CMS](#emdash-cms) support.** Running a site on
+> [EmDash](https://emdashcms.com/)? Add `emdashAeo()` and every published post, page, and project
+> gets a Markdown copy and a place in `llms.txt`, updated within seconds of publishing. It works
+> with the Blog, Marketing, Portfolio, and Starter templates, on Node and Cloudflare.
+
 ## What is AEO
 
 Answer engines (ChatGPT, Claude, Perplexity, Google AI Overviews, and others) read your pages to answer questions and cite sources. They do better with clean, structured text than with a page of HTML, scripts, and styles. AEO is the practice of publishing machine-readable companions to your site so those systems can find and quote your content accurately.
@@ -17,6 +22,8 @@ A Markdown copy of a page is roughly 20 to 30 percent smaller in tokens than its
 
 ## Features
 
+- **EmDash CMS**: `emdashAeo()` lists every published EmDash entry at its public URL and keeps `llms.txt` current as editors publish, on Node and Cloudflare. See [EmDash CMS](#emdash-cms).
+- **Starlight**: `starlightAeo()` adds Astro-AEO to a Starlight docs site as a plugin. See [Starlight](#starlight).
 - **.md companion pages**: a clean Markdown copy of every page, preserving authored Markdown when available and otherwise extracting from rendered HTML.
 - **llms.txt and llms-full.txt**: a site index and a full-content file following the [llmstxt.org](https://llmstxt.org/) spec.
 - **Alternate link tags**: `<link rel="alternate" type="text/markdown">` injected into every page so crawlers can find the Markdown.
@@ -75,6 +82,126 @@ Out of the box you get: a `.md` companion beside every page, `llms.txt` and `llm
 site root, an alternate link tag, a managed Schema.org graph on each eligible page with a stable
 canonical URL, and a sitemap (via the auto-wired `@astrojs/sitemap`). Enable `discovery.robots`,
 `site.profile`, `corpus.urlMap`, and the experimental `schema.corpus` outputs when you want them.
+
+Using EmDash or Starlight? Use [`emdashAeo()`](#emdash-cms) or [`starlightAeo()`](#starlight)
+instead of `aeo()`; each registers Astro-AEO with the right defaults for that framework.
+
+## EmDash CMS
+
+**New in 1.5.** [EmDash](https://emdashcms.com/) is a full-stack CMS built on Astro: content lives
+in a database, editors publish in an admin at `/_emdash/admin`, and every page renders on demand.
+Astro-AEO supports it with one line. `emdashAeo()` finds every published post, page, and project,
+serves a Markdown copy of each, lists them in `llms.txt` and `llms-full.txt`, and picks up new
+entries within seconds of publishing, with no rebuild. It works with every EmDash template (Blog,
+Marketing, Portfolio, and Starter), with sites that mix them, and on Node and Cloudflare.
+
+Install it in your EmDash project, then add `emdashAeo()` next to `emdash()` instead of `aeo()`:
+
+```bash
+npm install astro-aeo   # not `astro add`, which would insert a plain aeo()
+```
+
+```js
+// astro.config.mjs
+import emdash, { local } from 'emdash/astro';
+import { sqlite } from 'emdash/db';
+import emdashAeo from 'astro-aeo/emdash';
+
+export default defineConfig({
+  site: 'https://example.com',
+  output: 'server',
+  adapter: node({ mode: 'standalone' }),
+  integrations: [
+    react(),
+    emdash({ database: sqlite({ url: 'file:./data.db' }), storage: local({ /* ... */ }) }),
+    emdashAeo(),
+  ],
+});
+```
+
+Publish a post in the admin, and a few seconds later your site answers with it:
+
+```text
+$ curl https://example.com/llms.txt
+# My Blog
+
+- [The Case for Static](/posts/the-case-for-static.md): Static sites aren't a step backwards.
+- [About](/pages/about.md)
+- [Development](/category/development.md): All posts in the Development category.
+
+$ curl https://example.com/posts/the-case-for-static.md
+# The Case for Static
+...
+```
+
+It registers Astro-AEO for you with these defaults. Anything you pass as `emdashAeo({ aeo: { ... } })`
+wins, and your own `pages.exclude` and `pages.catalogs` entries come first:
+
+| Setting | Default | Why |
+|---|---|---|
+| `pages.exclude` | adds `/_emdash/**` and `/404` | the admin, API, and 404 page are not content |
+| `pages.catalogs` | adds the EmDash catalog, `revalidate: 10` | EmDash pages exist only at request time |
+| `markdown.negotiation` | `'response'` | every EmDash page renders on demand |
+| `discovery.robots.enabled` | `false` | EmDash serves its own `robots.txt` |
+| `discovery.sitemap.mode` | `'disabled'` | EmDash serves its own sitemaps |
+
+The catalog lists every published entry of every collection that has a URL pattern, at the URL
+EmDash itself builds from that pattern (`{slug}`, `{id}`, and the date tokens `{year}` to `{second}`).
+It follows EmDash's sitemap rules: drafts, deleted entries, entries without a slug, and entries marked
+noindex in the SEO panel are left out. A collection without a URL pattern, such as the Marketing
+template's `pages`, is skipped because fixed routes (`/`, `/pricing`) render it, and Astro-AEO already
+knows those. The catalog reads EmDash through its public read API from your own `emdash` install, so
+it works with any EmDash database and never opens one itself. Entries you publish appear within
+`revalidate` seconds without a restart.
+
+### Options
+
+```js
+emdashAeo({
+  collections: {
+    posts: { section: 'Blog' },                          // an llms.txt heading; URLs from the seed urlPattern
+    pages: { section: { title: 'Pages', match: ['/about', '/team'] } },
+    legal: false,                                        // keep a collection out of the corpora
+  },
+  taxonomies: { category: '/category/{slug}', tag: '/tag/{slug}' }, // archive routes to list
+  revalidate: 10,                                        // seconds; 0 = every request, false = once per process
+  maxEntries: 50000,                                     // matches EmDash's sitemap limit
+  aeo: { pages: { exclude: ['/search'] } },              // any Astro-AEO option
+})
+```
+
+A string `section` takes its URLs from the collection's `urlPattern` in the seed file named by
+`package.json` (`/posts/{slug}` matches `/posts/**`). A pattern that starts at the site root, such as
+`/{slug}`, needs an explicit `match`. EmDash stores no URL for a taxonomy, so archive pages are listed
+only when `taxonomies` names their route, and only for terms that have published entries.
+
+### What each template gets
+
+| EmDash template | Listed automatically | Options worth setting |
+|---|---|---|
+| Blog | `/posts/*`, `/pages/*` | `taxonomies` for `/category/*` and `/tag/*`; exclude `/search` |
+| Marketing | `/`, `/pricing`, `/contact` (fixed routes) | none |
+| Portfolio | `/work/*`, `/about` | none |
+| Starter | `/posts/*`, root pages such as `/about` | `taxonomies` |
+| Your own mix | every collection with a URL pattern | `collections` for `llms.txt` sections or to leave one out |
+
+Each row has a complete, tested project under [`recipes/`](recipes/): `emdash-blog`,
+`emdash-marketing`, `emdash-portfolio`, `emdash-starter`, the mixed `emdash` site, and
+`emdash-cloudflare`.
+
+### Things to know
+
+- `emdashAeo()` throws if `aeo()` is also registered, or if `emdash()` is missing. It accepts the
+  current option names only, and it cannot enable IndexNow: the build has no page inventory for an
+  EmDash site, so IndexNow would read every page as removed.
+- With i18n enabled, the catalog lists the default locale only and warns once. Describe translated
+  entries in a catalog of your own.
+- Aggregate files are origin-scoped in production: a deployed server answers `llms.txt` for the
+  configured `site` origin, not for arbitrary `Host` headers.
+- Request-time corpora need Astro 6.3 or newer, and EmDash needs Node 22.16 or newer.
+- On Cloudflare the catalog reads D1 through EmDash's own per-request session, so the options are
+  the same as on Node. [`emdash-cloudflare`](recipes/emdash-cloudflare/) runs the mixed site in
+  workerd on a local D1 database.
 
 ## Configuration
 
@@ -552,87 +679,10 @@ export default defineCmsAdapter({
 These catalogs load through the same failure isolation as a hand-written one: a catalog that throws
 warns, records `catalog-load-failed`, and contributes nothing.
 
-### Using astro-aeo with EmDash
+### EmDash
 
-[EmDash](https://emdashcms.com/) is a CMS built as an Astro integration: content lives in a database,
-every page renders on demand through `getEmDashCollection()` and `getEmDashEntry()`, and the admin is
-served from `/_emdash/admin`. `astro-aeo/emdash` sets all of that up. Add `emdashAeo()` next to
-`emdash()` instead of `aeo()`:
-
-```js
-// astro.config.mjs
-import emdash, { local } from 'emdash/astro';
-import { sqlite } from 'emdash/db';
-import emdashAeo from 'astro-aeo/emdash';
-
-export default defineConfig({
-  site: 'https://example.com',
-  output: 'server',
-  adapter: node({ mode: 'standalone' }),
-  integrations: [
-    react(),
-    emdash({ database: sqlite({ url: 'file:./data.db' }), storage: local({ /* ... */ }) }),
-    emdashAeo(),
-  ],
-});
-```
-
-It registers Astro-AEO for you with these defaults. Anything you pass as `emdashAeo({ aeo: { ... } })`
-wins, and your own `pages.exclude` and `pages.catalogs` entries come first:
-
-| Setting | Default | Why |
-|---|---|---|
-| `pages.exclude` | adds `/_emdash/**` and `/404` | the admin, API, and 404 page are not content |
-| `pages.catalogs` | adds the EmDash catalog, `revalidate: 10` | EmDash pages exist only at request time |
-| `markdown.negotiation` | `'response'` | every EmDash page renders on demand |
-| `discovery.robots.enabled` | `false` | EmDash serves its own `robots.txt` |
-| `discovery.sitemap.mode` | `'disabled'` | EmDash serves its own sitemaps |
-
-The catalog lists every published entry of every collection that has a URL pattern, at the URL
-EmDash itself builds from that pattern (`{slug}`, `{id}`, and the date tokens `{year}` to `{second}`).
-It follows EmDash's sitemap rules: drafts, deleted entries, entries without a slug, and entries marked
-noindex in the SEO panel are left out. A collection without a URL pattern, such as the Marketing
-template's `pages`, is skipped because fixed routes (`/`, `/pricing`) render it, and Astro-AEO already
-knows those. The catalog reads EmDash through its public read API from your own `emdash` install, so
-it works with any EmDash database and never opens one itself. Entries you publish appear within
-`revalidate` seconds without a restart.
-
-Options:
-
-```js
-emdashAeo({
-  collections: {
-    posts: { section: 'Blog' },                          // an llms.txt heading; URLs from the seed urlPattern
-    pages: { section: { title: 'Pages', match: ['/about', '/team'] } },
-    legal: false,                                        // keep a collection out of the corpora
-  },
-  taxonomies: { category: '/category/{slug}', tag: '/tag/{slug}' }, // archive routes to list
-  revalidate: 10,                                        // seconds; 0 = every request, false = once per process
-  maxEntries: 50000,                                     // matches EmDash's sitemap limit
-  aeo: { pages: { exclude: ['/search'] } },              // any Astro-AEO option
-})
-```
-
-A string `section` takes its URLs from the collection's `urlPattern` in the seed file named by
-`package.json` (`/posts/{slug}` matches `/posts/**`). A pattern that starts at the site root, such as
-`/{slug}`, needs an explicit `match`. EmDash stores no URL for a taxonomy, so archive pages are listed
-only when `taxonomies` names their route, and only for terms that have published entries.
-
-Things to know:
-
-- `emdashAeo()` throws if `aeo()` is also registered, or if `emdash()` is missing. It accepts the
-  current option names only, and it cannot enable IndexNow: the build has no page inventory for an
-  EmDash site, so IndexNow would read every page as removed.
-- With i18n enabled, the catalog lists the default locale only and warns once. Describe translated
-  entries in a catalog of your own.
-- Aggregate files are origin-scoped in production: a deployed server answers `llms.txt` for the
-  configured `site` origin, not for arbitrary `Host` headers.
-- Request-time corpora need Astro 6.3 or newer, and EmDash needs Node 22.16 or newer. The recipes
-  run on Node with SQLite. The catalog uses no Node APIs and reads through EmDash's own per-request
-  database on Cloudflare D1, but that platform is not yet covered by a recipe.
-- Recipes: [`emdash-blog`](recipes/emdash-blog/), [`emdash-marketing`](recipes/emdash-marketing/),
-  [`emdash-portfolio`](recipes/emdash-portfolio/), and [`emdash-starter`](recipes/emdash-starter/)
-  mirror EmDash's templates, and [`emdash`](recipes/emdash/) mixes them in one site.
+EmDash sites use `emdashAeo()` instead of `aeo()`, with a catalog that lists every published entry.
+See [EmDash CMS](#emdash-cms).
 
 ### Page versions
 
@@ -1336,8 +1386,11 @@ are uploaded even when they fail the job. Set `upload-sarif: 'false'` where the 
 
 ## Recipes
 
-[`recipes/`](recipes/) holds eight small, complete projects: marketing, blog, Starlight, SaaS, commerce,
-local business, i18n, and SSR. Each builds on its own and passes `astro-aeo audit` with no errors.
+[`recipes/`](recipes/) holds small, complete projects: marketing, blog, Starlight, SaaS, commerce,
+local business, i18n, and SSR, plus six for EmDash: one per EmDash template (`emdash-blog`,
+`emdash-marketing`, `emdash-portfolio`, `emdash-starter`), a site that mixes them (`emdash`), and
+the same mix on Cloudflare (`emdash-cloudflare`). Each builds on its own and passes
+`astro-aeo audit` with no errors; the EmDash recipes are also served and checked request by request.
 
 ## Static edge negotiation
 

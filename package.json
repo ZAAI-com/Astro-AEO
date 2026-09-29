@@ -1,7 +1,7 @@
 {
   "name": "astro-aeo",
   "version": "1.5.0",
-  "description": "Answer Engine Optimization for Astro: .md companion pages, llms.txt, llms-full.txt, robots.txt AI-bot policies, domain-profile.json, sitemap auto-wiring, JSON-LD components, and a validator CLI.",
+  "description": "Answer Engine Optimization for Astro: .md companion pages, llms.txt, llms-full.txt, robots.txt AI-bot policies, domain-profile.json, sitemap auto-wiring, JSON-LD components, a validator CLI, and one-line EmDash CMS support.",
   "type": "module",
   "license": "MIT",
   "author": "ZAAI (https://zaai.com)",
@@ -113,7 +113,9 @@
     "robots.txt",
     "json-ld",
     "schema.org",
-    "markdown"
+    "markdown",
+    "emdash",
+    "cms"
   ],
   "peerDependencies": {
     "@astrojs/starlight": ">=0.32.0",
