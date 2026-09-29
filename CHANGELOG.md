@@ -2,6 +2,47 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## 1.5.2
+
+A patch release on top of 1.5.1 that keeps Markdown companions free of raw Starlight tags and
+glued table words, stops a bad `FaqJsonLd` `id` from failing a render, and types `page.locale` for
+section predicates.
+
+### Starlight components over several lines
+
+- Read a Starlight component tag whose attributes span several lines, as Prettier formats a long
+  `<LinkCard>`, `<Card>`, `<Aside>` or `<TabItem>`, as one tag. Before, the opening `<LinkCard`
+  line slipped past the unknown-component check, so the raw tag and its attribute lines were
+  copied into the Markdown companion without an `authored-source-fallback` diagnostic. A known
+  component now converts as it does on one line, and an unknown component, a computed attribute,
+  or a tag that never ends falls back to rendered extraction.
+
+### Words in tables kept as HTML
+
+- Keep words apart when a table kept as HTML unwraps styling-only `<div>` and `<span>` wrappers.
+  Two spans that CSS laid out as separate blocks, such as
+  `<span>Pilot</span><span class="block">Fleet</span>`, used to read "PilotFleet" once their
+  classes were stripped. Adjacent wrappers now get one space between them, using the same tag rule
+  definition terms use since 1.5.0. Inline tags such as `<b>`, `<a>` and `<code>`, plain text next
+  to a wrapper, and closing punctuation stay attached. A word split across two bare spans gains a
+  space.
+
+### `FaqJsonLd` `id`
+
+- A malformed `id`, such as `"http://["`, no longer fails the page render, and `id=""`, `"   "` or
+  `"./"` no longer gives the FAQPage the page's own URL as its `@id`, which collided with the
+  page's `WebPage` `@id`. Such an `id` is now omitted, and the existing
+  `schema-map-anonymous-entity` warning reports the anonymous FAQPage. A valid `id`, such as
+  `#faq` or an absolute URL, resolves as before, and without a `site` a non-blank `id` is still
+  emitted as written.
+
+### Section predicate types
+
+- Type the page a `corpus.index.sections` predicate receives as the new exported `SectionPage`,
+  an `AeoPage` with `locale?: string | null`. Predicates already received the locale at run time,
+  but a `// @ts-check` or TypeScript config rejected `match: (page) => page.locale === 'en'`.
+  `AeoPage` itself is unchanged.
+
 ## 1.5.1
 
 A patch release on top of 1.5.0 that lets multilingual sites run locally without hreflang errors,
@@ -99,7 +140,7 @@ line, and page catalogs gain one optional key, `pages.catalogs[].revalidate`.
 
 - Meaningful `aria-hidden="true"` glyphs are kept. A separator such as `→`, `·`, `|`, or a dash
   between two runs of text in the same line is unwrapped and spaced (`1 user · 2 orgs`, `Status:
-  Stable`), and a box-drawing tree prefix such as `├──` or `│` is kept before its entry, with no-break spaces so
+Stable`), and a box-drawing tree prefix such as `├──` or `│` is kept before its entry, with no-break spaces so
   nested rows keep their depth. Arrows in
   or directly after links, glyphs inside buttons, labels, `pre` and `code`, emoji, stars and check
   marks, "Copied" labels, empty dots, svgs, and `[hidden]` elements are still removed.
@@ -438,7 +479,7 @@ features and no configuration changes. Every fix below lands with a test that fa
 - Reserve singleton and generated section slugs globally, so a crafted section title can no
   longer produce two chunks at one pathname.
 - Keep IndexNow state advancing when the processing cache is merely disabled. `cache.enabled:
-  false` previously reported the cache as read-only and silently stopped IndexNow entirely.
+false` previously reported the cache as read-only and silently stopped IndexNow entirely.
 - Reject an unresolved locale group that shares `auto` mode with concrete locales instead of
   publishing a `/null/` path. The guard now reads the same complete locale set that selects the
   corpus topology, so a multi-origin `auto` build can no longer publish a `/null/` directory.
