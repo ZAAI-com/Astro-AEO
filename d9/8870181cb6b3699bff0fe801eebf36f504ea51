@@ -1,0 +1,33 @@
+components/index.d.ts
+  s_6624e51b7083bd::t_a8e55374d2d9bc 71-76
+src/index.e2e.test.js
+  s_6624e51b7083bd::t_e471de3f309aba 145-146
+fixtures/demo/src/pages/faq.astro
+  s_6624e51b7083bd::t_e471de3f309aba 12
+components/FaqJsonLd.astro
+  s_6624e51b7083bd::t_3bbbe03ccb374e 7-10,14-17,22
+  s_6624e51b7083bd::t_a8e55374d2d9bc 11
+README.md
+  s_6624e51b7083bd::t_b81bcd42d1e6f1 1327
+CHANGELOG.md
+  s_6624e51b7083bd::t_b81bcd42d1e6f1 8,49-55
+  s_6624e51b7083bd::t_999c1e1f4d1c91 56
+fixtures/types-consumer/consumer.ts
+  s_6624e51b7083bd::t_a8e55374d2d9bc 415
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d98870181cb6b3699bff0fe801eebf36f504ea51",
+  "prompts": {},
+  "sessions": {
+    "s_6624e51b7083bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d043c09c-5870-4fa5-9ac6-334b0be03e5f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
