@@ -7,10 +7,11 @@ describe('crawler registry', () => {
     expect(CRAWLER_REGISTRY.map((entry) => entry.token)).toEqual([
       'OAI-SearchBot', 'GPTBot', 'ChatGPT-User', 'ClaudeBot', 'Claude-SearchBot',
       'Claude-User', 'PerplexityBot', 'Perplexity-User', 'Googlebot',
-      'Google-Extended', 'bingbot',
+      'Google-Extended', 'bingbot', 'Applebot-Extended', 'Meta-ExternalAgent',
+      'Amazonbot', 'CCBot',
     ]);
     for (const entry of CRAWLER_REGISTRY) {
-      expect(entry.verifiedAt).toBe('2026-08-12');
+      expect(['2026-08-12', '2026-09-29']).toContain(entry.verifiedAt);
       expect(entry.documentationUrl).toMatch(/^https:\/\//);
       expect(Object.isFrozen(entry)).toBe(true);
       expect(Object.isFrozen(entry.purposes)).toBe(true);

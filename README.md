@@ -978,7 +978,9 @@ To clear the cache by hand, delete only `.astro/aeo-cache/processing-v1`: deleti
 `discovery.robots.universalAllow` (default `true`) makes `robots.txt` lead with a `User-agent: *` / `Allow: /` group, so unlisted crawlers see an explicit open policy even when you also name specific bots in `allow`/`disallow`. It is suppressed automatically if you already declare a `User-agent: *` group yourself (via `allow`, `disallow`, or `extraLines`), so there is no duplicate group. Set it to `false` for a named-bots-only policy.
 
 The `custom` policy preserves this renderer. Presets use a frozen, first-party-documented crawler
-registry: `open`, `search-open-training-closed`, `retrieval-only`, and `closed`. Per-token
+registry: `open`, `search-open-training-closed`, `retrieval-only`, and `closed`. The registry
+covers OpenAI, Anthropic, Perplexity, Google, Microsoft, Apple (`Applebot-Extended`), Meta
+(`Meta-ExternalAgent`), Amazon (`Amazonbot`) and Common Crawl (`CCBot`) tokens. Per-token
 `allow`/`disallow` overrides are case-insensitive and cannot overlap. Content Signals are emitted
 only when all three booleans are supplied, and each `Content-Signal` line is placed inside every
 applicable `User-agent` group (Cloudflare treats it as a group directive). When

@@ -131,7 +131,11 @@ describe('buildRobotsTxt', () => {
       'User-agent: *\nAllow: /\n\n' +
       'User-agent: GPTBot\nDisallow: /\n\n' +
       'User-agent: ClaudeBot\nDisallow: /\n\n' +
-      'User-agent: Google-Extended\nDisallow: /\n\n',
+      'User-agent: Google-Extended\nDisallow: /\n\n' +
+      'User-agent: Applebot-Extended\nDisallow: /\n\n' +
+      'User-agent: Meta-ExternalAgent\nDisallow: /\n\n' +
+      'User-agent: Amazonbot\nDisallow: /\n\n' +
+      'User-agent: CCBot\nDisallow: /\n\n',
     );
   });
 
@@ -150,8 +154,9 @@ describe('buildRobotsTxt', () => {
     ]) {
       expect(out).toContain(`User-agent: ${token}\nAllow: /`);
     }
-    expect(out).not.toContain('User-agent: Google-Extended');
-    expect(out).not.toContain('User-agent: GPTBot');
+    for (const token of ['Google-Extended', 'GPTBot', 'Applebot-Extended', 'Meta-ExternalAgent', 'Amazonbot', 'CCBot']) {
+      expect(out).not.toContain(`User-agent: ${token}`);
+    }
   });
 
   test('applies case-insensitive known overrides and sorted unknown overrides', () => {

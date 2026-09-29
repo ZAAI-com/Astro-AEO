@@ -21,6 +21,17 @@ A patch release on top of 1.5.0 that lets multilingual sites run locally without
   in its sitemap. Credentials, fragments, other schemes and public `http:` hosts stay rejected
   everywhere.
 
+### Crawler registry
+
+- Add `Applebot-Extended`, `Meta-ExternalAgent`, `Amazonbot` and `CCBot` to the frozen crawler
+  registry, each as a training crawler with its first-party documentation URL. Preset policies now
+  address them: `search-open-training-closed` adds a `Disallow: /` group for each, and
+  `retrieval-only` and `closed` keep them behind the wildcard `Disallow`. Overrides for these
+  tokens are now matched case-insensitively and rendered in their canonical spelling. The `custom`
+  policy is unchanged.
+- Undocumented tokens such as `anthropic-ai` and `cohere-ai` stay out of the registry. Name them
+  in `allow` or `disallow` to address them explicitly.
+
 ## 1.5.0
 
 The cache-integrity, Markdown-fidelity, and EmDash release. The incremental processing cache now
