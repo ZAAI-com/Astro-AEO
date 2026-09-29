@@ -1,0 +1,36 @@
+src/audit/rules.js
+  s_6624e51b7083bd::t_7a9e48f2f9db73 80-81
+src/core/corpus-artifacts.test.js
+  s_6624e51b7083bd::t_0eeea95680129f 210-213,215-233
+  s_6624e51b7083bd::t_3d6faa55988e94 214
+README.md
+  s_6624e51b7083bd::t_0b59b47277e6f2 936-937
+  s_6624e51b7083bd::t_1154766d70d75d 938-940
+docs/rules.md
+  s_6624e51b7083bd::t_15b4c51a3df57e 583
+src/hooks/build-done.test.js
+  s_6624e51b7083bd::t_00b8b0527d1fad 448-466
+CHANGELOG.md
+  s_6624e51b7083bd::t_0b59b47277e6f2 7-8,36-47
+  s_6624e51b7083bd::t_31cd0ca36fce9d 48
+src/core/corpus-artifacts.js
+  s_6624e51b7083bd::t_7a9e48f2f9db73 75,85,670-677,683,688
+src/audit/local.test.js
+  s_6624e51b7083bd::t_0eeea95680129f 283-302
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "09b1c757e2bca7c5394a0f3884df2939eb814d15",
+  "prompts": {},
+  "sessions": {
+    "s_6624e51b7083bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d043c09c-5870-4fa5-9ac6-334b0be03e5f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
