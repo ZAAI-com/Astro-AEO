@@ -56,6 +56,30 @@ describe('Starlight Markdown conversion', () => {
     });
   });
 
+  it('reads a component tag spread over several lines, as Prettier formats it', () => {
+    const source = [
+      "import { CardGrid, LinkCard, Aside } from '@astrojs/starlight/components';",
+      '',
+      '<CardGrid>',
+      '  <LinkCard',
+      '    title="Get started"',
+      '    description="Sign in and pick a site."',
+      '    href="/en/get-started/"',
+      '  />',
+      '  <LinkCard title="Set up" href="/en/set-up/" />',
+      '</CardGrid>',
+      '<Aside',
+      '  type="tip"',
+      '  title="Before you start"',
+      '>',
+      'Back up.',
+      '</Aside>',
+    ].join('\n');
+    expect(convert(source, true)).toEqual({
+      markdown: '**[Get started](/en/get-started/)**\n**[Set up](/en/set-up/)**\n\n> **Tip: Before you start**\n>\n> Back up.\n',
+    });
+  });
+
   it.each([
     ['an unknown component', '<Chart data="x" />'],
     ['an expression', 'Total: {items.length}'],
@@ -64,6 +88,11 @@ describe('Starlight Markdown conversion', () => {
     ['a label computed at run time', '<TabItem label={name}>'],
     ['a card without a literal title', '<Card icon="star">'],
     ['an aside left open', '<Aside>\nnever closed'],
+    ['an unknown component over several lines', '<Chart\n  data="x"\n/>'],
+    ['a bare unknown tag name on its own line', 'Text\n<Chart'],
+    ['a multi-line attribute computed at run time', '<LinkCard\n  title={name}\n  href="/x/"\n/>'],
+    ['a multi-line tag that never ends', '<LinkCard\n  title="Guide"'],
+    ['a multi-line tag cut off by a fence', '<LinkCard\n  title="Guide"\n```js\nx\n```'],
   ])('falls back for %s', (_label, source) => {
     expect(convert(source, true)).toEqual({ fallback: 'dynamic-mdx' });
   });

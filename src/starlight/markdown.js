@@ -26,7 +26,8 @@ export function starlightMarkdown(source, options = {}) {
   const asides = [];
   let head = options.mdx === true;
 
-  for (const raw of lines) {
+  for (let index = 0; index < lines.length; index += 1) {
+    const raw = lines[index];
     const fenceMatch = FENCE.exec(raw);
     if (fence !== null) {
       if (fenceMatch && fenceMatch[2].startsWith(fence) && raw.trim() === fenceMatch[2]) fence = null;
@@ -66,6 +67,17 @@ export function starlightMarkdown(source, options = {}) {
     }
 
     if (options.mdx) {
+      // Prettier spreads a long component tag over several lines. Read it as one
+      // line so a known component still converts and an unknown one still falls back.
+      if (/^\s*<[A-Z][\w.]*(?:\s|$)/.test(line) && !tagClosed(line)) {
+        const parts = [line.trimEnd()];
+        while (!tagClosed(parts.join(' '))) {
+          index += 1;
+          if (index >= lines.length || FENCE.test(lines[index])) return { fallback: 'dynamic-mdx' };
+          parts.push(lines[index].trim());
+        }
+        line = parts.filter(Boolean).join(' ').replace(/\s+(\/?>)$/, ' $1');
+      }
       const converted = convertComponents(line);
       if (converted === null) return { fallback: 'dynamic-mdx' };
       if (converted.open) {
@@ -119,8 +131,31 @@ function convertComponents(line) {
   if (trimmed === '</Aside>') return { text: '', close: true };
   // Any other component, or an expression outside inline code, cannot be rendered from source.
   const prose = line.replace(/`[^`]*`/g, '');
-  if (/<\/?[A-Z][\w.]*[\s/>]/.test(prose) || /(^|[^\\])\{/.test(prose)) return null;
+  if (/<\/?[A-Z][\w.]*(?:[\s/>]|$)/.test(prose) || /(^|[^\\])\{/.test(prose)) return null;
   return { text: line };
+}
+
+/**
+ * Whether a line that opens a tag also ends it: a `>` outside quoted attribute
+ * values and `{...}` expressions.
+ *
+ * @param {string} text
+ */
+function tagClosed(text) {
+  /** @type {string | null} */
+  let quoteChar = null;
+  let depth = 0;
+  for (const char of text.slice(text.indexOf('<') + 1)) {
+    if (quoteChar !== null) {
+      if (char === quoteChar) quoteChar = null;
+    } else if (depth > 0) {
+      if (char === '{') depth += 1;
+      else if (char === '}') depth -= 1;
+    } else if (char === '"' || char === "'") quoteChar = char;
+    else if (char === '{') depth = 1;
+    else if (char === '>') return true;
+  }
+  return false;
 }
 
 /** A quoted string attribute only: an expression value means the content is dynamic. @param {string} attributes @param {string} name */
