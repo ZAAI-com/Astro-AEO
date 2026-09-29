@@ -704,8 +704,8 @@ list it again once that many seconds have passed since its last listing, so a CM
 published entries without a restart: `{ module: './src/aeo-catalog.js', revalidate: 30 }`. `0` lists
 on every use of the inventory, and `false` (or omitting it) keeps the first listing. If a revalidating
 catalog's first listing fails, it is retried on its next use instead of staying empty; if a later
-refresh fails, the last listing stays in place and the refresh is retried after another window. Development always lists
-afresh, and a build lists once.
+refresh fails, the last listing stays in place and the refresh is retried after another window.
+Development always lists afresh, and a build lists once.
 
 Catalog entrypoints must be JavaScript that Node's native module loader can execute:
 `.js`, `.mjs`, or `.cjs`. This keeps build preflight identical on every supported Node
