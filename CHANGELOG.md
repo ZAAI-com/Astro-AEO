@@ -4,10 +4,11 @@ All notable changes to this project are documented here. This project follows [S
 
 ## 1.5.0
 
-The cache-integrity and Markdown-fidelity release. The incremental processing cache now resets itself
-whenever the extractor changes and stops growing without bound, and Markdown companions keep
-meaningful separators, intact bold definition terms, both images of a before/after figure, and
-languages on code fences. No configuration key changes.
+The cache-integrity, Markdown-fidelity, and EmDash release. The incremental processing cache now
+resets itself whenever the extractor changes and stops growing without bound, and Markdown companions
+keep meaningful separators, intact bold definition terms, both images of a before/after figure, and
+languages on code fences. The new `astro-aeo/emdash` integration sets up an EmDash CMS site in one
+line, and page catalogs gain one optional key, `pages.catalogs[].revalidate`.
 
 ### Behavior changes worth reading before upgrading
 
@@ -65,21 +66,46 @@ languages on code fences. No configuration key changes.
   explicit `language-*` class is used as written. `plaintext`, `text`, `txt`, and `plain` from the
   other sources give a bare fence. Expressive Code lines keep their line breaks.
 
-### Documentation and recipes
+### EmDash
 
-- New `emdash` recipe: a complete EmDash CMS site covering the blog, portfolio, and marketing
-  template content models on the Node variant (SQLite), with a `defineCmsAdapter` catalog that lists
-  published entries from the database, admin exclusion through `pages.exclude`, and a runtime test
-  that boots the built server and asserts `llms.txt`, `llms-full.txt`, Markdown companions,
-  negotiation, and draft exclusion. The README gained a "Using astro-aeo with EmDash" section with
-  the same wiring.
+- New `astro-aeo/emdash` subpath. `emdashAeo()` goes next to `emdash()` in `integrations` and
+  registers Astro-AEO itself: it excludes `/_emdash/**` and `/404`, turns on
+  `markdown.negotiation: 'response'`, leaves `robots.txt` and sitemaps to EmDash, and adds a page
+  catalog. Options set in `emdashAeo({ aeo })` win. It throws when `aeo()` is also registered, when
+  `emdash()` is missing, for legacy 1.0 option names, and for IndexNow, which has no build-time
+  inventory to compare on an EmDash site.
+- The catalog lists every published entry of every collection with a URL pattern, at the URL EmDash
+  builds from it (`{slug}`, `{id}`, and date tokens in UTC), following EmDash's sitemap rules:
+  drafts, deleted entries, entries without a slug, and noindex entries are left out. Collections
+  without a pattern, such as the Marketing template's `pages`, are skipped rather than guessed. It
+  reads EmDash's public plugin read API through a virtual module served from the project's own
+  `emdash` install, so `emdash` is an optional peer, and the catalog never opens a database itself.
+- Options: `collections` (`false` to leave one out, or a `section` heading whose URLs come from the
+  seed's `urlPattern`), `taxonomies` (archive routes to list, for terms with published entries),
+  `revalidate` (default 10 seconds), and `maxEntries` (default 50,000). With i18n enabled, only the
+  default locale is listed, with one warning.
+- Five recipes: `emdash-blog`, `emdash-marketing`, `emdash-portfolio`, and `emdash-starter` mirror
+  EmDash 1.0.1's templates, and `emdash` is a marketing site with a blog and customer stories that
+  mixes them. `test/recipes/emdash.test.js` seeds, builds, audits, and serves each one, and proves an
+  entry published while the server runs appears in `llms.txt`. The README's "Using astro-aeo with
+  EmDash" section documents the integration.
+
+### Page catalogs
+
+- `pages.catalogs[].revalidate` lists a catalog again at request time once that many seconds have
+  passed since its last listing, so a CMS catalog picks up published entries without a server
+  restart. `0` lists on every use, and `false` or omitting it keeps today's behavior of one listing
+  per process. A revalidating catalog that fails is retried on its next use instead of staying
+  empty, a listing in flight is shared, and a catalog without `revalidate` is never re-listed
+  because another one refreshed. Development and builds are unchanged.
 
 ### Package size
 
-The published package measures 365,548 packed and 1,404,823 unpacked bytes across 168 files, up from
-355,650 and 1,375,031 in 1.4.0 (about 3 and 2 percent). The growth is the cache producer record and
-the extraction passes with their documentation; nothing new enters a consumer's runtime bundle. The
-unpacked ceiling moves from 1,380,000 to 1,420,000 bytes.
+The published package measures 375,262 packed and 1,435,857 unpacked bytes across 173 files, up from
+355,650 and 1,375,031 in 1.4.0 (about 6 and 4 percent). The growth is the cache producer record, the
+extraction passes, and the `astro-aeo/emdash` integration with their documentation. Only a project
+that uses `emdashAeo()` bundles anything new: the EmDash catalog. The unpacked ceiling moves from
+1,380,000 to 1,460,000 bytes.
 
 ## 1.4.0
 
