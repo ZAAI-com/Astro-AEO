@@ -471,6 +471,12 @@ describe('conversion fidelity', () => {
         '**![Icon](/i.png) Label**\n\nd'],
       ['a term that is already bold', '<dt><strong>Term</strong></dt><dd>d</dd>', '**Term**\n\nd'],
       ['a partly bold term', '<dt><b>Term</b> extra</dt><dd>d</dd>', '**Term extra**\n\nd'],
+      ['a step badge glued to its label', '<dt><span class="badge">1</span>Configure</dt><dd>d</dd>',
+        '**1 Configure**\n\nd'],
+      ['an in-word emphasis', '<dt><em>Re</em>boot</dt><dd>d</dd>', '**_Re_boot**\n\nd'],
+      ['a list inside the term', '<dt>Label<ul><li>a</li><li>b</li></ul></dt><dd>d</dd>',
+        '**Label**\n\n-   a\n-   b\n\nd'],
+      ['a term holding only a list', '<dt><ul><li>a</li></ul></dt><dd>d</dd>', '-   a\n\nd'],
     ])('%s', (_name, body, expected) => {
       expect(convert(`<main><dl>${body}</dl></main>`)).toBe(expected);
     });

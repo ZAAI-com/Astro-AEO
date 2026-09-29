@@ -554,6 +554,30 @@ function inlineBlocks(el) {
   }
 }
 
+/** Blocks moved out of a definition term instead of being bolded. */
+const TERM_BLOCKS = 'ul, ol, pre, table, blockquote';
+
+/** Inline tags that often split one word, such as a drop cap in `<b>S</b>tatus`. */
+const IN_WORD_TAGS = new Set(['a', 'abbr', 'b', 'code', 'em', 'i', 'mark', 's', 'small', 'strong', 'sub', 'sup', 'u']);
+
+/**
+ * Space term parts that CSS lays out apart, such as a step number badge in
+ * `<span>1</span>Configure`, which would otherwise read "1Configure".
+ *
+ * @param {Element} strong
+ */
+function spaceTermParts(strong) {
+  const document = strong.ownerDocument;
+  for (const node of [...strong.childNodes]) {
+    const next = node.nextSibling;
+    if (!next || !(node.textContent ?? '').trim() || !(next.textContent ?? '').trim()) continue;
+    if (/\s$/.test(node.textContent ?? '') || /^\s/.test(next.textContent ?? '')) continue;
+    const separate = [node, next].some((part) =>
+      part.nodeType === 1 && !IN_WORD_TAGS.has(/** @type {Element} */ (part).localName));
+    if (separate) strong.insertBefore(document.createTextNode(' '), next);
+  }
+}
+
 /**
  * Rewrite definition lists into a bold term followed by its description.
  *
@@ -567,11 +591,20 @@ function normalizeDefinitionLists(root) {
       const paragraph = document.createElement('p');
       const strong = document.createElement('strong');
       strong.innerHTML = term.innerHTML;
+      spaceTermParts(strong);
       inlineBlocks(strong);
       // A term that already bolds its text would otherwise give `****Term****`.
       for (const inner of [...strong.querySelectorAll('strong, b')]) inner.replaceWith(...inner.childNodes);
+      // Lists and other blocks cannot live inside one bold run; they follow the term.
+      const blocks = [...strong.querySelectorAll(TERM_BLOCKS)].filter((block) =>
+        !block.parentElement?.closest(TERM_BLOCKS));
+      for (const block of blocks) block.remove();
       paragraph.appendChild(strong);
-      term.replaceWith(paragraph);
+      if ((strong.textContent ?? '').trim() || strong.querySelector('img')) {
+        term.replaceWith(paragraph, ...blocks);
+      } else {
+        term.replaceWith(...blocks);
+      }
     }
     for (const description of [...list.querySelectorAll('dd')]) {
       if (description.closest('dl') !== list) continue;

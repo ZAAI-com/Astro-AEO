@@ -50,7 +50,9 @@ languages on code fences. No configuration key changes.
   already wraps its text in `<strong>` no longer doubles to `****Term****`. New strong and emphasis
   rules keep any bold or italic run on one line: line breaks at its edges move outside the
   delimiters, blank-line runs inside collapse to one space, and a run without line breaks converts
-  exactly as before.
+  exactly as before. Term parts that CSS lays out apart, such as a step number in
+  `<span>1</span>Configure`, are spaced (`**1 Configure**`), and a list or other block inside a
+  term follows the bold term instead of breaking it.
 - Figures keep every shown image. Only alternates of another shown image are dropped: images hidden
   from assistive technology or with `[hidden]`, the dark variant of a light/dark pair
   (`hidden dark:block`, Starlight's `light:sl-hidden`), in either order. A dark-mode border no longer
