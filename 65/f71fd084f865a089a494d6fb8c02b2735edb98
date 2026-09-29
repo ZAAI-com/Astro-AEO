@@ -1,0 +1,29 @@
+.changeset/faq-id-hardening.md
+  s_888f8e365b5f94::t_1841d6ca4287a0 1-10
+components/FaqJsonLd.astro
+  s_888f8e365b5f94::t_ba6a18d6c5f65c 2,12-13,19
+components/index.d.ts
+  s_888f8e365b5f94::t_1841d6ca4287a0 74-75
+src/lib/entity-id.js
+  s_888f8e365b5f94::t_ba6a18d6c5f65c 1-33
+src/lib/entity-id.test.js
+  s_888f8e365b5f94::t_ba6a18d6c5f65c 1-37
+README.md
+  s_888f8e365b5f94::t_1841d6ca4287a0 1327
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "65f71fd084f865a089a494d6fb8c02b2735edb98",
+  "prompts": {},
+  "sessions": {
+    "s_888f8e365b5f94": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "24ff9027-fb95-47e2-93ad-fb0f11deaaa1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
