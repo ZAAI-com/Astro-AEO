@@ -1,6 +1,7 @@
 // @ts-check
 import { readFileSync } from 'node:fs';
 import aeo from './index.js';
+import { DEFAULT_SECTIONS } from './config.js';
 import { DEFAULT_MAX_ENTRIES } from './emdash/inventory.js';
 import { urlPatternGlob } from './emdash/url-pattern.js';
 
@@ -99,8 +100,9 @@ export function emdashDefaults(options = {}, facts = {}) {
       ...input.corpus,
       index: {
         ...input.corpus?.index,
+        // Without the project's own sections, keep the default Home rule ahead of the collections.
         sections: [
-          ...(input.corpus?.index?.sections ?? []),
+          ...(input.corpus?.index?.sections ?? DEFAULT_SECTIONS),
           ...collectionSections(options.collections ?? {}, facts.patterns ?? {}, facts.warn),
         ],
       },

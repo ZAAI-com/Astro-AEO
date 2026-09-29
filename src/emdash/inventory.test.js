@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
+import { spawnSync } from 'node:child_process';
 import { listEmDashPages } from './inventory.js';
-import catalog from './catalog.js';
+import { listEmDashCatalogPages } from './catalog.js';
 
 /** @param {Partial<import('./inventory.js').EmDashEntry>} entry */
 const entry = (entry) => ({ id: entry.slug ?? 'id', slug: 'slug', data: {}, ...entry });
@@ -143,9 +144,31 @@ describe('listEmDashPages', () => {
 });
 
 describe('the EmDash catalog module', () => {
-  test('lists nothing where the Vite bridge does not exist, as in the native build pass', async () => {
-    expect(catalog.name).toBe('emdash');
-    expect(await catalog.listPages({ command: 'build', siteUrl: 'https://example.com', base: '/', trailingSlash: 'ignore' }))
-      .toEqual([]);
+  test('lists nothing in the native build pass, where Node cannot load the Vite bridge', () => {
+    const script = `import catalog from ${JSON.stringify(new URL('./catalog.js', import.meta.url).href)};\n` +
+      "console.log(catalog.name, JSON.stringify(await catalog.listPages({ command: 'build', siteUrl: 'https://example.com', base: '/', trailingSlash: 'ignore' })));";
+    const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8' });
+    expect(result.stderr).toBe('');
+    expect(result.stdout.trim()).toBe('emdash []');
+  });
+
+  test('throws any other bridge failure so the runtime warns and retries', async () => {
+    const failure = Object.assign(new Error('does not provide an export named getDb'), { code: 'ERR_SYNTAX' });
+    await expect(listEmDashCatalogPages(async () => { throw failure; })).rejects.toBe(failure);
+  });
+
+  test('lists published entries through the bridge', async () => {
+    const list = vi.fn(async () => ({ items: [entry({ slug: 'hello', data: { title: 'Hello' } })], cursor: null }));
+    const bridge = {
+      options: {},
+      getDb: async () => ({}),
+      createSchemaAccess: () => ({ listCollections: async () => [posts] }),
+      createContentAccess: () => ({ list }),
+      isI18nEnabled: () => false,
+      getTaxonomyTerms: async () => [],
+    };
+    const pages = await listEmDashCatalogPages(async () => bridge);
+    expect(pages.map((page) => page.pathname)).toEqual(['/posts/hello']);
+    expect(list).toHaveBeenCalledWith('posts', expect.objectContaining({ where: { status: 'published' } }));
   });
 });

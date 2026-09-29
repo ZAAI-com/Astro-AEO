@@ -10,7 +10,7 @@ import { assertExactPathname } from './core/artifact-path.js';
 import { isPublicIp } from './build/public-ip.js';
 
 /** @type {import('./index.js').SectionRule[]} */
-const DEFAULT_SECTIONS = [{ title: 'Home', match: '/' }];
+export const DEFAULT_SECTIONS = [{ title: 'Home', match: '/' }];
 
 /**
  * @param {import('./index.js').AstroAeoConfig} [rawConfig]

@@ -809,7 +809,8 @@ function isMinimalPageDescriptor(value, pathname) {
  * `revalidate` window allows a fresh listing. Each loader keeps its own
  * listing, so a live CMS catalog refreshes without re-listing static ones, and
  * the merged inventory (with its warnings) is rebuilt only when a listing
- * changed. A failed listing is kept only by catalogs without `revalidate`.
+ * changed. A failed listing is kept only by catalogs without `revalidate`; a
+ * revalidating catalog whose refresh fails keeps its last successful listing.
  *
  * @param {RuntimeCatalogLoader[]} loaders
  * @param {Runtime} runtime
@@ -856,7 +857,7 @@ function isRevalidating(loader) {
 function revalidatedListing(listing, loader, context, now) {
   const settled = settledListings.get(listing);
   if (!settled || now() < settled.expiresAt) return listing;
-  return listRuntimeCatalog(loader, context, now);
+  return listRuntimeCatalog(loader, context, now, settled);
 }
 
 /** @type {WeakMap<Promise<RuntimeCatalogListing>, RuntimeCatalogListing>} */
@@ -866,9 +867,10 @@ const settledListings = new WeakMap();
  * @param {RuntimeCatalogLoader} loader
  * @param {import('../page.js').CatalogContext} context
  * @param {() => number} now
+ * @param {RuntimeCatalogListing} [previous] the expired listing a refresh replaces
  * @returns {Promise<RuntimeCatalogListing>}
  */
-function listRuntimeCatalog(loader, context, now) {
+function listRuntimeCatalog(loader, context, now, previous) {
   const listing = (async () => {
     try {
       const catalog = await loader.load();
@@ -877,6 +879,13 @@ function listRuntimeCatalog(loader, context, now) {
       const expiresAt = isRevalidating(loader) ? now() + loader.revalidate * 1000 : Infinity;
       return { listed: Array.isArray(listed) ? listed : [], expiresAt };
     } catch {
+      // A failed refresh serves the last good listing and retries after another window.
+      if (isRevalidating(loader) && previous?.listed) {
+        console.warn(
+          `astro-aeo: the runtime page catalog "${loader.module}" failed; its last listing is kept.`,
+        );
+        return { listed: previous.listed, expiresAt: now() + loader.revalidate * 1000 };
+      }
       console.warn(
         `astro-aeo: the runtime page catalog "${loader.module}" failed and contributed nothing.`,
       );

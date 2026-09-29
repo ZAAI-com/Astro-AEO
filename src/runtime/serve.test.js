@@ -1212,6 +1212,36 @@ describe('serveMarkdown', () => {
     }
   });
 
+  test('keeps the last listing when a revalidating catalog fails to refresh', async () => {
+    const requestRuntime = runtime();
+    requestRuntime.command = 'build';
+    let result = () => [{ pathname: '/first' }];
+    const listPages = vi.fn(() => result());
+    const loaders = [{ ...catalogLoader({ listPages }), revalidate: 10 }];
+    let clock = 0;
+    const paths = async () =>
+      (await runtimeCatalogPagesFor(loaders, requestRuntime, undefined, () => clock)).map((page) => page.pathname);
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await paths()).toEqual(['/first']);
+      result = () => { throw new Error('database unavailable'); };
+      clock = 10_000;
+      expect(await paths()).toEqual(['/first']);
+      expect(warning).toHaveBeenCalledOnce();
+      expect(warning.mock.calls[0][0]).toContain('its last listing is kept');
+      // The failed refresh waits one more window instead of retrying on every use.
+      clock = 19_999;
+      expect(await paths()).toEqual(['/first']);
+      expect(listPages).toHaveBeenCalledTimes(2);
+      result = () => [{ pathname: '/second' }];
+      clock = 20_000;
+      expect(await paths()).toEqual(['/second']);
+      expect(listPages).toHaveBeenCalledTimes(3);
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
   test('caches a rejected runtime catalog loader and warns once', async () => {
     const requestRuntime = runtime();
     requestRuntime.command = 'preview';

@@ -111,7 +111,7 @@ describe('emdashDefaults', () => {
         catalogs: [{ module: 'astro-aeo/emdash/catalog', revalidate: 10 }],
       },
       markdown: { negotiation: 'response' },
-      corpus: { index: { sections: [] } },
+      corpus: { index: { sections: [{ title: 'Home', match: '/' }] } },
       discovery: { robots: { enabled: false }, sitemap: { mode: 'disabled' } },
     });
   });
@@ -138,7 +138,7 @@ describe('emdashDefaults', () => {
     });
   });
 
-  it('appends one section per collection that names one', () => {
+  it('appends one section per collection that names one, after the default Home rule', () => {
     const config = emdashDefaults(
       {
         collections: {
@@ -151,6 +151,7 @@ describe('emdashDefaults', () => {
       { patterns: { posts: '/blog/{year}/{month}/{slug}' } },
     );
     expect(config.corpus?.index?.sections).toEqual([
+      { title: 'Home', match: '/' },
       { title: 'Blog', match: '/blog/**' },
       { title: 'Customers', match: ['/customers/**'] },
     ]);
