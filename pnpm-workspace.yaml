@@ -11,6 +11,7 @@ allowBuilds:
   workerd: true
 minimumReleaseAgeExclude:
   - '@emdash-cms/admin@1.0.1'
+  - '@emdash-cms/cloudflare@1.0.1'
   - '@emdash-cms/auth@1.0.1'
   - '@emdash-cms/blocks@1.0.1'
   - '@emdash-cms/gutenberg-to-portable-text@1.0.1'

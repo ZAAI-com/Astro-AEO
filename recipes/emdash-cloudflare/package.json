@@ -1,0 +1,29 @@
+{
+  "name": "astro-aeo-recipe-emdash-cloudflare",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "emdash": {
+    "seed": "seed/seed.json"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "deploy": "astro build && wrangler deploy",
+    "audit": "astro-aeo audit dist/client"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "^14.3.3",
+    "@astrojs/react": "^6.0.6",
+    "@emdash-cms/cloudflare": "1.0.1",
+    "astro": "^7.3.5",
+    "astro-aeo": "^1.5.0",
+    "emdash": "1.0.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "wrangler": "^4.142.0"
+  }
+}

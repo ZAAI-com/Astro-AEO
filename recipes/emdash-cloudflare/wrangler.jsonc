@@ -1,0 +1,9 @@
+{
+  "name": "astro-aeo-recipe-emdash-cloudflare",
+  "main": "./src/worker.js",
+  "compatibility_date": "2026-02-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [{ "binding": "DB", "database_name": "astro-aeo-recipe-emdash" }],
+  "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "astro-aeo-recipe-emdash-media" }],
+  "triggers": { "crons": ["* * * * *"] }
+}

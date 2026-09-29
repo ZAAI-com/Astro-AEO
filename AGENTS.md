@@ -98,6 +98,8 @@ plain ESM with no package build step.
   `inventory.js` and `url-pattern.js` are pure and mirror EmDash's sitemap rules and URL patterns. The
   boundary test covers `src/emdash/`. The `emdash` and `emdash-<template>` recipes need a seeded
   database and a running server, so `test/recipes/emdash.test.js` builds and checks each one once.
+  `emdash-cloudflare` runs in workerd through `astro preview`; the harness seeds Miniflare's local
+  D1 file with EmDash's CLI after the first request creates it, then waits one `revalidate` window.
 
 - Static edge negotiation is for sites with no adapter. `src/edge/` holds the provider plugin
   factories and re-exports the handlers; `src/runtime/edge/handler.js` is the one decision function and

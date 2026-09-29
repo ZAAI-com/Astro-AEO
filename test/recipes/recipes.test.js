@@ -14,12 +14,13 @@ const ON_DEMAND = new Set(['ssr']);
 const isEmDash = (name) => name === 'emdash' || name.startsWith('emdash-');
 
 describe('recipes', () => {
-  test('cover the thirteen documented kinds of site, each with a README', () => {
+  test('cover the fourteen documented kinds of site, each with a README', () => {
     expect(names).toEqual([
       'blog',
       'commerce',
       'emdash',
       'emdash-blog',
+      'emdash-cloudflare',
       'emdash-marketing',
       'emdash-portfolio',
       'emdash-starter',

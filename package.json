@@ -152,6 +152,7 @@
     "@astrojs/vercel": "11.0.11",
     "@changesets/cli": "^2.31.1",
     "@deno/astro-adapter": "0.6.0",
+    "@emdash-cms/cloudflare": "1.0.1",
     "@mdx-js/mdx": "^3.1.1",
     "@types/node": "^26.6.3",
     "@types/turndown": "^5.0.6",
