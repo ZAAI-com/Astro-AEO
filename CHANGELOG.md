@@ -115,7 +115,7 @@ line, and page catalogs gain one optional key, `pages.catalogs[].revalidate`.
 
 ### Package size
 
-The published package measures 376,772 packed and 1,440,205 unpacked bytes across 173 files, up from
+The published package measures 377,711 packed and 1,443,195 unpacked bytes across 173 files, up from
 355,650 and 1,375,031 in 1.4.0 (about 6 and 5 percent). The growth is the cache producer record, the
 extraction passes, and the `astro-aeo/emdash` integration with their documentation. Only a project
 that uses `emdashAeo()` bundles anything new: the EmDash catalog. The unpacked ceiling moves from
