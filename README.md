@@ -912,7 +912,7 @@ Astro-AEO's core Turndown converter. Missing optional peers warn and retain norm
 
 `corpus.index.sections` groups pages in `llms.txt`. Each rule has a `title` and a `match` that is a glob string, an array of globs, a RegExp, or a predicate `(page) => boolean`. Rules are evaluated in order, first match wins. Empty sections are dropped. Pages matching no rule fall into `defaultSection`.
 
-On a multilingual site, path rules are evaluated against the locale-relative pathname: a page grouped under locale `de` and served at `/de/blog/post` is matched as `/blog/post`, so one rule such as `/blog/**` applies inside every locale. Write rules without the locale prefix. A predicate still receives the page with its full `pathname`.
+On a multilingual site, path rules are evaluated against the locale-relative pathname: a page grouped under locale `de` and served at `/de/blog/post` is matched as `/blog/post`, so one rule such as `/blog/**` applies inside every locale. Write rules without the locale prefix. A predicate still receives the page with its full `pathname`, plus `page.locale`: the locale the page is grouped under, or `null` or absent without i18n.
 
 ```js
 corpus: {

@@ -364,6 +364,12 @@ export interface ArtifactOwnershipManifestV1 {
   groups: { id: string; mode: 'all-or-none'; pathnames: string[]; status: 'emitted' | 'skipped' }[];
 }
 
+/** The page a section predicate receives: an `AeoPage` plus its locale. */
+export interface SectionPage extends AeoPage {
+  /** Astro locale the page is grouped under; null or absent without i18n. */
+  locale?: string | null;
+}
+
 /**
  * A single llms.txt section. Pages are evaluated against `match` in array
  * order, first match wins. Empty sections are omitted from the output.
@@ -376,9 +382,9 @@ export interface SectionRule {
    * - a glob string ("/", "/blog/**", "/20[0-9][0-9]/*")
    * - an array of glob strings (any match)
    * - a RegExp tested against the pathname
-   * - a predicate receiving the page
+   * - a predicate receiving the page, including its `locale`
    */
-  match: string | string[] | RegExp | ((page: AeoPage) => boolean);
+  match: string | string[] | RegExp | ((page: SectionPage) => boolean);
 }
 
 export type EntityType =

@@ -66,6 +66,7 @@ import type {
   SchemaEntity,
   SchemaOptions,
   SchemaValidationResult,
+  SectionPage,
   SectionRule,
   SiteOptions,
   SitemapPolicy,
@@ -138,7 +139,9 @@ export const sections: SectionRule[] = [
   { title: 'Blog', match: ['/blog/**', '/posts/**'] },
   { title: 'Archive', match: /^\/20[0-9]{2}\// },
   { title: 'Detailed', match: (page: AeoPage) => page.description.length > 100 },
+  { title: 'English', match: (page) => page.locale === 'en' },
 ];
+export const sectionPage: SectionPage = { ...({} as AeoPage), locale: null };
 
 export const rendererDescriptor: MarkdownRendererDescriptor = {
   module: new URL('./renderer.js', import.meta.url),
