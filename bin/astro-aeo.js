@@ -1,9 +1,7 @@
 #!/usr/bin/env node
 // @ts-check
 import { parseArgs } from 'node:util';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { join, dirname, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { validateDist } from '../cli/validate.js';
 import { formatReport, formatJson } from '../cli/report.js';
 import { prepareIndexNow } from '../cli/indexnow-prepare.js';
@@ -12,6 +10,7 @@ import { IndexNowInvocationError } from '../cli/indexnow-io.js';
 import { AuditInvocationError, runAudit } from '../cli/audit.js';
 import { DoctorInvocationError, runDoctor } from '../cli/doctor.js';
 import { FixRefusal, runFix } from '../cli/fix/index.js';
+import { readPackageVersion } from '../src/build/package-version.js';
 
 const HELP = `astro-aeo - Answer Engine Optimization for Astro
 
@@ -74,7 +73,7 @@ async function main() {
   }
 
   if (command === '--version' || command === '-v') {
-    process.stdout.write(`${readVersion()}\n`);
+    process.stdout.write(`${readPackageVersion() ?? '0.0.0'}\n`);
     process.exit(0);
   }
 
@@ -85,7 +84,7 @@ async function main() {
 
   if (command === 'audit') {
     try {
-      const result = await runAudit(argv.slice(1), { version: readVersion() });
+      const result = await runAudit(argv.slice(1), { version: readPackageVersion() ?? '0.0.0' });
       if (result.written) process.stderr.write(`astro-aeo audit: wrote ${result.written}\n`);
       process.stdout.write(result.output);
       process.exitCode = result.exitCode;
@@ -210,16 +209,4 @@ function runValidate(args) {
   if (!result.ok) process.exit(1);
   if (parsed.values.strict && result.warnings.length > 0) process.exit(1);
   process.exit(0);
-}
-
-/**
- * @returns {string}
- */
-function readVersion() {
-  try {
-    const pkgPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json');
-    return JSON.parse(readFileSync(pkgPath, 'utf8')).version ?? '0.0.0';
-  } catch {
-    return '0.0.0';
-  }
 }

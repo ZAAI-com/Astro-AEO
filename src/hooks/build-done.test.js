@@ -9,6 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { resolveConfig } from '../config.js';
@@ -128,6 +129,85 @@ describe('staged build plugin pipeline', () => {
     expect(existsSync(publicPath)).toBe(true);
     expect(existsSync(join(privateRoot, 'pending-v1.json'))).toBe(true);
     expect(diagnostics.some((diagnostic) => diagnostic.code === 'indexnow-state-read-only')).toBe(false);
+  });
+
+  test('advances IndexNow state and logs once when a legacy processing cache resets', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    const cacheRoot = join(files.root, '.astro', 'aeo-cache', 'processing-v1');
+    const legacyBlob = createHash('sha256').update('{"markdown":"# Legacy"}').digest('hex');
+    mkdirSync(join(cacheRoot, 'blobs'), { recursive: true });
+    writeFileSync(join(cacheRoot, 'blobs', legacyBlob), '{"markdown":"# Legacy"}');
+    // The shape 1.4.0 wrote: no producer.
+    writeFileSync(
+      join(cacheRoot, 'state.json'),
+      JSON.stringify({ version: 1, entries: { 'extraction-v1:legacy': { blob: legacyBlob } } }),
+    );
+    const resolved = config({
+      discovery: { sitemap: { mode: 'disabled' }, indexNow: { enabled: true, state: 'private' } },
+    });
+    const infos = [];
+    const diagnostics = [];
+    const writer = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger: { info: (message) => infos.push(message), warn() {} } },
+      environment(files.root, undefined, diagnostics),
+    );
+    writer.commit();
+
+    const version = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version;
+    expect(infos.filter((message) => message.includes('processing cache reset'))).toEqual([
+      `astro-aeo: processing cache reset after an extractor change (an earlier astro-aeo -> astro-aeo ${version}); ` +
+        '1 cached page(s) will be extracted again',
+    ]);
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).not.toContain('indexnow-state-read-only');
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).not.toContain('processing-cache-invalid');
+    const queue = JSON.parse(readFileSync(join(files.root, '.astro', 'aeo-cache', 'indexnow', 'pending-v1.json'), 'utf8'));
+    expect(queue.origins[0].operations).toEqual([
+      expect.objectContaining({ url: 'https://example.test/', operation: 'upsert' }),
+    ]);
+    expect(existsSync(join(cacheRoot, 'blobs', legacyBlob))).toBe(false);
+    const state = JSON.parse(readFileSync(join(cacheRoot, 'state.json'), 'utf8'));
+    expect(state.producer).toMatchObject({ name: 'astro-aeo', version });
+    expect(Object.keys(state.entries)).toHaveLength(1);
+
+    // The next build on the same producer is warm and logs no reset.
+    infos.length = 0;
+    const warm = await onBuildDone(
+      resolved,
+      { dir: files.dir, pages: [{ pathname: '/' }], logger: { info: (message) => infos.push(message), warn() {} } },
+      environment(files.root, undefined, []),
+    );
+    warm.commit();
+    expect(infos.some((message) => message.includes('processing cache reset'))).toBe(false);
+    expect(infos).toContainEqual(expect.stringContaining('processing cache 1 hit(s), 0 miss(es)'));
+  });
+
+  test('keeps cache entries of unseen pages until the inventory is complete', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    mkdirSync(join(files.dist, 'other'), { recursive: true });
+    writeFileSync(
+      join(files.dist, 'other', 'index.html'),
+      '<!doctype html><html><head><title>Other</title></head><body><main>Other</main></body></html>',
+    );
+    const statePath = join(files.root, '.astro', 'aeo-cache', 'processing-v1', 'state.json');
+    const entries = () => Object.keys(JSON.parse(readFileSync(statePath, 'utf8')).entries).length;
+    const build = async (pages) => {
+      const writer = await onBuildDone(
+        config(),
+        { dir: files.dir, pages, logger },
+        environment(files.root, undefined, []),
+      );
+      writer.commit();
+    };
+
+    await build([{ pathname: '/' }, { pathname: '/other' }]);
+    expect(entries()).toBe(2);
+    // An unreadable page makes the inventory incomplete, so /other survives.
+    await build([{ pathname: '/' }, { pathname: '/missing' }]);
+    expect(entries()).toBe(2);
+    // A complete inventory sweeps the entry nothing used.
+    await build([{ pathname: '/' }]);
+    expect(entries()).toBe(1);
   });
 
   test('uses acknowledged fingerprints to queue removals without resubmitting unchanged pages', async () => {

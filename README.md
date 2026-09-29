@@ -285,8 +285,8 @@ The private `.astro/aeo-cache` directory can contain normalized derived page con
 notification state. Keep `.astro` uncommitted, transfer the `indexnow` pending and acknowledgment
 directory between separate CI prepare/submit jobs, and protect it as sensitive build data. Cache
 files use restrictive permissions where supported, and the extraction cache resets itself when the
-astro-aeo version changes. `cache.enabled: false` disables payload reuse,
-not artifact ownership or IndexNow safety ledgers.
+extractor changes (see [Incremental processing cache](#incremental-processing-cache)).
+`cache.enabled: false` disables payload reuse, not artifact ownership or IndexNow safety ledgers.
 
 ### Migrating to 1.2
 
@@ -789,16 +789,23 @@ compression.
 
 ### Incremental processing cache
 
-Build extraction results are content-addressed under
-`.astro/aeo-cache/processing-v1`. An exclusive same-host process lock protects reusable state;
-invalid, foreign, or active locks force a cold read-only build with no stale deletion authority.
-Project routes and `public/` files still win. The state names its producing astro-aeo version, and
-a version change resets the cache automatically, so an upgrade never serves the previous version's
-Markdown. Each build keeps only the entries it touched, so pages that no longer convert stop
-occupying the cache. A stale file is deleted only when the prior ledger
-names Astro-AEO, the path is confined, the file is regular and not a symlink, and its bytes still
-match the prior emitted hash. Reset manually with `rm -rf .astro/aeo-cache/processing-v1`, or set
-`cache.enabled: false` to disable reuse.
+Only page extraction results are cached: the Markdown and page record of each page, under
+`.astro/aeo-cache/processing-v1`. An entry is keyed by the page's rendered HTML, its authored
+source, the `pages` and `markdown` options, the default locale, the renderers, and the extractor
+version (astro-aeo, `turndown`, and `linkedom`). When the extractor changes (an upgrade, a
+downgrade, or a dependency refresh), the cache resets once and the build logs the reset, so a
+build never reuses Markdown produced by different code. Git modification dates are merged after
+extraction and are never frozen by a cache hit. A complete build prunes the entries it did not
+use; an incomplete inventory keeps them.
+
+An exclusive same-host process lock protects reusable state. A locked or invalid state makes the
+build run cold and read-only, with no stale deletion authority, and IndexNow state does not
+advance until `.astro/aeo-cache/processing-v1` is deleted. Project routes and `public/` files
+still win. A stale file is deleted only when the prior ledger names Astro-AEO, the path is
+confined, the file is regular and not a symlink, and its bytes still match the prior emitted hash.
+To clear the cache by hand, delete only `.astro/aeo-cache/processing-v1`: deleting all of
+`.astro/aeo-cache` also discards the artifact ownership and IndexNow ledgers. Set
+`cache.enabled: false` to stop reuse.
 
 ### The universal robots.txt group
 

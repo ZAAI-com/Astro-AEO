@@ -123,8 +123,26 @@ export async function collectPages(rawPages, config, ctx) {
           routePattern: raw.routePattern,
         });
     if ('skip' in result) {
-      if (cacheKey && cached === undefined) ctx.cache?.put(cacheKey, { skip: result.skip });
+      // Put whenever the entry was not reusable, so an invalid cached value is
+      // overwritten instead of being rebuilt on every build.
+      if (cacheKey && !reusable) ctx.cache?.put(cacheKey, { skip: result.skip });
       continue;
+    }
+
+    // Cache the extraction result before the lastModified merge below. The raw
+    // descriptor and git dates are not cache-key inputs, so a cached copy of
+    // them would freeze a page's modified date at its first extraction.
+    if (cacheKey && !reusable) {
+      const { html: _html, ...cachedRepresentations } = result.page.representations;
+      // `origin` is descriptor passthrough, not an extraction result. Keep it out
+      // of the payload, like htmlPath/mdPath, so it is not part of the cache key.
+      const { htmlPath: _htmlPath, mdPath: _mdPath, origin: _origin, ...cachedPage } = result.page;
+      ctx.cache?.put(cacheKey, {
+        page: {
+          ...cachedPage,
+          representations: cachedRepresentations,
+        },
+      });
     }
 
     const lastModified =
@@ -149,18 +167,6 @@ export async function collectPages(rawPages, config, ctx) {
       mdPath: join(source.root, mdPathnameFor(pathname)),
     };
     pages.push(page);
-    if (cacheKey && !reusable) {
-      const { html: _html, ...cachedRepresentations } = page.representations;
-      // `origin` is descriptor passthrough, not an extraction result. Keep it out
-      // of the payload, like htmlPath/mdPath, so it is not part of the cache key.
-      const { htmlPath: _htmlPath, mdPath: _mdPath, origin: _origin, ...cachedPage } = page;
-      ctx.cache?.put(cacheKey, {
-        page: {
-          ...cachedPage,
-          representations: cachedRepresentations,
-        },
-      });
-    }
   }
 
   return pages;
