@@ -42,7 +42,8 @@ languages on code fences. No configuration key changes.
 
 - Meaningful `aria-hidden="true"` glyphs are kept. A separator such as `→`, `·`, `|`, or a dash
   between two runs of text in the same line is unwrapped and spaced (`1 user · 2 orgs`, `Status:
-  Stable`), and a box-drawing tree prefix such as `├──` or `│` is kept before its entry. Arrows in
+  Stable`), and a box-drawing tree prefix such as `├──` or `│` is kept before its entry, with no-break spaces so
+  nested rows keep their depth. Arrows in
   or directly after links, glyphs inside buttons, labels, `pre` and `code`, emoji, stars and check
   marks, "Copied" labels, empty dots, svgs, and `[hidden]` elements are still removed.
 - A block-level icon inside a `<dt>` no longer splits the bold term across lines, and a term that

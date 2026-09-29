@@ -7,15 +7,15 @@ Open source · Privacy-first · No data collection
 
 -   ~/same-github/
 -   ├── manuelgruber/
--   │ ├── .github/
--   │ └── dotfiles/
+-   │   ├── .github/
+-   │   └── dotfiles/
 -   ├── zaai-com/
--   │ ├── clean-autofill/
--   │ ├── git-same/
--   │ ├── jekyll-aeo/
--   │ └── powernight/
+-   │   ├── clean-autofill/
+-   │   ├── git-same/
+-   │   ├── jekyll-aeo/
+-   │   └── powernight/
 -   └── company1/
--   └── example.ai/
+-       └── example.ai/
 
 1 user · 2 orgs · 7 repos · 100% mirrored
 

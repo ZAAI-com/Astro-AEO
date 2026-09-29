@@ -282,7 +282,7 @@ function isGlyphCandidate(el) {
  * The text a glyph candidate is unwrapped to, or `undefined` when it is
  * decoration. A separator needs text before and after it in the same inline
  * run and is padded with spaces, since its spacing usually came from CSS. A
- * box-drawing prefix needs text after it and is kept verbatim. An arrow right
+ * box-drawing prefix needs text after it and keeps its indentation. An arrow right
  * after a link decorates that link.
  *
  * @param {Element} el
@@ -295,7 +295,9 @@ function keptGlyphText(el, root, glyphs) {
   const text = trimGlyph(raw);
   const after = runNeighbourText(el, root, glyphs, true);
   if (!after) return undefined;
-  if (BOX_DRAWING_GLYPH.test(text)) return raw;
+  // Turndown collapses ordinary spaces, which would flatten nested tree rows;
+  // no-break spaces keep each prefix at its depth.
+  if (BOX_DRAWING_GLYPH.test(text)) return `${raw.replace(/[ \u00a0]+$/u, '').replace(/ /g, '\u00a0')} `;
   const before = runNeighbourText(el, root, glyphs, false);
   if (!before) return undefined;
   if (ARROW_GLYPH.test(text) && before.parentElement?.closest('a')) return undefined;

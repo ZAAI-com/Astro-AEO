@@ -524,7 +524,7 @@ describe('conversion fidelity', () => {
       expect(md).toBe('Before \u2014 After');
     });
 
-    test('tree prefixes are kept at any depth, across the icon before the name', () => {
+    test('tree prefixes keep their depth, across the icon before the name', () => {
       const md = convert(
         '<main><ul>' +
         treeRow('├── ', 'manuelgruber/') +
@@ -533,9 +533,10 @@ describe('conversion fidelity', () => {
         treeRow('    └── ', 'example.ai/') +
         '</ul></main>',
       );
+      const nbsp = (/** @type {number} */ n) => '\u00a0'.repeat(n);
       expect(md).toBe(
-        '-   ├── manuelgruber/\n-   │ ├── .github/\n' +
-        '-   │ │ │ └── deep/\n-   └── example.ai/',
+        `-   ├── manuelgruber/\n-   │${nbsp(3)}├── .github/\n` +
+        `-   │${nbsp(3)}│${nbsp(3)}│${nbsp(3)}└── deep/\n-   ${nbsp(4)}└── example.ai/`,
       );
     });
 
