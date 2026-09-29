@@ -901,8 +901,9 @@ export interface PagesOptions {
    *
    * A request-time server lists each catalog once per process. `revalidate` lists it again
    * once that many seconds have passed since its last listing (`0` lists on every use), so
-   * a CMS catalog picks up published entries without a restart. A failed listing is retried
-   * on the next use. Omit it, or pass `false`, to keep the first listing.
+   * a CMS catalog picks up published entries without a restart. A failed first listing is
+   * retried on the next use; a failed refresh keeps the last listing and retries after another
+   * window. Omit it, or pass `false`, to keep the first listing.
    */
   catalogs?: { module: string; revalidate?: number | false }[];
 }

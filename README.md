@@ -702,8 +702,9 @@ base path, and trailing-slash policy.
 A request-time server lists each catalog once per process. Give a catalog a `revalidate` window to
 list it again once that many seconds have passed since its last listing, so a CMS catalog picks up
 published entries without a restart: `{ module: './src/aeo-catalog.js', revalidate: 30 }`. `0` lists
-on every use of the inventory, and `false` (or omitting it) keeps the first listing. A revalidating
-catalog that fails is retried on its next use instead of staying empty. Development always lists
+on every use of the inventory, and `false` (or omitting it) keeps the first listing. If a revalidating
+catalog's first listing fails, it is retried on its next use instead of staying empty; if a later
+refresh fails, the last listing stays in place and the refresh is retried after another window. Development always lists
 afresh, and a build lists once.
 
 Catalog entrypoints must be JavaScript that Node's native module loader can execute:

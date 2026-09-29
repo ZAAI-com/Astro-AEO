@@ -105,8 +105,9 @@ line, and page catalogs gain one optional key, `pages.catalogs[].revalidate`.
 - `pages.catalogs[].revalidate` lists a catalog again at request time once that many seconds have
   passed since its last listing, so a CMS catalog picks up published entries without a server
   restart. `0` lists on every use, and `false` or omitting it keeps today's behavior of one listing
-  per process. A revalidating catalog that fails is retried on its next use instead of staying
-  empty, a listing in flight is shared, and a catalog without `revalidate` is never re-listed
+  per process. A revalidating catalog whose first listing fails is retried on its next use
+  instead of staying empty, a failed refresh keeps the last listing and retries after another
+  window, a listing in flight is shared, and a catalog without `revalidate` is never re-listed
   because another one refreshed. Development and builds are unchanged.
 
 ### Package size
