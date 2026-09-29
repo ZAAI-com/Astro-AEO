@@ -1,0 +1,51 @@
+src/build/catalogs.test.js
+  s_bf091e8255d9a6::t_6b7205aeb7e72e 43-57
+schema/astro-aeo.schema.json
+  s_bf091e8255d9a6::t_6b7205aeb7e72e 1
+src/config.test.js
+  s_bf091e8255d9a6::t_741f599b19d61e 323-330
+src/index.d.ts
+  s_bf091e8255d9a6::t_32759024439725 901-905,907
+src/config.js
+  s_bf091e8255d9a6::t_c25565caab84da 579,591-598
+  s_bf091e8255d9a6::t_fedbe10397c8cf 599-600
+scripts/schema-definition.mjs
+  s_bf091e8255d9a6::t_c25565caab84da 364-368
+src/virtual/plugin.js
+  s_bf091e8255d9a6::t_fb13d8a0778d0e 40,83-86
+src/virtual/plugin.test.js
+  s_bf091e8255d9a6::t_741f599b19d61e 80-90
+README.md
+  s_bf091e8255d9a6::t_9d52516fd2b9eb 109
+  s_bf091e8255d9a6::t_8a4a966270b361 625-631
+src/runtime/serve.js
+  s_bf091e8255d9a6::t_b48ba249780582 59,81,808-813,817,819,822,825-833,835-836,838,840,844-900,962-969,971-979,984-991,993-1010,1012-1017
+  s_bf091e8255d9a6::t_d8365290915e09 60,834,839,970,980
+AGENTS.md
+  s_bf091e8255d9a6::t_c9cb2e3fd89edf 148-151
+src/runtime/serve.test.js
+  s_bf091e8255d9a6::t_700b3958c6228f 1140-1214
+  s_bf091e8255d9a6::t_87f8dabe60da2e 12
+src/index.js
+  s_bf091e8255d9a6::t_fb13d8a0778d0e 333
+src/build/catalogs.js
+  s_bf091e8255d9a6::t_fb13d8a0778d0e 17,65,98
+fixtures/types-consumer/consumer.ts
+  s_bf091e8255d9a6::t_a3e94806e3dd99 896-901
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8d4d9000f489669552d37270bc525fdfec4f0797",
+  "prompts": {},
+  "sessions": {
+    "s_bf091e8255d9a6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b261f0a-3568-4193-998b-f27ca30a9a4a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
