@@ -362,6 +362,8 @@ describe('conversion fidelity', () => {
       ['newline after pre', '<pre data-language="bash">\n<code>npm install</code></pre>', '```bash\nnpm install\n```'],
       ['caption filename', '<figure><figcaption>index.html (what most bots see)</figcaption><pre><code>&lt;p&gt;</code></pre></figure>', '_index.html (what most bots see)_\n\n```html\n<p>\n```'],
       ['caption prose', '<figure><figcaption>Running the server with Node.js</figcaption><pre><code>npm start</code></pre></figure>', '_Running the server with Node.js_\n\n```\nnpm start\n```'],
+      ['caption prose opening with a name', '<figure><figcaption>Next.js build output</figcaption><pre><code>ready</code></pre></figure>', '_Next.js build output_\n\n```\nready\n```'],
+      ['caption filename before a colon', '<figure><figcaption>astro.config.mjs: the integration</figcaption><pre><code>x</code></pre></figure>', '_astro.config.mjs: the integration_\n\n```js\nx\n```'],
       ['pre without code is unchanged', '<pre data-language="bash">npm install</pre>', 'npm install'],
     ])('%s', (_name, body, expected) => {
       expect(convert(`<main>${body}</main>`)).toBe(expected);
@@ -472,6 +474,11 @@ describe('conversion fidelity', () => {
     expect(md).toBe('![A](/a.png)\n\n_[Source](/src). Price $5_');
   });
 
+  test('image-free figures do not space a caption before its punctuation', () => {
+    const md = convert('<main><figure><pre><code>x</code></pre><figcaption><a href="/s">Source</a><span>.</span></figcaption></figure></main>');
+    expect(md).toBe('```\nx\n```\n\n_[Source](/s)._');
+  });
+
   test('image-free charts retain their label when they have no readable text', () => {
     const md = convert('<main><figure><div role="region" aria-label="Solar production by day"><svg><path/></svg></div></figure></main>');
     expect(md).toBe('Solar production by day');
@@ -505,6 +512,8 @@ describe('conversion fidelity', () => {
       ['a partly bold term', '<dt><b>Term</b> extra</dt><dd>d</dd>', '**Term extra**\n\nd'],
       ['a step badge glued to its label', '<dt><span class="badge">1</span>Configure</dt><dd>d</dd>',
         '**1 Configure**\n\nd'],
+      ['a label before trailing punctuation', '<dt><span class="n">Timeout</span>:</dt><dd>d</dd>',
+        '**Timeout:**\n\nd'],
       ['an in-word emphasis', '<dt><em>Re</em>boot</dt><dd>d</dd>', '**_Re_boot**\n\nd'],
       ['a list inside the term', '<dt>Label<ul><li>a</li><li>b</li></ul></dt><dd>d</dd>',
         '**Label**\n\n-   a\n-   b\n\nd'],

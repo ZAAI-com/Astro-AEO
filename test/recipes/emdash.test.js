@@ -262,6 +262,9 @@ describe.skipIf(!SUPPORTED).each(CASES)('$name recipe', (recipe) => {
     for (const link of recipe.listed) expect(body, link).toContain(link);
     for (const fragment of recipe.absent) expect(body, fragment).not.toContain(fragment);
     for (const heading of recipe.sections ?? []) expect(body).toContain(`\n${heading}\n`);
+    // emdashAeo() keeps the default Home rule, so the home page is not left under "Pages".
+    const home = body.split('\n## ').find((section) => section.startsWith('Home\n'));
+    expect(home, 'a Home section').toContain('(/index.md)');
   });
 
   test('llms-full.txt carries the rendered pages', async () => {

@@ -426,8 +426,12 @@ const CAPTION_LANGUAGES = new Map([
   ['xml', 'xml'], ['liquid', 'liquid'],
 ]);
 
-/** A filename at the start of a caption, such as `index.html (what most bots see)`. */
-const CAPTION_FILENAME = /^(?:[\w.-]+\/)*[\w-][\w.-]*\.([a-z0-9]{1,10})(?=\s|\(|$)/i;
+/**
+ * A caption that is a filename, alone or before a parenthetical or colon, such
+ * as `index.html (what most bots see)`. Prose that opens with a name like
+ * `Next.js build output` is not one.
+ */
+const CAPTION_FILENAME = /^(?:[\w.-]+\/)*[\w-][\w.-]*\.([a-z0-9]{1,10})(?=$|\s*[(:])/i;
 /** Inferred languages that name no syntax and so leave the fence bare. */
 const PLAIN_LANGUAGES = new Set(['plaintext', 'text', 'txt', 'plain']);
 const FENCE_LANGUAGE = /^[\w+#.-]{1,32}$/;
@@ -507,7 +511,8 @@ function spaceFigure(figure, hasImages) {
         }
         continue;
       }
-      if ((child.textContent ?? '').trim() && (nextEl.textContent ?? '').trim()) {
+      const nextText = (nextEl.textContent ?? '').trim();
+      if ((child.textContent ?? '').trim() && nextText && !CLOSING_PUNCTUATION.test(nextText)) {
         parent.insertBefore(document.createTextNode(' '), next);
       }
     }
@@ -581,6 +586,9 @@ function inlineBlocks(el) {
   }
 }
 
+/** Text that attaches to the word before it, so no separating space goes in front. */
+const CLOSING_PUNCTUATION = /^[.,:;!?)\]}]/;
+
 /** Blocks moved out of a definition term instead of being bolded. */
 const TERM_BLOCKS = 'ul, ol, pre, table, blockquote';
 
@@ -599,6 +607,7 @@ function spaceTermParts(strong) {
     const next = node.nextSibling;
     if (!next || !(node.textContent ?? '').trim() || !(next.textContent ?? '').trim()) continue;
     if (/\s$/.test(node.textContent ?? '') || /^\s/.test(next.textContent ?? '')) continue;
+    if (CLOSING_PUNCTUATION.test(next.textContent ?? '')) continue;
     const separate = [node, next].some((part) =>
       part.nodeType === 1 && !IN_WORD_TAGS.has(/** @type {Element} */ (part).localName));
     if (separate) strong.insertBefore(document.createTextNode(' '), next);
