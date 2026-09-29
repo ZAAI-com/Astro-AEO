@@ -5,6 +5,7 @@ import { defineConfig } from 'vitest/config';
 // opt-in like the adapter runtime suite.
 export default defineConfig({
   test: {
+    globalSetup: ['test/setup/clear-processing-caches.js'],
     include: ['test/edge/**/*.test.js'],
     testTimeout: 180000,
     hookTimeout: 180000,

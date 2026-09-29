@@ -4,6 +4,7 @@ import { defineConfig } from 'vitest/config';
 // excluded from `pnpm test` and run by `pnpm run test:ssr`.
 export default defineConfig({
   test: {
+    globalSetup: ['test/setup/clear-processing-caches.js'],
     include: ['src/**/*.ssr.test.js'],
     testTimeout: 120000,
     hookTimeout: 120000,

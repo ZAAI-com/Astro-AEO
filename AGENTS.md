@@ -179,6 +179,9 @@ plain ESM with no package build step.
 
 - Vitest tests are colocated as `*.test.js`; add or update tests with every behavior change.
   `pnpm test` runs unit, CLI, and static-build tests in the default configuration.
+- Every Vitest config runs `test/setup/clear-processing-caches.js` first. Fixture and recipe builds
+  import the working tree, but the processing cache keys on the package version, so a warm cache
+  would hide extractor edits. It deletes only `processing-v1`, never the rest of `aeo-cache`.
 - A test selected by the default configuration that shells out to `astro build` must use
   `*.e2e.test.js`. The Node compatibility job excludes that suffix because its installed Astro 7
   cannot run on Node 20. This naming rule does not apply to the separately selected server and

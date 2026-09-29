@@ -4,6 +4,7 @@ import { defineConfig } from 'vitest/config';
 // can therefore be release-gated without racing another Astro invocation.
 export default defineConfig({
   test: {
+    globalSetup: ['test/setup/clear-processing-caches.js'],
     include: ['test/adapters/build.test.js'],
     testTimeout: 180000,
     hookTimeout: 180000,
