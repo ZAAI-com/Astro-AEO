@@ -1,0 +1,48 @@
+src/build/collect.js
+  s_cdc4a3137771a2::t_9cce985d07713f 126-128,132-147
+src/build/collect.test.js
+  s_cdc4a3137771a2::t_9e2cc59f6d30d8 176,183-191,196
+  s_cdc4a3137771a2::t_4287c211ca2e8d 9,193-194
+  s_cdc4a3137771a2::t_c72188d7332b39 121-156,158-175,177-181,192,195,198-215,217-220,222-224
+  s_cdc4a3137771a2::t_8a52e59579c97b 157,182,197,216,221
+bin/astro-aeo.js
+  s_cdc4a3137771a2::t_ceeddda59e9ccf 4,13
+  s_cdc4a3137771a2::t_1833f749cc0f68 76,87
+src/build/processing-cache.test.js
+  s_cdc4a3137771a2::t_8fb652e014d6fe 290,292-293,295-296,299-334,337-371
+  s_cdc4a3137771a2::t_8dd18395e5a485 13-14,16-17,144-156,158-162,164,166-178,181-182,185,187-202,204-231,235-239,242-243,245,249,253-257,261-287,372-390
+src/build/package-version.js
+  s_cdc4a3137771a2::t_1fe75eb306a3c4 3,6-12,14,19-54,56
+README.md
+  s_ecf790cb56dd12::t_981a42ecb251ab 288-289,792-808
+src/hooks/build-done.js
+  s_cdc4a3137771a2::t_ca8072e338d5ce 23,820-822,827
+src/build/processing-cache.js
+  s_cdc4a3137771a2::t_d733544df62343 11,18-20,26-31,34,38,58-59,91,136-140,142,144,146-150,160,202,206-209,211-216,262-271,273-315,323-324
+src/hooks/build-done.test.js
+  s_cdc4a3137771a2::t_a3a8103176c446 12,134-212
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ee4c05701fb0c5834b0430c506bf72d7a735ab25",
+  "prompts": {},
+  "sessions": {
+    "s_cdc4a3137771a2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6ea4cf9a-5536-4107-8842-8296dd28e6bf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_ecf790cb56dd12": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f13db9b5effen4l0rmfiO7NDSX",
+        "model": "unknown"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
