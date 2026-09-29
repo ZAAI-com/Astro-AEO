@@ -390,6 +390,34 @@ describe('conversion fidelity', () => {
     expect(md).toBe('Path\n\n![Screenshot](/shot.png)');
   });
 
+  test('meaningful aria-hidden glyphs are unwrapped to their text', () => {
+    const md = convert(
+      '<main><p><a href="/a">github.com</a> <span aria-hidden="true">→</span> <a href="/b">github.com@yourdomain.com</a></p>' +
+      '<p>1 user <span aria-hidden="true">·</span> 2 orgs</p>' +
+      '<pre><code>git-same/\n<span aria-hidden="true" class="whitespace-pre">│   ├── </span>docs/</code></pre></main>',
+    );
+    expect(md).toContain('github.com](/a) → [github.com@yourdomain.com](/b)');
+    expect(md).toContain('1 user · 2 orgs');
+    expect(md).toContain('│   ├── docs/');
+  });
+
+  test('decorative aria-hidden glyphs are still dropped', () => {
+    const md = convert(
+      '<main><p><a href="/docs">Read the docs <span aria-hidden="true">→</span></a></p>' +
+      '<p><span aria-hidden="true">Copied</span> after copying</p>' +
+      '<p>Trailing <span aria-hidden="true">|</span></p>' +
+      '<h2>Heading<a aria-hidden="true" href="#heading">#</a></h2></main>',
+    );
+    expect(md).toContain('[Read the docs](/docs)');
+    expect(md).toContain('after copying');
+    expect(md).toContain('Trailing\n');
+    expect(md).toContain('## Heading');
+    expect(md).not.toContain('→');
+    expect(md).not.toContain('Copied');
+    expect(md).not.toContain('|');
+    expect(md).not.toContain('#heading');
+  });
+
   test('disclosure toggles keep their label', () => {
     const md = convert(
       '<main><button aria-expanded="false" aria-controls="a">Does it work?</button><div id="a">Yes.</div></main>',

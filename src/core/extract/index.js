@@ -13,6 +13,19 @@ const KEEP_ATTRIBUTE = 'data-astro-aeo-keep';
 const CHROME_SELECTOR = 'button:not([aria-expanded]):not([aria-controls]), svg, template, [hidden], [aria-hidden="true"]';
 
 /**
+ * Symbols and punctuation only, no letters or digits (for example `→`, `·`,
+ * `|`, or tree prefixes such as `├──`). A hidden run of these is often a
+ * meaningful separator, not decoration.
+ */
+const GLYPH_ONLY = /^[\p{P}\p{S}\p{Zs}─-╿]+$/u;
+const BOX_DRAWING = /[─-╿]/u;
+
+/** Inline elements whose block container is the first ancestor beyond them. */
+const INLINE_ANCESTORS = new Set([
+  'span', 'a', 'em', 'strong', 'b', 'i', 'code', 'small', 'mark', 'sub', 'sup', 'abbr', 'kbd', 'time',
+]);
+
+/**
  * Attributes a raw HTML block may keep. Everything else (classes, ids,
  * `data-*`, framework scoping attributes) is presentation and is dropped.
  */
@@ -185,10 +198,73 @@ function removeChrome(root) {
     if (el === root || !el.isConnected) continue;
     // A hidden wrapper around a described image still carries content.
     if (el.localName !== 'svg' && hasDescribedImage(el)) continue;
+    if (isContentGlyph(el)) {
+      el.replaceWith(el.ownerDocument.createTextNode(el.textContent ?? ''));
+      continue;
+    }
     el.remove();
     removed++;
   }
   return removed;
+}
+
+/**
+ * A glyph-only `aria-hidden="true"` element can still carry reading meaning:
+ * a `→` between two links, a `·` between counts, or a `├──` tree prefix.
+ * Those are unwrapped to their text instead of dropped.
+ *
+ * @param {Element} el @returns {boolean}
+ */
+function isContentGlyph(el) {
+  if (!el.matches('[aria-hidden="true"]') || el.matches('[hidden]')) return false;
+  if (el.localName === 'svg' || el.children.length > 0) return false;
+  const text = (el.textContent ?? '').trim();
+  if (!text || text.length > 12 || !GLYPH_ONLY.test(text)) return false;
+  // Arrows and icons inside links or buttons stay decorative.
+  if (el.closest('a, button, summary, label')) return false;
+  if (BOX_DRAWING.test(text)) return true;
+  const scope = nearestBlock(el);
+  return hasTextOnSide(el, scope, true) && hasTextOnSide(el, scope, false);
+}
+
+/**
+ * @param {Element} el
+ * @returns {Element}
+ */
+function nearestBlock(el) {
+  for (let node = el.parentElement; node; node = node.parentElement) {
+    if (!INLINE_ANCESTORS.has(node.localName)) return node;
+  }
+  return el.ownerDocument.documentElement ?? el;
+}
+
+/**
+ * Whether non-whitespace text inside `scope` precedes or follows `el`, by
+ * walking the scope in document order and watching for the crossing. This
+ * avoids `compareDocumentPosition`, which linkedom reports unreliably for
+ * text in sibling subtrees.
+ *
+ * @param {Element} el
+ * @param {Element} scope
+ * @param {boolean} before  True for preceding text, false for following text.
+ * @returns {boolean}
+ */
+function hasTextOnSide(el, scope, before) {
+  let crossed = false;
+  /** @param {Element} parent */
+  const visit = (parent) => {
+    for (const child of parent.childNodes) {
+      if (child === el) {
+        crossed = true;
+      } else if (child.nodeType === 3) {
+        if ((child.nodeValue ?? '').trim() && crossed !== before) return true;
+      } else if (child.nodeType === 1 && !el.contains(child) && visit(/** @type {Element} */ (child))) {
+        return true;
+      }
+    }
+    return false;
+  };
+  return visit(scope);
 }
 
 /** @param {Element} el @returns {boolean} */
