@@ -1,0 +1,20 @@
+fixtures/extract-real/aria-hidden-glyphs.html
+  h_a8c9574cd6b407 1-9
+fixtures/extract-real/aria-hidden-glyphs.md
+  h_a8c9574cd6b407 1-11
+src/core/extract/index.js
+  h_a8c9574cd6b407 15-27,201-204,211-269
+src/core/extract/index.test.js
+  h_a8c9574cd6b407 393-420
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "de67b7b2b17fc2c9ff360f9afeb2df0cd7dc7d82",
+  "prompts": {},
+  "humans": {
+    "h_a8c9574cd6b407": {
+      "author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
