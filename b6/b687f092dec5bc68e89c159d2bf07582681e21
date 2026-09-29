@@ -1,0 +1,28 @@
+src/core/extract/index.test.js
+  s_75434dc6ca634e::t_d2b2fedaad2280 477-481
+  s_75434dc6ca634e::t_3f3b6394af61a2 515-516
+  s_75434dc6ca634e::t_d571ba5710f8a6 365-366
+src/core/extract/index.js
+  s_75434dc6ca634e::t_1eef06543f8133 514-515
+  s_75434dc6ca634e::t_85722ec6328a53 589-591
+  s_75434dc6ca634e::t_703097a7fc2151 610
+  s_75434dc6ca634e::t_96b0498281a40b 429-434
+test/recipes/emdash.test.js
+  s_75434dc6ca634e::t_108bc297f45ccd 265-267
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b6b687f092dec5bc68e89c159d2bf07582681e21",
+  "prompts": {},
+  "sessions": {
+    "s_75434dc6ca634e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ff91888e-033f-48d5-9db8-a6e35c985dce",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
