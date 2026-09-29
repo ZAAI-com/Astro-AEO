@@ -12,3 +12,4 @@ Small, complete Astro projects, one per kind of site. Each builds on its own and
 | [local-business](local-business/) | `LocalBusiness` graph, domain profile |
 | [i18n](i18n/) | locales, reciprocal `hreflang`, per-locale corpora |
 | [ssr](ssr/) | Node adapter, content negotiation, a page catalog |
+| [emdash](emdash/) | the EmDash CMS: on-demand pages, a `defineCmsAdapter` catalog, admin exclusion |

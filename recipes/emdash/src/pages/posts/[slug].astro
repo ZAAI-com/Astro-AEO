@@ -1,0 +1,32 @@
+---
+import Base from '../../layouts/Base.astro';
+import { ArticleJsonLd } from 'astro-aeo/components';
+import { decodeSlug, getEmDashEntry, getSeoMeta } from 'emdash';
+import { PortableText } from 'emdash/ui';
+
+const slug = decodeSlug(Astro.params.slug);
+if (!slug) return new Response('Not found', { status: 404 });
+
+const { entry: post, error } = await getEmDashEntry('posts', slug);
+if (error) return new Response('Unable to load post', { status: 500 });
+if (!post) return new Response('Not found', { status: 404 });
+
+const site = Astro.site ?? new URL('https://recipe.example.com');
+const path = `/posts/${post.id}`;
+const seo = getSeoMeta(post, { siteTitle: 'Field Station', siteUrl: site.href, path });
+---
+<Base title={seo.title} description={seo.description} path={path} robots={seo.robots}>
+  <article>
+    <h1>{post.data.title}</h1>
+    <p>{post.data.excerpt}</p>
+    <PortableText value={post.data.content} />
+  </article>
+  <ArticleJsonLd
+    headline={post.data.title}
+    description={post.data.excerpt}
+    datePublished={post.data.publishedAt?.toISOString()}
+    dateModified={post.data.updatedAt?.toISOString()}
+    author="Field Station"
+    url={new URL(path, site).href}
+  />
+</Base>

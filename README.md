@@ -552,6 +552,61 @@ export default defineCmsAdapter({
 These catalogs load through the same failure isolation as a hand-written one: a catalog that throws
 warns, records `catalog-load-failed`, and contributes nothing.
 
+### Using astro-aeo with EmDash
+
+[EmDash](https://emdashcms.com/) is an open source CMS built as an Astro integration: content lives in
+a database (SQLite on Node, D1 on Cloudflare), pages render on demand through
+`getEmDashCollection()` / `getEmDashEntry()`, and the admin is served from `/_emdash/admin`. Such a
+site is exactly the on-demand case above, so the wiring is:
+
+```js
+// astro.config.mjs
+import emdash, { local } from 'emdash/astro';
+import { sqlite } from 'emdash/db';
+
+aeo({
+  markdown: { negotiation: 'response' },
+  pages: {
+    exclude: ['/_emdash/**'],                          // keep the admin and API out
+    catalogs: [{ module: './src/aeo-emdash-catalog.js' }],
+  },
+})
+```
+
+The catalog names the CMS pages. On the Node variant it can read the SQLite database directly and
+list published entries, which keeps drafts out of `llms.txt` until they are published:
+
+```js
+// src/aeo-emdash-catalog.js
+import { defineCmsAdapter } from 'astro-aeo/content';
+
+export default defineCmsAdapter({
+  name: 'emdash',
+  async listPages() {
+    // Read your EmDash database (Node variant) and map published entries to pages.
+    return publishedEntries.map((entry) => ({
+      id: entry.slug,
+      pathname: `/posts/${entry.slug}`,
+      rendering: 'on-demand',
+      title: entry.title,
+    }));
+  },
+});
+```
+
+Things to know:
+
+- EmDash injects its own `/robots.txt` and `/sitemap.xml` routes, which own those paths. Set
+  `discovery: { robots: { enabled: false }, sitemap: { mode: 'disabled' } }` so Astro-AEO does not
+  shadow or duplicate them.
+- Aggregate artifacts are origin-scoped in production: a deployed server answers `llms.txt` for the
+  configured `site` origin, not for arbitrary `Host` headers.
+- Live corpus rendering needs Astro 6.3+ and the Node variant needs Node 22.16+ (EmDash's own
+  requirements). On Cloudflare, a catalog cannot open D1 from a Node build process, so feed the
+  inventory from a prerendered listing or a JSON export refreshed on publish.
+- The [`emdash` recipe](recipes/emdash/) is a complete, seeded site covering the blog, portfolio, and
+  marketing template content models, including the catalog module and its runtime test.
+
 ### Page versions
 
 A page may carry a documentation version label: `version: 'v2'` on a catalog descriptor, on

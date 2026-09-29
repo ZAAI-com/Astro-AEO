@@ -7,10 +7,12 @@ import { ASTRO_BIN, REPO } from '../adapters/helpers.js';
 
 const RECIPES = join(REPO, 'recipes');
 const names = readdirSync(RECIPES).filter((name) => statSync(join(RECIPES, name)).isDirectory()).sort();
+// An on-demand site has no HTML files to audit: its pages exist at request time.
+const ON_DEMAND = new Set(['ssr', 'emdash']);
 
 describe('recipes', () => {
-  test('cover the eight documented kinds of site, each with a README', () => {
-    expect(names).toEqual(['blog', 'commerce', 'i18n', 'local-business', 'marketing', 'saas', 'ssr', 'starlight']);
+  test('cover the nine documented kinds of site, each with a README', () => {
+    expect(names).toEqual(['blog', 'commerce', 'emdash', 'i18n', 'local-business', 'marketing', 'saas', 'ssr', 'starlight']);
     const index = readFileSync(join(RECIPES, 'README.md'), 'utf8');
     for (const name of names) {
       expect(existsSync(join(RECIPES, name, 'README.md')), name).toBe(true);
@@ -25,9 +27,8 @@ describe('recipes', () => {
     // A server build puts its static files under dist/client.
     const dist = existsSync(join(root, 'dist', 'client')) ? join(root, 'dist', 'client') : join(root, 'dist');
     const { findings, pagesChecked } = auditDist(dist, { projectRoot: root });
-    // An on-demand site has no HTML files to audit: its pages exist at request time.
-    const errors = findings.filter((finding) => finding.severity === 'error' && !(name === 'ssr' && finding.ruleId === 'no-html'));
+    const errors = findings.filter((finding) => finding.severity === 'error' && !(ON_DEMAND.has(name) && finding.ruleId === 'no-html'));
     expect(errors.map((finding) => `${finding.ruleId} ${finding.url ?? finding.file ?? ''}: ${finding.message}`)).toEqual([]);
-    if (name !== 'ssr') expect(pagesChecked).toBeGreaterThan(0);
+    if (!ON_DEMAND.has(name)) expect(pagesChecked).toBeGreaterThan(0);
   });
 });

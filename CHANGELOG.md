@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Documentation and recipes
+
+- New `emdash` recipe: a complete EmDash CMS site covering the blog, portfolio, and marketing
+  template content models on the Node variant (SQLite), with a `defineCmsAdapter` catalog that lists
+  published entries from the database, admin exclusion through `pages.exclude`, and a runtime test
+  that boots the built server and asserts `llms.txt`, `llms-full.txt`, Markdown companions,
+  negotiation, and draft exclusion. The README gained a "Using astro-aeo with EmDash" section with
+  the same wiring.
+
 ## 1.5.0
 
 The cache-integrity and Markdown-fidelity release. The incremental processing cache now resets itself

@@ -1,0 +1,22 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getEmDashCollection } from 'emdash';
+
+const { entries: posts, error } = await getEmDashCollection('posts', {
+  orderBy: { published_at: 'desc' },
+});
+if (error) return new Response('Unable to load posts', { status: 500 });
+---
+<Base
+  title="Posts | Field Station"
+  description="Notes on static sites, structured content, and answer-engine optimization."
+  path="/posts"
+>
+  <h1>Posts</h1>
+  {posts.map((post) => (
+    <article>
+      <h2><a href={`/posts/${post.id}`}>{post.data.title}</a></h2>
+      <p>{post.data.excerpt}</p>
+    </article>
+  ))}
+</Base>
