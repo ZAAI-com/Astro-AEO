@@ -22,6 +22,9 @@ line, and page catalogs gain one optional key, `pages.catalogs[].revalidate`.
 - A `<pre>` whose `<code>` starts after a newline now becomes a fenced block instead of inline code.
 - Kept separator glyphs also appear inside raw HTML kept through `extraction.keepSelectors` and in
   heading text, so a heading such as `Step 1 · Install` changes its `llms` chunk title.
+- Pages whose only `<article>` elements are a grid or list of cards (a blog index, a pricing or
+  contact page) now convert from `<main>`, so their companions gain the heading and intro they
+  used to drop. A post followed by related-post cards now keeps only the post.
 
 ### Processing cache
 
@@ -60,6 +63,10 @@ line, and page catalogs gain one optional key, `pages.catalogs[].revalidate`.
   collapses a before/after slider to one image. Adjacent images and labels are separated by spaces
   (`![...](...) ![...](...) Dots only Google original`) without indenting figures inside inline
   wrappers, and syntax-highlighted code inside a figure is no longer split by inserted spaces.
+- Repeated extraction matches are a listing, not the page. Two or more top-level matches whose
+  item boxes share a parent (a grid of `<article>` cards, or `<li>` items that each hold one) are
+  set aside, and the next selector decides; a lone match next to such a grid is kept on its own.
+  Before, the default `article` selector took every card and dropped the rest of `<main>`.
 - Code fences carry their language, taken from a `language-*` or `lang-*` class, `data-language` on
   the `pre` or `code` (Astro's Shiki, Expressive Code), or a filename at the start of the caption of
   a figure holding one code block (`index.html (what most bots see)` gives an `html` fence). An
@@ -84,11 +91,14 @@ line, and page catalogs gain one optional key, `pages.catalogs[].revalidate`.
   seed's `urlPattern`), `taxonomies` (archive routes to list, for terms with published entries),
   `revalidate` (default 10 seconds), and `maxEntries` (default 50,000). With i18n enabled, only the
   default locale is listed, with one warning.
-- Five recipes: `emdash-blog`, `emdash-marketing`, `emdash-portfolio`, and `emdash-starter` mirror
-  EmDash 1.0.1's templates, and `emdash` is a marketing site with a blog and customer stories that
-  mixes them. `test/recipes/emdash.test.js` seeds, builds, audits, and serves each one, and proves an
-  entry published while the server runs appears in `llms.txt`. The README's "Using astro-aeo with
-  EmDash" section documents the integration.
+- Works on Node and Cloudflare. On Cloudflare the catalog reads D1 through EmDash's per-request
+  session, so the options are the same.
+- Six recipes: `emdash-blog`, `emdash-marketing`, `emdash-portfolio`, and `emdash-starter` mirror
+  EmDash 1.0.1's templates, `emdash` is a marketing site with a blog and customer stories that
+  mixes them, and `emdash-cloudflare` is that site on D1 and R2. `test/recipes/emdash.test.js`
+  seeds, builds, audits, and serves each one (the Cloudflare one in workerd through
+  `astro preview`), and proves an entry published while the server runs appears in `llms.txt`. The
+  README's new "EmDash CMS" section and `docs/SETUP_PROMPT.md` document the integration.
 
 ### Page catalogs
 
@@ -101,8 +111,8 @@ line, and page catalogs gain one optional key, `pages.catalogs[].revalidate`.
 
 ### Package size
 
-The published package measures 375,262 packed and 1,435,857 unpacked bytes across 173 files, up from
-355,650 and 1,375,031 in 1.4.0 (about 6 and 4 percent). The growth is the cache producer record, the
+The published package measures 376,772 packed and 1,440,205 unpacked bytes across 173 files, up from
+355,650 and 1,375,031 in 1.4.0 (about 6 and 5 percent). The growth is the cache producer record, the
 extraction passes, and the `astro-aeo/emdash` integration with their documentation. Only a project
 that uses `emdashAeo()` bundles anything new: the EmDash catalog. The unpacked ceiling moves from
 1,380,000 to 1,460,000 bytes.

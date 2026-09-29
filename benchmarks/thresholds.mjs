@@ -24,7 +24,7 @@ export const RELEASE_THRESHOLDS = Object.freeze({
   // 1.5 adds the producer-versioned cache state and the Markdown fidelity passes
   // (glyph unwrap, inline block flattening, code-fence language resolution) with
   // their colocated tests, and the astro-aeo/emdash integration. 1.5.0 measured
-  // 375,262 packed and 1,435,857 unpacked across 173 files, past the 1.4 unpacked
+  // 376,772 packed and 1,440,205 unpacked across 173 files, past the 1.4 unpacked
   // ceiling, so it moves once here. The growth is correctness work in extraction
   // and build caching plus the EmDash subpath, none of it in a consumer's runtime
   // bundle unless imported, which the limits below still hold.
