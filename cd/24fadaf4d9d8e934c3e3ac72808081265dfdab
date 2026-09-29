@@ -1,0 +1,37 @@
+src/core/extract/index.test.js
+  s_ecf790cb56dd12::t_3b3f9936fc8b4c 355,362-409
+  s_ecf790cb56dd12::t_b4560c6bacd304 410
+README.md
+  s_ecf790cb56dd12::t_3b3f9936fc8b4c 671-674
+src/core/extract/index.js
+  s_ecf790cb56dd12::t_3b3f9936fc8b4c 364-433,443-450,453,643-651
+fixtures/extract-real/figure-compare-slider.html
+  s_cdc4a3137771a2::t_95df2f734a7350 1
+fixtures/extract-real/figure-compare-slider.md
+  s_cdc4a3137771a2::t_95df2f734a7350 3-7
+  s_cdc4a3137771a2::t_d06e13cc88ec84 1-2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "cd24fadaf4d9d8e934c3e3ac72808081265dfdab",
+  "prompts": {},
+  "sessions": {
+    "s_cdc4a3137771a2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6ea4cf9a-5536-4107-8842-8296dd28e6bf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_ecf790cb56dd12": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f13db9b5effen4l0rmfiO7NDSX",
+        "model": "unknown"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
