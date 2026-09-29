@@ -57,6 +57,20 @@ for (const [size, html] of documents) {
   };
 }
 
+// The same size again, built from markup that exercises the 1.5 extraction
+// passes (hidden glyphs, definition terms, figures, fence languages). It is a
+// separate key so the baseline comparison of the plain documents stays valid.
+const rich = makeRichDocument(100_000);
+// Sampled after the 1 MB document; collect its garbage first so a major
+// collection it left behind is not charged to this document.
+global.gc?.();
+await convert(rich);
+extraction['100000-rich'] = {
+  bytes: Buffer.byteLength(rich),
+  parse: summarize(await sample(Math.max(iterations, 100), () => parseDocument(rich))),
+  convert: summarize(await sample(Math.max(iterations, 100), () => convert(rich))),
+};
+
 const memory = await measureRetainedHeap(documents.get(100_000), 100);
 const packageSize = packageMetadata();
 const corpus = await benchmarkCorpus();
@@ -344,6 +358,7 @@ function evaluate(report, limits, options) {
   const failures = [];
   const parse100 = report.extraction['100000'].parse.p95Ms;
   const convert100 = report.extraction['100000'].convert.p95Ms;
+  const convertRich = report.extraction['100000-rich']?.convert.p95Ms;
   if (report.package.packedBytes > limits.packagePackedBytes) {
     failures.push(`packed package ${report.package.packedBytes} > ${limits.packagePackedBytes} bytes`);
   }
@@ -352,6 +367,9 @@ function evaluate(report, limits, options) {
   }
   if (parse100 > limits.parse100KbP95Ms) failures.push(`100 KB parse p95 ${parse100} > ${limits.parse100KbP95Ms} ms`);
   if (convert100 > limits.convert100KbP95Ms) failures.push(`100 KB conversion p95 ${convert100} > ${limits.convert100KbP95Ms} ms`);
+  if (convertRich > limits.convertRich100KbP95Ms) {
+    failures.push(`100 KB rich conversion p95 ${convertRich} > ${limits.convertRich100KbP95Ms} ms`);
+  }
   if (report.memory.retainedBytes !== null && report.memory.retainedBytes > limits.retainedHeapBytes) {
     failures.push(`retained heap ${report.memory.retainedBytes} > ${limits.retainedHeapBytes} bytes`);
   }
@@ -450,6 +468,22 @@ function makeDocument(targetBytes) {
   const prefix = '<!doctype html><html><head><title>Benchmark</title></head><body><main><article><h1>Benchmark</h1>';
   const suffix = '</article></main></body></html>';
   const block = '<section><h2>Deterministic heading</h2><p>Astro-AEO benchmark text with <a href="/relative">a relative link</a> and repeatable content.</p><pre><code class="language-js">const value = 42;</code></pre></section>';
+  const count = Math.max(1, Math.ceil((targetBytes - prefix.length - suffix.length) / block.length));
+  return `${prefix}${block.repeat(count)}${suffix}`;
+}
+
+function makeRichDocument(targetBytes) {
+  const prefix = '<!doctype html><html><head><title>Benchmark</title></head><body><main><article><h1>Benchmark</h1>';
+  const suffix = '</article></main></body></html>';
+  const block = '<section><h2>Rich heading</h2>' +
+    '<ul><li class="flex"> <span>github.com</span> <span aria-hidden="true">\u2192</span> <span>alias@example.com</span> </li>' +
+    '<li class="flex"> <span aria-hidden="true" class="whitespace-pre">\u2502   \u251c\u2500\u2500 </span> <span>docs/</span> </li></ul>' +
+    '<dl><dt><div class="icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 12h18"></path></svg></div>Term</dt>' +
+    '<dd>Description with <strong>emphasis</strong>.</dd></dl>' +
+    '<figure><div class="border dark:border-zinc-800"><img src="/before.webp" alt="Before"><img src="/after.webp" alt="After">' +
+    '<span>Before</span><span>After</span></div><figcaption>Drag to compare.</figcaption></figure>' +
+    '<pre class="astro-code" data-language="bash"><code><span class="line"><span>npm</span><span> install</span></span></code></pre>' +
+    '</section>';
   const count = Math.max(1, Math.ceil((targetBytes - prefix.length - suffix.length) / block.length));
   return `${prefix}${block.repeat(count)}${suffix}`;
 }

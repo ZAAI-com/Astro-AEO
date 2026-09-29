@@ -31,6 +31,11 @@ export const RELEASE_THRESHOLDS = Object.freeze({
   packageUnpackedBytes: 1_420_000,
   parse100KbP95Ms: 50,
   convert100KbP95Ms: 150,
+  // The rich document repeats hidden glyphs, a definition term, a two-image
+  // figure and a Shiki block, so it is denser than the plain one. 1.5.0 measured
+  // a p95 near 101 ms on the M2 Pro reference machine; the ceiling keeps the
+  // same headroom the plain document has over its own measurement.
+  convertRich100KbP95Ms: 300,
   requestP95OverheadMs: 10,
   retainedHeapBytes: 10 * 1024 * 1024,
   corpusConcurrency: 1,

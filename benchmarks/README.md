@@ -51,6 +51,9 @@ framework code that both builds share.
   gate ordinary correctness work, and the unpacked ceiling plus the absolute bundle, startup,
   memory, and request ceilings below stay close to their measurements.
 - 100 KB parse p95 below 50 ms and conversion p95 below 150 ms.
+- A denser 100 KB document built from the 1.5 extraction cases (hidden separators and tree glyphs,
+  a definition term with an icon, a two-image figure, a Shiki code block) converts with a p95 below
+  300 ms. It is reported as `extraction['100000-rich']` and is not part of the baseline comparison.
 - Retained heap after 100 conversions at most 10 MB.
 - Paired Markdown-minus-HTML p95 request overhead at most 10 ms. Direct and negotiated modes each
   use 200 interleaved pairs after 20 warm-up cycles, with alternating request order. Raw latency
