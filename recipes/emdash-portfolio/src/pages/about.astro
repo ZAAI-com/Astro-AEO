@@ -1,0 +1,14 @@
+---
+import Base from '../layouts/Base.astro';
+import { getEmDashEntry, getSeoMeta } from 'emdash';
+import { PortableText } from 'emdash/ui';
+
+const { entry: page, error } = await getEmDashEntry('pages', 'about');
+if (error) return new Response('Could not load the page', { status: 500 });
+if (!page) return Astro.redirect('/404');
+const seo = getSeoMeta(page, { siteUrl: (Astro.site ?? new URL(Astro.url.origin)).href, path: '/about' });
+---
+<Base title={seo.title} description={seo.description} path="/about" robots={seo.robots}>
+  <h1>{page.data.title}</h1>
+  <PortableText value={page.data.content} />
+</Base>

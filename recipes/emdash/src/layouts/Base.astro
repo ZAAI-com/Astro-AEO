@@ -23,14 +23,15 @@ const canonical = new URL(path, site).href;
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
-    <OrganizationJsonLd name="Field Station" url={site.href} description="Blog, portfolio, and marketing content managed in EmDash." />
+    <OrganizationJsonLd name="Field Station" url={site.href} description="A marketing site with a blog and customer stories, managed in EmDash." />
   </head>
   <body>
     <header>
       <nav>
         <a href="/">Home</a>
-        <a href="/posts/">Posts</a>
-        <a href="/work/">Work</a>
+        <a href="/blog">Blog</a>
+        <a href="/customers">Customers</a>
+        <a href="/legal/privacy">Privacy</a>
         <a href="/_emdash/admin/">Admin</a>
       </nav>
     </header>

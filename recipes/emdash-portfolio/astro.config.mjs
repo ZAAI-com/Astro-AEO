@@ -15,15 +15,8 @@ export default defineConfig({
       database: sqlite({ url: 'file:./data.db' }),
       storage: local({ directory: './uploads', baseUrl: '/_emdash/api/media/file' }),
     }),
-    emdashAeo({
-      collections: {
-        // Section URLs come from each collection's seed urlPattern:
-        // /blog/{year}/{month}/{slug} matches /blog/**.
-        posts: { section: 'Blog' },
-        customers: { section: 'Customers' },
-        // Legal pages stay on the site but out of llms.txt and llms-full.txt.
-        legal: false,
-      },
-    }),
+    // Projects list at /work/{slug}; the about page's /{slug} pattern resolves to
+    // /about, which the fixed about route serves.
+    emdashAeo(),
   ],
 });

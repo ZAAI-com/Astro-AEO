@@ -15,15 +15,8 @@ export default defineConfig({
       database: sqlite({ url: 'file:./data.db' }),
       storage: local({ directory: './uploads', baseUrl: '/_emdash/api/media/file' }),
     }),
-    emdashAeo({
-      collections: {
-        // Section URLs come from each collection's seed urlPattern:
-        // /blog/{year}/{month}/{slug} matches /blog/**.
-        posts: { section: 'Blog' },
-        customers: { section: 'Customers' },
-        // Legal pages stay on the site but out of llms.txt and llms-full.txt.
-        legal: false,
-      },
-    }),
+    // Fixed routes serve the `pages` collection, which has no URL pattern, so the
+    // defaults are all this template needs.
+    emdashAeo(),
   ],
 });

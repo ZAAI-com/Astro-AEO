@@ -1,0 +1,31 @@
+---
+import Base from '../../layouts/Base.astro';
+import { ArticleJsonLd } from 'astro-aeo/components';
+import { decodeSlug, getEmDashEntry, getSeoMeta } from 'emdash';
+import { PortableText } from 'emdash/ui';
+
+const slug = decodeSlug(Astro.params.slug);
+if (!slug) return Astro.redirect('/404');
+const { entry, error } = await getEmDashEntry('posts', slug);
+if (error) return new Response('Could not load this entry', { status: 500 });
+if (!entry) return Astro.redirect('/404');
+
+const path = `/posts/${entry.id}`;
+const site = Astro.site ?? new URL(Astro.url.origin);
+const seo = getSeoMeta(entry, { siteTitle: 'My Blog', siteUrl: site.href, path });
+---
+<Base title={seo.title} description={seo.description} path={path} robots={seo.robots}>
+  <article>
+    <h1>{entry.data.title}</h1>
+    {entry.data.excerpt && <p>{entry.data.excerpt}</p>}
+    <PortableText value={entry.data.content} />
+  </article>
+  <ArticleJsonLd
+    headline={entry.data.title}
+    description={entry.data.excerpt}
+    datePublished={entry.data.publishedAt?.toISOString()}
+    dateModified={entry.data.updatedAt?.toISOString()}
+    author="My Blog"
+    url={new URL(path, site).href}
+  />
+</Base>

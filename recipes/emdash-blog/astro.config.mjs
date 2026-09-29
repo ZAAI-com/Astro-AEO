@@ -16,14 +16,10 @@ export default defineConfig({
       storage: local({ directory: './uploads', baseUrl: '/_emdash/api/media/file' }),
     }),
     emdashAeo({
-      collections: {
-        // Section URLs come from each collection's seed urlPattern:
-        // /blog/{year}/{month}/{slug} matches /blog/**.
-        posts: { section: 'Blog' },
-        customers: { section: 'Customers' },
-        // Legal pages stay on the site but out of llms.txt and llms-full.txt.
-        legal: false,
-      },
+      // EmDash stores no URL for a taxonomy, so name the archive routes to list.
+      taxonomies: { category: '/category/{slug}', tag: '/tag/{slug}' },
+      // Search results are a query, not a page.
+      aeo: { pages: { exclude: ['/search'] } },
     }),
   ],
 });

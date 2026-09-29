@@ -12,4 +12,12 @@ Small, complete Astro projects, one per kind of site. Each builds on its own and
 | [local-business](local-business/) | `LocalBusiness` graph, domain profile |
 | [i18n](i18n/) | locales, reciprocal `hreflang`, per-locale corpora |
 | [ssr](ssr/) | Node adapter, content negotiation, a page catalog |
-| [emdash](emdash/) | the EmDash CMS: on-demand pages, a `defineCmsAdapter` catalog, admin exclusion |
+| [emdash](emdash/) | an EmDash marketing site with a blog and customers, mixing all template types |
+| [emdash-blog](emdash-blog/) | EmDash's Blog template: posts, pages, taxonomy archives, an excluded search page |
+| [emdash-marketing](emdash-marketing/) | EmDash's Marketing template: fixed pages built from content blocks |
+| [emdash-portfolio](emdash-portfolio/) | EmDash's Portfolio template: projects and an about page |
+| [emdash-starter](emdash-starter/) | EmDash's Starter template: posts and pages at the site root |
+
+The EmDash recipes render on demand, so `pnpm run test:recipes` seeds each one, starts its built
+server, and checks `llms.txt`, companions, and negotiation against the seeded content. EmDash needs
+Node 22.16 or newer.

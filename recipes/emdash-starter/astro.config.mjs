@@ -16,14 +16,8 @@ export default defineConfig({
       storage: local({ directory: './uploads', baseUrl: '/_emdash/api/media/file' }),
     }),
     emdashAeo({
-      collections: {
-        // Section URLs come from each collection's seed urlPattern:
-        // /blog/{year}/{month}/{slug} matches /blog/**.
-        posts: { section: 'Blog' },
-        customers: { section: 'Customers' },
-        // Legal pages stay on the site but out of llms.txt and llms-full.txt.
-        legal: false,
-      },
+      // Pages resolve at the site root (/{slug}); archives need their routes named.
+      taxonomies: { category: '/category/{slug}', tag: '/tag/{slug}' },
     }),
   ],
 });

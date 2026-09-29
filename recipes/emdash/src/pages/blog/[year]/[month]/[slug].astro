@@ -1,18 +1,21 @@
 ---
-import Base from '../../layouts/Base.astro';
+import Base from '../../../../layouts/Base.astro';
 import { ArticleJsonLd } from 'astro-aeo/components';
 import { decodeSlug, getEmDashEntry, getSeoMeta } from 'emdash';
 import { PortableText } from 'emdash/ui';
+import { postPath } from '../../../../post-path.js';
 
 const slug = decodeSlug(Astro.params.slug);
-if (!slug) return new Response('Not found', { status: 404 });
-
+if (!slug) return Astro.redirect('/404');
 const { entry: post, error } = await getEmDashEntry('posts', slug);
 if (error) return new Response('Unable to load post', { status: 500 });
-if (!post) return new Response('Not found', { status: 404 });
+if (!post) return Astro.redirect('/404');
 
-const site = Astro.site ?? new URL('https://recipe.example.com');
-const path = `/posts/${post.id}`;
+// A post answers only at its dated URL; another year or month is a different page.
+const path = postPath(post);
+if (path !== `/blog/${Astro.params.year}/${Astro.params.month}/${slug}`) return Astro.redirect(path, 301);
+
+const site = Astro.site ?? new URL(Astro.url.origin);
 const seo = getSeoMeta(post, { siteTitle: 'Field Station', siteUrl: site.href, path });
 ---
 <Base title={seo.title} description={seo.description} path={path} robots={seo.robots}>

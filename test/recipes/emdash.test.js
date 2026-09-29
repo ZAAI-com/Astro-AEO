@@ -1,22 +1,97 @@
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { auditDist } from '../../src/audit/local.js';
 import { spawnProcessTree } from '../../scripts/process-tree.mjs';
 import { ASTRO_BIN, REPO, fetchWithHost, stopProcess, waitForReady } from '../adapters/helpers.js';
 
-// The EmDash recipe is an on-demand CMS site: the build emits no page HTML, so
-// this suite proves the integration by booting the built server and asserting
-// the request-time contract against seeded content.
+// Every EmDash site renders on demand, so a build emits no page HTML. Each recipe
+// is built once here, audited, then served from its standalone Node entry so the
+// request-time contract can be asserted against its seeded database. The four
+// emdash-<template> recipes mirror EmDash's own templates; `emdash` mixes them.
 
-const RECIPE = join(REPO, 'recipes/emdash');
 const EMDASH_BIN = join(REPO, 'node_modules/emdash/dist/cli/index.mjs');
 const HOST = 'recipe.example.com';
-const BASE = 'http://127.0.0.1:4399';
+const MARKDOWN_ACCEPT = 'text/markdown;q=0.9,text/html;q=0.8';
+// EmDash requires Node 22.16 or newer.
+const [major, minor] = process.versions.node.split('.').map(Number);
+const SUPPORTED = major > 22 || (major === 22 && minor >= 16);
 
-/** @type {import('node:child_process').ChildProcess | undefined} */
-let server;
+/**
+ * @typedef {{
+ *   name: string;
+ *   listed: string[];
+ *   absent: string[];
+ *   sections?: string[];
+ *   companion: { path: string; heading: string };
+ *   negotiate: string;
+ *   unpublished?: string;
+ *   late?: { collection: string; match: RegExp };
+ * }} RecipeCase
+ */
+
+/** @type {RecipeCase[]} */
+const CASES = [
+  {
+    name: 'emdash-blog',
+    listed: [
+      '(/index.md)',
+      '(/posts.md)',
+      '(/posts/the-case-for-static.md)',
+      '(/posts/notes-on-simplicity.md)',
+      '(/pages/about.md)',
+      '(/category/development.md)',
+      '(/tag/webdev.md)',
+    ],
+    absent: ['/search', 'work-in-progress', '_emdash', '/404', 'rss.xml'],
+    companion: { path: '/posts/the-case-for-static.md', heading: '# The Case for Static' },
+    negotiate: '/posts/learning-in-public',
+    unpublished: '/posts/work-in-progress',
+    late: { collection: 'posts', match: /\(\/posts\/late-breaking-note\.md\)/ },
+  },
+  {
+    name: 'emdash-marketing',
+    listed: ['(/index.md)', '(/pricing.md)', '(/contact.md)'],
+    // The pages collection has no URL pattern, so nothing is guessed from it.
+    absent: ['/pages/', '/home', '_emdash', '/404'],
+    companion: { path: '/pricing.md', heading: '# Simple, transparent pricing' },
+    negotiate: '/',
+  },
+  {
+    name: 'emdash-portfolio',
+    listed: [
+      '(/index.md)',
+      '(/work.md)',
+      '(/work/meridian-brand.md)',
+      '(/work/coastal-photo.md)',
+      '(/about.md)',
+      '(/contact.md)',
+    ],
+    absent: ['_emdash', '/404', 'rss.xml'],
+    companion: { path: '/work/volta-web.md', heading: '# Volta' },
+    negotiate: '/about',
+  },
+  {
+    name: 'emdash-starter',
+    listed: ['(/index.md)', '(/posts.md)', '(/posts/welcome.md)', '(/about.md)', '(/category/general.md)', '(/tag/starter.md)'],
+    absent: ['_emdash', '/404'],
+    companion: { path: '/about.md', heading: '# About' },
+    negotiate: '/posts/welcome',
+  },
+  {
+    name: 'emdash',
+    listed: ['(/index.md)', '(/blog.md)', '(/customers.md)', '(/customers/aeo-field-guide.md)'],
+    absent: ['/legal/', 'unpublished-sketch', '_emdash', '/404'],
+    sections: ['## Blog', '## Customers'],
+    companion: { path: '/customers/llms-corpus-explorer.md', heading: '# LLMS Corpus Explorer' },
+    negotiate: '/customers/markdown-negotiation-lab',
+    unpublished: '/blog/2020/01/unpublished-sketch',
+    late: { collection: 'posts', match: /\(\/blog\/\d{4}\/\d{2}\/late-breaking-note\.md\)/ },
+  },
+];
 
 function cleanEnvironment() {
   const env = { ...process.env };
@@ -27,109 +102,169 @@ function cleanEnvironment() {
   return env;
 }
 
-function run(command, args, options = {}) {
-  const result = spawnSync(command, args, {
-    cwd: RECIPE,
+/** @param {string} cwd @param {string[]} args */
+function run(cwd, args) {
+  const result = spawnSync(process.execPath, args, {
+    cwd,
     encoding: 'utf8',
     env: cleanEnvironment(),
     stdio: ['ignore', 'pipe', 'pipe'],
-    ...options,
   });
   expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
   return result;
 }
 
-beforeAll(async () => {
-  // Hermetic database: rebuild data.db from the committed seed, then build.
-  // Stale WAL sidecar files from an earlier server corrupt a fresh database,
-  // so every SQLite sidecar goes with it.
-  for (const suffix of ['', '-journal', '-shm', '-wal']) {
-    rmSync(join(RECIPE, `data.db${suffix}`), { force: true });
-  }
-  run(process.execPath, [EMDASH_BIN, 'seed', 'seed/seed.json']);
-  run(process.execPath, [ASTRO_BIN, 'build', '--root', RECIPE]);
-
-  // EmDash resolves its SQLite URL against the process cwd, so the standalone
-  // server must run from the recipe root.
-  server = spawnProcessTree(process.execPath, ['dist/server/entry.mjs'], {
-    cwd: RECIPE,
-    env: { ...cleanEnvironment(), HOST: '127.0.0.1', PORT: '4399' },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  await waitForReady(BASE, { child: server, output: () => '' });
-}, 240_000);
-
-afterAll(async () => {
-  await stopProcess(server);
-});
-
-describe('emdash recipe', () => {
-  test('llms.txt lists published CMS pages and excludes the admin and drafts', async () => {
-    const response = await fetchWithHost(`${BASE}/llms.txt`, HOST);
-    expect(response.status).toBe(200);
-    const body = await response.text();
-    expect(body).toContain('/posts/signals-in-static-sites.md');
-    expect(body).toContain('/posts/crawling-without-credentials.md');
-    expect(body).toContain('/work/aeo-field-guide.md');
-    expect(body).toContain('(/index.md)');
-    expect(body).not.toContain('_emdash');
-    expect(body).not.toContain('unpublished-sketch');
-  });
-
-  test('llms-full.txt carries the rendered corpus', async () => {
-    const response = await fetchWithHost(`${BASE}/llms-full.txt`, HOST);
-    expect(response.status).toBe(200);
-    const body = await response.text();
-    expect(body).toContain('# Signals a static site sends to answer engines');
-    expect(body).toContain('# AEO Field Guide');
-  });
-
-  test('a CMS page serves a markdown companion through its own route', async () => {
-    const response = await fetch(`${BASE}/posts/signals-in-static-sites.md`);
-    expect(response.status).toBe(200);
-    expect(response.headers.get('content-type')).toContain('text/markdown');
-    const body = await response.text();
-    expect(body).toContain('# Signals a static site sends to answer engines');
-    expect(body).toContain('Three signals that matter');
-  });
-
-  test('a CMS page negotiates markdown by Accept header', async () => {
-    const response = await fetch(`${BASE}/posts/portable-text-in-practice`, {
-      headers: { accept: 'text/markdown;q=0.9,text/html;q=0.8' },
+/** @returns {Promise<number>} */
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const probe = createServer();
+    probe.once('error', reject);
+    probe.listen(0, '127.0.0.1', () => {
+      const address = probe.address();
+      probe.close(() => resolve(typeof address === 'object' && address ? address.port : 0));
     });
-    expect(response.status).toBe(200);
-    expect(response.headers.get('content-type')).toContain('text/markdown');
-    const body = await response.text();
-    expect(body).toContain('# Portable Text in practice');
+  });
+}
+
+/** @param {string} root */
+function resetDatabase(root) {
+  // Stale WAL sidecar files from an earlier server corrupt a fresh database.
+  for (const suffix of ['', '-journal', '-shm', '-wal']) {
+    rmSync(join(root, `data.db${suffix}`), { force: true });
+  }
+}
+
+/**
+ * A seed that adds one published entry to an existing collection, so a running
+ * server can be shown picking it up.
+ * @param {string} root
+ * @param {string} collection
+ */
+function lateSeed(root, collection) {
+  const seed = JSON.parse(readFileSync(join(root, 'seed/seed.json'), 'utf8'));
+  const [template] = seed.content[collection];
+  const entry = {
+    ...template,
+    id: 'late-breaking-note',
+    slug: 'late-breaking-note',
+    status: 'published',
+    data: { ...template.data, title: 'A late-breaking note' },
+  };
+  delete entry.taxonomies;
+  delete entry.bylines;
+  const directory = mkdtempSync(join(tmpdir(), 'astro-aeo-emdash-late-'));
+  const file = join(directory, 'late.json');
+  writeFileSync(file, JSON.stringify({ version: seed.version, collections: seed.collections, content: { [collection]: [entry] } }));
+  return { file, directory };
+}
+
+describe.skipIf(!SUPPORTED).each(CASES)('$name recipe', (recipe) => {
+  const root = join(REPO, 'recipes', recipe.name);
+  /** @type {import('node:child_process').ChildProcess | undefined} */
+  let server;
+  let base = '';
+  let output = '';
+
+  beforeAll(async () => {
+    resetDatabase(root);
+    run(root, [EMDASH_BIN, 'seed', 'seed/seed.json']);
+    // Built from the recipe root: EmDash resolves `file:./data.db` against cwd.
+    run(root, [ASTRO_BIN, 'build']);
+    const port = await freePort();
+    base = `http://127.0.0.1:${port}`;
+    server = spawnProcessTree(process.execPath, ['dist/server/entry.mjs'], {
+      cwd: root,
+      env: { ...cleanEnvironment(), HOST: '127.0.0.1', PORT: String(port) },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    server.stdout?.on('data', (chunk) => (output += chunk));
+    server.stderr?.on('data', (chunk) => (output += chunk));
+    await waitForReady(base, { child: server, output: () => output });
+  }, 300_000);
+
+  afterAll(async () => {
+    await stopProcess(server);
   });
 
-  test('the EmDash admin is reachable but never negotiated as markdown', async () => {
-    const html = await fetch(`${BASE}/_emdash/admin/`);
-    expect([200, 301, 302, 307, 308]).toContain(html.status);
-    const negotiated = await fetch(`${BASE}/_emdash/admin/`, {
-      headers: { accept: 'text/markdown;q=0.9,text/html;q=0.8' },
+  test('audits with no errors beyond the absent build HTML', () => {
+    const { findings } = auditDist(join(root, 'dist/client'), { projectRoot: root });
+    const errors = findings.filter((finding) => finding.severity === 'error' && finding.ruleId !== 'no-html');
+    expect(errors.map((finding) => `${finding.ruleId} ${finding.url ?? finding.file ?? ''}: ${finding.message}`)).toEqual([]);
+  });
+
+  test('llms.txt lists every published page with a public URL and nothing else', async () => {
+    const response = await fetchWithHost(`${base}/llms.txt`, HOST);
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    for (const link of recipe.listed) expect(body, link).toContain(link);
+    for (const fragment of recipe.absent) expect(body, fragment).not.toContain(fragment);
+    for (const heading of recipe.sections ?? []) expect(body).toContain(`\n${heading}\n`);
+  });
+
+  test('llms-full.txt carries the rendered pages', async () => {
+    const response = await fetchWithHost(`${base}/llms-full.txt`, HOST);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain(recipe.companion.heading);
+  });
+
+  test('a CMS page serves a Markdown companion and negotiates Markdown', async () => {
+    const companion = await fetch(`${base}${recipe.companion.path}`);
+    expect(companion.status).toBe(200);
+    expect(companion.headers.get('content-type')).toContain('text/markdown');
+    expect(await companion.text()).toContain(recipe.companion.heading);
+
+    const negotiated = await fetch(`${base}${recipe.negotiate}`, { headers: { accept: MARKDOWN_ACCEPT } });
+    expect(negotiated.status).toBe(200);
+    expect(negotiated.headers.get('content-type')).toContain('text/markdown');
+  });
+
+  test('the EmDash admin is never negotiated as Markdown', async () => {
+    const html = await fetch(`${base}/_emdash/admin/`, { redirect: 'manual' });
+    const negotiated = await fetch(`${base}/_emdash/admin/`, {
+      redirect: 'manual',
+      headers: { accept: MARKDOWN_ACCEPT },
     });
     expect(negotiated.status).toBe(html.status);
     expect(negotiated.headers.get('content-type') ?? '').not.toContain('text/markdown');
   });
 
-  test('a draft entry has no public page or companion', async () => {
-    const page = await fetch(`${BASE}/posts/unpublished-sketch`);
-    expect(page.status).toBe(404);
-    const companion = await fetch(`${BASE}/posts/unpublished-sketch.md`);
-    expect(companion.status).toBe(404);
+  test.skipIf(!recipe.unpublished)('an unpublished entry has no page or companion', async () => {
+    for (const path of [recipe.unpublished, `${recipe.unpublished}.md`]) {
+      const response = await fetch(`${base}${path}`, { redirect: 'manual' });
+      expect(response.status, path).not.toBe(200);
+    }
   });
 
-  test('EmDash serves its own robots.txt and sitemap', async () => {
-    const robots = await fetch(`${BASE}/robots.txt`);
+  test('EmDash keeps serving its own robots.txt and sitemap', async () => {
+    const robots = await fetch(`${base}/robots.txt`);
     expect(robots.status).toBe(200);
     expect(await robots.text()).toContain('Disallow: /_emdash/');
-    const sitemap = await fetch(`${BASE}/sitemap.xml`);
-    expect(sitemap.status).toBe(200);
+    expect((await fetch(`${base}/sitemap.xml`)).status).toBe(200);
   });
 
-  test('the build emitted no corpus bytes and no stray database at the repo root', () => {
-    expect(existsSync(join(RECIPE, 'dist/client/llms.txt'))).toBe(false);
+  test('the build emitted no corpus files and no database outside the recipe', () => {
+    expect(existsSync(join(root, 'dist/client/llms.txt'))).toBe(false);
     expect(existsSync(join(REPO, 'data.db'))).toBe(false);
   });
+
+  test.skipIf(!recipe.late)('lists a newly published entry without a restart', async () => {
+    const late = /** @type {NonNullable<RecipeCase['late']>} */ (recipe.late);
+    const before = await (await fetchWithHost(`${base}/llms.txt`, HOST)).text();
+    expect(before).not.toMatch(late.match);
+    const { file, directory } = lateSeed(root, late.collection);
+    try {
+      run(root, [EMDASH_BIN, 'seed', file, '--on-conflict', 'skip']);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+    // emdashAeo() re-lists the catalog once its 10 second revalidate window passes.
+    let body = before;
+    for (let attempt = 0; attempt < 40 && !late.match.test(body); attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      body = await (await fetchWithHost(`${base}/llms.txt`, HOST)).text();
+    }
+    expect(body).toMatch(late.match);
+    const path = /** @type {RegExpMatchArray} */ (body.match(late.match))[0].slice(1, -4);
+    expect((await fetch(`${base}${path}`)).status).toBe(200);
+  }, 60_000);
 });
