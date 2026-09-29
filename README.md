@@ -671,7 +671,10 @@ kept, since they usually repeat visually hidden text.
 Figures keep their shown images followed by the caption in emphasis. Alternate states of one
 subject (images hidden from assistive technology, `[hidden]`, Starlight's `light:sl-hidden`, or a
 `hidden` image shown only in dark mode) are dropped while a shown image remains, so both images of
-a before/after comparison survive and adjacent labels are separated by a space. Image-free charts retain readable text or their accessible label.
+a before/after comparison survive and adjacent labels are separated by a space. Code blocks become
+fences whose language comes from a `language-*` or `lang-*` class, a `data-language` attribute on
+the `pre` or `code`, or a filename at the start of a figure caption holding one code block; emit
+`data-language` if your highlighter puts the language anywhere else. Image-free charts retain readable text or their accessible label.
 Definition lists become a
 bold term followed by its description, and tables whose cells are single-span inline
 content become GFM pipe tables. `time`, `address`, and `cite` convert to their text.

@@ -23,7 +23,10 @@ describe('real-page markup', () => {
     const { markdown } = extractMarkdown(parseDocument(html), { ...DEFAULT_EXTRACTION, ...overrides }, td, {
       baseUrl: 'https://example.com/page/',
     });
-    expect(markdown).not.toMatch(/class=|data-|style=|<div|<span|<figure|<dl/);
+    // Fenced code can legitimately quote HTML; only leakage outside fences counts.
+    // A fence closes on the same character repeated at least as many times.
+    const unfenced = markdown.replace(/^ {0,3}(([`~])\2{2,})[^\n]*\n[\s\S]*?^ {0,3}\1\2*[ \t]*$/gm, '');
+    expect(unfenced).not.toMatch(/class=|data-|style=|<div|<span|<figure|<dl/);
     await expect(markdown).toMatchFileSnapshot(`../../../fixtures/extract-real/${file.replace('.html', '.md')}`);
   });
 });

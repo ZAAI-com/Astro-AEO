@@ -318,6 +318,38 @@ describe('conversion fidelity', () => {
     expect(md).toContain('const a = 1;');
   });
 
+  describe('code fence languages', () => {
+    test.each([
+      ['Shiki data-language', '<pre class="astro-code" data-language="bash"><code><span class="line"><span>npm</span><span> i</span></span></code></pre>', '```bash\nnpm i\n```'],
+      ['plaintext data-language', '<pre data-language="plaintext"><code>a \u2192 b</code></pre>', '```\na \u2192 b\n```'],
+      ['uppercase data-language', '<pre data-language="JavaScript"><code>x</code></pre>', '```javascript\nx\n```'],
+      ['code data-language', '<pre><code data-language="ts">x</code></pre>', '```ts\nx\n```'],
+      ['code lang-*', '<pre><code class="lang-js">x</code></pre>', '```js\nx\n```'],
+      ['pre language-*', '<pre class="language-js"><code>x</code></pre>', '```js\nx\n```'],
+      ['explicit class wins over data-language', '<pre data-language="bash"><code class="language-text">x</code></pre>', '```text\nx\n```'],
+      ['newline after pre', '<pre data-language="bash">\n<code>npm install</code></pre>', '```bash\nnpm install\n```'],
+      ['caption filename', '<figure><figcaption>index.html (what most bots see)</figcaption><pre><code>&lt;p&gt;</code></pre></figure>', '_index.html (what most bots see)_\n\n```html\n<p>\n```'],
+      ['caption prose', '<figure><figcaption>Running the server with Node.js</figcaption><pre><code>npm start</code></pre></figure>', '_Running the server with Node.js_\n\n```\nnpm start\n```'],
+      ['pre without code is unchanged', '<pre data-language="bash">npm install</pre>', 'npm install'],
+    ])('%s', (_name, body, expected) => {
+      expect(convert(`<main>${body}</main>`)).toBe(expected);
+    });
+
+    test('Expressive Code lines join with newlines', () => {
+      const md = convert('<main><figure class="frame"><figcaption><span class="sr-only">Terminal window</span></figcaption>' +
+        '<pre data-language="sh"><code><div class="ec-line"><div class="code"><span>::</span><span>:note</span></div></div>' +
+        '<div class="ec-line"><div class="code"><span>two</span></div></div></code></pre></figure></main>');
+      expect(md).toContain('```sh\n:::note\ntwo\n```');
+    });
+
+    test('kept raw HTML stays byte-stable', () => {
+      const html = '<main><div class="keep"><pre data-language="bash">\n<code>x</code></pre></div></main>';
+      const md = extractMarkdown(doc(page(html)), { ...DEFAULT_EXTRACTION, keepSelectors: ['.keep'] }, td).markdown;
+      expect(md).toContain('<pre>\n<code>x</code></pre>');
+      expect(md).not.toContain('```');
+    });
+  });
+
   test('whitespace around the content root does not leak into the output', () => {
     expect(convert('<main>   <h1>T</h1>  <p>B.</p>   </main>')).toBe('# T\n\nB.');
   });

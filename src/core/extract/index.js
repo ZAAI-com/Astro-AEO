@@ -213,6 +213,7 @@ export function cleanRoot(root, { removeSelectors, keepSelectors }) {
   }
   removed += removeChrome(root);
   sanitizeRoot(root);
+  normalizeCodeBlocks(root);
   normalizeFigures(root);
   normalizeDefinitionLists(root);
   const unmarked = (/** @type {Element} */ el) => !el.hasAttribute(KEEP_ATTRIBUTE);
@@ -384,6 +385,69 @@ function isAlternateImage(image, figure) {
     if (/(?:^|\s)!?hidden!?(?=\s|$)/.test(className) && DARK_SHOWN.test(className)) return true;
   }
   return false;
+}
+
+/** File extensions a code window's caption may name, mapped to fence languages. */
+const CAPTION_LANGUAGES = new Map([
+  ['html', 'html'], ['htm', 'html'], ['css', 'css'], ['js', 'js'], ['mjs', 'js'], ['cjs', 'js'],
+  ['ts', 'ts'], ['tsx', 'tsx'], ['jsx', 'jsx'], ['json', 'json'], ['md', 'md'], ['mdx', 'mdx'],
+  ['yml', 'yaml'], ['yaml', 'yaml'], ['toml', 'toml'], ['sh', 'sh'], ['bash', 'bash'], ['zsh', 'zsh'],
+  ['rb', 'ruby'], ['py', 'python'], ['astro', 'astro'], ['svelte', 'svelte'], ['vue', 'vue'],
+  ['xml', 'xml'], ['liquid', 'liquid'],
+]);
+
+/** A filename at the start of a caption, such as `index.html (what most bots see)`. */
+const CAPTION_FILENAME = /^(?:[\w.-]+\/)*[\w-][\w.-]*\.([a-z0-9]{1,10})(?=\s|\(|$)/i;
+/** Inferred languages that name no syntax and so leave the fence bare. */
+const PLAIN_LANGUAGES = new Set(['plaintext', 'text', 'txt', 'plain']);
+const FENCE_LANGUAGE = /^[\w+#.-]{1,32}$/;
+
+/**
+ * @param {Element} el
+ * @param {string} prefix
+ */
+function classLanguage(el, prefix) {
+  for (const name of el.classList ?? []) {
+    if (name.startsWith(prefix) && name.length > prefix.length) return name.slice(prefix.length);
+  }
+  return '';
+}
+
+/**
+ * Shape `pre > code` blocks for Turndown's fenced rule, which reads only a
+ * `language-*` class on a `code` that is the first child. Highlighters put the
+ * language elsewhere (Shiki and Expressive Code on `data-language`, Prism on
+ * `lang-*` or the `pre`), and code windows name the file in a caption. Kept raw
+ * HTML is left byte-stable.
+ *
+ * @param {Element} root
+ */
+function normalizeCodeBlocks(root) {
+  for (const pre of matchingElements(root, 'pre')) {
+    const code = pre.firstElementChild;
+    if (code?.localName !== 'code' || pre.closest(`[${KEEP_ATTRIBUTE}]`)) continue;
+    // Browsers ignore the newline after <pre>; without the text node the block fences.
+    while (pre.firstChild !== code && pre.firstChild?.nodeType === 3 && !(pre.firstChild.textContent ?? '').trim()) {
+      pre.firstChild.remove();
+    }
+    // Expressive Code renders each line as a block with no newline between them.
+    const lines = [...code.children].filter((line) => line.classList?.contains('ec-line'));
+    for (const line of lines.slice(1)) code.insertBefore(code.ownerDocument.createTextNode('\n'), line);
+    if (classLanguage(code, 'language-')) continue;
+    let language = classLanguage(code, 'lang-') || classLanguage(pre, 'language-') || classLanguage(pre, 'lang-') ||
+      code.getAttribute('data-language') || pre.getAttribute('data-language') || '';
+    if (!language) {
+      const figure = pre.closest('figure');
+      const caption = figure && [...figure.querySelectorAll('figcaption')].find((el) => el.closest('figure') === figure);
+      if (caption && [...figure.querySelectorAll('pre')].filter((el) => el.closest('figure') === figure).length === 1) {
+        const match = CAPTION_FILENAME.exec((caption.textContent ?? '').trim());
+        language = (match && CAPTION_LANGUAGES.get(match[1].toLowerCase())) || '';
+      }
+    }
+    language = language.trim().toLowerCase();
+    if (!language || PLAIN_LANGUAGES.has(language) || !FENCE_LANGUAGE.test(language)) continue;
+    code.classList.add(`language-${language}`);
+  }
 }
 
 /**
