@@ -933,9 +933,11 @@ Globs are segment-aware: `*` stays inside one path segment, `**` crosses segment
 
 `corpus.small` builds a strict token-budgeted `llms-small.txt` from contiguous leading source
 blocks. It uses stable round-robin allocation across locales, sections, and pages, counts wrappers
-against the limit, and never summarizes or rewrites content. `corpus.chunks` splits full-corpus
-content at page, heading, paragraph, and fenced-code boundaries. Fences remain indivisible and an
-oversized unit is emitted with a diagnostic rather than silently truncated.
+against the limit, and never summarizes or rewrites content. A page cut short by the budget is
+reported as `small-corpus-truncated` with severity `info`, since that is the budget working; a page
+whose first block does not fit (`small-corpus-first-block-omitted`) is a warning. `corpus.chunks`
+splits full-corpus content at page, heading, paragraph, and fenced-code boundaries. Fences remain
+indivisible and an oversized unit is emitted with a diagnostic rather than silently truncated.
 
 The built-in `astro-aeo-approx@1` counter is deterministic and explicitly approximate. A custom
 local tokenizer module must default-export API version 1 with stable `name`, `version`,

@@ -580,7 +580,7 @@ Severity: warning. Raised by: build.
 
 ### small-corpus-truncated
 
-Severity: warning. Raised by: build.
+Severity: info. Raised by: build.
 
 ### small-corpus-wrapper-omitted
 

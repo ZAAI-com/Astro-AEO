@@ -4,7 +4,8 @@ All notable changes to this project are documented here. This project follows [S
 
 ## 1.5.1
 
-A patch release on top of 1.5.0 that lets multilingual sites run locally without hreflang errors.
+A patch release on top of 1.5.0 that lets multilingual sites run locally without hreflang errors,
+and lets builds that fail on warnings keep a token-budgeted small corpus.
 
 ### Local hreflang alternates
 
@@ -31,6 +32,19 @@ A patch release on top of 1.5.0 that lets multilingual sites run locally without
   policy is unchanged.
 - Undocumented tokens such as `anthropic-ai` and `cohere-ai` stay out of the registry. Name them
   in `allow` or `disallow` to address them explicitly.
+
+### Small corpus truncation
+
+- `small-corpus-truncated` is now an `info` diagnostic instead of a `warning`. `llms-small.txt` is
+  built from each page's leading blocks, so dropping the rest of a page once the budget runs out is
+  the feature working, not a defect. Before, a site larger than its `corpus.small.maxTokens` budget
+  got one warning per cut page, which failed every build with `validation.failOn: 'warning'` and
+  every `astro-aeo audit --fail-on warning`.
+- `small-corpus-first-block-omitted`, `small-corpus-wrapper-omitted` and
+  `small-corpus-preamble-over-budget` stay warnings: each means content the corpus was meant to
+  carry is missing.
+- Audit reports count the truncations as `infos`, and the `build:complete` plugin summary moves them
+  from `warning` to `info`.
 
 ## 1.5.0
 

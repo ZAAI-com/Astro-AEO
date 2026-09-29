@@ -280,6 +280,26 @@ describe('offline audit', () => {
     expect(serialized).not.toContain(project);
   });
 
+  it('keeps the build severity of a manifest diagnostic, so a truncated small corpus is only an info', () => {
+    const project = site({
+      'dist/index.html': html({ title: 'Home', description: 'd' }),
+      '.astro/aeo-cache/diagnostics-v1.json': JSON.stringify({
+        version: 1,
+        generatedAt: '2026-01-01T00:00:00.000Z',
+        pages: [],
+        diagnostics: [
+          { version: 1, code: 'small-corpus-truncated', severity: 'info', message: 't', pathname: '/' },
+          { version: 1, code: 'small-corpus-first-block-omitted', severity: 'warning', message: 'f', pathname: '/' },
+        ],
+      }),
+    });
+    const findings = auditDist(join(project, 'dist')).findings
+      .filter((finding) => finding.ruleId.startsWith('small-corpus-'))
+      .map((finding) => `${finding.ruleId} ${finding.severity}`)
+      .sort();
+    expect(findings).toEqual(['small-corpus-first-block-omitted warning', 'small-corpus-truncated info']);
+  });
+
   it('skips symlinks and redirect stubs', () => {
     const project = site({
       'outside/index.html': html({ title: 'Outside', description: '' }),

@@ -207,6 +207,30 @@ describe('logical corpus artifact planner', () => {
     expect(english.chunks).not.toEqual(french.chunks);
   });
 
+  test('reports a truncated small-corpus page as info and an omitted first block as a warning', async () => {
+    const config = resolveConfig({ corpus: { small: { enabled: true, maxTokens: 300 } } });
+    const sentence = 'One more detail about the product, in plain words.';
+    const guide = page('/guide', 'en');
+    guide.markdown = ['# Guide', ...Array.from({ length: 40 }, () => sentence)].join('\n\n');
+    const huge = page('/huge', 'en');
+    huge.markdown = 'word '.repeat(400).trim();
+    const plan = await planCorpusArtifacts({
+      pages: [guide, huge],
+      config,
+      siteMeta,
+      origin: 'https://example.test',
+      base: '',
+      i18n: createLocaleSnapshot({ locales: ['en'], defaultLocale: 'en' }, 'https://example.test'),
+    });
+
+    // Cutting a page's later blocks is how a budgeted corpus works; losing its first block is not.
+    expect(plan.diagnostics.map(({ code, severity, pathname }) => ({ code, severity, pathname })))
+      .toEqual(expect.arrayContaining([
+        { code: 'small-corpus-truncated', severity: 'info', pathname: '/guide' },
+        { code: 'small-corpus-first-block-omitted', severity: 'warning', pathname: '/huge' },
+      ]));
+  });
+
   test('emits byte-copy aliases only in both mode', async () => {
     const config = resolveConfig({
       corpus: { small: { enabled: true, maxTokens: 1_000 } },
