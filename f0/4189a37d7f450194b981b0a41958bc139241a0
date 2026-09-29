@@ -1,0 +1,39 @@
+src/emdash.js
+  s_75434dc6ca634e::t_c6d8af42a295a3 4
+  s_75434dc6ca634e::t_36b5d9ec8e8d9a 103,105
+src/runtime/serve.test.js
+  s_75434dc6ca634e::t_3ddf8889e5a42c 1215-1244
+src/emdash/catalog.js
+  s_75434dc6ca634e::t_31cd8b5af72f10 15-17,21-23,25-39,41-65
+  s_75434dc6ca634e::t_eb12da80d36bbc 40
+src/emdash/inventory.test.js
+  s_75434dc6ca634e::t_39398df4275616 147-172
+  s_75434dc6ca634e::t_083c4c4b5cf960 2,4
+src/config.js
+  s_75434dc6ca634e::t_d1f0c1713f2636 13
+src/runtime/serve.js
+  s_75434dc6ca634e::t_59b554a4e7c4df 812-813
+  s_75434dc6ca634e::t_6e12d25426e9aa 882-888
+  s_75434dc6ca634e::t_225adb8f31214e 860
+  s_75434dc6ca634e::t_6f1af1bddf263f 870,873
+src/emdash.test.js
+  s_75434dc6ca634e::t_9ab0c44ba2e042 141
+  s_75434dc6ca634e::t_d8b15125aab2fa 114
+  s_75434dc6ca634e::t_35a074058d764a 154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f04189a37d7f450194b981b0a41958bc139241a0",
+  "prompts": {},
+  "sessions": {
+    "s_75434dc6ca634e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ff91888e-033f-48d5-9db8-a6e35c985dce",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
