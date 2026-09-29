@@ -1,0 +1,52 @@
+src/core/extract/real-pages.test.js
+  s_cdc4a3137771a2::t_9cd2ed4d4c4fbc 28
+  s_cdc4a3137771a2::t_7ed89faf346d91 27
+  s_cdc4a3137771a2::t_8f79b5aebd0f47 26,29
+fixtures/extract-real/expressive-code-block.md
+  s_cdc4a3137771a2::t_972481efb9e977 1-7
+README.md
+  s_ecf790cb56dd12::t_bb6ff4a04fba20 674-677
+src/core/extract/index.test.js
+  s_ecf790cb56dd12::t_bb6ff4a04fba20 321-352
+fixtures/extract-real/shiki-code-block.html
+  s_cdc4a3137771a2::t_5b6aa6a38db5d8 1-6
+  s_cdc4a3137771a2::t_517a4f133fc33e 7-8
+fixtures/extract-real/expressive-code-block.html
+  s_cdc4a3137771a2::t_972481efb9e977 1
+src/core/extract/index.js
+  s_ecf790cb56dd12::t_bb6ff4a04fba20 216,390-451
+  s_ecf790cb56dd12::t_37ce8d1f53dbdd 452
+fixtures/extract-real/figure-code-window.md
+  s_cdc4a3137771a2::t_5b6aa6a38db5d8 11-18
+  s_cdc4a3137771a2::t_32619d2a49f5f3 1-10,19-22
+fixtures/extract-real/shiki-code-block.md
+  s_cdc4a3137771a2::t_5b6aa6a38db5d8 1-10,17
+  s_cdc4a3137771a2::t_f4d568db944991 11-16
+fixtures/extract-real/figure-code-window.html
+  s_cdc4a3137771a2::t_5b6aa6a38db5d8 8-15
+  s_cdc4a3137771a2::t_0422e698fd7a09 1-7,16-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "46035436ab0b0e9e7300e1bf766087afd262345a",
+  "prompts": {},
+  "sessions": {
+    "s_cdc4a3137771a2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6ea4cf9a-5536-4107-8842-8296dd28e6bf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_ecf790cb56dd12": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f13db9b5effen4l0rmfiO7NDSX",
+        "model": "unknown"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
