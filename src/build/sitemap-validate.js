@@ -2,7 +2,7 @@
 import { lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { authoredCanonical } from '../core/canonical.js';
+import { authoredCanonical, isLocalDevelopmentHostname } from '../core/canonical.js';
 import { parseSitemapXml } from '../core/sitemap-xml.js';
 
 /**
@@ -205,9 +205,16 @@ export function validateLocalSitemap(input) {
 
       /** @type {{ language: string; url: string }[]} */
       const alternates = [];
+      // Plain http: hreflang is for local contexts only, the same rule the build
+      // applies in src/core/locale.js: an entry served from a local development
+      // host may list it, a public one may not.
+      const localHttp = isLocalDevelopmentHostname(canonical.hostname);
       for (const alternate of entry.alternates) {
         const url = safeHttpUrl(alternate.url);
-        if (!url || url.protocol !== 'https:' || url.username || url.password || url.hash) {
+        if (
+          !url || url.username || url.password || url.hash ||
+          (url.protocol !== 'https:' && !(localHttp && isLocalDevelopmentHostname(url.hostname)))
+        ) {
           findings.push(finding('sitemap-hreflang-url-invalid', 'error', `Invalid hreflang URL: ${redactUrl(alternate.url)}`, canonical.pathname, servedPath));
           continue;
         }

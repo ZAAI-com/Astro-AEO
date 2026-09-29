@@ -246,6 +246,21 @@ describe('offline audit', () => {
       .toEqual(['hreflang-return-missing /de/', 'hreflang-target-missing /fr/']);
   });
 
+  it('checks hreflang targets and return links on a local development origin', () => {
+    const project = site({
+      'dist/index.html': html({
+        title: 'Home',
+        head: '<link rel="alternate" hreflang="de" href="http://localhost:4321/de/">'
+          + '<link rel="alternate" hreflang="fr" href="http://localhost:4321/fr/">',
+      }),
+      'dist/de/index.html': html({ title: 'Start', lang: 'de' }),
+    });
+    const findings = rulesOf(project, { siteUrl: 'http://localhost:4321' });
+    expect(findings.filter((finding) => finding.category === 'internationalization')
+      .map((finding) => `${finding.ruleId} ${finding.evidence}`).sort())
+      .toEqual(['hreflang-return-missing http://localhost:4321/de/', 'hreflang-target-missing http://localhost:4321/fr/']);
+  });
+
   it('reads the sanitized private manifests and never reports an absolute path', () => {
     const project = site({
       'dist/index.html': html({ title: 'Home', description: 'd' }),
