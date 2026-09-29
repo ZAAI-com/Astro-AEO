@@ -361,6 +361,11 @@ const canonicalProperties = {
           ...object(
             {
               module: { type: 'string', minLength: 1, description: 'Importable module specifier.' },
+              revalidate: {
+                anyOf: [{ type: 'number', minimum: 0 }, { const: false }],
+                description:
+                  'Seconds a request-time listing stays fresh before the catalog is listed again. Omit or false to list once per server process.',
+              },
             },
             'One catalog module.',
           ),

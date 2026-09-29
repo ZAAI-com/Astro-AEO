@@ -893,6 +893,12 @@ const starlightOptions: StarlightAeoOptions = {
 export const starlightPlugin: StarlightAeoPlugin = starlightAeo(starlightOptions);
 export const starlightPluginName: string = starlightPlugin.name;
 
+// Catalogs accept a request-time revalidate window.
+export const revalidatingCatalogs: AstroAeoConfig = {
+  pages: { catalogs: [{ module: './cms.js', revalidate: 10 }, { module: './fixed.js', revalidate: false }] },
+};
+export const resolvedRevalidate: number | false | undefined = resolvedCanonical.pages.catalogs[0]?.revalidate;
+
 // The edge subpaths share one declaration file.
 import { decideEdgeRepresentation, readEdgeManifest } from 'astro-aeo/edge';
 import type { EdgeDecision, StaticEdgeManifestV1 } from 'astro-aeo/edge';

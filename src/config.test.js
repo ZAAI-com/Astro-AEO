@@ -320,6 +320,14 @@ describe('resolveConfig', () => {
     expect(() => resolveConfig({ pages: { catalogs: [{}] } })).toThrow(/pages\.catalogs\[0\]\.module/);
     expect(() => resolveConfig({ pages: { catalogs: [{ module: '  ' }] } })).toThrow(AeoConfigError);
     expect(() => resolveConfig({ pages: { catalogs: /** @type {any} */ ({}) } })).toThrow(AeoConfigError);
+    expect(resolveConfig({ pages: { catalogs: [{ module: './cms.js', revalidate: 10 }] } }).pages.catalogs)
+      .toEqual([{ module: './cms.js', revalidate: 10 }]);
+    expect(resolveConfig({ pages: { catalogs: [{ module: './cms.js', revalidate: false }] } }).pages.catalogs[0].revalidate)
+      .toBe(false);
+    for (const revalidate of [-1, Number.NaN, Infinity, '10', true]) {
+      expect(() => resolveConfig({ pages: { catalogs: [{ module: './cms.js', revalidate: /** @type {any} */ (revalidate) }] } }))
+        .toThrow(/pages\.catalogs\[0\]\.revalidate/);
+    }
   });
 
   test('resolves and validates development dynamic-route discovery', () => {

@@ -106,7 +106,7 @@ aeo({
     respectNoindex: true,            // skip pages with <meta name="robots" content="noindex">
     stripTitleSuffix: false,         // strip " | Your Brand" from titles: string | string[] | RegExp
     devDynamicDiscovery: 'startup',  // 'startup' | 'hot' (experimental) | false
-    catalogs: [],                    // request-time inventory and exact descriptor modules
+    catalogs: [],                    // request-time inventory and exact descriptor modules; { module, revalidate? }
   },
 
   markdown: {                        // the .md companions
@@ -621,6 +621,13 @@ contributes nothing rather than failing the build or server startup. Catalogs ru
 configured order in both builds and server bundles; the first descriptor wins when
 two catalogs name the same normalized path. `context` contains the command, site URL,
 base path, and trailing-slash policy.
+
+A request-time server lists each catalog once per process. Give a catalog a `revalidate` window to
+list it again once that many seconds have passed since its last listing, so a CMS catalog picks up
+published entries without a restart: `{ module: './src/aeo-catalog.js', revalidate: 30 }`. `0` lists
+on every use of the inventory, and `false` (or omitting it) keeps the first listing. A revalidating
+catalog that fails is retried on its next use instead of staying empty. Development always lists
+afresh, and a build lists once.
 
 Catalog entrypoints must be JavaScript that Node's native module loader can execute:
 `.js`, `.mjs`, or `.cjs`. This keeps build preflight identical on every supported Node

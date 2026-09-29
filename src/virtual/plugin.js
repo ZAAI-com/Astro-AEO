@@ -37,7 +37,7 @@ const RESOLVED_DEV_LOOPBACK_ID = `\0${DEV_LOOPBACK_ID}`;
 
 /**
  * @param {() => Record<string, unknown>} getSnapshot
- * @param {() => { module: string; specifier: string }[]} [getCatalogModules]
+ * @param {() => { module: string; specifier: string; revalidate?: number | false }[]} [getCatalogModules]
  * @param {() => { pathname: string; path: string; specifier: string; kind?: 'markdown'|'mdx' }[]} [getMarkdownSources]
  * @param {() => { name: string; module: string; specifier: string; options?: import('../index.js').JsonValue; cache?: import('../index.js').CacheDeclaration }[]} [getMarkdownRenderers]
  * @param {() => { name: string; module: string; specifier: string; options?: import('../index.js').JsonValue; stages: string[]; hookManifest?: { stage: string; ordinal: number; cache?: import('../index.js').CacheDeclaration }[]; claims: { id: string; pathname: string; replace?: boolean }[] }[]} [getRuntimePlugins]
@@ -80,8 +80,10 @@ export function aeoRuntimeConfigPlugin(
       if (id !== RESOLVED_RUNTIME_CONFIG_ID) return undefined;
       const catalogLoaders = getCatalogModules()
         .map(
-          ({ module, specifier }) =>
-            `{ module: ${JSON.stringify(module)}, load: () => import(${JSON.stringify(specifier)}).then((namespace) => namespace.default ?? namespace) }`,
+          ({ module, specifier, revalidate }) =>
+            `{ module: ${JSON.stringify(module)}, ` +
+            `${revalidate === undefined ? '' : `revalidate: ${JSON.stringify(revalidate)}, `}` +
+            `load: () => import(${JSON.stringify(specifier)}).then((namespace) => namespace.default ?? namespace) }`,
         )
         .join(', ');
       const markdownRendererLoaders = getMarkdownRenderers()

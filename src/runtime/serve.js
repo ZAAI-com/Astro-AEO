@@ -56,7 +56,8 @@ import {
 /** @typedef {{ html: string | null; response: Response }} HtmlLoad */
 /** @typedef {(pathname: string) => Promise<HtmlLoad | null>} HtmlFetcher */
 /** @typedef {{ body: string | null; source: Response | null }} MarkdownResult */
-/** @typedef {{ module: string; load: () => Promise<import('../page.js').PageCatalog> }} RuntimeCatalogLoader */
+/** @typedef {{ module: string; revalidate?: number | false; load: () => Promise<import('../page.js').PageCatalog> }} RuntimeCatalogLoader */
+/** @typedef {{ listed: any[] | null; expiresAt: number }} RuntimeCatalogListing */
 /** @typedef {import('./markdown-renderers.js').RuntimeMarkdownRendererLoader} RuntimeMarkdownRendererLoader */
 /** @typedef {import('./plugins.js').RuntimePluginLoader} RuntimePluginLoader */
 /** @typedef {import('./corpus-tokenizer.js').RuntimeCorpusTokenizerLoader} RuntimeCorpusTokenizerLoader */
@@ -77,7 +78,7 @@ export class RuntimeCorpusLimitError extends Error {
 
 /** @type {WeakMap<Runtime, Promise<import('turndown')>>} */
 const runtimeTurndown = new WeakMap();
-/** @type {WeakMap<Runtime, { loaders: RuntimeCatalogLoader[]; siteUrl: string; pages: Promise<import('../page.js').PageDescriptor[]> }>} */
+/** @type {WeakMap<Runtime, { loaders: RuntimeCatalogLoader[]; siteUrl: string; listings: Promise<RuntimeCatalogListing>[]; pages: Promise<import('../page.js').PageDescriptor[]> }>} */
 const runtimeCatalogPages = new WeakMap();
 
 /**
@@ -804,24 +805,97 @@ function isMinimalPageDescriptor(value, pathname) {
 }
 
 /**
+ * Outside development a catalog is listed once per process unless its
+ * `revalidate` window allows a fresh listing. Each loader keeps its own
+ * listing, so a live CMS catalog refreshes without re-listing static ones, and
+ * the merged inventory (with its warnings) is rebuilt only when a listing
+ * changed. A failed listing is kept only by catalogs without `revalidate`.
+ *
  * @param {RuntimeCatalogLoader[]} loaders
  * @param {Runtime} runtime
  * @param {string} [origin]
+ * @param {() => number} [now]
  */
-export function runtimeCatalogPagesFor(loaders, runtime, origin) {
+export function runtimeCatalogPagesFor(loaders, runtime, origin, now = Date.now) {
   const siteUrl = effectiveSiteUrl(runtime, origin);
   if (runtime.command === 'dev') return loadRuntimeCatalogPages(loaders, runtime, siteUrl);
+  const context = catalogContext(runtime, siteUrl);
   const cached = runtimeCatalogPages.get(runtime);
   if (cached && cached.loaders === loaders && cached.siteUrl === siteUrl) {
-    return cached.pages;
+    let refreshed = false;
+    const listings = cached.listings.map((listing, index) => {
+      const loader = loaders[index];
+      if (!isRevalidating(loader)) return listing;
+      const next = revalidatedListing(listing, loader, context, now);
+      if (next !== listing) refreshed = true;
+      return next;
+    });
+    if (!refreshed) return cached.pages;
+    const pages = mergeRuntimeCatalogListings(listings, runtime, siteUrl);
+    runtimeCatalogPages.set(runtime, { loaders, siteUrl, listings, pages });
+    return pages;
   }
-  const pages = loadRuntimeCatalogPages(loaders, runtime, siteUrl);
-  runtimeCatalogPages.set(runtime, {
-    loaders,
-    siteUrl,
-    pages,
-  });
+  const listings = loaders.map((loader) => listRuntimeCatalog(loader, context, now));
+  const pages = mergeRuntimeCatalogListings(listings, runtime, siteUrl);
+  runtimeCatalogPages.set(runtime, { loaders, siteUrl, listings, pages });
   return pages;
+}
+
+/** @param {RuntimeCatalogLoader | undefined} loader @returns {loader is RuntimeCatalogLoader & { revalidate: number }} */
+function isRevalidating(loader) {
+  return typeof loader?.revalidate === 'number' && Number.isFinite(loader.revalidate) && loader.revalidate >= 0;
+}
+
+/**
+ * Settled listings carry their expiry; one still in flight is shared.
+ * @param {Promise<RuntimeCatalogListing>} listing
+ * @param {RuntimeCatalogLoader & { revalidate: number }} loader
+ * @param {import('../page.js').CatalogContext} context
+ * @param {() => number} now
+ */
+function revalidatedListing(listing, loader, context, now) {
+  const settled = settledListings.get(listing);
+  if (!settled || now() < settled.expiresAt) return listing;
+  return listRuntimeCatalog(loader, context, now);
+}
+
+/** @type {WeakMap<Promise<RuntimeCatalogListing>, RuntimeCatalogListing>} */
+const settledListings = new WeakMap();
+
+/**
+ * @param {RuntimeCatalogLoader} loader
+ * @param {import('../page.js').CatalogContext} context
+ * @param {() => number} now
+ * @returns {Promise<RuntimeCatalogListing>}
+ */
+function listRuntimeCatalog(loader, context, now) {
+  const listing = (async () => {
+    try {
+      const catalog = await loader.load();
+      if (typeof catalog?.listPages !== 'function') throw new Error('no listPages() export');
+      const listed = await catalog.listPages(context);
+      const expiresAt = isRevalidating(loader) ? now() + loader.revalidate * 1000 : Infinity;
+      return { listed: Array.isArray(listed) ? listed : [], expiresAt };
+    } catch {
+      console.warn(
+        `astro-aeo: the runtime page catalog "${loader.module}" failed and contributed nothing.`,
+      );
+      // A revalidating catalog retries on its next use instead of staying empty.
+      return { listed: null, expiresAt: isRevalidating(loader) ? 0 : Infinity };
+    }
+  })();
+  listing.then((settled) => settledListings.set(listing, settled));
+  return listing;
+}
+
+/** @param {Runtime} runtime @param {string} siteUrl @returns {import('../page.js').CatalogContext} */
+function catalogContext(runtime, siteUrl) {
+  return {
+    command: runtime.command,
+    siteUrl,
+    base: runtime.site.base,
+    trailingSlash: runtime.site.trailingSlash,
+  };
 }
 
 /**
@@ -885,56 +959,62 @@ export async function buildRuntimePageInventory(runtime, opts = {}) {
  * @returns {Promise<import('../page.js').PageDescriptor[]>}
  */
 async function loadRuntimeCatalogPages(loaders, runtime, siteUrl) {
+  const context = catalogContext(runtime, siteUrl);
+  /** @type {Promise<RuntimeCatalogListing>[]} */
+  const listings = [];
+  for (const loader of loaders) {
+    const listing = listRuntimeCatalog(loader, context, Date.now);
+    await listing;
+    listings.push(listing);
+  }
+  return mergeRuntimeCatalogListings(listings, runtime, siteUrl);
+}
+
+/**
+ * Validate and de-duplicate catalog listings in loader order.
+ * @param {Promise<RuntimeCatalogListing>[]} listings
+ * @param {Runtime} runtime
+ * @param {string} siteUrl
+ * @returns {Promise<import('../page.js').PageDescriptor[]>}
+ */
+async function mergeRuntimeCatalogListings(listings, runtime, siteUrl) {
   /** @type {import('../page.js').PageDescriptor[]} */
   const descriptors = [];
   const seen = new Set();
-  const context = {
-    command: runtime.command,
-    siteUrl,
-    base: runtime.site.base,
-    trailingSlash: runtime.site.trailingSlash,
-  };
-  for (const loader of loaders) {
-    try {
-      const catalog = await loader.load();
-      if (typeof catalog?.listPages !== 'function') throw new Error('no listPages() export');
-      const listed = await catalog.listPages(context);
-      for (const value of Array.isArray(listed) ? listed : []) {
-        const descriptorOrigin = value?.origin === undefined ? null : normalizeOrigin(value.origin);
-        if (value?.origin !== undefined && descriptorOrigin === null) {
-          console.warn('astro-aeo: a runtime page catalog returned an invalid origin; its descriptor was ignored.');
-          continue;
-        }
-        const configuredSiteOrigin = normalizeOrigin(runtime.site.siteUrl);
-        const configuredOrigins = new Set([
-          ...(runtime.site.i18n?.origins ?? []),
-          ...(configuredSiteOrigin ? [configuredSiteOrigin] : []),
-        ]);
-        if (descriptorOrigin && (!configuredOrigins.has(descriptorOrigin) || descriptorOrigin !== normalizeOrigin(siteUrl))) {
-          console.warn('astro-aeo: a runtime page catalog origin did not match the active configured Astro origin; its descriptor was ignored.');
-          continue;
-        }
-        const pathname = normalizeCatalogPathname(value?.pathname);
-        if (pathname === null) {
-          console.warn('astro-aeo: a runtime page catalog returned an unsafe or non-root-relative pathname; it was ignored.');
-          continue;
-        }
-        const canonicalPathname = catalogRuntimePath(pathname).canonical;
-        const identity = pageCatalogIdentity(
-          descriptorOrigin ?? normalizeOrigin(siteUrl) ?? '',
-          canonicalPathname,
-        );
-        if (seen.has(identity)) {
-          console.warn(`astro-aeo: more than one runtime catalog described ${pathname}; the first descriptor wins.`);
-          continue;
-        }
-        seen.add(identity);
-        descriptors.push({ ...value, pathname, ...(descriptorOrigin ? { origin: descriptorOrigin } : {}) });
+  for (const pending of listings) {
+    const listing = await pending;
+    if (!listing.listed) continue;
+    for (const value of listing.listed) {
+      const descriptorOrigin = value?.origin === undefined ? null : normalizeOrigin(value.origin);
+      if (value?.origin !== undefined && descriptorOrigin === null) {
+        console.warn('astro-aeo: a runtime page catalog returned an invalid origin; its descriptor was ignored.');
+        continue;
       }
-    } catch {
-      console.warn(
-        `astro-aeo: the runtime page catalog "${loader.module}" failed and contributed nothing.`,
+      const configuredSiteOrigin = normalizeOrigin(runtime.site.siteUrl);
+      const configuredOrigins = new Set([
+        ...(runtime.site.i18n?.origins ?? []),
+        ...(configuredSiteOrigin ? [configuredSiteOrigin] : []),
+      ]);
+      if (descriptorOrigin && (!configuredOrigins.has(descriptorOrigin) || descriptorOrigin !== normalizeOrigin(siteUrl))) {
+        console.warn('astro-aeo: a runtime page catalog origin did not match the active configured Astro origin; its descriptor was ignored.');
+        continue;
+      }
+      const pathname = normalizeCatalogPathname(value?.pathname);
+      if (pathname === null) {
+        console.warn('astro-aeo: a runtime page catalog returned an unsafe or non-root-relative pathname; it was ignored.');
+        continue;
+      }
+      const canonicalPathname = catalogRuntimePath(pathname).canonical;
+      const identity = pageCatalogIdentity(
+        descriptorOrigin ?? normalizeOrigin(siteUrl) ?? '',
+        canonicalPathname,
       );
+      if (seen.has(identity)) {
+        console.warn(`astro-aeo: more than one runtime catalog described ${pathname}; the first descriptor wins.`);
+        continue;
+      }
+      seen.add(identity);
+      descriptors.push({ ...value, pathname, ...(descriptorOrigin ? { origin: descriptorOrigin } : {}) });
     }
   }
   return descriptors;

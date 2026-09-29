@@ -9,6 +9,7 @@ import {
   RuntimeCorpusLimitError,
   RuntimeCorpusPlanError,
   runtimeArtifactOrigin,
+  runtimeCatalogPagesFor,
   serveCorpusArtifact,
   RuntimeSchemaCorpusError,
   serveLlmsIndex,
@@ -1134,6 +1135,81 @@ describe('serveMarkdown', () => {
     }));
 
     expect(result).toEqual({ body: null, source });
+  });
+
+  test('re-lists a catalog once its revalidate window passes', async () => {
+    const requestRuntime = runtime();
+    requestRuntime.command = 'build';
+    let revision = 0;
+    const listPages = vi.fn(() => [{ pathname: `/entry-${revision}` }]);
+    const staticList = vi.fn(() => [{ pathname: '/static' }]);
+    const loaders = [
+      { ...catalogLoader({ listPages }, './cms.js'), revalidate: 10 },
+      catalogLoader({ listPages: staticList }, './static.js'),
+    ];
+    let clock = 1_000;
+    const now = () => clock;
+    const paths = async () =>
+      (await runtimeCatalogPagesFor(loaders, requestRuntime, undefined, now)).map((page) => page.pathname);
+
+    expect(await paths()).toEqual(['/entry-0', '/static']);
+    revision = 1;
+    clock += 9_999;
+    expect(await paths()).toEqual(['/entry-0', '/static']);
+    clock += 1;
+    // The expired listing is replaced on this use; the fresh one is awaited.
+    expect(await paths()).toEqual(['/entry-1', '/static']);
+    expect(listPages).toHaveBeenCalledTimes(2);
+    expect(staticList).toHaveBeenCalledOnce();
+  });
+
+  test('re-lists on every use with revalidate 0 and shares a listing in flight', async () => {
+    const requestRuntime = runtime();
+    requestRuntime.command = 'build';
+    const listPages = vi.fn(async () => [{ pathname: '/live' }]);
+    const loaders = [{ ...catalogLoader({ listPages }), revalidate: 0 }];
+
+    await Promise.all([
+      runtimeCatalogPagesFor(loaders, requestRuntime),
+      runtimeCatalogPagesFor(loaders, requestRuntime),
+    ]);
+    expect(listPages).toHaveBeenCalledOnce();
+    await runtimeCatalogPagesFor(loaders, requestRuntime);
+    await runtimeCatalogPagesFor(loaders, requestRuntime);
+    expect(listPages).toHaveBeenCalledTimes(3);
+  });
+
+  test('keeps revalidate false and omitted catalogs for the life of the process', async () => {
+    const requestRuntime = runtime();
+    requestRuntime.command = 'build';
+    const listPages = vi.fn(() => [{ pathname: '/once' }]);
+    const loaders = [{ ...catalogLoader({ listPages }), revalidate: /** @type {false} */ (false) }];
+    let clock = 0;
+    await runtimeCatalogPagesFor(loaders, requestRuntime, undefined, () => clock);
+    clock = Number.MAX_SAFE_INTEGER;
+    await runtimeCatalogPagesFor(loaders, requestRuntime, undefined, () => clock);
+    expect(listPages).toHaveBeenCalledOnce();
+  });
+
+  test('retries a failed revalidating catalog on its next use', async () => {
+    const requestRuntime = runtime();
+    requestRuntime.command = 'build';
+    let fail = true;
+    const listPages = vi.fn(() => {
+      if (fail) throw new Error('database not ready');
+      return [{ pathname: '/recovered' }];
+    });
+    const loaders = [{ ...catalogLoader({ listPages }), revalidate: 60 }];
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await runtimeCatalogPagesFor(loaders, requestRuntime)).toEqual([]);
+      fail = false;
+      expect((await runtimeCatalogPagesFor(loaders, requestRuntime)).map((page) => page.pathname))
+        .toEqual(['/recovered']);
+      expect(warning).toHaveBeenCalledOnce();
+    } finally {
+      warning.mockRestore();
+    }
   });
 
   test('caches a rejected runtime catalog loader and warns once', async () => {

@@ -14,7 +14,7 @@ import { normalizeOrigin } from '../core/locale.js';
  * public surface a page imports, and it should stay `defineAeoPage` plus types.
  */
 
-/** @typedef {{ module: string; specifier: string; namespace: any }} LoadedCatalogModule */
+/** @typedef {{ module: string; specifier: string; namespace: any; revalidate?: number | false }} LoadedCatalogModule */
 
 const UNSUPPORTED_LOCAL_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts', '.jsx', '.astro']);
 const FILE_URL = /^file:/i;
@@ -62,7 +62,7 @@ export function resolveCatalogSpecifier(specifier, projectRoot) {
  * Import catalogs before Vite creates the runtime graph. A module that cannot
  * resolve, parse, or evaluate is omitted from that graph and cannot fail a
  * consumer's server build or startup.
- * @param {{ module: string }[]} catalogs
+ * @param {{ module: string; revalidate?: number | false }[]} catalogs
  * @param {string} projectRoot
  * @param {{ warn: (m: string) => void }} logger
  * @param {import('../index.js').Diagnostic[]} [diagnostics]
@@ -95,6 +95,7 @@ export async function preloadCatalogModules(
         module: catalog.module,
         specifier,
         namespace: await load(specifier),
+        ...(catalog.revalidate === undefined ? {} : { revalidate: catalog.revalidate }),
       });
     } catch {
       reportCatalogDiagnostic(diagnostics, logger, {

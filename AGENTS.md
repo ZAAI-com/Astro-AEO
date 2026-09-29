@@ -145,6 +145,10 @@ plain ESM with no package build step.
   prerenders every exact artifact path, because Astro forbids an on-demand route from rewriting to
   a prerendered page; a dynamic pattern has to stay on demand or Astro never dispatches it, and
   `src/runtime/middleware.js` answers that forbidden rewrite through the development loopback.
+- Outside development a server lists each catalog once per process, unless the catalog sets
+  `revalidate`. `runtimeCatalogPagesFor` then keeps one listing per loader, shares a listing in
+  flight, retries a failed revalidating listing on its next use, and re-merges (and re-warns) only
+  when a listing changed. Keep the one-entry, last-origin cache for catalogs without `revalidate`.
 - Runtime configuration must remain serializable. Function options apply during builds but cannot
   cross the virtual-module boundary; keep warnings and fallbacks explicit.
 - Development dynamic-route records carry only route mechanics and lazy module imports. Never
