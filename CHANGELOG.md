@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## 1.5.1
+
+A patch release on top of 1.5.0.
+
 ## 1.5.0
 
 The cache-integrity, Markdown-fidelity, and EmDash release. The incremental processing cache now

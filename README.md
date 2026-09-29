@@ -1377,7 +1377,7 @@ permissions:
 steps:
   - uses: actions/checkout@v4
   - run: npm ci && npm run build
-  - uses: ZAAI-com/Astro-AEO@1.5.0
+  - uses: ZAAI-com/Astro-AEO@1.5.1
     with:
       target: dist            # or a deployed URL
       fail-on: error          # error, warning or none
