@@ -1,0 +1,37 @@
+recipes/emdash-blog/README.md
+  s_bf091e8255d9a6::t_635e907b5c896a 6-8
+recipes/emdash-marketing/README.md
+  s_bf091e8255d9a6::t_635e907b5c896a 6-8
+package.json
+  s_bf091e8255d9a6::t_6957b1f4c1a6f7 4,116-118
+recipes/emdash-starter/README.md
+  s_bf091e8255d9a6::t_635e907b5c896a 6-8
+recipes/README.md
+  s_bf091e8255d9a6::t_6957b1f4c1a6f7 20-25,28-29
+recipes/emdash-portfolio/README.md
+  s_bf091e8255d9a6::t_635e907b5c896a 6-8
+docs/SETUP_PROMPT.md
+  s_bf091e8255d9a6::t_dff5d966f8c357 18-30
+recipes/emdash/README.md
+  s_bf091e8255d9a6::t_635e907b5c896a 8-9
+README.md
+  s_bf091e8255d9a6::t_1f329c83b91d1a 98,100,102-103,120-134
+  s_bf091e8255d9a6::t_71d038ac980b52 101
+  s_bf091e8255d9a6::t_b59e2d313e97bd 12-16,25-26,86-97,99,104-119,135-205,682,684-685,1389-1393
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "eb1731ed1eece4e55bb0b450e9f8e76a291a2419",
+  "prompts": {},
+  "sessions": {
+    "s_bf091e8255d9a6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b261f0a-3568-4193-998b-f27ca30a9a4a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
