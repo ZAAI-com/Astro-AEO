@@ -5,7 +5,7 @@ All notable changes to this project are documented here. This project follows [S
 ## 1.5.1
 
 A patch release on top of 1.5.0 that lets multilingual sites run locally without hreflang errors,
-and lets builds that fail on warnings keep a token-budgeted small corpus.
+and lets builds that fail on warnings keep a token-budgeted small corpus and FAQ structured data.
 
 ### Local hreflang alternates
 
@@ -45,6 +45,14 @@ and lets builds that fail on warnings keep a token-budgeted small corpus.
   carry is missing.
 - Audit reports count the truncations as `infos`, and the `build:complete` plugin summary moves them
   from `warning` to `info`.
+
+### FaqJsonLd id
+
+- `FaqJsonLd` accepts an optional `id`. A page-relative value such as `id="#faq"` resolves against
+  the page URL on the configured `site`, so `/faq/` emits `"@id":"https://example.com/faq/#faq"`.
+  Before, every FAQPage from the component was anonymous, and with `schema.corpus.enabled` each one
+  reported `schema-map-anonymous-entity`, a warning no project could clear without dropping the
+  component. Without `id` the output is byte-identical to 1.5.0.
 
 ## 1.5.0
 

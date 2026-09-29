@@ -1324,7 +1324,7 @@ import { FaqJsonLd, BreadcrumbJsonLd, ArticleJsonLd } from 'astro-aeo/components
 
 | Component | Props | Notes |
 | --- | --- | --- |
-| `FaqJsonLd` | `items: { question, answer }[]` | FAQPage |
+| `FaqJsonLd` | `items: { question, answer }[]`, `id?` | FAQPage. `id` (such as `#faq`) sets a stable `@id`, resolved against the page URL, so the schema map can list it |
 | `HowToJsonLd` | `name`, `steps: { name, text, url?, image? }[]`, `description?`, `totalTime?` | HowTo |
 | `BreadcrumbJsonLd` | `items?`, `labels?`, `includeHome?` | Auto-derives the trail from the URL when `items` is omitted |
 | `OrganizationJsonLd` | `name`, `url?`, `logo?`, `sameAs?`, `contactEmail?` | `url` defaults to `site`. Place once, e.g. the homepage |

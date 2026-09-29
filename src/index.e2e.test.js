@@ -142,6 +142,8 @@ describe('demo build outputs', () => {
   test('component-driven JSON-LD is present', () => {
     const faq = read('faq/index.html');
     expect(faq).toContain('"@type":"FAQPage"');
+    // A page-relative id resolves against the page URL on the configured site.
+    expect(faq).toContain('"@type":"FAQPage","@id":"https://demo.example.com/faq/#faq"');
     expect(faq).toContain('"@type":"BreadcrumbList"');
     expect(faq).toContain('"@type":"SpeakableSpecification"');
   });

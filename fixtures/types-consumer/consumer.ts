@@ -412,6 +412,7 @@ export const mixedEras: AstroAeoConfig = {
 
 // Component prop types are exported and structurally usable.
 export const faq: FaqJsonLdProps = { items: [{ question: 'Q?', answer: 'A.' }] };
+export const faqWithId: FaqJsonLdProps = { items: [{ question: 'Q?', answer: 'A.' }], id: '#faq' };
 export const howTo: HowToJsonLdProps = {
   name: 'Bake bread',
   totalTime: 'PT5M',
