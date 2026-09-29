@@ -1,0 +1,29 @@
+src/runtime/serve.test.js
+  s_4b67922f11244c::t_e7cbdf895b4e23 787-807
+src/core/locale.js
+  s_4b67922f11244c::t_cb63a07ba29be8 2,189-191,193,197-200,206,228,319-325,329-331,338-344
+  s_4b67922f11244c::t_6a8f36554eff14 345-347
+src/runtime/serve.js
+  s_4b67922f11244c::t_cb63a07ba29be8 617-619
+test/contracts/hreflang-url.js
+  s_4b67922f11244c::t_457139ead48b93 1-32
+src/core/locale.test.js
+  s_4b67922f11244c::t_d6df475914ae2a 2,24-30,108-109,139-196
+  s_4b67922f11244c::t_21657867e23cff 138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "49e60c7523f824f71d21e5ae926488eecc043ec3",
+  "prompts": {},
+  "sessions": {
+    "s_4b67922f11244c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c673818e-dce1-46b6-be8d-e402615a60a2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
