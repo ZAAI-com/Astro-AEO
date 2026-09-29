@@ -139,6 +139,29 @@ export function assertValidExtractionOptions(probe, path, extraction) {
 }
 
 /**
+ * Drop matches that repeat as items of one list: two or more matches whose
+ * item boxes share a parent, like a grid of `<article>` cards or a `<ul>` of
+ * `<li><article>` teasers. An item box climbs through wrappers that hold
+ * nothing else, so a card inside its own grid cell or list item still counts.
+ * A lone article next to such a grid, such as a post above its related posts,
+ * is kept.
+ * @param {Element[]} matches top-level matches, in document order
+ * @returns {Element[]}
+ */
+function withoutRepeatedItems(matches) {
+  if (matches.length < 2) return matches;
+  const containers = matches.map((element) => {
+    let item = element;
+    while (item.parentElement && item.parentElement.children.length === 1) item = item.parentElement;
+    return item.parentElement;
+  });
+  return matches.filter((_, index) => {
+    const container = containers[index];
+    return !container || containers.filter((other) => other === container).length < 2;
+  });
+}
+
+/**
  * @param {Document} document
  * @param {string[]} selectors
  * @param {string[]} [removeSelectors]
@@ -152,7 +175,11 @@ export function selectContentRoots(document, selectors, removeSelectors = []) {
     );
     if (matches.length === 0) continue;
     const topLevel = matches.filter((el) => !matches.some((other) => other !== el && other.contains(el)));
-    return { roots: topLevel, strategy: selector, fallbackReason: undefined };
+    const roots = withoutRepeatedItems(topLevel);
+    // Only a card grid matched, such as a listing of <article> teasers: it is part
+    // of the page, not the page, so a broader selector decides.
+    if (roots.length === 0) continue;
+    return { roots, strategy: selector, fallbackReason: undefined };
   }
 
   const reason = selectors.length

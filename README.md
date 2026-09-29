@@ -740,6 +740,13 @@ several top-level matches they are all converted, in document order; a match nes
 inside another match is skipped so its content is not emitted twice. With no match,
 extraction falls back to `<body>`.
 
+Matches that repeat as items of one list are a listing, not the page: a grid of
+`<article>` cards, or a `<ul>` whose `<li>` items each hold one. They are set aside, so a
+blog index or a pricing page converts from `<main>` with its heading and intro, and a
+post keeps only its own `<article>` when related-post cards follow it. A card still
+counts as an item inside a wrapper that holds nothing else, such as its own grid cell.
+If only list items match every selector, extraction falls back to `<body>`.
+
 `script`, `style`, `noscript`, `iframe`, and `head` are always dropped, in addition to
 `removeSelectors`. `keepSelectors` emits matching elements as minimized raw HTML instead of
 converting them, for a widget whose markup carries meaning. It removes presentation

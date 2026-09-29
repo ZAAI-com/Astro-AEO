@@ -12,14 +12,46 @@ beforeAll(async () => {
 });
 
 describe('selectContentRoots', () => {
+  test('a grid of repeated article cards is a listing, so a broader selector decides', () => {
+    const d = doc(page(
+      '<main><h1>Blog</h1><p>Intro</p><div class="grid"><article>A</article><article>B</article></div></main>',
+    ));
+    const { roots, strategy } = selectContentRoots(d, ['article', 'main']);
+    expect(strategy).toBe('main');
+    expect(roots.map((root) => root.tagName)).toEqual(['MAIN']);
+  });
+
+  test('cards wrapped in their own list items or grid cells still count as repeated', () => {
+    const d = doc(page(
+      '<main><h1>Posts</h1><ul><li><article>A</article></li><li><article>B</article></li></ul>' +
+      '<div class="cols"><div><article>C</article></div><div><article>D</article></div></div></main>',
+    ));
+    expect(selectContentRoots(d, ['article', 'main']).strategy).toBe('main');
+  });
+
+  test('a lone article next to a grid of related cards is kept on its own', () => {
+    const d = doc(page(
+      '<main><article id="post"><h1>Post</h1></article>' +
+      '<section><h2>Related</h2><article>A</article><article>B</article></section></main>',
+    ));
+    const { roots, strategy } = selectContentRoots(d, ['article', 'main']);
+    expect(strategy).toBe('article');
+    expect(roots.map((root) => root.id)).toEqual(['post']);
+  });
+
+  test('falls back to <body> when only repeated cards match every selector', () => {
+    const d = doc(page('<div><article>A</article><article>B</article></div>'));
+    expect(selectContentRoots(d, ['article']).strategy).toBe('body');
+  });
+
   test('the first selector with a match wins, in order', () => {
     const d = doc(page('<main><article><h1>A</h1></article></main>'));
     expect(selectContentRoots(d, ['article', 'main']).strategy).toBe('article');
     expect(selectContentRoots(d, ['main', 'article']).strategy).toBe('main');
   });
 
-  test('multiple top-level matches are all selected, in document order', () => {
-    const d = doc(page('<article><h1>One</h1></article><article><h1>Two</h1></article>'));
+  test('multiple top-level matches in separate places are all selected, in document order', () => {
+    const d = doc(page('<section><article><h1>One</h1></article></section><div><p>Aside</p><article><h1>Two</h1></article></div>'));
     const { roots } = selectContentRoots(d, ['article']);
     expect(roots).toHaveLength(2);
     expect(roots[0].textContent).toContain('One');
