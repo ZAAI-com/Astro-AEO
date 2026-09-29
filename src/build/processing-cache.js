@@ -8,24 +8,30 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { acquirePrivateLock } from './private-lock.js';
+import { readPackageVersion } from './package-version.js';
 
 export const PROCESSING_CACHE_VERSION = 1;
 export const PROCESSING_CACHE_DIRECTORY = 'processing-v1';
+export const PROCESSING_CACHE_PRODUCER = 'astro-aeo';
 
 /**
  * @typedef {{ blob: string }} CacheEntry
- * @typedef {{ version: 1; entries: Record<string, CacheEntry> }} CacheState
+ * @typedef {{ name: string; version: string }} CacheProducer
+ * @typedef {{ version: 1; producer?: CacheProducer; entries: Record<string, CacheEntry> }} CacheState
  */
 
 /**
  * Open the versioned processing cache and acquire its safety lock. A corrupt
  * state or unverifiable lock intentionally produces a cold read-only session.
+ * State written by another astro-aeo version starts from empty entries instead,
+ * so an upgrade never serves the previous version's Markdown.
  *
  * @param {string} projectRoot
- * @param {{ enabled: boolean; diagnostics?: import('../index.js').Diagnostic[]; logger?: { warn: (message: string) => void } }} options
+ * @param {{ enabled: boolean; packageVersion?: string; diagnostics?: import('../index.js').Diagnostic[]; logger?: { info?: (message: string) => void; warn: (message: string) => void } }} options
  */
 export function openProcessingCache(projectRoot, options) {
   const diagnostics = options.diagnostics ?? [];
+  const packageVersion = options.packageVersion ?? readPackageVersion();
   const root = join(projectRoot, '.astro', 'aeo-cache', PROCESSING_CACHE_DIRECTORY);
   const blobsRoot = join(root, 'blobs');
   const statePath = join(root, 'state.json');
@@ -38,6 +44,8 @@ export function openProcessingCache(projectRoot, options) {
   let state = { version: 1, entries: {} };
   /** @type {Map<string, Buffer>} */
   const pendingBlobs = new Map();
+  /** @type {Set<string>} */
+  const touchedKeys = new Set();
   const stats = {
     hits: 0,
     misses: 0,
@@ -74,7 +82,7 @@ export function openProcessingCache(projectRoot, options) {
      * @param {unknown} inputs
      */
     key(stage, inputs) {
-      return `${stage}:${sha256(canonicalStringify({ stage, inputs }))}`;
+      return `${stage}:${sha256(canonicalStringify({ stage, producer: packageVersion, inputs }))}`;
     },
 
     /**
@@ -98,6 +106,7 @@ export function openProcessingCache(projectRoot, options) {
         const bytes = readFileSync(path);
         if (sha256(bytes) !== entry.blob) throw new TypeError('corrupt blob');
         stats.hits++;
+        touchedKeys.add(key);
         return JSON.parse(bytes.toString('utf8'));
       } catch {
         miss('blob-invalid');
@@ -112,16 +121,23 @@ export function openProcessingCache(projectRoot, options) {
       const blob = sha256(bytes);
       pendingBlobs.set(blob, bytes);
       state.entries[key] = { blob };
+      touchedKeys.add(key);
       stats.writes++;
     },
 
     /**
      * Register pending blobs, the state index, and safe stale blob cleanup in
-     * the build's existing atomic writer.
+     * the build's existing atomic writer. Only entries touched by this session
+     * are written, so blobs of pages that no longer convert are swept as
+     * orphans and the cache cannot grow without bound.
      * @param {{ stagePrivateWrite?: Function; stagePrivateDelete?: Function }} writer
      */
     stage(writer) {
       if (!options.enabled || readOnly || !writer.stagePrivateWrite) return;
+      const entries = Object.fromEntries(
+        [...touchedKeys].filter((key) => state.entries[key]).map((key) => [key, state.entries[key]]),
+      );
+      const retained = new Set(Object.values(entries).map((entry) => entry.blob));
       for (const [blob, bytes] of pendingBlobs) {
         const path = join(blobsRoot, blob);
         if (regularFileHash(path) === blob) continue;
@@ -129,11 +145,15 @@ export function openProcessingCache(projectRoot, options) {
       }
       writer.stagePrivateWrite(
         statePath,
-        `${JSON.stringify(state, null, 2)}\n`,
+        `${JSON.stringify(
+          { version: 1, producer: { name: PROCESSING_CACHE_PRODUCER, version: packageVersion }, entries },
+          null,
+          2,
+        )}\n`,
         { mode: 0o600, confineTo: root },
       );
       if (writer.stagePrivateDelete) {
-        for (const stale of staleBlobPaths(blobsRoot, new Set(Object.values(state.entries).map((entry) => entry.blob)))) {
+        for (const stale of staleBlobPaths(blobsRoot, retained)) {
           writer.stagePrivateDelete(stale, { confineTo: root });
         }
       }
@@ -164,10 +184,33 @@ export function openProcessingCache(projectRoot, options) {
       const parsed = JSON.parse(readFileSync(statePath, 'utf8'));
       if (!validState(parsed)) throw new TypeError('invalid state');
       state = parsed;
+      if (
+        state.producer?.name !== PROCESSING_CACHE_PRODUCER ||
+        state.producer?.version !== packageVersion
+      ) {
+        resetAfterUpgrade(state.producer?.version, Object.keys(state.entries).length);
+      }
     } catch {
       readOnly = true;
       report('processing-cache-invalid', 'The processing cache state is invalid; this build is cold and grants no reusable-state authority.');
     }
+  }
+
+  /**
+   * Drop another version's entries but keep writing: an upgrade must not serve
+   * the previous version's extraction output, and it is not corruption.
+   *
+   * @param {string | undefined} previousVersion
+   * @param {number} previousEntries
+   */
+  function resetAfterUpgrade(previousVersion, previousEntries) {
+    stats.invalidations['package-version'] = previousEntries;
+    state = { version: 1, entries: {} };
+    options.logger?.info?.(
+      previousVersion
+        ? `astro-aeo: processing cache reset after upgrade (${previousVersion} -> ${packageVersion})`
+        : 'astro-aeo: processing cache reset after upgrade',
+    );
   }
 
   /** Acquire or safely reclaim a same-host dead-process lock. */
@@ -212,11 +255,21 @@ function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
 }
 
+/** @param {unknown} value */
+function validProducer(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = /** @type {any} */ (value);
+  return typeof candidate.name === 'string' && typeof candidate.version === 'string';
+}
+
 /** @param {unknown} value @returns {value is CacheState} */
 function validState(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const candidate = /** @type {any} */ (value);
   if (candidate.version !== 1 || !candidate.entries || typeof candidate.entries !== 'object' || Array.isArray(candidate.entries)) return false;
+  // A missing producer is a legacy state, which simply resets on open. A
+  // present but malformed one means the file cannot be interpreted safely.
+  if (candidate.producer !== undefined && !validProducer(candidate.producer)) return false;
   return Object.entries(candidate.entries).every(([key, entry]) =>
     typeof key === 'string' && key.includes(':') &&
     entry && typeof entry === 'object' &&

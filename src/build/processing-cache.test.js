@@ -4,6 +4,7 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -135,5 +136,113 @@ describe('processing cache', () => {
     }
     expect(conversions).toBe(1);
     edited.close();
+  });
+
+  test('resets after a package upgrade instead of serving the old output', () => {
+    const root = project();
+    const cold = openProcessingCache(root, { enabled: true, packageVersion: '1.4.0' });
+    const key = cold.key('extraction-v1', { body: 'source' });
+    cold.put(key, { markdown: '# Old output' });
+    const writer = memoryWriter();
+    cold.stage(writer);
+    writer.apply();
+    cold.close();
+    const oldBlob = join(cold.root, 'blobs', JSON.parse(readFileSync(cold.statePath, 'utf8')).entries[key].blob);
+
+    const messages = [];
+    const upgraded = openProcessingCache(root, {
+      enabled: true,
+      packageVersion: '1.5.0',
+      logger: { info: (message) => messages.push(message), warn: () => {} },
+    });
+    expect(upgraded.get(key)).toBeUndefined();
+    expect(upgraded.stats.invalidations).toMatchObject({ 'package-version': 1 });
+    expect(upgraded.readOnly).toBe(false);
+    // The producer version is part of the key, so a downgraded reader cannot
+    // reuse the new entries either.
+    const freshKey = upgraded.key('extraction-v1', { body: 'source' });
+    expect(freshKey).not.toBe(key);
+    upgraded.put(freshKey, { markdown: '# New output' });
+    const rewrite = memoryWriter();
+    upgraded.stage(rewrite);
+    rewrite.apply();
+    upgraded.close();
+    expect(messages).toEqual(['astro-aeo: processing cache reset after upgrade (1.4.0 -> 1.5.0)']);
+    expect(() => lstatSync(oldBlob)).toThrow();
+    const state = JSON.parse(readFileSync(upgraded.statePath, 'utf8'));
+    expect(state.producer).toEqual({ name: 'astro-aeo', version: '1.5.0' });
+    expect(Object.keys(state.entries)).toEqual([freshKey]);
+    expect(upgraded.get(freshKey)).not.toBeUndefined();
+  });
+
+  test('resets a legacy state without a producer and stays writable', () => {
+    const root = project();
+    const cacheRoot = join(root, '.astro', 'aeo-cache', 'processing-v1');
+    mkdirSync(join(cacheRoot, 'blobs'), { recursive: true });
+    const blob = 'a'.repeat(64);
+    writeFileSync(join(cacheRoot, 'blobs', blob), '{"markdown":"# Legacy"}\n');
+    writeFileSync(
+      join(cacheRoot, 'state.json'),
+      JSON.stringify({ version: 1, entries: { 'extraction-v1:legacy': { blob } } }),
+    );
+    const messages = [];
+    const cache = openProcessingCache(root, {
+      enabled: true,
+      packageVersion: '1.5.0',
+      logger: { info: (message) => messages.push(message), warn: () => {} },
+    });
+    expect(cache.readOnly).toBe(false);
+    expect(cache.get('extraction-v1:legacy')).toBeUndefined();
+    expect(cache.stats.invalidations).toMatchObject({ 'package-version': 1 });
+    expect(messages).toEqual(['astro-aeo: processing cache reset after upgrade']);
+    const key = cache.key('extraction-v1', { body: 'source' });
+    cache.put(key, { markdown: '# Fresh' });
+    const writer = memoryWriter();
+    cache.stage(writer);
+    writer.apply();
+    cache.close();
+    const state = JSON.parse(readFileSync(cache.statePath, 'utf8'));
+    expect(state.producer).toEqual({ name: 'astro-aeo', version: '1.5.0' });
+    expect(Object.keys(state.entries)).toEqual([key]);
+    expect(() => lstatSync(join(cacheRoot, 'blobs', blob))).toThrow();
+  });
+
+  test('treats a malformed producer as an invalid state', () => {
+    const root = project();
+    const cacheRoot = join(root, '.astro', 'aeo-cache', 'processing-v1');
+    mkdirSync(join(cacheRoot, 'blobs'), { recursive: true });
+    writeFileSync(
+      join(cacheRoot, 'state.json'),
+      JSON.stringify({ version: 1, producer: { name: 'astro-aeo', version: 42 }, entries: {} }),
+    );
+    const diagnostics = [];
+    const cache = openProcessingCache(root, { enabled: true, diagnostics });
+    expect(cache.readOnly).toBe(true);
+    expect(diagnostics).toEqual([expect.objectContaining({ code: 'processing-cache-invalid' })]);
+    cache.close();
+  });
+
+  test('sweeps entries the session did not touch', () => {
+    const root = project();
+    const first = openProcessingCache(root, { enabled: true, packageVersion: '1.5.0' });
+    const keep = first.key('extraction-v1', { body: 'keep' });
+    const drop = first.key('extraction-v1', { body: 'drop' });
+    first.put(keep, { markdown: '# Keep' });
+    first.put(drop, { markdown: '# Drop' });
+    const writer = memoryWriter();
+    first.stage(writer);
+    writer.apply();
+    first.close();
+
+    const second = openProcessingCache(root, { enabled: true, packageVersion: '1.5.0' });
+    expect(second.get(keep)).toEqual({ markdown: '# Keep' });
+    const rewrite = memoryWriter();
+    second.stage(rewrite);
+    rewrite.apply();
+    second.close();
+    const state = JSON.parse(readFileSync(second.statePath, 'utf8'));
+    expect(Object.keys(state.entries)).toEqual([keep]);
+    const blobs = readdirSync(join(second.root, 'blobs'));
+    expect(blobs).toEqual([state.entries[keep].blob]);
   });
 });

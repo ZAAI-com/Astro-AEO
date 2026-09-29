@@ -284,7 +284,8 @@ External public HTTPS `hreflang` links are allowed but never fetched.
 The private `.astro/aeo-cache` directory can contain normalized derived page content and IndexNow
 notification state. Keep `.astro` uncommitted, transfer the `indexnow` pending and acknowledgment
 directory between separate CI prepare/submit jobs, and protect it as sensitive build data. Cache
-files use restrictive permissions where supported. `cache.enabled: false` disables payload reuse,
+files use restrictive permissions where supported, and the extraction cache resets itself when the
+astro-aeo version changes. `cache.enabled: false` disables payload reuse,
 not artifact ownership or IndexNow safety ledgers.
 
 ### Migrating to 1.2
@@ -788,12 +789,16 @@ compression.
 
 ### Incremental processing cache
 
-Build extraction results and core artifact payloads are content-addressed under
+Build extraction results are content-addressed under
 `.astro/aeo-cache/processing-v1`. An exclusive same-host process lock protects reusable state;
 invalid, foreign, or active locks force a cold read-only build with no stale deletion authority.
-Project routes and `public/` files still win. A stale file is deleted only when the prior ledger
+Project routes and `public/` files still win. The state names its producing astro-aeo version, and
+a version change resets the cache automatically, so an upgrade never serves the previous version's
+Markdown. Each build keeps only the entries it touched, so pages that no longer convert stop
+occupying the cache. A stale file is deleted only when the prior ledger
 names Astro-AEO, the path is confined, the file is regular and not a symlink, and its bytes still
-match the prior emitted hash.
+match the prior emitted hash. Reset manually with `rm -rf .astro/aeo-cache/processing-v1`, or set
+`cache.enabled: false` to disable reuse.
 
 ### The universal robots.txt group
 

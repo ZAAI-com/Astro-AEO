@@ -21,6 +21,7 @@ import {
   writeDiagnosticsManifest,
 } from '../build/diagnostics.js';
 import { openProcessingCache } from '../build/processing-cache.js';
+import { readPackageVersion } from '../build/package-version.js';
 import {
   INDEXNOW_PUBLIC_PATH,
   collectIndexNowFingerprints,
@@ -97,6 +98,7 @@ export async function onBuildDone(config, options, env) {
   const buildStarted = Date.now();
   const processingCache = openProcessingCache(env.projectRoot, {
     enabled: config.cache?.enabled !== false,
+    packageVersion: readPackageVersion(),
     diagnostics: buildDiagnostics,
     logger,
   });

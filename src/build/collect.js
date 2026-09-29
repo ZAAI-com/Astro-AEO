@@ -97,7 +97,8 @@ export async function collectPages(rawPages, config, ctx) {
         })
       : undefined;
     const cached = cacheKey ? cache?.get(cacheKey) : undefined;
-    const result = validCachedPageResult(cached)
+    const reusable = validCachedPageResult(cached);
+    const result = reusable
       ? 'skip' in cached
         ? { skip: cached.skip }
         : {
@@ -148,7 +149,7 @@ export async function collectPages(rawPages, config, ctx) {
       mdPath: join(source.root, mdPathnameFor(pathname)),
     };
     pages.push(page);
-    if (cacheKey && cached === undefined) {
+    if (cacheKey && !reusable) {
       const { html: _html, ...cachedRepresentations } = page.representations;
       // `origin` is descriptor passthrough, not an extraction result. Keep it out
       // of the payload, like htmlPath/mdPath, so it is not part of the cache key.
