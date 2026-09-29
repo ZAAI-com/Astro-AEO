@@ -1,4 +1,5 @@
 // @ts-check
+import { isLocalDevelopmentHostname } from './canonical.js';
 import { parseDocument } from './html-document.js';
 
 /**
@@ -185,17 +186,24 @@ export function resolvePageLocale(page, snapshot, options) {
  * Normalize alternates for a complete origin-scoped page collection and
  * validate local canonical/reciprocal relationships without network access.
  * @param {any[]} pages
+ * @param {{ localDevelopment?: boolean }} [options] `localDevelopment` is set
+ *   for `astro dev` and `astro preview`, where an http alternate on a local
+ *   development host is expected even when the configured site is https.
  */
-export function normalizePageAlternates(pages) {
+export function normalizePageAlternates(pages, options = {}) {
   /** @type {import('../index.js').Diagnostic[]} */
   const diagnostics = [];
   const normalizedPages = pages.map((page) => {
+    // Plain http: is for local contexts only: a page served from a local
+    // development host, or a dev or preview server. A production https build
+    // keeps rejecting a stray localhost alternate.
+    const localHttp = options.localDevelopment === true || isLocalDevelopmentUrl(page.url);
     const byLanguage = new Map();
     const blockedStructured = new Set();
     const structuredLanguages = new Set();
     for (const alternate of Array.isArray(page.alternates) ? page.alternates : []) {
       const language = canonicalLanguage(alternate?.language ?? alternate?.lang);
-      const url = publicHttpsUrl(alternate?.url ?? alternate?.href, page.canonicalUrl ?? page.url);
+      const url = alternateUrl(alternate?.url ?? alternate?.href, page.canonicalUrl ?? page.url, localHttp);
       if (!language || !url) {
         diagnostics.push(localeDiagnostic('hreflang-invalid', 'error', 'An invalid hreflang alternate was discarded.', page.pathname));
         continue;
@@ -217,7 +225,7 @@ export function normalizePageAlternates(pages) {
     // alternate onto another host or path.
     for (const alternate of extractRenderedAlternates(page.representations?.html, page.url)) {
       const language = canonicalLanguage(alternate.language);
-      const url = publicHttpsUrl(alternate.url, alternate.base ?? page.url);
+      const url = alternateUrl(alternate.url, alternate.base ?? page.url, localHttp);
       if (!language || !url) {
         diagnostics.push(localeDiagnostic('hreflang-invalid', 'error', 'An invalid rendered hreflang alternate was discarded.', page.pathname));
         continue;
@@ -308,15 +316,32 @@ function extractRenderedAlternates(html, base) {
   }
 }
 
-/** @param {unknown} value @param {string} base */
-function publicHttpsUrl(value, base) {
+/**
+ * Resolve an hreflang alternate. https: always qualifies; http: only on a local
+ * development host and only in a local context. Credentials and fragments never
+ * qualify.
+ * @param {unknown} value @param {string} base @param {boolean} localHttp
+ */
+function alternateUrl(value, base, localHttp) {
   if (typeof value !== 'string' || !value) return null;
   try {
     const url = new URL(value, base);
-    if (url.protocol !== 'https:' || url.username || url.password || url.hash) return null;
+    const allowed = url.protocol === 'https:' ||
+      (localHttp && url.protocol === 'http:' && isLocalDevelopmentHostname(url.hostname));
+    if (!allowed || url.username || url.password || url.hash) return null;
     return url.href;
   } catch {
     return null;
+  }
+}
+
+/** @param {unknown} value */
+function isLocalDevelopmentUrl(value) {
+  if (typeof value !== 'string') return false;
+  try {
+    return isLocalDevelopmentHostname(new URL(value).hostname);
+  } catch {
+    return false;
   }
 }
 

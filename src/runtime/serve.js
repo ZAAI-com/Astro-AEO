@@ -614,7 +614,9 @@ export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {
       }
     }
   }
-  const alternates = normalizePageAlternates(localized);
+  const alternates = normalizePageAlternates(localized, {
+    localDevelopment: runtime.command === 'dev' || runtime.command === 'preview',
+  });
   // The build fails on hreflang validation errors; the runtime corpus must not
   // silently drop invalid or non-reciprocal links and serve a shorter plan.
   if (alternates.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {

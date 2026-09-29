@@ -784,6 +784,27 @@ describe('locale-aware request-time corpus planning', () => {
     })).rejects.toBeInstanceOf(RuntimeCorpusPlanError);
   });
 
+  test('accepts a localhost hreflang only while a dev or preview server runs', async () => {
+    const catalog = {
+      listPages: () => [{
+        pathname: '/guide',
+        title: 'Guide',
+        alternates: [{ language: 'fr', url: 'http://localhost:4321/fr/guide/' }],
+      }],
+    };
+    const fetcher = async () => loaded(html('Guide'));
+
+    for (const command of ['dev', 'preview']) {
+      const artifact = await serveCorpusArtifact('/llms.txt', { ...runtime(['/guide'], 50), command }, fetcher, {
+        catalogLoaders: [catalogLoader(catalog, `./catalog-${command}.js`)],
+      });
+      expect(artifact.body).toContain('Guide');
+    }
+    await expect(serveCorpusArtifact('/llms.txt', { ...runtime(['/guide'], 50), command: 'build' }, fetcher, {
+      catalogLoaders: [catalogLoader(catalog, './catalog-build.js')],
+    })).rejects.toBeInstanceOf(RuntimeCorpusPlanError);
+  });
+
   test('fails closed when a page lifecycle hook throws during corpus collection', async () => {
     const requestRuntime = runtime(['/page']);
     requestRuntime.config = resolveConfig({
