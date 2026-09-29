@@ -16,7 +16,7 @@ import { pageCatalogIdentity } from '../core/page-identity.js';
 import { cancelResponseBody, isIdentityEncoded, isNullBodyStatus } from './respond.js';
 import { enrichHtmlHead, stripAeoHeadMarkers } from '../core/head.js';
 import { renderSchemaCorpus } from '../core/schema-corpus.js';
-import { siteScopeUrl, stableCanonical } from '../core/canonical.js';
+import { isLocalDevelopmentHostname, siteScopeUrl, stableCanonical } from '../core/canonical.js';
 import { catalogBreadcrumbTrail } from '../core/catalog-breadcrumbs.js';
 import { reconcileSemanticEnvelope } from '../core/semantic-envelope.js';
 import {
@@ -1102,11 +1102,6 @@ function originHostname(origin) {
   } catch {
     return '';
   }
-}
-
-/** @param {string} hostname */
-function isLocalDevelopmentHostname(hostname) {
-  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
 }
 
 /**

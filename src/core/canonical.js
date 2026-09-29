@@ -93,6 +93,20 @@ export function isLoopbackHostname(hostname) {
   return false;
 }
 
+/**
+ * Whether a parsed `URL#hostname` is one of the exact hosts a local `astro dev`
+ * or `astro preview` server answers on, where plain `http:` is legitimate. This
+ * is an allow-list and deliberately narrower than `isLoopbackHostname`, which
+ * exists to reject loopback identities: `app.localhost`, `127.0.0.2` and
+ * `localhost.` are not local development hosts. Pass `URL#hostname`, which is
+ * already lowercased and keeps IPv6 brackets.
+ *
+ * @param {string} hostname
+ */
+export function isLocalDevelopmentHostname(hostname) {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+}
+
 /** @param {string} tag @param {string} name */
 function attribute(tag, name) {
   return htmlTagAttribute(tag, name);

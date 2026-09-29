@@ -735,6 +735,10 @@ describe('locale-aware request-time corpus planning', () => {
       .toBe('https://example.com');
     expect(runtimeArtifactOrigin({ ...requestRuntime, command: 'preview' }, 'http://127.0.0.1:4321'))
       .toBe('https://example.com');
+    expect(runtimeArtifactOrigin({ ...requestRuntime, command: 'dev' }, 'http://[::1]:4321'))
+      .toBe('https://example.com');
+    expect(runtimeArtifactOrigin({ ...requestRuntime, command: 'dev' }, 'http://app.localhost:4321'))
+      .toBeNull();
     expect(runtimeArtifactOrigin({ ...requestRuntime, command: 'build' }, 'http://localhost:4321'))
       .toBeNull();
     expect(runtimeArtifactOrigin({ ...requestRuntime, command: 'build' }, 'http://example.com'))
