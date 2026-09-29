@@ -1,0 +1,21 @@
+README.md
+  s_75434dc6ca634e::t_20dc90d287a1ea 707-708
+AGENTS.md
+  s_75434dc6ca634e::t_e896355766285d 163-164
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7a0bf13c421e7c097287b2f79f1ab100b2316bc9",
+  "prompts": {},
+  "sessions": {
+    "s_75434dc6ca634e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ff91888e-033f-48d5-9db8-a6e35c985dce",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
