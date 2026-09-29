@@ -32,7 +32,8 @@ line, and page catalogs gain one optional key, `pages.catalogs[].revalidate`.
   plus the `turndown` and `linkedom` versions it extracts with. The producer is also part of every
   cache key. When it changes (an upgrade, a downgrade, or a lockfile refresh of either dependency),
   the cache drops its entries once and logs the change, for example `(astro-aeo 1.5.0 -> 1.5.1)` or
-  `(turndown 7.2.3 -> 7.2.4)`, so a local build can no longer emit Markdown produced by other code.
+  `(turndown 7.2.3 -> 7.2.4)`, so a local build can no longer emit Markdown produced by another
+  version of any of the three.
 - A missing or malformed producer record resets the entries instead of making the cache read-only,
   so it never blocks IndexNow state from advancing.
 - A complete build keeps only the entries it used. Pages that were deleted or became excluded stop
@@ -83,10 +84,11 @@ line, and page catalogs gain one optional key, `pages.catalogs[].revalidate`.
   inventory to compare on an EmDash site.
 - The catalog lists every published entry of every collection with a URL pattern, at the URL EmDash
   builds from it (`{slug}`, `{id}`, and date tokens in UTC), following EmDash's sitemap rules:
-  drafts, deleted entries, entries without a slug, and noindex entries are left out. Collections
-  without a pattern, such as the Marketing template's `pages`, are skipped rather than guessed. It
-  reads EmDash's public plugin read API through a virtual module served from the project's own
-  `emdash` install, so `emdash` is an optional peer, and the catalog never opens a database itself.
+  collections with SEO turned off, drafts, deleted entries, entries without a slug, and noindex
+  entries are left out. Collections without a pattern, such as the Marketing template's `pages`,
+  are skipped rather than guessed. It reads EmDash's public plugin read API through a virtual
+  module served from the project's own `emdash` install, so `emdash` is an optional peer, and the
+  catalog never opens a database itself.
 - Options: `collections` (`false` to leave one out, or a `section` heading whose URLs come from the
   seed's `urlPattern`), `taxonomies` (archive routes to list, for terms with published entries),
   `revalidate` (default 10 seconds), and `maxEntries` (default 50,000). With i18n enabled, only the
@@ -107,8 +109,9 @@ line, and page catalogs gain one optional key, `pages.catalogs[].revalidate`.
   restart. `0` lists on every use, and `false` or omitting it keeps today's behavior of one listing
   per process. A revalidating catalog whose first listing fails is retried on its next use
   instead of staying empty, a failed refresh keeps the last listing and retries after another
-  window, a listing in flight is shared, and a catalog without `revalidate` is never re-listed
-  because another one refreshed. Development and builds are unchanged.
+  window, a refresh runs in the background while the last inventory is served, a listing in
+  flight is shared, and a catalog without `revalidate` is never re-listed because another one
+  refreshed. Development and builds are unchanged.
 
 ### Package size
 

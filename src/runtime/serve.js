@@ -811,6 +811,9 @@ function isMinimalPageDescriptor(value, pathname) {
  * the merged inventory (with its warnings) is rebuilt only when a listing
  * changed. A failed listing is kept only by catalogs without `revalidate`; a
  * revalidating catalog whose refresh fails keeps its last successful listing.
+ * Refreshing a successful listing never blocks a request: the last inventory is
+ * served until the fresh one has merged. A listing that never succeeded is
+ * awaited, because there is nothing to serve in its place.
  *
  * @param {RuntimeCatalogLoader[]} loaders
  * @param {Runtime} runtime
@@ -824,17 +827,30 @@ export function runtimeCatalogPagesFor(loaders, runtime, origin, now = Date.now)
   const cached = runtimeCatalogPages.get(runtime);
   if (cached && cached.loaders === loaders && cached.siteUrl === siteUrl) {
     let refreshed = false;
+    let servesStale = true;
     const listings = cached.listings.map((listing, index) => {
       const loader = loaders[index];
       if (!isRevalidating(loader)) return listing;
       const next = revalidatedListing(listing, loader, context, now);
-      if (next !== listing) refreshed = true;
+      if (next !== listing) {
+        refreshed = true;
+        if (!settledListings.get(listing)?.listed) servesStale = false;
+      }
       return next;
     });
     if (!refreshed) return cached.pages;
     const pages = mergeRuntimeCatalogListings(listings, runtime, siteUrl);
-    runtimeCatalogPages.set(runtime, { loaders, siteUrl, listings, pages });
-    return pages;
+    if (!servesStale) {
+      runtimeCatalogPages.set(runtime, { loaders, siteUrl, listings, pages });
+      return pages;
+    }
+    // Later requests share the refresh in flight and keep the last inventory until it merges.
+    const entry = { loaders, siteUrl, listings, pages: cached.pages };
+    runtimeCatalogPages.set(runtime, entry);
+    pages.then(() => {
+      if (runtimeCatalogPages.get(runtime) === entry) entry.pages = pages;
+    }, () => {});
+    return cached.pages;
   }
   const listings = loaders.map((loader) => listRuntimeCatalog(loader, context, now));
   const pages = mergeRuntimeCatalogListings(listings, runtime, siteUrl);

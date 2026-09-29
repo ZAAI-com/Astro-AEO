@@ -903,7 +903,8 @@ export interface PagesOptions {
    * once that many seconds have passed since its last listing (`0` lists on every use), so
    * a CMS catalog picks up published entries without a restart. A failed first listing is
    * retried on the next use; a failed refresh keeps the last listing and retries after another
-   * window. Omit it, or pass `false`, to keep the first listing.
+   * window. A refresh runs in the background while the last inventory is served. Omit it, or
+   * pass `false`, to keep the first listing.
    */
   catalogs?: { module: string; revalidate?: number | false }[];
 }

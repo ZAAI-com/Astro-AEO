@@ -147,11 +147,12 @@ wins, and your own `pages.exclude` and `pages.catalogs` entries come first:
 
 The catalog lists every published entry of every collection that has a URL pattern, at the URL
 EmDash itself builds from that pattern (`{slug}`, `{id}`, and the date tokens `{year}` to `{second}`).
-It follows EmDash's sitemap rules: drafts, deleted entries, entries without a slug, and entries marked
-noindex in the SEO panel are left out. A collection without a URL pattern, such as the Marketing
-template's `pages`, is skipped because fixed routes (`/`, `/pricing`) render it, and Astro-AEO already
-knows those. The catalog reads EmDash through its public read API from your own `emdash` install, so
-it works with any EmDash database and never opens one itself. Entries you publish appear within
+It follows EmDash's sitemap rules: collections with SEO turned off, drafts, deleted entries, entries
+without a slug, and entries marked noindex in the SEO panel are left out. A collection without a
+URL pattern, such as the Marketing template's `pages`, is skipped because fixed routes (`/`,
+`/pricing`) render it, and Astro-AEO already knows those. The catalog reads EmDash through its
+public read API from your own `emdash` install, so it works with any EmDash database and never
+opens one itself. Entries you publish appear within
 `revalidate` seconds without a restart.
 
 ### Options
@@ -705,6 +706,7 @@ published entries without a restart: `{ module: './src/aeo-catalog.js', revalida
 on every use of the inventory, and `false` (or omitting it) keeps the first listing. If a revalidating
 catalog's first listing fails, it is retried on its next use instead of staying empty; if a later
 refresh fails, the last listing stays in place and the refresh is retried after another window.
+A refresh never holds up a request: the last inventory is served until the fresh one is ready.
 Development always lists afresh, and a build lists once.
 
 Catalog entrypoints must be JavaScript that Node's native module loader can execute:
@@ -953,9 +955,11 @@ Only page extraction results are cached: the Markdown and page record of each pa
 source, the `pages` and `markdown` options, the default locale, the renderers, and the extractor
 version (astro-aeo, `turndown`, and `linkedom`). When the extractor changes (an upgrade, a
 downgrade, or a dependency refresh), the cache resets once and the build logs the reset, so a
-build never reuses Markdown produced by different code. Git modification dates are merged after
-extraction and are never frozen by a cache hit. A complete build prunes the entries it did not
-use; an incomplete inventory keeps them.
+build never reuses Markdown produced by another version. The key names versions, not source: if
+you run astro-aeo from a git checkout or a linked copy and change its code without changing its
+version, delete `.astro/aeo-cache/processing-v1` before the next build. Git modification dates are
+merged after extraction and are never frozen by a cache hit. A complete build prunes the entries
+it did not use; an incomplete inventory keeps them.
 
 An exclusive same-host process lock protects reusable state. A locked or invalid state makes the
 build run cold and read-only, with no stale deletion authority, and IndexNow state does not

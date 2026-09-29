@@ -29,7 +29,7 @@ function reader({ collections, entries = {}, terms = {}, pageSize = 100, i18n = 
 const posts = { slug: 'posts', urlPattern: '/posts/{slug}', routable: true, titleField: 'title' };
 
 describe('listEmDashPages', () => {
-  test('lists published entries of every collection with a URL pattern', async () => {
+  test('lists published entries of every SEO-enabled collection with a URL pattern', async () => {
     const pages = await listEmDashPages(reader({
       collections: [
         posts,
@@ -37,8 +37,11 @@ describe('listEmDashPages', () => {
         // The Marketing template: fixed routes serve these, so nothing is guessed.
         { slug: 'pages', urlPattern: null, routable: true },
         { slug: 'sections', urlPattern: '/sections/{slug}', routable: false },
+        // SEO turned off: EmDash's sitemap leaves the collection out, and so does the catalog.
+        { slug: 'legal', urlPattern: '/legal/{slug}', routable: true, hasSeo: false },
       ],
       entries: {
+        legal: [entry({ slug: 'terms' })],
         posts: [entry({ id: 'p1', slug: 'hello', data: { title: 'Hello', excerpt: 'Short' }, publishedAt: '2026-01-02 03:04:05', updatedAt: '2026-02-01T00:00:00Z' })],
         projects: [entry({ id: 'w1', slug: 'acme', data: { title: 'Acme', summary: 'Rebrand' } })],
         pages: [entry({ slug: 'home' })],

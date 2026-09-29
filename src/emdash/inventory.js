@@ -4,15 +4,15 @@ import { interpolateUrlPattern } from './url-pattern.js';
 /**
  * The EmDash page inventory: every published entry of a collection that has a
  * public URL, and optionally the archive page of every taxonomy term in use.
- * It applies EmDash's own sitemap rules (published, not deleted, has a slug,
- * not marked noindex) and reads only EmDash's public plugin read API, which
+ * It applies EmDash's own sitemap rules (an SEO-enabled collection; published,
+ * not deleted, has a slug, not marked noindex) and reads only EmDash's public plugin read API, which
  * is injected here so this module stays pure and testable.
  *
  * A collection without a URL pattern is skipped rather than guessed at: the
  * Marketing template's `pages` collection has none, and its entries are served
  * by fixed routes (`/`, `/pricing`) that Astro-AEO already knows.
  *
- * @typedef {{ slug: string; urlPattern: string | null; routable: boolean; titleField?: string | null }} EmDashCollection
+ * @typedef {{ slug: string; urlPattern: string | null; routable: boolean; hasSeo?: boolean; titleField?: string | null }} EmDashCollection
  * @typedef {{
  *   id: string;
  *   slug: string | null;
@@ -62,6 +62,8 @@ export async function listEmDashPages(reader, options = {}) {
 
   for (const collection of await reader.listCollections()) {
     if (!collection.routable || !collection.urlPattern || disabled.has(collection.slug)) continue;
+    // EmDash's sitemap leaves out collections with SEO turned off.
+    if (collection.hasSeo === false) continue;
     /** @type {string | undefined} */
     let cursor;
     do {

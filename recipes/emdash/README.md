@@ -21,8 +21,9 @@ Cloudflare (D1 and R2) is [emdash-cloudflare](../emdash-cloudflare/).
   page, leaves `robots.txt` and sitemaps to EmDash, turns on content negotiation, and adds a page
   catalog.
 - The catalog asks EmDash for every collection with a URL pattern and lists its published entries,
-  skipping drafts, deleted entries, and entries marked noindex in the SEO panel. It uses EmDash's own
-  read API through the project's `emdash` install, so it never opens `data.db` itself.
+  skipping collections with SEO turned off, drafts, deleted entries, and entries marked noindex in
+  the SEO panel. It uses EmDash's own read API through the project's `emdash` install, so it never
+  opens `data.db` itself.
 - `collections.posts.section: 'Blog'` gets its URLs from the seed's `urlPattern`: `/blog/**`.
 - Publishing in the admin shows up in `llms.txt` within 10 seconds (`revalidate`), without a restart.
 

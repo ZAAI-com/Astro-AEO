@@ -37,6 +37,8 @@ const loaded = (body = html()) => ({
   response: new Response(body, { headers: { 'content-type': 'text/html' } }),
 });
 
+/** Let a background catalog refresh settle and merge. */
+const settle = () => new Promise((resolve) => setTimeout(resolve));
 const catalogLoader = (catalog, module = './catalog.js') => ({
   module,
   load: async () => catalog,
@@ -1157,7 +1159,10 @@ describe('serveMarkdown', () => {
     clock += 9_999;
     expect(await paths()).toEqual(['/entry-0', '/static']);
     clock += 1;
-    // The expired listing is replaced on this use; the fresh one is awaited.
+    // The expired listing is refreshed on this use, which still gets the last inventory.
+    expect(await paths()).toEqual(['/entry-0', '/static']);
+    expect(listPages).toHaveBeenCalledTimes(2);
+    await settle();
     expect(await paths()).toEqual(['/entry-1', '/static']);
     expect(listPages).toHaveBeenCalledTimes(2);
     expect(staticList).toHaveBeenCalledOnce();
@@ -1175,6 +1180,7 @@ describe('serveMarkdown', () => {
     ]);
     expect(listPages).toHaveBeenCalledOnce();
     await runtimeCatalogPagesFor(loaders, requestRuntime);
+    await settle();
     await runtimeCatalogPagesFor(loaders, requestRuntime);
     expect(listPages).toHaveBeenCalledTimes(3);
   });
@@ -1227,6 +1233,7 @@ describe('serveMarkdown', () => {
       result = () => { throw new Error('database unavailable'); };
       clock = 10_000;
       expect(await paths()).toEqual(['/first']);
+      await settle();
       expect(warning).toHaveBeenCalledOnce();
       expect(warning.mock.calls[0][0]).toContain('its last listing is kept');
       // The failed refresh waits one more window instead of retrying on every use.
@@ -1235,11 +1242,38 @@ describe('serveMarkdown', () => {
       expect(listPages).toHaveBeenCalledTimes(2);
       result = () => [{ pathname: '/second' }];
       clock = 20_000;
+      expect(await paths()).toEqual(['/first']);
+      await settle();
       expect(await paths()).toEqual(['/second']);
       expect(listPages).toHaveBeenCalledTimes(3);
     } finally {
       warning.mockRestore();
     }
+  });
+
+  test('serves the last inventory while a slow refresh runs', async () => {
+    const requestRuntime = runtime();
+    requestRuntime.command = 'build';
+    /** @type {(pages: { pathname: string }[]) => void} */
+    let finish = () => {};
+    let calls = 0;
+    const listPages = vi.fn(() => (++calls === 1
+      ? [{ pathname: '/old' }]
+      : new Promise((resolve) => { finish = resolve; })));
+    const loaders = [{ ...catalogLoader({ listPages }), revalidate: 10 }];
+    let clock = 0;
+    const paths = async () =>
+      (await runtimeCatalogPagesFor(loaders, requestRuntime, undefined, () => clock)).map((page) => page.pathname);
+
+    expect(await paths()).toEqual(['/old']);
+    clock = 10_000;
+    // Neither the request that starts the refresh nor one during it waits for it.
+    expect(await paths()).toEqual(['/old']);
+    expect(await paths()).toEqual(['/old']);
+    expect(listPages).toHaveBeenCalledTimes(2);
+    finish([{ pathname: '/new' }]);
+    await settle();
+    expect(await paths()).toEqual(['/new']);
   });
 
   test('caches a rejected runtime catalog loader and warns once', async () => {
