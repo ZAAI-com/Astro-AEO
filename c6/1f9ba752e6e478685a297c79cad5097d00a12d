@@ -1,0 +1,24 @@
+src/core/extract/index.js
+  s_888f8e365b5f94::t_ba7eddca9a8f7a 605-625,732-734
+  s_888f8e365b5f94::t_bdce95cd31dc4d 626
+src/core/extract/index.test.js
+  s_888f8e365b5f94::t_2ecb6ccfbee552 408-417
+.changeset/table-wrapper-spacing.md
+  s_888f8e365b5f94::t_43eb67403af366 1-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c61f9ba752e6e478685a297c79cad5097d00a12d",
+  "prompts": {},
+  "sessions": {
+    "s_888f8e365b5f94": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "24ff9027-fb95-47e2-93ad-fb0f11deaaa1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
