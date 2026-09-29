@@ -1,0 +1,30 @@
+---
+import Base from '../layouts/Base.astro';
+import { FaqJsonLd } from 'astro-aeo/components';
+import { getEmDashCollection } from 'emdash';
+import { PortableText } from 'emdash/ui';
+
+const { entries: sections, error } = await getEmDashCollection('sections', {
+  orderBy: { sort: 'asc' },
+});
+if (error) return new Response('Unable to load sections', { status: 500 });
+
+const faqSection = sections.find((section) => section.id === 'faq');
+const faqItems = (faqSection?.data.faq ?? []).map((item) => ({
+  question: item.question,
+  answer: item.answer,
+}));
+---
+<Base
+  title="Field Station"
+  description="An EmDash-managed marketing site with a blog and customer stories, published with Astro-AEO."
+>
+  <h1>Field Station</h1>
+  {sections.map((section) => (
+    <section id={String(section.id)}>
+      <h2>{section.data.title}</h2>
+      <PortableText value={section.data.body} />
+    </section>
+  ))}
+  {faqItems.length > 0 && <FaqJsonLd items={faqItems} />}
+</Base>

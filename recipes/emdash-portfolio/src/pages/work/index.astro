@@ -1,0 +1,17 @@
+---
+export const prerender = false;
+import Base from '../../layouts/Base.astro';
+import { getEmDashCollection } from 'emdash';
+
+const { entries, error } = await getEmDashCollection('projects', { orderBy: { published_at: 'desc' } });
+if (error) return new Response('Could not load entries', { status: 500 });
+---
+<Base title="Work" description="Every project in the portfolio." path="/work">
+  <h1>Work</h1>
+  {entries.map((entry) => (
+    <article>
+      <h2><a href={`/work/${entry.id}`}>{entry.data.title}</a></h2>
+      {entry.data.summary && <p>{entry.data.summary}</p>}
+    </article>
+  ))}
+</Base>

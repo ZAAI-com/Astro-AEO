@@ -20,10 +20,23 @@ export const RELEASE_THRESHOLDS = Object.freeze({
   // is imported, and that is held by the bundle and startup limits below. 1.4.0
   // measured 350,713 packed and 1,358,848 unpacked across 164 files. The unpacked
   // ceiling sits close to that measurement, as before; the packed one stays loose.
+  //
+  // 1.5 adds the producer-versioned cache state and the Markdown fidelity passes
+  // (glyph unwrap, inline block flattening, code-fence language resolution) with
+  // their colocated tests, and the astro-aeo/emdash integration. 1.5.0 measured
+  // 377,711 packed and 1,443,195 unpacked across 173 files, past the 1.4 unpacked
+  // ceiling, so it moves once here. The growth is correctness work in extraction
+  // and build caching plus the EmDash subpath, none of it in a consumer's runtime
+  // bundle unless imported, which the limits below still hold.
   packagePackedBytes: 450_000,
-  packageUnpackedBytes: 1_380_000,
+  packageUnpackedBytes: 1_460_000,
   parse100KbP95Ms: 50,
   convert100KbP95Ms: 150,
+  // The rich document repeats hidden glyphs, a definition term, a two-image
+  // figure and a Shiki block, so it is denser than the plain one. 1.5.0 measured
+  // a p95 near 101 ms on the M2 Pro reference machine; the ceiling keeps the
+  // same headroom the plain document has over its own measurement.
+  convertRich100KbP95Ms: 300,
   requestP95OverheadMs: 10,
   retainedHeapBytes: 10 * 1024 * 1024,
   corpusConcurrency: 1,

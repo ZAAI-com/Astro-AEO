@@ -1,7 +1,7 @@
 {
   "name": "astro-aeo",
-  "version": "1.4.0",
-  "description": "Answer Engine Optimization for Astro: .md companion pages, llms.txt, llms-full.txt, robots.txt AI-bot policies, domain-profile.json, sitemap auto-wiring, JSON-LD components, and a validator CLI.",
+  "version": "1.5.0",
+  "description": "Answer Engine Optimization for Astro: .md companion pages, llms.txt, llms-full.txt, robots.txt AI-bot policies, domain-profile.json, sitemap auto-wiring, JSON-LD components, a validator CLI, and one-line EmDash CMS support.",
   "type": "module",
   "license": "MIT",
   "author": "ZAAI (https://zaai.com)",
@@ -39,6 +39,11 @@
       "default": "./src/starlight.js"
     },
     "./starlight/route-data": "./src/starlight/route-data.js",
+    "./emdash": {
+      "types": "./src/emdash.d.ts",
+      "default": "./src/emdash.js"
+    },
+    "./emdash/catalog": "./src/emdash/catalog.js",
     "./edge": {
       "types": "./src/edge.d.ts",
       "default": "./src/edge.js"
@@ -108,16 +113,22 @@
     "robots.txt",
     "json-ld",
     "schema.org",
-    "markdown"
+    "markdown",
+    "emdash",
+    "cms"
   ],
   "peerDependencies": {
     "@astrojs/starlight": ">=0.32.0",
     "@mdx-js/mdx": "^3.1.1",
     "astro": ">=5.0.0",
-    "defuddle": "^0.19.2"
+    "defuddle": "^0.19.2",
+    "emdash": ">=1.0.1"
   },
   "peerDependenciesMeta": {
     "@astrojs/starlight": {
+      "optional": true
+    },
+    "emdash": {
       "optional": true
     },
     "@mdx-js/mdx": {
@@ -135,24 +146,29 @@
     "yaml": "^2.9.1"
   },
   "devDependencies": {
-    "@astrojs/cloudflare": "14.3.0",
-    "@astrojs/netlify": "8.1.3",
-    "@astrojs/node": "^11.1.4",
-    "@astrojs/starlight": "0.42.2",
-    "@astrojs/vercel": "11.0.4",
-    "@changesets/cli": "^2.29.8",
+    "@astrojs/cloudflare": "14.3.3",
+    "@astrojs/netlify": "8.2.6",
+    "@astrojs/node": "^11.1.6",
+    "@astrojs/react": "^6.0.6",
+    "@astrojs/starlight": "0.42.4",
+    "@astrojs/vercel": "11.0.11",
+    "@changesets/cli": "^2.31.1",
     "@deno/astro-adapter": "0.6.0",
+    "@emdash-cms/cloudflare": "1.0.1",
     "@mdx-js/mdx": "^3.1.1",
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.6.3",
     "@types/turndown": "^5.0.6",
-    "astro": "^7.3.1",
+    "astro": "^7.3.5",
     "astro-aeo": "link:.",
-    "defuddle": "^0.19.2",
+    "defuddle": "^0.19.4",
+    "emdash": "1.0.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
     "tslib": "^2.8.1",
     "typescript": "^7.0.2",
     "typescript-floor": "npm:typescript@5.5.4",
-    "vitest": "^4.1.10",
-    "wrangler": "^4.125.0"
+    "vitest": "^4.1.11",
+    "wrangler": "^4.142.0"
   },
   "scripts": {
     "test": "vitest run",

@@ -9,6 +9,11 @@ crawler policies, and domain identity metadata with no external services or clie
 
 It is the Astro sibling of [Jekyll-AEO](https://github.com/ZAAI-com/Jekyll-AEO).
 
+> **New in 1.5: [EmDash CMS](#emdash-cms) support.** Running a site on
+> [EmDash](https://emdashcms.com/)? Add `emdashAeo()` and every published post, page, and project
+> gets a Markdown copy and a place in `llms.txt`, updated within seconds of publishing. It works
+> with the Blog, Marketing, Portfolio, and Starter templates, on Node and Cloudflare.
+
 ## What is AEO
 
 Answer engines (ChatGPT, Claude, Perplexity, Google AI Overviews, and others) read your pages to answer questions and cite sources. They do better with clean, structured text than with a page of HTML, scripts, and styles. AEO is the practice of publishing machine-readable companions to your site so those systems can find and quote your content accurately.
@@ -17,6 +22,8 @@ A Markdown copy of a page is roughly 20 to 30 percent smaller in tokens than its
 
 ## Features
 
+- **EmDash CMS**: `emdashAeo()` lists every published EmDash entry at its public URL and keeps `llms.txt` current as editors publish, on Node and Cloudflare. See [EmDash CMS](#emdash-cms).
+- **Starlight**: `starlightAeo()` adds Astro-AEO to a Starlight docs site as a plugin. See [Starlight](#starlight).
 - **.md companion pages**: a clean Markdown copy of every page, preserving authored Markdown when available and otherwise extracting from rendered HTML.
 - **llms.txt and llms-full.txt**: a site index and a full-content file following the [llmstxt.org](https://llmstxt.org/) spec.
 - **Alternate link tags**: `<link rel="alternate" type="text/markdown">` injected into every page so crawlers can find the Markdown.
@@ -76,6 +83,127 @@ site root, an alternate link tag, a managed Schema.org graph on each eligible pa
 canonical URL, and a sitemap (via the auto-wired `@astrojs/sitemap`). Enable `discovery.robots`,
 `site.profile`, `corpus.urlMap`, and the experimental `schema.corpus` outputs when you want them.
 
+Using EmDash or Starlight? Use [`emdashAeo()`](#emdash-cms) or [`starlightAeo()`](#starlight)
+instead of `aeo()`; each registers Astro-AEO with the right defaults for that framework.
+
+## EmDash CMS
+
+**New in 1.5.** [EmDash](https://emdashcms.com/) is a full-stack CMS built on Astro: content lives
+in a database, editors publish in an admin at `/_emdash/admin`, and every page renders on demand.
+Astro-AEO supports it with one line. `emdashAeo()` finds every published post, page, and project,
+serves a Markdown copy of each, lists them in `llms.txt` and `llms-full.txt`, and picks up new
+entries within seconds of publishing, with no rebuild. It works with every EmDash template (Blog,
+Marketing, Portfolio, and Starter), with sites that mix them, and on Node and Cloudflare.
+
+Install it in your EmDash project, then add `emdashAeo()` next to `emdash()` instead of `aeo()`:
+
+```bash
+npm install astro-aeo   # not `astro add`, which would insert a plain aeo()
+```
+
+```js
+// astro.config.mjs
+import emdash, { local } from 'emdash/astro';
+import { sqlite } from 'emdash/db';
+import emdashAeo from 'astro-aeo/emdash';
+
+export default defineConfig({
+  site: 'https://example.com',
+  output: 'server',
+  adapter: node({ mode: 'standalone' }),
+  integrations: [
+    react(),
+    emdash({ database: sqlite({ url: 'file:./data.db' }), storage: local({ /* ... */ }) }),
+    emdashAeo(),
+  ],
+});
+```
+
+Publish a post in the admin, and a few seconds later your site answers with it:
+
+```text
+$ curl https://example.com/llms.txt
+# My Blog
+
+- [The Case for Static](/posts/the-case-for-static.md): Static sites aren't a step backwards.
+- [About](/pages/about.md)
+- [Development](/category/development.md): All posts in the Development category.
+
+$ curl https://example.com/posts/the-case-for-static.md
+# The Case for Static
+...
+```
+
+It registers Astro-AEO for you with these defaults. Anything you pass as `emdashAeo({ aeo: { ... } })`
+wins, and your own `pages.exclude` and `pages.catalogs` entries come first:
+
+| Setting | Default | Why |
+|---|---|---|
+| `pages.exclude` | adds `/_emdash/**` and `/404` | the admin, API, and 404 page are not content |
+| `pages.catalogs` | adds the EmDash catalog, `revalidate: 10` | EmDash pages exist only at request time |
+| `markdown.negotiation` | `'response'` | every EmDash page renders on demand |
+| `discovery.robots.enabled` | `false` | EmDash serves its own `robots.txt` |
+| `discovery.sitemap.mode` | `'disabled'` | EmDash serves its own sitemaps |
+
+The catalog lists every published entry of every collection that has a URL pattern, at the URL
+EmDash itself builds from that pattern (`{slug}`, `{id}`, and the date tokens `{year}` to `{second}`).
+It follows EmDash's sitemap rules: collections with SEO turned off, drafts, deleted entries, entries
+without a slug, and entries marked noindex in the SEO panel are left out. A collection without a
+URL pattern, such as the Marketing template's `pages`, is skipped because fixed routes (`/`,
+`/pricing`) render it, and Astro-AEO already knows those. The catalog reads EmDash through its
+public read API from your own `emdash` install, so it works with any EmDash database and never
+opens one itself. Entries you publish appear within
+`revalidate` seconds without a restart.
+
+### Options
+
+```js
+emdashAeo({
+  collections: {
+    posts: { section: 'Blog' },                          // an llms.txt heading; URLs from the seed urlPattern
+    pages: { section: { title: 'Pages', match: ['/about', '/team'] } },
+    legal: false,                                        // keep a collection out of the corpora
+  },
+  taxonomies: { category: '/category/{slug}', tag: '/tag/{slug}' }, // archive routes to list
+  revalidate: 10,                                        // seconds; 0 = every request, false = once per process
+  maxEntries: 50000,                                     // matches EmDash's sitemap limit
+  aeo: { pages: { exclude: ['/search'] } },              // any Astro-AEO option
+})
+```
+
+A string `section` takes its URLs from the collection's `urlPattern` in the seed file named by
+`package.json` (`/posts/{slug}` matches `/posts/**`). A pattern that starts at the site root, such as
+`/{slug}`, needs an explicit `match`. EmDash stores no URL for a taxonomy, so archive pages are listed
+only when `taxonomies` names their route, and only for terms that have published entries.
+
+### What each template gets
+
+| EmDash template | Listed automatically | Options worth setting |
+|---|---|---|
+| Blog | `/posts/*`, `/pages/*` | `taxonomies` for `/category/*` and `/tag/*`; exclude `/search` |
+| Marketing | `/`, `/pricing`, `/contact` (fixed routes) | none |
+| Portfolio | `/work/*`, `/about` | none |
+| Starter | `/posts/*`, root pages such as `/about` | `taxonomies` |
+| Your own mix | every collection with a URL pattern | `collections` for `llms.txt` sections or to leave one out |
+
+Each row has a complete, tested project under [`recipes/`](recipes/): `emdash-blog`,
+`emdash-marketing`, `emdash-portfolio`, `emdash-starter`, the mixed `emdash` site, and
+`emdash-cloudflare`.
+
+### Things to know
+
+- `emdashAeo()` throws if `aeo()` is also registered, or if `emdash()` is missing. It accepts the
+  current option names only, and it cannot enable IndexNow: the build has no page inventory for an
+  EmDash site, so IndexNow would read every page as removed.
+- With i18n enabled, the catalog lists the default locale only and warns once. Describe translated
+  entries in a catalog of your own.
+- Aggregate files are origin-scoped in production: a deployed server answers `llms.txt` for the
+  configured `site` origin, not for arbitrary `Host` headers.
+- Request-time corpora need Astro 6.3 or newer, and EmDash needs Node 22.16 or newer.
+- On Cloudflare the catalog reads D1 through EmDash's own per-request session, so the options are
+  the same as on Node. [`emdash-cloudflare`](recipes/emdash-cloudflare/) runs the mixed site in
+  workerd on a local D1 database.
+
 ## Configuration
 
 All options are optional. Defaults are shown.
@@ -106,7 +234,7 @@ aeo({
     respectNoindex: true,            // skip pages with <meta name="robots" content="noindex">
     stripTitleSuffix: false,         // strip " | Your Brand" from titles: string | string[] | RegExp
     devDynamicDiscovery: 'startup',  // 'startup' | 'hot' (experimental) | false
-    catalogs: [],                    // request-time inventory and exact descriptor modules
+    catalogs: [],                    // request-time inventory and exact descriptor modules; { module, revalidate? }
   },
 
   markdown: {                        // the .md companions
@@ -284,8 +412,9 @@ External public HTTPS `hreflang` links are allowed but never fetched.
 The private `.astro/aeo-cache` directory can contain normalized derived page content and IndexNow
 notification state. Keep `.astro` uncommitted, transfer the `indexnow` pending and acknowledgment
 directory between separate CI prepare/submit jobs, and protect it as sensitive build data. Cache
-files use restrictive permissions where supported. `cache.enabled: false` disables payload reuse,
-not artifact ownership or IndexNow safety ledgers.
+files use restrictive permissions where supported, and the extraction cache resets itself when the
+extractor changes (see [Incremental processing cache](#incremental-processing-cache)).
+`cache.enabled: false` disables payload reuse, not artifact ownership or IndexNow safety ledgers.
 
 ### Migrating to 1.2
 
@@ -551,6 +680,11 @@ export default defineCmsAdapter({
 These catalogs load through the same failure isolation as a hand-written one: a catalog that throws
 warns, records `catalog-load-failed`, and contributes nothing.
 
+### EmDash
+
+EmDash sites use `emdashAeo()` instead of `aeo()`, with a catalog that lists every published entry.
+See [EmDash CMS](#emdash-cms).
+
 ### Page versions
 
 A page may carry a documentation version label: `version: 'v2'` on a catalog descriptor, on
@@ -565,6 +699,15 @@ contributes nothing rather than failing the build or server startup. Catalogs ru
 configured order in both builds and server bundles; the first descriptor wins when
 two catalogs name the same normalized path. `context` contains the command, site URL,
 base path, and trailing-slash policy.
+
+A request-time server lists each catalog once per process. Give a catalog a `revalidate` window to
+list it again once that many seconds have passed since its last listing, so a CMS catalog picks up
+published entries without a restart: `{ module: './src/aeo-catalog.js', revalidate: 30 }`. `0` lists
+on every use of the inventory, and `false` (or omitting it) keeps the first listing. If a revalidating
+catalog's first listing fails, it is retried on its next use instead of staying empty; if a later
+refresh fails, the last listing stays in place and the refresh is retried after another window.
+A refresh never holds up a request: the last inventory is served until the fresh one is ready.
+Development always lists afresh, and a build lists once.
 
 Catalog entrypoints must be JavaScript that Node's native module loader can execute:
 `.js`, `.mjs`, or `.cjs`. This keeps build preflight identical on every supported Node
@@ -650,6 +793,13 @@ several top-level matches they are all converted, in document order; a match nes
 inside another match is skipped so its content is not emitted twice. With no match,
 extraction falls back to `<body>`.
 
+Matches that repeat as items of one list are a listing, not the page: a grid of
+`<article>` cards, or a `<ul>` whose `<li>` items each hold one. They are set aside, so a
+blog index or a pricing page converts from `<main>` with its heading and intro, and a
+post keeps only its own `<article>` when related-post cards follow it. A card still
+counts as an item inside a wrapper that holds nothing else, such as its own grid cell.
+If only list items match every selector, extraction falls back to `<body>`.
+
 `script`, `style`, `noscript`, `iframe`, and `head` are always dropped, in addition to
 `removeSelectors`. `keepSelectors` emits matching elements as minimized raw HTML instead of
 converting them, for a widget whose markup carries meaning. It removes presentation
@@ -658,10 +808,22 @@ keeping, and the always-dropped tags can never be reintroduced this way.
 
 Buttons (except disclosure toggles with `aria-expanded` or `aria-controls`), `svg`,
 `template`, `[hidden]`, and `[aria-hidden="true"]` elements are dropped as interface
-chrome, unless they wrap an image with alt text.
+chrome, unless they wrap an image with alt text. One exception keeps meaningful glyphs: an inline
+`aria-hidden="true"` element with no child elements, outside links, buttons, `summary`, `label`,
+`pre`, and `code`, is unwrapped to its text when that text is either a separator of at most four
+characters (arrows, middle dots and bullets, bars and slashes, dashes, guillemets and angle
+quotes, colons) with text on both sides in the same inline run, or a box-drawing tree prefix
+(such as `├──`) with text after it. A separator is padded with spaces; a tree prefix is kept
+verbatim; an arrow directly after a link stays dropped. Emoji, stars, and check marks are never
+kept, since they usually repeat visually hidden text.
 
-Figures become one image (the first described image for light/dark variants) followed by the
-caption in emphasis. Image-free charts retain readable text or their accessible label.
+Figures keep their shown images followed by the caption in emphasis. Alternate states of one
+subject (images hidden from assistive technology, `[hidden]`, Starlight's `light:sl-hidden`, or a
+`hidden` image shown only in dark mode) are dropped while a shown image remains, so both images of
+a before/after comparison survive and adjacent labels are separated by a space. Code blocks become
+fences whose language comes from a `language-*` or `lang-*` class, a `data-language` attribute on
+the `pre` or `code`, or a filename at the start of a figure caption holding one code block; emit
+`data-language` if your highlighter puts the language anywhere else. Image-free charts retain readable text or their accessible label.
 Definition lists become a
 bold term followed by its description, and tables whose cells are single-span inline
 content become GFM pipe tables. `time`, `address`, and `cite` convert to their text.
@@ -788,12 +950,25 @@ compression.
 
 ### Incremental processing cache
 
-Build extraction results and core artifact payloads are content-addressed under
-`.astro/aeo-cache/processing-v1`. An exclusive same-host process lock protects reusable state;
-invalid, foreign, or active locks force a cold read-only build with no stale deletion authority.
-Project routes and `public/` files still win. A stale file is deleted only when the prior ledger
-names Astro-AEO, the path is confined, the file is regular and not a symlink, and its bytes still
-match the prior emitted hash.
+Only page extraction results are cached: the Markdown and page record of each page, under
+`.astro/aeo-cache/processing-v1`. An entry is keyed by the page's rendered HTML, its authored
+source, the `pages` and `markdown` options, the default locale, the renderers, and the extractor
+version (astro-aeo, `turndown`, and `linkedom`). When the extractor changes (an upgrade, a
+downgrade, or a dependency refresh), the cache resets once and the build logs the reset, so a
+build never reuses Markdown produced by another version. The key names versions, not source: if
+you run astro-aeo from a git checkout or a linked copy and change its code without changing its
+version, delete `.astro/aeo-cache/processing-v1` before the next build. Git modification dates are
+merged after extraction and are never frozen by a cache hit. A complete build prunes the entries
+it did not use; an incomplete inventory keeps them.
+
+An exclusive same-host process lock protects reusable state. A locked or invalid state makes the
+build run cold and read-only, with no stale deletion authority, and IndexNow state does not
+advance until `.astro/aeo-cache/processing-v1` is deleted. Project routes and `public/` files
+still win. A stale file is deleted only when the prior ledger names Astro-AEO, the path is
+confined, the file is regular and not a symlink, and its bytes still match the prior emitted hash.
+To clear the cache by hand, delete only `.astro/aeo-cache/processing-v1`: deleting all of
+`.astro/aeo-cache` also discards the artifact ownership and IndexNow ledgers. Set
+`cache.enabled: false` to stop reuse.
 
 ### The universal robots.txt group
 
@@ -1202,7 +1377,7 @@ permissions:
 steps:
   - uses: actions/checkout@v4
   - run: npm ci && npm run build
-  - uses: ZAAI-com/Astro-AEO@1.4.0
+  - uses: ZAAI-com/Astro-AEO@1.5.0
     with:
       target: dist            # or a deployed URL
       fail-on: error          # error, warning or none
@@ -1216,8 +1391,11 @@ are uploaded even when they fail the job. Set `upload-sarif: 'false'` where the 
 
 ## Recipes
 
-[`recipes/`](recipes/) holds eight small, complete projects: marketing, blog, Starlight, SaaS, commerce,
-local business, i18n, and SSR. Each builds on its own and passes `astro-aeo audit` with no errors.
+[`recipes/`](recipes/) holds small, complete projects: marketing, blog, Starlight, SaaS, commerce,
+local business, i18n, and SSR, plus six for EmDash: one per EmDash template (`emdash-blog`,
+`emdash-marketing`, `emdash-portfolio`, `emdash-starter`), a site that mixes them (`emdash`), and
+the same mix on Cloudflare (`emdash-cloudflare`). Each builds on its own and passes
+`astro-aeo audit` with no errors; the EmDash recipes are also served and checked request by request.
 
 ## Static edge negotiation
 

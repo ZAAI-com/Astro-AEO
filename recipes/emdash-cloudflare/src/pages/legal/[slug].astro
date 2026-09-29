@@ -1,0 +1,14 @@
+---
+import Base from '../../layouts/Base.astro';
+import { decodeSlug, getEmDashEntry } from 'emdash';
+import { PortableText } from 'emdash/ui';
+
+const slug = decodeSlug(Astro.params.slug);
+if (!slug) return Astro.redirect('/404');
+const { entry: page } = await getEmDashEntry('legal', slug);
+if (!page) return Astro.redirect('/404');
+---
+<Base title={`${page.data.title} | Field Station`} path={`/legal/${page.id}`}>
+  <h1>{page.data.title}</h1>
+  <PortableText value={page.data.content} />
+</Base>

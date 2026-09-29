@@ -10,7 +10,7 @@ import { assertExactPathname } from './core/artifact-path.js';
 import { isPublicIp } from './build/public-ip.js';
 
 /** @type {import('./index.js').SectionRule[]} */
-const DEFAULT_SECTIONS = [{ title: 'Home', match: '/' }];
+export const DEFAULT_SECTIONS = [{ title: 'Home', match: '/' }];
 
 /**
  * @param {import('./index.js').AstroAeoConfig} [rawConfig]
@@ -576,7 +576,7 @@ function resolveDevDynamicDiscovery(value) {
   );
 }
 
-/** @param {{ module: string }[] | undefined} catalogs */
+/** @param {{ module: string; revalidate?: number | false }[] | undefined} catalogs */
 function validateCatalogs(catalogs) {
   if (catalogs === undefined) return;
   if (!Array.isArray(catalogs)) {
@@ -586,6 +586,16 @@ function validateCatalogs(catalogs) {
     if (!isPlainObject(catalogs[index]) || typeof catalogs[index].module !== 'string' || !catalogs[index].module.trim()) {
       throw new AeoConfigError(
         `astro-aeo: pages.catalogs[${index}].module must be a non-empty module specifier.`,
+      );
+    }
+    const { revalidate } = catalogs[index];
+    if (
+      revalidate !== undefined &&
+      revalidate !== false &&
+      !(typeof revalidate === 'number' && Number.isFinite(revalidate) && revalidate >= 0)
+    ) {
+      throw new AeoConfigError(
+        `astro-aeo: pages.catalogs[${index}].revalidate must be a non-negative number of seconds or false.`,
       );
     }
   }

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // @ts-check
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -16,7 +16,9 @@ const pages = Number(values.pages);
 // linear from 1,000 pages. The ceilings leave a slow CI runner an order of magnitude.
 const CEILINGS = { secondsPer10k: 30, heapBytes: 512 * 1024 * 1024 };
 
-const root = mkdtempSync(join(tmpdir(), 'astro-aeo-audit-bench-'));
+// The audit refuses a root reached through a symbolic link, and macOS's tmpdir() is one
+// (/var is a link to /private/var), so resolve it the way the audit tests do.
+const root = realpathSync(mkdtempSync(join(tmpdir(), 'astro-aeo-audit-bench-')));
 try {
   generateAuditFixture(root, pages);
   const run = () => {

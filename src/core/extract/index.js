@@ -13,6 +13,43 @@ const KEEP_ATTRIBUTE = 'data-astro-aeo-keep';
 const CHROME_SELECTOR = 'button:not([aria-expanded]):not([aria-controls]), svg, template, [hidden], [aria-hidden="true"]';
 
 /**
+ * Inline elements whose `aria-hidden="true"` text may be a meaningful glyph
+ * (a `→` between two values, a `·` between counts, a `├──` tree
+ * prefix) rather than decoration.
+ */
+const GLYPH_ELEMENTS = new Set([
+  'span', 'i', 'b', 'em', 'strong', 'small', 'abbr', 'kbd', 'sup', 'sub', 'mark', 'time', 's', 'u', 'q',
+  'cite',
+]);
+
+/** Glyphs inside these stay decorative: link arrows, button icons, code prompts. */
+const GLYPH_EXCLUDED_ANCESTORS = 'a, button, summary, label, pre, code';
+
+/**
+ * Separators worth keeping between two runs of text: arrows, middle dots and
+ * bullets, bars and slashes, dashes, guillemets and angle quotes, and colons.
+ * Emoji, stars, check marks and close glyphs are deliberately absent: they
+ * usually pair with visually hidden text that already says the same thing.
+ */
+const SEPARATOR_GLYPH =
+  /^[\u2190-\u21ff\u27f0-\u27ff\u2900-\u297f\u00b7\u2022\u2219\u22c5\u2027|\/\u00a6\u2013\u2014\u2015\u00ab\u00bb\u2039\u203a<>:]+$/u;
+const ARROW_GLYPH = /^[\u2190-\u21ff\u27f0-\u27ff\u2900-\u297f]+$/u;
+/** Box-drawing tree prefixes such as `│   ├──`. */
+const BOX_DRAWING_GLYPH = /^[\u2500-\u257f \u00a0]+$/u;
+const MAX_SEPARATOR_LENGTH = 4;
+const MAX_BOX_DRAWING_LENGTH = 64;
+/** Ordinary and no-break spaces around a glyph. */
+const GLYPH_PADDING = /^[ \t\n\r\f\u00a0]+|[ \t\n\r\f\u00a0]+$/g;
+
+/** Elements that end an inline run of text, alongside `<br>`. */
+const RUN_BOUNDARIES = new Set([
+  'address', 'article', 'aside', 'blockquote', 'br', 'caption', 'dd', 'details', 'dialog', 'div', 'dl', 'dt',
+  'fieldset', 'figcaption', 'figure', 'footer', 'form', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header',
+  'hgroup', 'hr', 'li', 'main', 'menu', 'nav', 'ol', 'p', 'pre', 'search', 'section', 'summary', 'table',
+  'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'ul',
+]);
+
+/**
  * Attributes a raw HTML block may keep. Everything else (classes, ids,
  * `data-*`, framework scoping attributes) is presentation and is dropped.
  */
@@ -20,6 +57,13 @@ const RAW_HTML_ATTRIBUTES = new Set([
   'href', 'src', 'alt', 'title', 'colspan', 'rowspan', 'scope', 'headers', 'datetime', 'lang',
   'aria-label', 'poster', 'type',
 ]);
+
+/**
+ * Container blocks flattened inside a caption or a definition term, so the
+ * emphasis or bold run built around them stays on one line. Lists, code,
+ * tables and rules keep their own Turndown rules and stay blocks.
+ */
+const INLINE_BLOCKS = 'address, article, aside, blockquote, div, footer, h1, h2, h3, h4, h5, h6, header, hgroup, p, section';
 
 /** Cell content a GFM pipe table cannot represent on one line. */
 const TABLE_BLOCK_CONTENT = 'p, ul, ol, pre, blockquote, table, h1, h2, h3, h4, h5, h6, hr, dl, figure';
@@ -95,6 +139,29 @@ export function assertValidExtractionOptions(probe, path, extraction) {
 }
 
 /**
+ * Drop matches that repeat as items of one list: two or more matches whose
+ * item boxes share a parent, like a grid of `<article>` cards or a `<ul>` of
+ * `<li><article>` teasers. An item box climbs through wrappers that hold
+ * nothing else, so a card inside its own grid cell or list item still counts.
+ * A lone article next to such a grid, such as a post above its related posts,
+ * is kept.
+ * @param {Element[]} matches top-level matches, in document order
+ * @returns {Element[]}
+ */
+function withoutRepeatedItems(matches) {
+  if (matches.length < 2) return matches;
+  const containers = matches.map((element) => {
+    let item = element;
+    while (item.parentElement && item.parentElement.children.length === 1) item = item.parentElement;
+    return item.parentElement;
+  });
+  return matches.filter((_, index) => {
+    const container = containers[index];
+    return !container || containers.filter((other) => other === container).length < 2;
+  });
+}
+
+/**
  * @param {Document} document
  * @param {string[]} selectors
  * @param {string[]} [removeSelectors]
@@ -108,7 +175,11 @@ export function selectContentRoots(document, selectors, removeSelectors = []) {
     );
     if (matches.length === 0) continue;
     const topLevel = matches.filter((el) => !matches.some((other) => other !== el && other.contains(el)));
-    return { roots: topLevel, strategy: selector, fallbackReason: undefined };
+    const roots = withoutRepeatedItems(topLevel);
+    // Only a card grid matched, such as a listing of <article> teasers: it is part
+    // of the page, not the page, so a broader selector decides.
+    if (roots.length === 0) continue;
+    return { roots, strategy: selector, fallbackReason: undefined };
   }
 
   const reason = selectors.length
@@ -169,6 +240,7 @@ export function cleanRoot(root, { removeSelectors, keepSelectors }) {
   }
   removed += removeChrome(root);
   sanitizeRoot(root);
+  normalizeCodeBlocks(root);
   normalizeFigures(root);
   normalizeDefinitionLists(root);
   const unmarked = (/** @type {Element} */ el) => !el.hasAttribute(KEEP_ATTRIBUTE);
@@ -178,22 +250,284 @@ export function cleanRoot(root, { removeSelectors, keepSelectors }) {
   return removed;
 }
 
-/** @param {Element} root @returns {number} */
+/**
+ * Removes interface chrome in two passes. The first removes everything except
+ * `aria-hidden` glyph candidates, so a following Copy button or `Copied` label
+ * cannot pass for neighbouring text. The second keeps a candidate only where
+ * it reads as content and removes the rest.
+ *
+ * @param {Element} root @returns {number}
+ */
 function removeChrome(root) {
   let removed = 0;
+  /** @type {Set<Node>} */
+  const glyphs = new Set();
   for (const el of matchingElements(root, CHROME_SELECTOR)) {
     if (el === root || !el.isConnected) continue;
     // A hidden wrapper around a described image still carries content.
     if (el.localName !== 'svg' && hasDescribedImage(el)) continue;
+    if (isGlyphCandidate(el)) {
+      glyphs.add(el);
+      continue;
+    }
     el.remove();
     removed++;
   }
+  for (const node of [...glyphs]) {
+    const el = /** @type {Element} */ (node);
+    if (!el.isConnected) continue;
+    const text = keptGlyphText(el, root, glyphs);
+    if (text === undefined) {
+      el.remove();
+      removed++;
+      continue;
+    }
+    const replacement = el.ownerDocument.createTextNode(text);
+    glyphs.add(replacement);
+    el.replaceWith(replacement);
+  }
   return removed;
+}
+
+/**
+ * An inline `aria-hidden="true"` element holding only a separator or a
+ * box-drawing run, outside links, controls and code.
+ *
+ * @param {Element} el @returns {boolean}
+ */
+function isGlyphCandidate(el) {
+  if (el.getAttribute('aria-hidden') !== 'true' || el.hasAttribute('hidden')) return false;
+  if (!GLYPH_ELEMENTS.has(el.localName) || el.children.length > 0) return false;
+  if (el.closest(GLYPH_EXCLUDED_ANCESTORS)) return false;
+  const text = trimGlyph(el.textContent ?? '');
+  const length = [...text].length;
+  return (SEPARATOR_GLYPH.test(text) && length <= MAX_SEPARATOR_LENGTH)
+    || (BOX_DRAWING_GLYPH.test(text) && text.length > 0 && length <= MAX_BOX_DRAWING_LENGTH);
+}
+
+/**
+ * The text a glyph candidate is unwrapped to, or `undefined` when it is
+ * decoration. A separator needs text before and after it in the same inline
+ * run and is padded with spaces, since its spacing usually came from CSS. A
+ * box-drawing prefix needs text after it and keeps its indentation. An arrow right
+ * after a link decorates that link.
+ *
+ * @param {Element} el
+ * @param {Element} root
+ * @param {Set<Node>} glyphs  Candidates and unwrapped glyphs, never neighbour text.
+ * @returns {string | undefined}
+ */
+function keptGlyphText(el, root, glyphs) {
+  const raw = el.textContent ?? '';
+  const text = trimGlyph(raw);
+  const after = runNeighbourText(el, root, glyphs, true);
+  if (!after) return undefined;
+  // Turndown collapses ordinary spaces, which would flatten nested tree rows;
+  // no-break spaces keep each prefix at its depth.
+  if (BOX_DRAWING_GLYPH.test(text)) return `${raw.replace(/[ \u00a0]+$/u, '').replace(/ /g, '\u00a0')} `;
+  const before = runNeighbourText(el, root, glyphs, false);
+  if (!before) return undefined;
+  if (ARROW_GLYPH.test(text) && before.parentElement?.closest('a')) return undefined;
+  // A colon attaches to the label before it, as in running text.
+  return text === ':' ? `${text} ` : ` ${text} `;
+}
+
+/** @param {string} text @returns {string} */
+function trimGlyph(text) {
+  return text.replace(GLYPH_PADDING, '');
+}
+
+/**
+ * The nearest non-whitespace text node before or after `el` in its inline
+ * run: a sibling walk that climbs only through inline parents and stops at a
+ * block element or `<br>`. Document order comes from the sibling links alone,
+ * since linkedom's `compareDocumentPosition` compares depth, not position.
+ *
+ * @param {Element} el
+ * @param {Element} root
+ * @param {Set<Node>} glyphs
+ * @param {boolean} forward
+ * @returns {Text | undefined}
+ */
+function runNeighbourText(el, root, glyphs, forward) {
+  for (let node = /** @type {Element} */ (el); node !== root; ) {
+    for (let sibling = forward ? node.nextSibling : node.previousSibling; sibling;
+      sibling = forward ? sibling.nextSibling : sibling.previousSibling) {
+      const found = runText(sibling, glyphs, forward);
+      if (found === null) return undefined;
+      if (found) return found;
+    }
+    const parent = node.parentElement;
+    if (!parent || RUN_BOUNDARIES.has(parent.localName)) return undefined;
+    node = parent;
+  }
+  return undefined;
+}
+
+/**
+ * The first non-whitespace text node inside `node` in walk order, `null` when
+ * the run ends inside it, or `undefined` when it holds no text.
+ *
+ * @param {Node} node
+ * @param {Set<Node>} glyphs
+ * @param {boolean} forward
+ * @returns {Text | null | undefined}
+ */
+function runText(node, glyphs, forward) {
+  if (glyphs.has(node)) return undefined;
+  if (node.nodeType === 3) return trimGlyph(node.nodeValue ?? '') ? /** @type {Text} */ (node) : undefined;
+  if (node.nodeType !== 1) return undefined;
+  if (RUN_BOUNDARIES.has(/** @type {Element} */ (node).localName)) return null;
+  const children = [...node.childNodes];
+  if (!forward) children.reverse();
+  for (const child of children) {
+    const found = runText(child, glyphs, forward);
+    if (found !== undefined) return found;
+  }
+  return undefined;
 }
 
 /** @param {Element} el @returns {boolean} */
 function hasDescribedImage(el) {
   return matchingElements(el, 'img').some((image) => (image.getAttribute('alt') ?? '').trim());
+}
+
+/** A dark-mode display utility, with stacked variants and `!` modifiers. */
+const DARK_SHOWN =
+  /(?:^|\s)(?:[\w-]+:)*dark:(?:[\w-]+:)*!?(?:block|inline(?:-block|-flex|-grid|-table)?|flex|grid|contents|flow-root|list-item|table(?:-[a-z-]+)?)!?(?=\s|$)/;
+
+/** Marks an image whose Markdown needs a trailing space before inline content. */
+const GAP_ATTRIBUTE = 'data-astro-aeo-gap';
+
+/**
+ * Whether an image is an alternate state on its path to the figure: hidden
+ * from assistive technology, `[hidden]`, Starlight's `light:sl-hidden`, or a
+ * bare `hidden` shown only in dark mode.
+ *
+ * @param {Element} image
+ * @param {Element} figure
+ */
+function isAlternateImage(image, figure) {
+  for (let el = /** @type {Element | null} */ (image); el && el !== figure; el = el.parentElement) {
+    const className = el.getAttribute('class') ?? '';
+    if (el.getAttribute('aria-hidden') === 'true' || el.hasAttribute('hidden')) return true;
+    if (/(?:^|\s)light:sl-hidden(?=\s|$)/.test(className)) return true;
+    if (/(?:^|\s)!?hidden!?(?=\s|$)/.test(className) && DARK_SHOWN.test(className)) return true;
+  }
+  return false;
+}
+
+/** File extensions a code window's caption may name, mapped to fence languages. */
+const CAPTION_LANGUAGES = new Map([
+  ['html', 'html'], ['htm', 'html'], ['css', 'css'], ['js', 'js'], ['mjs', 'js'], ['cjs', 'js'],
+  ['ts', 'ts'], ['tsx', 'tsx'], ['jsx', 'jsx'], ['json', 'json'], ['md', 'md'], ['mdx', 'mdx'],
+  ['yml', 'yaml'], ['yaml', 'yaml'], ['toml', 'toml'], ['sh', 'sh'], ['bash', 'bash'], ['zsh', 'zsh'],
+  ['rb', 'ruby'], ['py', 'python'], ['astro', 'astro'], ['svelte', 'svelte'], ['vue', 'vue'],
+  ['xml', 'xml'], ['liquid', 'liquid'],
+]);
+
+/**
+ * A caption that is a filename, alone or before a parenthetical or colon, such
+ * as `index.html (what most bots see)`. Prose that opens with a name like
+ * `Next.js build output` is not one.
+ */
+const CAPTION_FILENAME = /^(?:[\w.-]+\/)*[\w-][\w.-]*\.([a-z0-9]{1,10})(?=$|\s*[(:])/i;
+/** Inferred languages that name no syntax and so leave the fence bare. */
+const PLAIN_LANGUAGES = new Set(['plaintext', 'text', 'txt', 'plain']);
+const FENCE_LANGUAGE = /^[\w+#.-]{1,32}$/;
+
+/**
+ * @param {Element} el
+ * @param {string} prefix
+ */
+function classLanguage(el, prefix) {
+  for (const name of el.classList ?? []) {
+    if (name.startsWith(prefix) && name.length > prefix.length) return name.slice(prefix.length);
+  }
+  return '';
+}
+
+/**
+ * Shape `pre > code` blocks for Turndown's fenced rule, which reads only a
+ * `language-*` class on a `code` that is the first child. Highlighters put the
+ * language elsewhere (Shiki and Expressive Code on `data-language`, Prism on
+ * `lang-*` or the `pre`), and code windows name the file in a caption. Kept raw
+ * HTML is left byte-stable.
+ *
+ * @param {Element} root
+ */
+function normalizeCodeBlocks(root) {
+  for (const pre of matchingElements(root, 'pre')) {
+    const code = pre.firstElementChild;
+    if (code?.localName !== 'code' || pre.closest(`[${KEEP_ATTRIBUTE}]`)) continue;
+    // Browsers ignore the newline after <pre>; without the text node the block fences.
+    while (pre.firstChild !== code && pre.firstChild?.nodeType === 3 && !(pre.firstChild.textContent ?? '').trim()) {
+      pre.firstChild.remove();
+    }
+    // Expressive Code renders each line as a block with no newline between them.
+    const lines = [...code.children].filter((line) => line.classList?.contains('ec-line'));
+    for (const line of lines.slice(1)) code.insertBefore(code.ownerDocument.createTextNode('\n'), line);
+    if (classLanguage(code, 'language-')) continue;
+    let language = classLanguage(code, 'lang-') || classLanguage(pre, 'language-') || classLanguage(pre, 'lang-') ||
+      code.getAttribute('data-language') || pre.getAttribute('data-language') || '';
+    if (!language) {
+      const figure = pre.closest('figure');
+      const caption = figure && [...figure.querySelectorAll('figcaption')].find((el) => el.closest('figure') === figure);
+      if (caption && [...figure.querySelectorAll('pre')].filter((el) => el.closest('figure') === figure).length === 1) {
+        const match = CAPTION_FILENAME.exec((caption.textContent ?? '').trim());
+        language = (match && CAPTION_LANGUAGES.get(match[1].toLowerCase())) || '';
+      }
+    }
+    language = language.trim().toLowerCase();
+    if (!language || PLAIN_LANGUAGES.has(language) || !FENCE_LANGUAGE.test(language)) continue;
+    code.classList.add(`language-${language}`);
+  }
+}
+
+/**
+ * Separate adjacent styled elements that have no source space (chart legends,
+ * slider labels). Code and, in image figures, captions keep their spacing.
+ * Images are marked for the gap rule instead of receiving a text node, which
+ * Turndown would hoist out of inline ancestors as leading whitespace.
+ *
+ * @param {Element} figure
+ * @param {boolean} hasImages
+ */
+function spaceFigure(figure, hasImages) {
+  const document = figure.ownerDocument;
+  const skip = hasImages ? 'pre, code, kbd, samp, figcaption' : 'pre, code, kbd, samp';
+  for (const parent of [figure, ...figure.querySelectorAll('*')]) {
+    if (parent.closest(skip)) continue;
+    for (const child of [...parent.children]) {
+      const next = child.nextSibling;
+      if (next?.nodeType !== 1) continue;
+      const nextEl = /** @type {Element} */ (next);
+      const image = child.localName === 'img' ? child
+        : child.localName === 'picture' ? child.querySelector('img') : null;
+      if (image) {
+        if (accessibleName(image) && (isImageLike(nextEl) ||
+            (!BLOCK_NEIGHBOURS.has(nextEl.localName) && (nextEl.textContent ?? '').trim()))) {
+          image.setAttribute(GAP_ATTRIBUTE, '');
+        }
+        continue;
+      }
+      const nextText = (nextEl.textContent ?? '').trim();
+      if ((child.textContent ?? '').trim() && nextText && !CLOSING_PUNCTUATION.test(nextText)) {
+        parent.insertBefore(document.createTextNode(' '), next);
+      }
+    }
+  }
+}
+
+/** Block elements that already separate from a preceding image. */
+const BLOCK_NEIGHBOURS = new Set([
+  'address', 'article', 'aside', 'blockquote', 'div', 'dl', 'figcaption', 'figure', 'footer', 'h1', 'h2',
+  'h3', 'h4', 'h5', 'h6', 'header', 'hr', 'ol', 'p', 'pre', 'section', 'table', 'ul',
+]);
+
+/** @param {Element} el */
+function isImageLike(el) {
+  return el.localName === 'img' || (el.localName === 'picture' && Boolean(el.querySelector('img')));
 }
 
 /**
@@ -205,30 +539,17 @@ function hasDescribedImage(el) {
 function normalizeFigures(root) {
   const document = root.ownerDocument;
   for (const figure of matchingElements(root, 'figure').reverse()) {
-    const images = [...figure.querySelectorAll('img')].filter((image) => image.closest('figure') === figure);
-    // Responsive light/dark screenshots describe one subject, not two images.
-    const themed = (/** @type {Element} */ image) => {
-      for (let el = /** @type {Element | null} */ (image); el && el !== figure; el = el.parentElement) {
-        if (/(?:^|\s)(?:dark:|hidden\b)/.test(el.getAttribute('class') ?? '')) return true;
-      }
-      return false;
-    };
-    if (images.length > 1 && images.some(themed)) {
-      const chosen = images.find((image) => (image.getAttribute('alt') ?? '').trim()) ?? images[0];
-      for (const image of images) if (image !== chosen) image.remove();
-    }
-    if (!images.length && !figure.querySelector('table')) {
-      // Chart legends often use adjacent styled elements with no source space.
-      for (const parent of [figure, ...figure.querySelectorAll('*')]) {
-        for (const child of [...parent.children]) {
-          const next = child.nextSibling;
-          if (next?.nodeType === 1 && (child.textContent ?? '').trim() &&
-              (next.textContent ?? '').trim()) {
-            parent.insertBefore(document.createTextNode(' '), next);
-          }
-        }
+    let images = [...figure.querySelectorAll('img')].filter((image) => image.closest('figure') === figure);
+    // Responsive light/dark screenshots and inactive switcher frames are
+    // alternate states of one subject: drop them while a shown image remains.
+    if (images.length > 1) {
+      const shown = images.filter((image) => !isAlternateImage(image, figure));
+      if (shown.length && shown.length < images.length) {
+        for (const image of images) if (!shown.includes(image)) image.remove();
+        images = shown;
       }
     }
+    if (!figure.querySelector('table')) spaceFigure(figure, images.length > 0);
     if (!images.length && !(figure.textContent ?? '').trim()) {
       const label = (figure.getAttribute('aria-label') ??
         figure.querySelector('[aria-label]')?.getAttribute('aria-label') ?? '').trim();
@@ -239,17 +560,57 @@ function normalizeFigures(root) {
       const paragraph = document.createElement('p');
       const emphasis = document.createElement('em');
       emphasis.innerHTML = caption.innerHTML;
-      for (const block of [...emphasis.querySelectorAll('h1, h2, h3, h4, h5, h6, p, div')]) {
-        block.before(document.createTextNode(' '));
-        block.after(document.createTextNode(' '));
-        replaceTag(block, 'span');
-      }
+      inlineBlocks(emphasis);
       paragraph.appendChild(emphasis);
       if ((caption.textContent ?? '').trim()) caption.replaceWith(paragraph);
       else caption.remove();
     }
     if (figure === root) continue;
     replaceTag(figure, 'div');
+  }
+}
+
+/**
+ * Surround block-level children with spaces and flatten them to inline spans,
+ * so one Markdown emphasis or bold run survives conversion instead of being
+ * split by Turndown's blank-line replacement for blocks.
+ *
+ * @param {Element} el
+ */
+function inlineBlocks(el) {
+  const document = el.ownerDocument;
+  for (const block of [...el.querySelectorAll(INLINE_BLOCKS)]) {
+    block.before(document.createTextNode(' '));
+    block.after(document.createTextNode(' '));
+    replaceTag(block, 'span');
+  }
+}
+
+/** Text that attaches to the word before it, so no separating space goes in front. */
+const CLOSING_PUNCTUATION = /^[.,:;!?)\]}]/;
+
+/** Blocks moved out of a definition term instead of being bolded. */
+const TERM_BLOCKS = 'ul, ol, pre, table, blockquote';
+
+/** Inline tags that often split one word, such as a drop cap in `<b>S</b>tatus`. */
+const IN_WORD_TAGS = new Set(['a', 'abbr', 'b', 'code', 'em', 'i', 'mark', 's', 'small', 'strong', 'sub', 'sup', 'u']);
+
+/**
+ * Space term parts that CSS lays out apart, such as a step number badge in
+ * `<span>1</span>Configure`, which would otherwise read "1Configure".
+ *
+ * @param {Element} strong
+ */
+function spaceTermParts(strong) {
+  const document = strong.ownerDocument;
+  for (const node of [...strong.childNodes]) {
+    const next = node.nextSibling;
+    if (!next || !(node.textContent ?? '').trim() || !(next.textContent ?? '').trim()) continue;
+    if (/\s$/.test(node.textContent ?? '') || /^\s/.test(next.textContent ?? '')) continue;
+    if (CLOSING_PUNCTUATION.test(next.textContent ?? '')) continue;
+    const separate = [node, next].some((part) =>
+      part.nodeType === 1 && !IN_WORD_TAGS.has(/** @type {Element} */ (part).localName));
+    if (separate) strong.insertBefore(document.createTextNode(' '), next);
   }
 }
 
@@ -266,8 +627,20 @@ function normalizeDefinitionLists(root) {
       const paragraph = document.createElement('p');
       const strong = document.createElement('strong');
       strong.innerHTML = term.innerHTML;
+      spaceTermParts(strong);
+      inlineBlocks(strong);
+      // A term that already bolds its text would otherwise give `****Term****`.
+      for (const inner of [...strong.querySelectorAll('strong, b')]) inner.replaceWith(...inner.childNodes);
+      // Lists and other blocks cannot live inside one bold run; they follow the term.
+      const blocks = [...strong.querySelectorAll(TERM_BLOCKS)].filter((block) =>
+        !block.parentElement?.closest(TERM_BLOCKS));
+      for (const block of blocks) block.remove();
       paragraph.appendChild(strong);
-      term.replaceWith(paragraph);
+      if ((strong.textContent ?? '').trim() || strong.querySelector('img')) {
+        term.replaceWith(paragraph, ...blocks);
+      } else {
+        term.replaceWith(...blocks);
+      }
     }
     for (const description of [...list.querySelectorAll('dd')]) {
       if (description.closest('dl') !== list) continue;
@@ -403,6 +776,15 @@ function markTopLevelRawHtml(root, selector, predicate) {
  * @returns {import('turndown')}
  */
 export function addKeepRule(td) {
+  // Added first so kept raw HTML and tables still take precedence.
+  td.addRule('astroAeoImageGap', {
+    filter: (node) => node.nodeName === 'IMG' && node.getAttribute(GAP_ATTRIBUTE) !== null &&
+      node.getAttribute(KEEP_ATTRIBUTE) === null,
+    replacement: (content, node, options) => {
+      const markdown = /** @type {any} */ (options).rules.image.replacement(content, node, options);
+      return markdown ? `${markdown} ` : '';
+    },
+  });
   td.addRule('astroAeoKeep', {
     filter: (node) => Boolean(node.getAttribute && node.getAttribute(KEEP_ATTRIBUTE) !== null),
     replacement: (_content, node) => {

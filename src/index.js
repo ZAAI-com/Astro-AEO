@@ -330,7 +330,7 @@ export default function aeo(userConfig = {}) {
             plugins: [
               aeoRuntimeConfigPlugin(
                 runtimeSnapshot,
-                () => catalogModules.map(({ module, specifier }) => ({ module, specifier })),
+                () => catalogModules.map(({ module, specifier, revalidate }) => ({ module, specifier, revalidate })),
                 () => runtimeMarkdownSourceEntries(routeEntrypoints, projectRoot),
                 () => runtimeMarkdownRendererModules(markdownRenderers),
                 () => runtimePluginModules(

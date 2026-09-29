@@ -77,6 +77,17 @@ describe('aeoRuntimeConfigPlugin', () => {
     expect(code).toContain('load: () => import("file:///project/catalog.js")');
     expect(code).toContain('module: "pkg/catalog"');
     expect(code).not.toContain('import * as');
+    expect(code).not.toContain('revalidate');
+  });
+
+  test('catalog loaders carry their revalidate window', () => {
+    const plugin = aeoRuntimeConfigPlugin(() => ({}), () => [
+      { module: './cms.js', specifier: 'file:///project/cms.js', revalidate: 10 },
+      { module: './fixed.js', specifier: 'file:///project/fixed.js', revalidate: false },
+    ]);
+    const code = plugin.load(`\0${RUNTIME_CONFIG_ID}`);
+    expect(code).toContain('{ module: "./cms.js", revalidate: 10, load:');
+    expect(code).toContain('{ module: "./fixed.js", revalidate: false, load:');
   });
 
   test('standalone Markdown sources use a virtual raw-import registry', () => {

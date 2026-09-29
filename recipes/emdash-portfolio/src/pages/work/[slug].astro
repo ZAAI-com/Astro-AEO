@@ -1,0 +1,24 @@
+---
+import Base from '../../layouts/Base.astro';
+import { ArticleJsonLd } from 'astro-aeo/components';
+import { decodeSlug, getEmDashEntry, getSeoMeta } from 'emdash';
+import { PortableText } from 'emdash/ui';
+
+const slug = decodeSlug(Astro.params.slug);
+if (!slug) return Astro.redirect('/404');
+const { entry, error } = await getEmDashEntry('projects', slug);
+if (error) return new Response('Could not load this entry', { status: 500 });
+if (!entry) return Astro.redirect('/404');
+
+const path = `/work/${entry.id}`;
+const site = Astro.site ?? new URL(Astro.url.origin);
+const seo = getSeoMeta(entry, { siteTitle: 'Studio', siteUrl: site.href, path });
+---
+<Base title={seo.title} description={seo.description} path={path} robots={seo.robots}>
+  <article>
+    <h1>{entry.data.title}</h1>
+    {entry.data.summary && <p>{entry.data.summary}</p>}
+    <p>{entry.data.client} ({entry.data.year})</p>
+    <PortableText value={entry.data.content} />
+  </article>
+</Base>

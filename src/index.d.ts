@@ -898,8 +898,15 @@ export interface PagesOptions {
    * automatically discovered paths with exact authored source and metadata. Entrypoints
    * must be Node-loadable JavaScript (`.js`, `.mjs`, or `.cjs`); compile TypeScript catalog
    * sources before configuring them here. Default: [].
+   *
+   * A request-time server lists each catalog once per process. `revalidate` lists it again
+   * once that many seconds have passed since its last listing (`0` lists on every use), so
+   * a CMS catalog picks up published entries without a restart. A failed first listing is
+   * retried on the next use; a failed refresh keeps the last listing and retries after another
+   * window. A refresh runs in the background while the last inventory is served. Omit it, or
+   * pass `false`, to keep the first listing.
    */
-  catalogs?: { module: string }[];
+  catalogs?: { module: string; revalidate?: number | false }[];
 }
 
 export interface ProfileOptions {

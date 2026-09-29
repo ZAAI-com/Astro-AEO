@@ -20,7 +20,7 @@ import {
   serializeDiagnosticsManifest,
   writeDiagnosticsManifest,
 } from '../build/diagnostics.js';
-import { openProcessingCache } from '../build/processing-cache.js';
+import { describeProcessingCacheReset, openProcessingCache } from '../build/processing-cache.js';
 import {
   INDEXNOW_PUBLIC_PATH,
   collectIndexNowFingerprints,
@@ -817,11 +817,14 @@ async function onBuildDoneLocked(config, options, env, session) {
     await runBuildComplete(env.pluginDispatcher, pages, env.diagnostics ?? []);
   }
 
-  processingCache.stage(/** @type {any} */ (writer));
+  // An incomplete inventory did not see every page, so keep the entries it
+  // could not touch instead of sweeping them and extracting them again later.
+  processingCache.stage(/** @type {any} */ (writer), { sweep: inventoryComplete });
   // Keep diagnostics observable for integrations and test harnesses that call
   // only the primary build hook. The late finalizer writes the same sanitized
   // payload again inside the artifact transaction for normal Astro builds.
   writeDiagnosticsManifest(env.projectRoot, pages, env.diagnostics ?? []);
+  if (processingCache.stats.reset) logger.info(describeProcessingCacheReset(processingCache.stats.reset));
   logger.info(
     `astro-aeo: processing cache ${processingCache.stats.hits} hit(s), ` +
       `${processingCache.stats.misses} miss(es), ${Date.now() - buildStarted}ms collection time`,

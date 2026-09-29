@@ -1,5 +1,5 @@
-import { test, expect, describe, vi } from 'vitest';
-import { createTurndownLoader, htmlToMarkdown } from './html-to-md.js';
+import { test, expect, describe, vi, beforeAll } from 'vitest';
+import { createTurndown, createTurndownLoader, DEFAULT_EXTRACTION, htmlToMarkdown, htmlToMarkdownWithDiagnostics } from './html-to-md.js';
 
 const own = (key) => Object.prototype.hasOwnProperty.call(globalThis, key);
 const snapshotGlobal = (key) => ({ own: own(key), value: globalThis[key] });
@@ -124,5 +124,39 @@ describe('htmlToMarkdown', () => {
     expect(md).toContain('### H');
     expect(md).toMatch(/-\s+one/);
     expect(md).toMatch(/-\s+two/);
+  });
+});
+
+describe('bold and emphasis around block markup', () => {
+  let td;
+  beforeAll(async () => {
+    td = await createTurndown();
+  });
+  const convert = (body, extraction = DEFAULT_EXTRACTION) =>
+    htmlToMarkdownWithDiagnostics(`<main>${body}</main>`, extraction, td).then((result) => result.markdown);
+
+  test.each([
+    ['a block inside bold', '<p><strong><div></div>Label</strong></p>', '**Label**'],
+    ['a block inside emphasis', '<p><em><div>Icon</div>Label</em></p>', '_Icon Label_'],
+    ['a hard break between words', '<p><strong>A<br>B</strong></p>', '**A  \nB**'],
+    ['a trailing hard break', '<p><strong>A<br></strong>B</p>', '**A**  \nB'],
+    ['a block inside nested emphasis', '<p><strong>A <em><div></div>b</em> C</strong></p>', '**A _b_ C**'],
+    ['flanking spaces', '<p>x <strong> A </strong> y</p>', 'x **A** y'],
+    // The leading block starts a new line, as it does in a browser.
+    ['a leading block mid-paragraph', '<p>Hello <strong><div></div>World</strong> again</p>', 'Hello\n\n**World** again'],
+    ['a pipe table cell',
+      '<table><thead><tr><th>H</th></tr></thead><tbody><tr><td><strong><div></div>Label</strong></td></tr></tbody></table>',
+      '| H |\n| --- |\n| **Label** |'],
+  ])('%s', async (_name, body, expected) => {
+    expect(await convert(body)).toBe(expected);
+  });
+
+  test('a kept strong element stays raw HTML', async () => {
+    const md = await convert('<p>a <strong class="keep">b</strong> c</p>', {
+      ...DEFAULT_EXTRACTION,
+      keepSelectors: ['strong.keep'],
+    });
+    expect(md).toContain('<strong>b</strong>');
+    expect(md).not.toContain('**b**');
   });
 });

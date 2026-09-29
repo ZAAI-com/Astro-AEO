@@ -1,0 +1,21 @@
+---
+import Base from '../../layouts/Base.astro';
+import { decodeSlug, getEmDashCollection, getTaxonomyTerms } from 'emdash';
+
+const slug = decodeSlug(Astro.params.slug);
+const term = slug ? (await getTaxonomyTerms('tag', { includeCounts: false })).find((item) => item.slug === slug) : null;
+if (!term) return Astro.redirect('/404');
+const { entries: posts } = await getEmDashCollection('posts', {
+  where: { tag: term.slug },
+  orderBy: { published_at: 'desc' },
+});
+---
+<Base title={`${term.label} posts`} description={`All posts in the ${term.label} tag.`} path={`/tag/${term.slug}`}>
+  <h1>{term.label}</h1>
+  {posts.map((post) => (
+    <article>
+      <h2><a href={`/posts/${post.id}`}>{post.data.title}</a></h2>
+      {post.data.excerpt && <p>{post.data.excerpt}</p>}
+    </article>
+  ))}
+</Base>

@@ -1,0 +1,21 @@
+---
+import Base from '../../layouts/Base.astro';
+import { decodeSlug, getEmDashEntry, getSeoMeta } from 'emdash';
+import { PortableText } from 'emdash/ui';
+
+const slug = decodeSlug(Astro.params.slug);
+if (!slug) return Astro.redirect('/404');
+const { entry: customer, error } = await getEmDashEntry('customers', slug);
+if (error) return new Response('Unable to load this story', { status: 500 });
+if (!customer) return Astro.redirect('/404');
+
+const path = `/customers/${customer.id}`;
+const seo = getSeoMeta(customer, { siteTitle: 'Field Station', siteUrl: (Astro.site ?? new URL(Astro.url.origin)).href, path });
+---
+<Base title={seo.title} description={customer.data.summary} path={path} robots={seo.robots}>
+  <article>
+    <h1>{customer.data.title}</h1>
+    <p>{customer.data.summary}</p>
+    <PortableText value={customer.data.content} />
+  </article>
+</Base>

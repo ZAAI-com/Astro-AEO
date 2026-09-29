@@ -1,0 +1,16 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getEmDashCollection } from 'emdash';
+
+const { entries: customers, error } = await getEmDashCollection('customers', { orderBy: { published_at: 'desc' } });
+if (error) return new Response('Unable to load customers', { status: 500 });
+---
+<Base title="Customers | Field Station" description="How teams publish answer-engine signals with Field Station." path="/customers">
+  <h1>Customers</h1>
+  {customers.map((customer) => (
+    <article>
+      <h2><a href={`/customers/${customer.id}`}>{customer.data.title}</a></h2>
+      <p>{customer.data.summary}</p>
+    </article>
+  ))}
+</Base>

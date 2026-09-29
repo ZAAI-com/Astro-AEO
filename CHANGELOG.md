@@ -2,6 +2,125 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## 1.5.0
+
+The cache-integrity, Markdown-fidelity, and EmDash release. The incremental processing cache now
+resets itself whenever the extractor changes and stops growing without bound, and Markdown companions
+keep meaningful separators, intact bold definition terms, both images of a before/after figure, and
+languages on code fences. The new `astro-aeo/emdash` integration sets up an EmDash CMS site in one
+line, and page catalogs gain one optional key, `pages.catalogs[].revalidate`.
+
+### Behavior changes worth reading before upgrading
+
+- The first build after upgrading extracts every page again and logs the cache reset once. A cache
+  written by 1.4.0 or earlier has no producer record, so the line reads
+  `astro-aeo: processing cache reset after an extractor change (an earlier astro-aeo -> astro-aeo 1.5.0); 24 cached page(s) will be extracted again`.
+- Markdown changes on pages that use the affected markup: `aria-hidden` separators and tree glyphs,
+  icons inside `<dt>` terms, multi-image figures, and code blocks. The same changes apply to
+  on-demand and SSR Markdown and to `astro-aeo/extract`, not only to build companions.
+- IndexNow resubmits each page whose Markdown changed, once.
+- A `<pre>` whose `<code>` starts after a newline now becomes a fenced block instead of inline code.
+- Kept separator glyphs also appear inside raw HTML kept through `extraction.keepSelectors` and in
+  heading text, so a heading such as `Step 1 · Install` changes its `llms` chunk title.
+- Pages whose only `<article>` elements are a grid or list of cards (a blog index, a pricing or
+  contact page) now convert from `<main>`, so their companions gain the heading and intro they
+  used to drop. A post followed by related-post cards now keeps only the post.
+
+### Processing cache
+
+- The private `.astro/aeo-cache/processing-v1` state now names its producer: the astro-aeo version
+  plus the `turndown` and `linkedom` versions it extracts with. The producer is also part of every
+  cache key. When it changes (an upgrade, a downgrade, or a lockfile refresh of either dependency),
+  the cache drops its entries once and logs the change, for example `(astro-aeo 1.5.0 -> 1.5.1)` or
+  `(turndown 7.2.3 -> 7.2.4)`, so a local build can no longer emit Markdown produced by another
+  version of any of the three.
+- A missing or malformed producer record resets the entries instead of making the cache read-only,
+  so it never blocks IndexNow state from advancing.
+- A complete build keeps only the entries it used. Pages that were deleted or became excluded stop
+  occupying the cache, and their blobs are swept with the same confined-delete authority as before.
+  A build whose page inventory is incomplete keeps the entries it could not see.
+- Git modification dates are merged after the cached extraction, so a cache hit no longer freezes a
+  page's modified date at its first extraction. An invalid cached entry is now replaced instead of
+  being rebuilt on every build.
+
+### Markdown companions
+
+- Meaningful `aria-hidden="true"` glyphs are kept. A separator such as `→`, `·`, `|`, or a dash
+  between two runs of text in the same line is unwrapped and spaced (`1 user · 2 orgs`, `Status:
+  Stable`), and a box-drawing tree prefix such as `├──` or `│` is kept before its entry, with no-break spaces so
+  nested rows keep their depth. Arrows in
+  or directly after links, glyphs inside buttons, labels, `pre` and `code`, emoji, stars and check
+  marks, "Copied" labels, empty dots, svgs, and `[hidden]` elements are still removed.
+- A block-level icon inside a `<dt>` no longer splits the bold term across lines, and a term that
+  already wraps its text in `<strong>` no longer doubles to `****Term****`. New strong and emphasis
+  rules keep any bold or italic run on one line: line breaks at its edges move outside the
+  delimiters, blank-line runs inside collapse to one space, and a run without line breaks converts
+  exactly as before. Term parts that CSS lays out apart, such as a step number in
+  `<span>1</span>Configure`, are spaced (`**1 Configure**`), and a list or other block inside a
+  term follows the bold term instead of breaking it.
+- Figures keep every shown image. Only alternates of another shown image are dropped: images hidden
+  from assistive technology or with `[hidden]`, the dark variant of a light/dark pair
+  (`hidden dark:block`, Starlight's `light:sl-hidden`), in either order. A dark-mode border no longer
+  collapses a before/after slider to one image. Adjacent images and labels are separated by spaces
+  (`![...](...) ![...](...) Dots only Google original`) without indenting figures inside inline
+  wrappers, and syntax-highlighted code inside a figure is no longer split by inserted spaces.
+- Repeated extraction matches are a listing, not the page. Two or more top-level matches whose
+  item boxes share a parent (a grid of `<article>` cards, or `<li>` items that each hold one) are
+  set aside, and the next selector decides; a lone match next to such a grid is kept on its own.
+  Before, the default `article` selector took every card and dropped the rest of `<main>`.
+- Code fences carry their language, taken from a `language-*` or `lang-*` class, `data-language` on
+  the `pre` or `code` (Astro's Shiki, Expressive Code), or a filename at the start of the caption of
+  a figure holding one code block (`index.html (what most bots see)` gives an `html` fence). An
+  explicit `language-*` class is used as written. `plaintext`, `text`, `txt`, and `plain` from the
+  other sources give a bare fence. Expressive Code lines keep their line breaks.
+
+### EmDash
+
+- New `astro-aeo/emdash` subpath. `emdashAeo()` goes next to `emdash()` in `integrations` and
+  registers Astro-AEO itself: it excludes `/_emdash/**` and `/404`, turns on
+  `markdown.negotiation: 'response'`, leaves `robots.txt` and sitemaps to EmDash, and adds a page
+  catalog. Options set in `emdashAeo({ aeo })` win. It throws when `aeo()` is also registered, when
+  `emdash()` is missing, for legacy 1.0 option names, and for IndexNow, which has no build-time
+  inventory to compare on an EmDash site.
+- The catalog lists every published entry of every collection with a URL pattern, at the URL EmDash
+  builds from it (`{slug}`, `{id}`, and date tokens in UTC), following EmDash's sitemap rules:
+  collections with SEO turned off, drafts, deleted entries, entries without a slug, and noindex
+  entries are left out. Collections without a pattern, such as the Marketing template's `pages`,
+  are skipped rather than guessed. It reads EmDash's public plugin read API through a virtual
+  module served from the project's own `emdash` install, so `emdash` is an optional peer, and the
+  catalog never opens a database itself.
+- Options: `collections` (`false` to leave one out, or a `section` heading whose URLs come from the
+  seed's `urlPattern`), `taxonomies` (archive routes to list, for terms with published entries),
+  `revalidate` (default 10 seconds), and `maxEntries` (default 50,000). With i18n enabled, only the
+  default locale is listed, with one warning.
+- Works on Node and Cloudflare. On Cloudflare the catalog reads D1 through EmDash's per-request
+  session, so the options are the same.
+- Six recipes: `emdash-blog`, `emdash-marketing`, `emdash-portfolio`, and `emdash-starter` mirror
+  EmDash 1.0.1's templates, `emdash` is a marketing site with a blog and customer stories that
+  mixes them, and `emdash-cloudflare` is that site on D1 and R2. `test/recipes/emdash.test.js`
+  seeds, builds, audits, and serves each one (the Cloudflare one in workerd through
+  `astro preview`), and proves an entry published while the server runs appears in `llms.txt`. The
+  README's new "EmDash CMS" section and `docs/SETUP_PROMPT.md` document the integration.
+
+### Page catalogs
+
+- `pages.catalogs[].revalidate` lists a catalog again at request time once that many seconds have
+  passed since its last listing, so a CMS catalog picks up published entries without a server
+  restart. `0` lists on every use, and `false` or omitting it keeps today's behavior of one listing
+  per process. A revalidating catalog whose first listing fails is retried on its next use
+  instead of staying empty, a failed refresh keeps the last listing and retries after another
+  window, a refresh runs in the background while the last inventory is served, a listing in
+  flight is shared, and a catalog without `revalidate` is never re-listed because another one
+  refreshed. Development and builds are unchanged.
+
+### Package size
+
+The published package measures 377,711 packed and 1,443,195 unpacked bytes across 173 files, up from
+355,650 and 1,375,031 in 1.4.0 (about 6 and 5 percent). The growth is the cache producer record, the
+extraction passes, and the `astro-aeo/emdash` integration with their documentation. Only a project
+that uses `emdashAeo()` bundles anything new: the EmDash catalog. The unpacked ceiling moves from
+1,380,000 to 1,460,000 bytes.
+
 ## 1.4.0
 
 The quality and ecosystem release: a site-wide audit with seven report formats, deployment checks and

@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
+    globalSetup: ['test/setup/clear-processing-caches.js'],
     // Tests are colocated next to the source they cover.
     include: ['src/**/*.test.{js,ts}', 'cli/**/*.test.{js,ts}'],
     // The two e2e suites that boot a server are opt-in: *.dev.test.js spawns

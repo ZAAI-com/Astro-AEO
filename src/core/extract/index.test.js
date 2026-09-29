@@ -12,14 +12,46 @@ beforeAll(async () => {
 });
 
 describe('selectContentRoots', () => {
+  test('a grid of repeated article cards is a listing, so a broader selector decides', () => {
+    const d = doc(page(
+      '<main><h1>Blog</h1><p>Intro</p><div class="grid"><article>A</article><article>B</article></div></main>',
+    ));
+    const { roots, strategy } = selectContentRoots(d, ['article', 'main']);
+    expect(strategy).toBe('main');
+    expect(roots.map((root) => root.tagName)).toEqual(['MAIN']);
+  });
+
+  test('cards wrapped in their own list items or grid cells still count as repeated', () => {
+    const d = doc(page(
+      '<main><h1>Posts</h1><ul><li><article>A</article></li><li><article>B</article></li></ul>' +
+      '<div class="cols"><div><article>C</article></div><div><article>D</article></div></div></main>',
+    ));
+    expect(selectContentRoots(d, ['article', 'main']).strategy).toBe('main');
+  });
+
+  test('a lone article next to a grid of related cards is kept on its own', () => {
+    const d = doc(page(
+      '<main><article id="post"><h1>Post</h1></article>' +
+      '<section><h2>Related</h2><article>A</article><article>B</article></section></main>',
+    ));
+    const { roots, strategy } = selectContentRoots(d, ['article', 'main']);
+    expect(strategy).toBe('article');
+    expect(roots.map((root) => root.id)).toEqual(['post']);
+  });
+
+  test('falls back to <body> when only repeated cards match every selector', () => {
+    const d = doc(page('<div><article>A</article><article>B</article></div>'));
+    expect(selectContentRoots(d, ['article']).strategy).toBe('body');
+  });
+
   test('the first selector with a match wins, in order', () => {
     const d = doc(page('<main><article><h1>A</h1></article></main>'));
     expect(selectContentRoots(d, ['article', 'main']).strategy).toBe('article');
     expect(selectContentRoots(d, ['main', 'article']).strategy).toBe('main');
   });
 
-  test('multiple top-level matches are all selected, in document order', () => {
-    const d = doc(page('<article><h1>One</h1></article><article><h1>Two</h1></article>'));
+  test('multiple top-level matches in separate places are all selected, in document order', () => {
+    const d = doc(page('<section><article><h1>One</h1></article></section><div><p>Aside</p><article><h1>Two</h1></article></div>'));
     const { roots } = selectContentRoots(d, ['article']);
     expect(roots).toHaveLength(2);
     expect(roots[0].textContent).toContain('One');
@@ -318,6 +350,40 @@ describe('conversion fidelity', () => {
     expect(md).toContain('const a = 1;');
   });
 
+  describe('code fence languages', () => {
+    test.each([
+      ['Shiki data-language', '<pre class="astro-code" data-language="bash"><code><span class="line"><span>npm</span><span> i</span></span></code></pre>', '```bash\nnpm i\n```'],
+      ['plaintext data-language', '<pre data-language="plaintext"><code>a \u2192 b</code></pre>', '```\na \u2192 b\n```'],
+      ['uppercase data-language', '<pre data-language="JavaScript"><code>x</code></pre>', '```javascript\nx\n```'],
+      ['code data-language', '<pre><code data-language="ts">x</code></pre>', '```ts\nx\n```'],
+      ['code lang-*', '<pre><code class="lang-js">x</code></pre>', '```js\nx\n```'],
+      ['pre language-*', '<pre class="language-js"><code>x</code></pre>', '```js\nx\n```'],
+      ['explicit class wins over data-language', '<pre data-language="bash"><code class="language-text">x</code></pre>', '```text\nx\n```'],
+      ['newline after pre', '<pre data-language="bash">\n<code>npm install</code></pre>', '```bash\nnpm install\n```'],
+      ['caption filename', '<figure><figcaption>index.html (what most bots see)</figcaption><pre><code>&lt;p&gt;</code></pre></figure>', '_index.html (what most bots see)_\n\n```html\n<p>\n```'],
+      ['caption prose', '<figure><figcaption>Running the server with Node.js</figcaption><pre><code>npm start</code></pre></figure>', '_Running the server with Node.js_\n\n```\nnpm start\n```'],
+      ['caption prose opening with a name', '<figure><figcaption>Next.js build output</figcaption><pre><code>ready</code></pre></figure>', '_Next.js build output_\n\n```\nready\n```'],
+      ['caption filename before a colon', '<figure><figcaption>astro.config.mjs: the integration</figcaption><pre><code>x</code></pre></figure>', '_astro.config.mjs: the integration_\n\n```js\nx\n```'],
+      ['pre without code is unchanged', '<pre data-language="bash">npm install</pre>', 'npm install'],
+    ])('%s', (_name, body, expected) => {
+      expect(convert(`<main>${body}</main>`)).toBe(expected);
+    });
+
+    test('Expressive Code lines join with newlines', () => {
+      const md = convert('<main><figure class="frame"><figcaption><span class="sr-only">Terminal window</span></figcaption>' +
+        '<pre data-language="sh"><code><div class="ec-line"><div class="code"><span>::</span><span>:note</span></div></div>' +
+        '<div class="ec-line"><div class="code"><span>two</span></div></div></code></pre></figure></main>');
+      expect(md).toContain('```sh\n:::note\ntwo\n```');
+    });
+
+    test('kept raw HTML stays byte-stable', () => {
+      const html = '<main><div class="keep"><pre data-language="bash">\n<code>x</code></pre></div></main>';
+      const md = extractMarkdown(doc(page(html)), { ...DEFAULT_EXTRACTION, keepSelectors: ['.keep'] }, td).markdown;
+      expect(md).toContain('<pre>\n<code>x</code></pre>');
+      expect(md).not.toContain('```');
+    });
+  });
+
   test('whitespace around the content root does not leak into the output', () => {
     expect(convert('<main>   <h1>T</h1>  <p>B.</p>   </main>')).toBe('# T\n\nB.');
   });
@@ -352,11 +418,65 @@ describe('conversion fidelity', () => {
     expect(md).toBe('![Chart](/chart.png)\n\n_Quarterly **results**_');
   });
 
-  test('light and dark screenshots emit only the first described image', () => {
+  test('light and dark screenshots emit only the light variant', () => {
     const md = convert('<main><figure><img class="dark:hidden" src="/light.png" alt="Dashboard"><img class="hidden dark:block" src="/dark.png" alt="Dashboard dark mode"><figcaption>Dashboard</figcaption></figure></main>');
     expect(md).toBe('![Dashboard](/light.png)\n\n_Dashboard_');
     const wrapped = convert('<main><figure><div class="dark:hidden"><img src="/light.png" alt="Dashboard"></div><div class="hidden dark:block"><img src="/dark.png" alt="Dashboard dark mode"></div></figure></main>');
     expect(wrapped).toBe('![Dashboard](/light.png)');
+  });
+
+  test('a dark: utility on a shared wrapper does not collapse distinct images', () => {
+    const md = convert('<main><figure><div class="overflow-hidden border dark:border-zinc-800"><img src="/a.png" alt="Before"><img src="/b.png" alt="After"></div></figure></main>');
+    expect(md).toBe('![Before](/a.png) ![After](/b.png)');
+  });
+
+  test('a hidden dark:block pair keeps one image', () => {
+    const md = convert('<main><figure><img class="block dark:hidden" src="/l.png" alt="Light"><img class="hidden dark:!block" src="/d.png" alt="Dark"></figure></main>');
+    expect(md).toBe('![Light](/l.png)');
+  });
+
+  test('a dark-first pair yields the light image', () => {
+    const md = convert('<main><figure><img class="hidden dark:block" src="/d.png" alt="Dark"><img class="dark:hidden" src="/l.png" alt="Light"></figure></main>');
+    expect(md).toBe('![Light](/l.png)');
+  });
+
+  test('a Starlight sl-hidden pair keeps the light image', () => {
+    const md = convert('<main><figure><img class="light:sl-hidden" src="/d.png" alt="Dark"><img class="dark:sl-hidden" src="/l.png" alt="Light"></figure></main>');
+    expect(md).toBe('![Light](/l.png)');
+  });
+
+  test('aria-hidden alternates are dropped only while a shown image remains', () => {
+    const md = convert('<main><figure><img src="/a.png" alt="Dots"><img aria-hidden="true" src="/b.png" alt="Smart"><img aria-hidden="true" src="/c.png" alt="Standard"></figure></main>');
+    expect(md).toBe('![Dots](/a.png)');
+    const all = convert('<main><figure><div aria-hidden="true"><img src="/a.png" alt="A"><img src="/b.png" alt="B"></div></figure></main>');
+    expect(all).toContain('![A](/a.png)');
+    expect(all).toContain('![B](/b.png)');
+  });
+
+  test('an image followed by inline labels is separated by spaces', () => {
+    const md = convert('<main><figure><div><img src="/a.png" alt="A"><span>One</span><span>Two</span></div></figure></main>');
+    expect(md).toBe('![A](/a.png) One Two');
+  });
+
+  test('images inside an inline wrapper get no leading indentation', () => {
+    const shots = [0, 1, 2, 3, 4].map((i) => `<img src="/g${i}.png" alt="Shot ${i}">`).join('');
+    const md = convert(`<main><p>Intro.</p><astro-island><figure>${shots}<figcaption>Gallery</figcaption></figure></astro-island></main>`);
+    expect(md).toBe(`Intro.\n\n${[0, 1, 2, 3, 4].map((i) => `![Shot ${i}](/g${i}.png)`).join(' ')}\n\n_Gallery_`);
+  });
+
+  test('code token spans inside a figure are not spaced', () => {
+    const md = convert('<main><figure data-rehype-pretty-code-figure><img src="/a.png" alt="A"><pre><code><span data-line><span>console</span><span>.log(</span><span>"a"</span><span>)</span></span></code></pre></figure></main>');
+    expect(md).toContain('console.log("a")');
+  });
+
+  test('figcaption punctuation spans are not spaced', () => {
+    const md = convert('<main><figure><img src="/a.png" alt="A"><figcaption><a href="/src">Source</a><span>.</span> Price <span>$</span><span>5</span></figcaption></figure></main>');
+    expect(md).toBe('![A](/a.png)\n\n_[Source](/src). Price $5_');
+  });
+
+  test('image-free figures do not space a caption before its punctuation', () => {
+    const md = convert('<main><figure><pre><code>x</code></pre><figcaption><a href="/s">Source</a><span>.</span></figcaption></figure></main>');
+    expect(md).toBe('```\nx\n```\n\n_[Source](/s)._');
   });
 
   test('image-free charts retain their label when they have no readable text', () => {
@@ -376,6 +496,33 @@ describe('conversion fidelity', () => {
     expect(md).toBe('**Term**\n\nDefinition [link](/x).\n\n**Other**\n\nOne.\n\nTwo.');
   });
 
+  describe('definition terms with block markup stay one bold run', () => {
+    test.each([
+      ['an icon wrapper whose svg is dropped',
+        '<dt class="font-semibold"> <div class="absolute flex size-10 bg-accent"> ' +
+        '<svg viewBox="0 0 24 24" aria-hidden="true" class="size-6"> <path d="M3 12h3l3-9 4 18 3-9h5"></path> </svg> ' +
+        '</div> Track Data Leaks </dt><dd>Instantly know.</dd>',
+        '**Track Data Leaks**\n\nInstantly know.'],
+      ['a heading', '<dt><h3>Title</h3></dt><dd>d</dd>', '**Title**\n\nd'],
+      ['a header block before the label', '<dt><header><span>Kicker</span></header>Label</dt><dd>d</dd>',
+        '**Kicker Label**\n\nd'],
+      ['an icon image', '<dt><div><img src="/i.png" alt="Icon"></div>Label</dt><dd>d</dd>',
+        '**![Icon](/i.png) Label**\n\nd'],
+      ['a term that is already bold', '<dt><strong>Term</strong></dt><dd>d</dd>', '**Term**\n\nd'],
+      ['a partly bold term', '<dt><b>Term</b> extra</dt><dd>d</dd>', '**Term extra**\n\nd'],
+      ['a step badge glued to its label', '<dt><span class="badge">1</span>Configure</dt><dd>d</dd>',
+        '**1 Configure**\n\nd'],
+      ['a label before trailing punctuation', '<dt><span class="n">Timeout</span>:</dt><dd>d</dd>',
+        '**Timeout:**\n\nd'],
+      ['an in-word emphasis', '<dt><em>Re</em>boot</dt><dd>d</dd>', '**_Re_boot**\n\nd'],
+      ['a list inside the term', '<dt>Label<ul><li>a</li><li>b</li></ul></dt><dd>d</dd>',
+        '**Label**\n\n-   a\n-   b\n\nd'],
+      ['a term holding only a list', '<dt><ul><li>a</li></ul></dt><dd>d</dd>', '-   a\n\nd'],
+    ])('%s', (_name, body, expected) => {
+      expect(convert(`<main><dl>${body}</dl></main>`)).toBe(expected);
+    });
+  });
+
   test('time, address, and citations convert to their text', () => {
     const md = convert(
       '<main><p>Published <time datetime="2026-08-05">today</time>.</p><address>Berlin</address><p><cite>Primary source</cite></p></main>',
@@ -388,6 +535,89 @@ describe('conversion fidelity', () => {
       '<main><p>Path<button>Copy</button><span aria-hidden="true">Copied</span></p><svg><text>icon</text></svg><template><p>Inert</p></template><p hidden>Hidden</p><div aria-hidden="true"><img src="/shot.png" alt="Screenshot"></div></main>',
     );
     expect(md).toBe('Path\n\n![Screenshot](/shot.png)');
+  });
+
+  describe('aria-hidden glyphs', () => {
+    const hidden = (glyph, extra = '') => `<span${extra} aria-hidden="true">${glyph}</span>`;
+    const folder = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 3h14"></path></svg>';
+    const treeRow = (prefix, name) =>
+      `<li class="flex"> ${hidden(prefix, ' class="whitespace-pre"')} ${folder} <span class="truncate"> ${name}\n</span> </li>`;
+
+    test('an arrow between two values in one row is kept', () => {
+      const md = convert(
+        '<main><ul role="list"><li class="flex flex-wrap"> <span class="font-medium">github.com</span> ' +
+        `${hidden('→', ' class="text-gray-400"')} <span class="font-mono">github.com@yourdomain.com</span> ` +
+        '<span class="ml-auto"> Catch-All </span> </li></ul></main>',
+      );
+      expect(md).toBe('-   github.com → github.com@yourdomain.com Catch-All');
+    });
+
+    test('separators between spans are kept and spaced', () => {
+      const md = convert(
+        `<main><div class="flex"> <span>1 user</span> ${hidden('·')} <span>2 orgs</span> ${hidden('·')} ` +
+        '<span>7 repos</span> </div>' +
+        `<p class="mt-8">\nOpen source${hidden('·', ' class="mx-2"')}Privacy-first\n</p></main>`,
+      );
+      expect(md).toBe('1 user · 2 orgs · 7 repos\n\nOpen source · Privacy-first');
+    });
+
+    test('a colon separator attaches to its label', () => {
+      const md = convert(`<main><p><span>Status</span>${hidden(':')}<span>Stable</span></p></main>`);
+      expect(md).toBe('Status: Stable');
+    });
+
+    test('a separator padded with no-break spaces is kept', () => {
+      const md = convert(`<main><p><span>Before</span>${hidden('\u00a0\u2014\u00a0')}<span>After</span></p></main>`);
+      expect(md).toBe('Before \u2014 After');
+    });
+
+    test('tree prefixes keep their depth, across the icon before the name', () => {
+      const md = convert(
+        '<main><ul>' +
+        treeRow('├── ', 'manuelgruber/') +
+        treeRow('│   ├── ', '.github/') +
+        treeRow('│   │   │   └── ', 'deep/') +
+        treeRow('    └── ', 'example.ai/') +
+        '</ul></main>',
+      );
+      const nbsp = (/** @type {number} */ n) => '\u00a0'.repeat(n);
+      expect(md).toBe(
+        `-   ├── manuelgruber/\n-   │${nbsp(3)}├── .github/\n` +
+        `-   │${nbsp(3)}│${nbsp(3)}│${nbsp(3)}└── deep/\n-   ${nbsp(4)}└── example.ai/`,
+      );
+    });
+
+    test('unwrapped glyphs are not counted as removed nodes', () => {
+      const { diagnostics } = extractMarkdown(
+        doc(page(`<main><p><span>a</span> ${hidden('·')} <span>b</span> ${hidden('·')}</p></main>`)),
+        DEFAULT_EXTRACTION,
+        td,
+      );
+      expect(diagnostics.removedNodes).toBe(1);
+    });
+
+    test.each([
+      ['a link arrow', `<p><a href="/docs">Read the docs ${hidden('→')}</a></p>`, '[Read the docs](/docs)'],
+      ['a separator list item in a breadcrumb',
+        '<ol><li><a href="/">Home</a></li><li aria-hidden="true">/</li><li><a href="/docs">Docs</a></li></ol>',
+        '1.  [Home](/)\n2.  [Docs](/docs)'],
+      ['a separator followed only by a Copy button',
+        `<p>Note ${hidden('→')}<button>Copy</button></p>`, 'Note'],
+      ['a Copied label', `<p>Run it <span aria-hidden="true">Copied</span></p>`, 'Run it'],
+      ['a heading anchor', '<h2>Title <a href="#title" aria-hidden="true">#</a></h2>', '## Title'],
+      ['shell prompts in a code block',
+        `<pre><code>${hidden('$ ')}npm i\n${hidden('$ ')}npm test</code></pre>`, '```\nnpm i\nnpm test\n```'],
+      ['an emoji check mark with a variation selector',
+        `<p>Done ${hidden('✔️')} ok</p>`, 'Done ok'],
+      ['a glyph at the end of a block', `<p><span>Trailing</span> ${hidden('|')}</p><p>Next</p>`, 'Trailing\n\nNext'],
+      ['an arrow between two links',
+        `<div><a href="/a">GitHub</a>${hidden('→')}<a href="/b">npm</a>${hidden('→')}</div>`,
+        '[GitHub](/a)[npm](/b)'],
+      ['a box-drawing divider with nothing after it',
+        `<p>A</p><div>${hidden('────────')}</div><p>B</p>`, 'A\n\nB'],
+    ])('%s is dropped', (_name, body, expected) => {
+      expect(convert(`<main>${body}</main>`)).toBe(expected);
+    });
   });
 
   test('disclosure toggles keep their label', () => {

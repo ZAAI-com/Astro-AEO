@@ -44,13 +44,16 @@ framework code that both builds share.
 
 `--enforce` applies the 1.4 safety ceilings embedded in the report:
 
-- Packed package at most 450,000 bytes and unpacked package at most 1,380,000 bytes. The measured
-  1.4.0 package is 355,650 packed and 1,375,031 unpacked bytes. 1.3.1 was 290,286 and 1,163,361
-  (1.3 was 272,377 and 1,106,331).
+- Packed package at most 450,000 bytes and unpacked package at most 1,460,000 bytes. The measured
+  1.5.0 package is 377,711 packed and 1,443,195 unpacked bytes across 173 files. 1.4.0 was 355,650
+  packed and 1,375,031 unpacked (1.3.1 was 290,286 and 1,163,361; 1.3 was 272,377 and 1,106,331).
   The packed ceiling is deliberately loose: it exists to catch a dependency-scale mistake, not to
   gate ordinary correctness work, and the unpacked ceiling plus the absolute bundle, startup,
   memory, and request ceilings below stay close to their measurements.
 - 100 KB parse p95 below 50 ms and conversion p95 below 150 ms.
+- A denser 100 KB document built from the 1.5 extraction cases (hidden separators and tree glyphs,
+  a definition term with an icon, a two-image figure, a Shiki code block) converts with a p95 below
+  300 ms. It is reported as `extraction['100000-rich']` and is not part of the baseline comparison.
 - Retained heap after 100 conversions at most 10 MB.
 - Paired Markdown-minus-HTML p95 request overhead at most 10 ms. Direct and negotiated modes each
   use 200 interleaved pairs after 20 warm-up cycles, with alternating request order. Raw latency

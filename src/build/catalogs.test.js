@@ -40,6 +40,21 @@ describe('catalog module preflight', () => {
     ]);
   });
 
+  test('keeps each catalog revalidate window for the runtime loaders', async () => {
+    const modules = await preloadCatalogModules(
+      [{ module: './cms.js', revalidate: 10 }, { module: './fixed.js' }],
+      '/project',
+      { warn: () => {} },
+      [],
+      async () => ({ default: { listPages: () => [] } }),
+    );
+    expect(modules.map(({ module, revalidate }) => ({ module, revalidate }))).toEqual([
+      { module: './cms.js', revalidate: 10 },
+      { module: './fixed.js', revalidate: undefined },
+    ]);
+    expect(modules[1]).not.toHaveProperty('revalidate');
+  });
+
   test.each(['.ts', '.tsx', '.mts', '.cts', '.jsx', '.astro'])(
     'skips a project-local %s catalog before native import',
     async (extension) => {

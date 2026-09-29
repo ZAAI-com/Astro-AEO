@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { absoluteUrl, collectPages, mdHrefFor, resolveHtmlPath, stripLeadingFrontmatter } from './collect.js';
 import { resolveConfig } from '../config.js';
 import mdxRenderer from '../adapters/mdx.js';
+import { _clearGitCache } from '../lib/git-mtime.js';
 
 const roots = [];
 afterEach(() => {
@@ -114,6 +115,110 @@ describe('collectPages serializable dates', () => {
       modified: '2026-01-02T03:04:05.000Z',
     });
     expect(() => JSON.stringify(pages)).not.toThrow();
+  });
+});
+
+describe('collectPages processing cache', () => {
+  /** A fake cache keyed by pathname only, so a hit does not depend on dates. */
+  function fakeCache(initial = new Map()) {
+    const store = initial;
+    const puts = [];
+    return {
+      store,
+      puts,
+      key: (stage, inputs) => `${stage}:${/** @type {any} */ (inputs).pathname}`,
+      get: (key) => store.get(key),
+      put: (key, value) => {
+        puts.push({ key, value });
+        store.set(key, JSON.parse(JSON.stringify(value)));
+      },
+    };
+  }
+
+  function fixture() {
+    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-collect-cache-'));
+    roots.push(root);
+    const distRoot = join(root, 'dist');
+    mkdirSync(join(distRoot, 'git'), { recursive: true });
+    mkdirSync(join(distRoot, 'catalog'), { recursive: true });
+    mkdirSync(join(root, 'src'), { recursive: true });
+    const html = '<!doctype html><html><head><title>T</title></head><body><main>Body.</main></body></html>';
+    writeFileSync(join(distRoot, 'git', 'index.html'), html);
+    writeFileSync(join(distRoot, 'catalog', 'index.html'), html);
+    mkdirSync(join(distRoot, 'hidden'), { recursive: true });
+    writeFileSync(
+      join(distRoot, 'hidden', 'index.html'),
+      '<!doctype html><html><head><title>H</title><meta name="robots" content="noindex"></head><body><main>Hidden.</main></body></html>',
+    );
+    const sourcePath = join(root, 'src', 'git.astro');
+    writeFileSync(sourcePath, '---\n---\n<p>Body.</p>\n');
+    /** @param {ReturnType<typeof fakeCache>} cache @param {string} catalogDate */
+    const collect = (cache, catalogDate) => collectPages(
+      [{ pathname: '/git' }, { pathname: '/catalog', lastModified: catalogDate }, { pathname: '/hidden' }],
+      resolveConfig(),
+      {
+        distDir: pathToFileURL(`${distRoot}/`),
+        siteUrl: 'https://x.com',
+        base: '',
+        trailingSlash: 'always',
+        buildFormat: 'directory',
+        projectRoot: root,
+        routeEntrypoints: new Map([['/git', 'src/git.astro']]),
+        logger: { warn() {} },
+        cache,
+      },
+    );
+    /** @param {string} iso */
+    const touch = (iso) => utimesSync(sourcePath, new Date(iso), new Date(iso));
+    return { collect, touch };
+  }
+
+  test('re-derives the git lastModified on a cache hit', async () => {
+    const { collect, touch } = fixture();
+    const cache = fakeCache();
+    touch('2026-01-02T03:04:05.000Z');
+    const cold = await collect(cache, '2026-02-15T12:30:00Z');
+    expect(cold.find((page) => page.pathname === '/git')?.lastModified).toBe('2026-01-02T03:04:05.000Z');
+    expect(cache.puts).toHaveLength(3);
+    // The payload holds only the extraction result, never the merged git date,
+    // which is not a key input. (A descriptor date is authored source, so it
+    // is a key input and may stay in the payload.)
+    const payload = cache.store.get('extraction-v1:/git');
+    expect(payload.page).not.toHaveProperty('lastModified');
+    expect(payload.page.dates?.modified).toBeUndefined();
+    expect(payload.page).not.toHaveProperty('htmlPath');
+    expect(payload.page).not.toHaveProperty('mdPath');
+    expect(payload.page.representations).not.toHaveProperty('html');
+
+    // Each real build is a new process; clear the per-process date memo.
+    _clearGitCache();
+    touch('2026-03-04T05:06:07.000Z');
+    const warm = await collect(cache, '2026-02-15T12:30:00Z');
+    expect(cache.puts).toHaveLength(3);
+    const git = warm.find((page) => page.pathname === '/git');
+    expect(git?.lastModified).toBe('2026-03-04T05:06:07.000Z');
+    expect(git?.dates?.modified).toBe('2026-03-04T05:06:07.000Z');
+    expect(git?.representations.markdown).toBe(cold.find((page) => page.pathname === '/git')?.representations.markdown);
+    expect(git?.representations.html).toContain('Body.');
+  });
+
+  test('overwrites an invalid cached value instead of rebuilding it forever', async () => {
+    const { collect, touch } = fixture();
+    touch('2026-01-02T03:04:05.000Z');
+    const cache = fakeCache(new Map([
+      ['extraction-v1:/git', { page: { id: 42 } }],
+      ['extraction-v1:/catalog', { skip: 'not-a-reason' }],
+      ['extraction-v1:/hidden', { page: { id: '/hidden' } }],
+    ]));
+    const pages = await collect(cache, '2026-02-15T12:30:00Z');
+    expect(pages.map((page) => page.pathname)).toEqual(['/git', '/catalog']);
+    expect(cache.puts.map((item) => item.key))
+      .toEqual(['extraction-v1:/git', 'extraction-v1:/catalog', 'extraction-v1:/hidden']);
+    expect(cache.store.get('extraction-v1:/git').page.id).toBe(pages[0].id);
+    expect(cache.store.get('extraction-v1:/hidden')).toEqual({ skip: 'noindex' });
+
+    await collect(cache, '2026-02-15T12:30:00Z');
+    expect(cache.puts).toHaveLength(3);
   });
 });
 

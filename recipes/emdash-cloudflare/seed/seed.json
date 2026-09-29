@@ -1,0 +1,604 @@
+{
+  "$schema": "https://emdashcms.com/seed.schema.json",
+  "version": "1",
+  "defaultLocale": "en",
+  "meta": {
+    "name": "Field Station",
+    "description": "A marketing site with a blog and customer stories for the astro-aeo EmDash recipe",
+    "author": "astro-aeo"
+  },
+  "settings": {
+    "title": "Field Station",
+    "tagline": "An EmDash-managed site with Astro-AEO",
+    "postsPerPage": 10
+  },
+  "collections": [
+    {
+      "slug": "sections",
+      "label": "Sections",
+      "labelSingular": "Section",
+      "description": "Homepage marketing sections",
+      "routable": false,
+      "titleField": "title",
+      "fields": [
+        {
+          "slug": "title",
+          "label": "Title",
+          "type": "string",
+          "required": true
+        },
+        {
+          "slug": "body",
+          "label": "Body",
+          "type": "portableText"
+        },
+        {
+          "slug": "faq",
+          "label": "FAQ items",
+          "type": "repeater",
+          "subFields": [
+            {
+              "slug": "question",
+              "label": "Question",
+              "type": "string",
+              "required": true
+            },
+            {
+              "slug": "answer",
+              "label": "Answer",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "slug": "sort",
+          "label": "Sort order",
+          "type": "integer",
+          "indexed": true
+        }
+      ]
+    },
+    {
+      "slug": "posts",
+      "label": "Posts",
+      "labelSingular": "Post",
+      "description": "Blog posts, dated in their URLs",
+      "supports": [
+        "drafts",
+        "revisions",
+        "search",
+        "seo"
+      ],
+      "urlPattern": "/blog/{year}/{month}/{slug}",
+      "titleField": "title",
+      "fields": [
+        {
+          "slug": "title",
+          "label": "Title",
+          "type": "string",
+          "required": true,
+          "searchable": true
+        },
+        {
+          "slug": "excerpt",
+          "label": "Excerpt",
+          "type": "text",
+          "searchable": true
+        },
+        {
+          "slug": "content",
+          "label": "Content",
+          "type": "portableText",
+          "searchable": true
+        }
+      ]
+    },
+    {
+      "slug": "customers",
+      "label": "Customers",
+      "labelSingular": "Customer",
+      "description": "Customer stories",
+      "supports": [
+        "drafts",
+        "revisions",
+        "search",
+        "seo"
+      ],
+      "urlPattern": "/customers/{slug}",
+      "titleField": "title",
+      "fields": [
+        {
+          "slug": "title",
+          "label": "Title",
+          "type": "string",
+          "required": true,
+          "searchable": true
+        },
+        {
+          "slug": "summary",
+          "label": "Summary",
+          "type": "text",
+          "searchable": true
+        },
+        {
+          "slug": "content",
+          "label": "Case study",
+          "type": "portableText",
+          "searchable": true
+        }
+      ]
+    },
+    {
+      "slug": "legal",
+      "label": "Legal",
+      "labelSingular": "Legal page",
+      "description": "Policies that stay out of answer-engine corpora",
+      "supports": [
+        "drafts",
+        "revisions"
+      ],
+      "urlPattern": "/legal/{slug}",
+      "titleField": "title",
+      "fields": [
+        {
+          "slug": "title",
+          "label": "Title",
+          "type": "string",
+          "required": true
+        },
+        {
+          "slug": "content",
+          "label": "Content",
+          "type": "portableText"
+        }
+      ]
+    }
+  ],
+  "taxonomies": [
+    {
+      "name": "category",
+      "label": "Categories",
+      "labelSingular": "Category",
+      "hierarchical": true,
+      "collections": [
+        "posts"
+      ],
+      "terms": [
+        {
+          "slug": "engineering",
+          "label": "Engineering"
+        },
+        {
+          "slug": "operations",
+          "label": "Operations"
+        }
+      ]
+    },
+    {
+      "name": "tag",
+      "label": "Tags",
+      "labelSingular": "Tag",
+      "hierarchical": false,
+      "collections": [
+        "posts",
+        "customers"
+      ],
+      "terms": [
+        {
+          "slug": "static-sites",
+          "label": "Static sites"
+        },
+        {
+          "slug": "structured-content",
+          "label": "Structured content"
+        },
+        {
+          "slug": "llmstxt",
+          "label": "llms.txt"
+        }
+      ]
+    }
+  ],
+  "content": {
+    "sections": [
+      {
+        "id": "hero",
+        "data": {
+          "title": "Content that answers",
+          "body": [
+            {
+              "_type": "block",
+              "_key": "h1a",
+              "style": "normal",
+              "markDefs": [],
+              "children": [
+                {
+                  "_type": "span",
+                  "_key": "h1s1",
+                  "text": "Field Station is a demo site managed in EmDash and optimized with Astro-AEO. Every page is editable in the admin, served on demand, and published with a markdown companion and an llms.txt index.",
+                  "marks": []
+                }
+              ]
+            }
+          ],
+          "faq": [],
+          "sort": 1
+        }
+      },
+      {
+        "id": "features",
+        "data": {
+          "title": "What this site shows",
+          "body": [
+            {
+              "_type": "block",
+              "_key": "f1a",
+              "style": "normal",
+              "markDefs": [],
+              "children": [
+                {
+                  "_type": "span",
+                  "_key": "f1s1",
+                  "text": "Blog posts and portfolio case studies are published from a CMS, rendered on demand, and converted to markdown through the site's own routes. Drafts stay private, and the admin area stays out of the corpus.",
+                  "marks": []
+                }
+              ]
+            }
+          ],
+          "faq": [],
+          "sort": 2
+        }
+      },
+      {
+        "id": "pricing",
+        "data": {
+          "title": "Pricing",
+          "body": [
+            {
+              "_type": "block",
+              "_key": "pr1a",
+              "style": "normal",
+              "markDefs": [],
+              "children": [
+                {
+                  "_type": "span",
+                  "_key": "pr1s1",
+                  "text": "This section is placeholder marketing content so the recipe can show a conversion-focused homepage built entirely from CMS entries.",
+                  "marks": []
+                }
+              ]
+            }
+          ],
+          "faq": [],
+          "sort": 3
+        }
+      },
+      {
+        "id": "faq",
+        "data": {
+          "title": "Frequently asked questions",
+          "body": [],
+          "faq": [
+            {
+              "question": "Is the content editable?",
+              "answer": "Yes. Posts, projects, and homepage sections are EmDash entries. Edit them in the admin at /_emdash/admin and publish; the next request serves the new revision."
+            },
+            {
+              "question": "Do drafts appear in llms.txt?",
+              "answer": "No. The page catalog lists published entries only, so drafts stay out of the corpus and their markdown companions are not served."
+            },
+            {
+              "question": "How do markdown companions work here?",
+              "answer": "Each page route renders on demand. A request for the .md companion rewrites into the page route, converts the HTML to markdown, and returns it with the page's own status."
+            }
+          ],
+          "sort": 4
+        }
+      }
+    ],
+    "posts": [
+      {
+        "id": "post-signals",
+        "slug": "signals-in-static-sites",
+        "status": "published",
+        "data": {
+          "title": "Signals a static site sends to answer engines",
+          "excerpt": "Plain, crawlable pages tell machines what a site knows. Here is how small signals add up.",
+          "content": [
+            {
+              "_type": "block",
+              "_key": "p1a",
+              "style": "normal",
+              "markDefs": [],
+              "children": [
+                {
+                  "_type": "span",
+                  "_key": "p1s1",
+                  "text": "A static site answers questions before it is asked to. Every page is a file, every file has one topic, and every topic is described in ordinary prose that a crawler can quote without running code.",
+                  "marks": []
+                }
+              ]
+            },
+            {
+              "_type": "block",
+              "_key": "p1b",
+              "style": "h2",
+              "markDefs": [],
+              "children": [
+                {
+                  "_type": "span",
+                  "_key": "p1s2",
+                  "text": "Three signals that matter",
+                  "marks": []
+                }
+              ]
+            },
+            {
+              "_type": "block",
+              "_key": "p1c",
+              "style": "normal",
+              "markDefs": [],
+              "children": [
+                {
+                  "_type": "span",
+                  "_key": "p1s3",
+                  "text": "First, a markdown companion beside every page gives an exact representation of the content. Second, an llms.txt index at the root lists what exists and where. Third, structured data in JSON-LD names the entities on the page, so an answer engine can cite the source it actually used.",
+                  "marks": []
+                }
+              ]
+            }
+          ]
+        },
+        "taxonomies": {
+          "category": [
+            "engineering"
+          ],
+          "tag": [
+            "static-sites",
+            "llmstxt"
+          ]
+        }
+      },
+      {
+        "id": "post-portable",
+        "slug": "portable-text-in-practice",
+        "status": "published",
+        "data": {
+          "title": "Portable Text in practice",
+          "excerpt": "Structured content is content you can render anywhere. Portable Text keeps meaning separate from markup.",
+          "content": [
+            {
+              "_type": "block",
+              "_key": "p2a",
+              "style": "normal",
+              "markDefs": [],
+              "children": [
+                {
+                  "_type": "span",
+                  "_key": "p2s1",
+                  "text": "Portable Text stores a document as structured blocks instead of an HTML string. The same source renders as a web page, a markdown companion, or an API response without parsing tags back out of a page.",
+                  "marks": []
+                }
+              ]
+            },
+            {
+              "_type": "block",
+              "_key": "p2b",
+              "style": "normal",
+              "markDefs": [],
+              "children": [
+                {
+                  "_type": "span",
+                  "_key": "p2s2",
+                  "text": "When a CMS keeps content structured, every consumer can pick the representation it needs. That is the whole argument: store meaning once, present it many ways.",
+                  "marks": []
+                }
+              ]
+            }
+          ]
+        },
+        "taxonomies": {
+          "category": [
+            "engineering"
+          ],
+          "tag": [
+            "structured-content"
+          ]
+        }
+      },
+      {
+        "id": "post-crawling",
+        "slug": "crawling-without-credentials",
+        "status": "published",
+        "data": {
+          "title": "Crawling without credentials",
+          "excerpt": "Aggregate corpora should render pages anonymously, the way a real crawler sees them.",
+          "content": [
+            {
+              "_type": "block",
+              "_key": "p3a",
+              "style": "normal",
+              "markDefs": [],
+              "children": [
+                {
+                  "_type": "span",
+                  "_key": "p3s1",
+                  "text": "A corpus renderer that carries your session cookies produces a private index of a public site. Rendering pages anonymously, with credentials removed, keeps the published index honest and reproducible.",
+                  "marks": []
+                }
+              ]
+            },
+            {
+              "_type": "block",
+              "_key": "p3b",
+              "style": "normal",
+              "markDefs": [],
+              "children": [
+                {
+                  "_type": "span",
+                  "_key": "p3s2",
+                  "text": "This post is published from EmDash, fetched through the site's own routes, and converted to markdown for the aggregate corpus. Editors change the text in the admin; the next corpus request reflects it.",
+                  "marks": []
+                }
+              ]
+            }
+          ]
+        },
+        "taxonomies": {
+          "category": [
+            "operations"
+          ],
+          "tag": [
+            "llmstxt"
+          ]
+        }
+      },
+      {
+        "id": "post-draft",
+        "slug": "unpublished-sketch",
+        "status": "draft",
+        "data": {
+          "title": "A draft that must stay out of the corpus",
+          "excerpt": "Drafts are private until they are published.",
+          "content": [
+            {
+              "_type": "block",
+              "_key": "p4a",
+              "style": "normal",
+              "markDefs": [],
+              "children": [
+                {
+                  "_type": "span",
+                  "_key": "p4s1",
+                  "text": "This entry is a draft. It must not appear in llms.txt, and its markdown companion must not be served.",
+                  "marks": []
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "customers": [
+      {
+        "id": "project-field-guide",
+        "slug": "aeo-field-guide",
+        "status": "published",
+        "data": {
+          "title": "AEO Field Guide",
+          "summary": "A reference site that documents its own answer-engine signals, companion by companion.",
+          "content": [
+            {
+              "_type": "block",
+              "_key": "w1a",
+              "style": "normal",
+              "markDefs": [],
+              "children": [
+                {
+                  "_type": "span",
+                  "_key": "w1s1",
+                  "text": "The Field Guide pairs every page with a markdown companion and an llms.txt entry, then explains which signal each file carries. It exists to be read by both people and machines.",
+                  "marks": []
+                }
+              ]
+            }
+          ]
+        },
+        "taxonomies": {
+          "tag": [
+            "static-sites",
+            "llmstxt"
+          ]
+        }
+      },
+      {
+        "id": "project-corpus-explorer",
+        "slug": "llms-corpus-explorer",
+        "status": "published",
+        "data": {
+          "title": "LLMS Corpus Explorer",
+          "summary": "A browser for aggregate corpora that shows exactly what a crawler receives.",
+          "content": [
+            {
+              "_type": "block",
+              "_key": "w2a",
+              "style": "normal",
+              "markDefs": [],
+              "children": [
+                {
+                  "_type": "span",
+                  "_key": "w2s1",
+                  "text": "The Explorer fetches llms.txt and llms-full.txt from live sites and renders the difference between them, so a team can see which pages an answer engine can actually discover.",
+                  "marks": []
+                }
+              ]
+            }
+          ]
+        },
+        "taxonomies": {
+          "tag": [
+            "llmstxt",
+            "structured-content"
+          ]
+        }
+      },
+      {
+        "id": "project-negotiation-lab",
+        "slug": "markdown-negotiation-lab",
+        "status": "published",
+        "data": {
+          "title": "Markdown Negotiation Lab",
+          "summary": "Experiments in content negotiation: one URL, two representations, zero duplication.",
+          "content": [
+            {
+              "_type": "block",
+              "_key": "w3a",
+              "style": "normal",
+              "markDefs": [],
+              "children": [
+                {
+                  "_type": "span",
+                  "_key": "w3s1",
+                  "text": "The Lab sends Accept headers at real sites and records which ones answer with markdown. The results feed the negotiation table that astro-aeo tests against.",
+                  "marks": []
+                }
+              ]
+            }
+          ]
+        },
+        "taxonomies": {
+          "tag": [
+            "structured-content"
+          ]
+        }
+      }
+    ],
+    "legal": [
+      {
+        "id": "legal-privacy",
+        "slug": "privacy",
+        "status": "published",
+        "data": {
+          "title": "Privacy policy",
+          "content": [
+            {
+              "_type": "block",
+              "_key": "l1",
+              "style": "normal",
+              "markDefs": [],
+              "children": [
+                {
+                  "_type": "span",
+                  "_key": "l1s",
+                  "text": "Field Station collects no personal data beyond server logs, which are kept for fourteen days.",
+                  "marks": []
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

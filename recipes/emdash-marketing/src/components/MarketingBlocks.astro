@@ -1,0 +1,32 @@
+---
+// A plain rendering of the Marketing template's five block types. The upstream
+// template styles each block with its own component; the text is the same.
+interface Props {
+  value?: Array<Record<string, any>> | null;
+}
+const { value } = Astro.props;
+const lines = (text?: string) => (text ?? '').split('\n').filter(Boolean);
+---
+{(value ?? []).map((block) => (
+  <section id={block.anchor_id}>
+    {block._type === 'marketing_hero' ? <h1>{block.headline}</h1> : block.headline && <h2>{block.headline}</h2>}
+    {block.subheadline && <p>{block.subheadline}</p>}
+    {block.primary_cta_label && <p><a href={block.primary_cta_url}>{block.primary_cta_label}</a></p>}
+    {block._type === 'marketing_features' && (
+      <ul>{block.features?.map((feature: any) => <li><strong>{feature.title}</strong>: {feature.description}</li>)}</ul>
+    )}
+    {block._type === 'marketing_testimonials' && block.testimonials?.map((item: any) => (
+      <blockquote><p>{item.quote}</p><footer>{item.author}, {item.role} at {item.company}</footer></blockquote>
+    ))}
+    {block._type === 'marketing_pricing' && block.plans?.map((plan: any) => (
+      <div>
+        <h3>{plan.name}</h3>
+        <p>{plan.price}{plan.period}: {plan.description}</p>
+        <ul>{lines(plan.features).map((feature) => <li>{feature}</li>)}</ul>
+      </div>
+    ))}
+    {block._type === 'marketing_faq' && (
+      <dl>{block.items?.map((item: any) => <><dt>{item.question}</dt><dd>{item.answer}</dd></>)}</dl>
+    )}
+  </section>
+))}

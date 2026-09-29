@@ -1,0 +1,8 @@
+<main><h3 id="generate-md-files">Generate .md Files</h3>
+<p>Every HTML page gets a companion <code>.md</code> file: your content stripped of Liquid tags, kramdown annotations, and layout noise. Just clean, structured markdown that LLMs can ingest directly.</p>
+<pre class="astro-code github-dark-dimmed" style="background-color:#22272e;color:#adbac7;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="plaintext"><code><span class="line"><span>/about/index.html  →  /about.md</span></span>
+<span class="line"><span>/blog/my-post/     →  /blog/my-post.md</span></span>
+<span class="line"><span>/products/widget/  →  /products/widget.md</span></span></code></pre>
+<h3 id="validate-output">Validate Output</h3>
+<p>Verify your AEO output after every build:</p>
+<pre class="astro-code github-dark-dimmed" style="background-color:#22272e;color:#adbac7;overflow-x:auto;white-space:pre-wrap;word-wrap:break-word" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#F69D50">bundle</span><span style="color:#96D0FF"> exec</span><span style="color:#96D0FF"> jekyll</span><span style="color:#96D0FF"> aeo:validate</span></span></code></pre></main>

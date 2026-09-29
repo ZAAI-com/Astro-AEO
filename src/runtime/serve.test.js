@@ -9,6 +9,7 @@ import {
   RuntimeCorpusLimitError,
   RuntimeCorpusPlanError,
   runtimeArtifactOrigin,
+  runtimeCatalogPagesFor,
   serveCorpusArtifact,
   RuntimeSchemaCorpusError,
   serveLlmsIndex,
@@ -36,6 +37,8 @@ const loaded = (body = html()) => ({
   response: new Response(body, { headers: { 'content-type': 'text/html' } }),
 });
 
+/** Let a background catalog refresh settle and merge. */
+const settle = () => new Promise((resolve) => setTimeout(resolve));
 const catalogLoader = (catalog, module = './catalog.js') => ({
   module,
   load: async () => catalog,
@@ -1134,6 +1137,143 @@ describe('serveMarkdown', () => {
     }));
 
     expect(result).toEqual({ body: null, source });
+  });
+
+  test('re-lists a catalog once its revalidate window passes', async () => {
+    const requestRuntime = runtime();
+    requestRuntime.command = 'build';
+    let revision = 0;
+    const listPages = vi.fn(() => [{ pathname: `/entry-${revision}` }]);
+    const staticList = vi.fn(() => [{ pathname: '/static' }]);
+    const loaders = [
+      { ...catalogLoader({ listPages }, './cms.js'), revalidate: 10 },
+      catalogLoader({ listPages: staticList }, './static.js'),
+    ];
+    let clock = 1_000;
+    const now = () => clock;
+    const paths = async () =>
+      (await runtimeCatalogPagesFor(loaders, requestRuntime, undefined, now)).map((page) => page.pathname);
+
+    expect(await paths()).toEqual(['/entry-0', '/static']);
+    revision = 1;
+    clock += 9_999;
+    expect(await paths()).toEqual(['/entry-0', '/static']);
+    clock += 1;
+    // The expired listing is refreshed on this use, which still gets the last inventory.
+    expect(await paths()).toEqual(['/entry-0', '/static']);
+    expect(listPages).toHaveBeenCalledTimes(2);
+    await settle();
+    expect(await paths()).toEqual(['/entry-1', '/static']);
+    expect(listPages).toHaveBeenCalledTimes(2);
+    expect(staticList).toHaveBeenCalledOnce();
+  });
+
+  test('re-lists on every use with revalidate 0 and shares a listing in flight', async () => {
+    const requestRuntime = runtime();
+    requestRuntime.command = 'build';
+    const listPages = vi.fn(async () => [{ pathname: '/live' }]);
+    const loaders = [{ ...catalogLoader({ listPages }), revalidate: 0 }];
+
+    await Promise.all([
+      runtimeCatalogPagesFor(loaders, requestRuntime),
+      runtimeCatalogPagesFor(loaders, requestRuntime),
+    ]);
+    expect(listPages).toHaveBeenCalledOnce();
+    await runtimeCatalogPagesFor(loaders, requestRuntime);
+    await settle();
+    await runtimeCatalogPagesFor(loaders, requestRuntime);
+    expect(listPages).toHaveBeenCalledTimes(3);
+  });
+
+  test('keeps revalidate false and omitted catalogs for the life of the process', async () => {
+    const requestRuntime = runtime();
+    requestRuntime.command = 'build';
+    const listPages = vi.fn(() => [{ pathname: '/once' }]);
+    const loaders = [{ ...catalogLoader({ listPages }), revalidate: /** @type {false} */ (false) }];
+    let clock = 0;
+    await runtimeCatalogPagesFor(loaders, requestRuntime, undefined, () => clock);
+    clock = Number.MAX_SAFE_INTEGER;
+    await runtimeCatalogPagesFor(loaders, requestRuntime, undefined, () => clock);
+    expect(listPages).toHaveBeenCalledOnce();
+  });
+
+  test('retries a failed revalidating catalog on its next use', async () => {
+    const requestRuntime = runtime();
+    requestRuntime.command = 'build';
+    let fail = true;
+    const listPages = vi.fn(() => {
+      if (fail) throw new Error('database not ready');
+      return [{ pathname: '/recovered' }];
+    });
+    const loaders = [{ ...catalogLoader({ listPages }), revalidate: 60 }];
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await runtimeCatalogPagesFor(loaders, requestRuntime)).toEqual([]);
+      fail = false;
+      expect((await runtimeCatalogPagesFor(loaders, requestRuntime)).map((page) => page.pathname))
+        .toEqual(['/recovered']);
+      expect(warning).toHaveBeenCalledOnce();
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
+  test('keeps the last listing when a revalidating catalog fails to refresh', async () => {
+    const requestRuntime = runtime();
+    requestRuntime.command = 'build';
+    let result = () => [{ pathname: '/first' }];
+    const listPages = vi.fn(() => result());
+    const loaders = [{ ...catalogLoader({ listPages }), revalidate: 10 }];
+    let clock = 0;
+    const paths = async () =>
+      (await runtimeCatalogPagesFor(loaders, requestRuntime, undefined, () => clock)).map((page) => page.pathname);
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await paths()).toEqual(['/first']);
+      result = () => { throw new Error('database unavailable'); };
+      clock = 10_000;
+      expect(await paths()).toEqual(['/first']);
+      await settle();
+      expect(warning).toHaveBeenCalledOnce();
+      expect(warning.mock.calls[0][0]).toContain('its last listing is kept');
+      // The failed refresh waits one more window instead of retrying on every use.
+      clock = 19_999;
+      expect(await paths()).toEqual(['/first']);
+      expect(listPages).toHaveBeenCalledTimes(2);
+      result = () => [{ pathname: '/second' }];
+      clock = 20_000;
+      expect(await paths()).toEqual(['/first']);
+      await settle();
+      expect(await paths()).toEqual(['/second']);
+      expect(listPages).toHaveBeenCalledTimes(3);
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
+  test('serves the last inventory while a slow refresh runs', async () => {
+    const requestRuntime = runtime();
+    requestRuntime.command = 'build';
+    /** @type {(pages: { pathname: string }[]) => void} */
+    let finish = () => {};
+    let calls = 0;
+    const listPages = vi.fn(() => (++calls === 1
+      ? [{ pathname: '/old' }]
+      : new Promise((resolve) => { finish = resolve; })));
+    const loaders = [{ ...catalogLoader({ listPages }), revalidate: 10 }];
+    let clock = 0;
+    const paths = async () =>
+      (await runtimeCatalogPagesFor(loaders, requestRuntime, undefined, () => clock)).map((page) => page.pathname);
+
+    expect(await paths()).toEqual(['/old']);
+    clock = 10_000;
+    // Neither the request that starts the refresh nor one during it waits for it.
+    expect(await paths()).toEqual(['/old']);
+    expect(await paths()).toEqual(['/old']);
+    expect(listPages).toHaveBeenCalledTimes(2);
+    finish([{ pathname: '/new' }]);
+    await settle();
+    expect(await paths()).toEqual(['/new']);
   });
 
   test('caches a rejected runtime catalog loader and warns once', async () => {

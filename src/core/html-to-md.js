@@ -95,6 +95,34 @@ function restoreOwnProperty(target, key, hadOwn, previous) {
   else Reflect.deleteProperty(target, key);
 }
 
+/**
+ * Wraps rendered content in an emphasis delimiter. Emphasis must open and
+ * close on one line, next to text, but block children leave blank lines
+ * inside the delimiters, which ends the paragraph and strands a literal `**`.
+ * Content without a line break takes Turndown's own output unchanged.
+ * Otherwise edge line breaks move outside the delimiters and inner blank-line
+ * runs become one space, while a `<br>` between words (`A  \nB`) stays a
+ * valid hard break. Code inside emphasis would lose its blank lines too, but
+ * that markup does not occur in practice.
+ *
+ * @param {string} delimiter
+ * @param {string} content
+ * @returns {string}
+ */
+function wrapInline(delimiter, content) {
+  if (!content.includes('\n')) return content.trim() ? delimiter + content + delimiter : '';
+  const body = content.trim();
+  if (!body) return '';
+  const lead = content.slice(0, content.length - content.trimStart().length);
+  const trail = content.slice(content.trimEnd().length);
+  /** @param {string} ws */
+  const outside = (ws) => (ws.includes('\n') ? ws : '');
+  /** @param {string} ws */
+  const inside = (ws) => (ws.includes('\n') ? '' : ws);
+  return outside(lead) + delimiter + inside(lead) + body.replace(/[ \t]*\n(?:[ \t]*\n)+[ \t]*/g, ' ')
+    + inside(trail) + delimiter + outside(trail);
+}
+
 /** @returns {Promise<import('turndown')>} */
 export async function createTurndown() {
   const TurndownService = await loadTurndown();
@@ -106,6 +134,15 @@ export async function createTurndown() {
   });
 
   td.remove(/** @type {any} */ (NEVER_CONTENT));
+  // Registered before addKeepRule(), so kept elements and tables still win.
+  td.addRule('astroAeoStrong', {
+    filter: ['strong', 'b'],
+    replacement: (content, _node, options) => wrapInline(options.strongDelimiter ?? '**', content),
+  });
+  td.addRule('astroAeoEmphasis', {
+    filter: ['em', 'i'],
+    replacement: (content, _node, options) => wrapInline(options.emDelimiter ?? '_', content),
+  });
 
   return addKeepRule(td);
 }

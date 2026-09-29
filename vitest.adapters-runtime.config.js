@@ -13,6 +13,7 @@ const selected = new Set(
 
 export default defineConfig({
   test: {
+    globalSetup: ['test/setup/clear-processing-caches.js'],
     include: [
       'test/adapters/runtime.test.js',
       ...(selected.has('cloudflare') ? ['test/adapters/static-cloudflare.test.js'] : []),

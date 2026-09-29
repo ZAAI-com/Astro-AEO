@@ -9,3 +9,10 @@ allowBuilds:
   # Cloudflare's local production preview executes the generated Worker in
   # workerd. Its package installs the platform-specific runtime binary here.
   workerd: true
+minimumReleaseAgeExclude:
+  - '@emdash-cms/admin@1.0.1'
+  - '@emdash-cms/cloudflare@1.0.1'
+  - '@emdash-cms/auth@1.0.1'
+  - '@emdash-cms/blocks@1.0.1'
+  - '@emdash-cms/gutenberg-to-portable-text@1.0.1'
+  - emdash@1.0.1

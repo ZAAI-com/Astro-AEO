@@ -90,6 +90,17 @@ plain ESM with no package build step.
   source line by line and returns a fallback, never partial output, for anything it would have to
   evaluate. Its fixtures are Astro 7 only and declare their dependencies so Vite bundles Starlight.
 
+- `src/emdash.js` is the EmDash integration: it registers `aeo()` itself with EmDash defaults and
+  serves `virtual:astro-aeo/emdash`, the only module that imports `emdash`. That bridge resolves from
+  the project root, so the peer stays optional. `src/emdash/catalog.js` (the `astro-aeo/emdash/catalog`
+  subpath) lazily imports the bridge: the native build pass cannot load it and lists nothing, while
+  the server bundle reads EmDash's public plugin read API over EmDash's own database connection.
+  `inventory.js` and `url-pattern.js` are pure and mirror EmDash's sitemap rules and URL patterns. The
+  boundary test covers `src/emdash/`. The `emdash` and `emdash-<template>` recipes need a seeded
+  database and a running server, so `test/recipes/emdash.test.js` builds and checks each one once.
+  `emdash-cloudflare` runs in workerd through `astro preview`; the harness seeds Miniflare's local
+  D1 file with EmDash's CLI after the first request creates it, then waits one `revalidate` window.
+
 - Static edge negotiation is for sites with no adapter. `src/edge/` holds the provider plugin
   factories and re-exports the handlers; `src/runtime/edge/handler.js` is the one decision function and
   `cloudflare.js`, `netlify.js` and `vercel.js` only adapt a host to it. All of it is bundled into an
@@ -145,6 +156,13 @@ plain ESM with no package build step.
   prerenders every exact artifact path, because Astro forbids an on-demand route from rewriting to
   a prerendered page; a dynamic pattern has to stay on demand or Astro never dispatches it, and
   `src/runtime/middleware.js` answers that forbidden rewrite through the development loopback.
+- Outside development a server lists each catalog once per process, unless the catalog sets
+  `revalidate`. `runtimeCatalogPagesFor` then keeps one listing per loader, shares a listing in
+  flight, and re-merges (and re-warns) only when a listing changed. A revalidating catalog whose
+  first listing fails retries on its next use; one whose refresh fails keeps its last listing and
+  retries after another window. Refreshing a listing that once succeeded never blocks a request:
+  the last inventory is served until the fresh one merges. Keep the one-entry, last-origin cache
+  for catalogs without `revalidate`.
 - Runtime configuration must remain serializable. Function options apply during builds but cannot
   cross the virtual-module boundary; keep warnings and fallbacks explicit.
 - Development dynamic-route records carry only route mechanics and lazy module imports. Never
@@ -157,10 +175,10 @@ plain ESM with no package build step.
 - Use plain ESM JavaScript with `// @ts-check` and JSDoc. The published folders are `src`,
   `components`, `bin`, `cli`, and `schema`, so every shipped source file must run as published and
   remain installable from a git dependency.
-- Public declarations are hand-written in thirteen files: `src/index.d.ts`,
+- Public declarations are hand-written in fourteen files: `src/index.d.ts`,
   `components/index.d.ts`, `src/page.d.ts`, `src/extract.d.ts`,
   `src/runtime/middleware.d.ts`, `src/schema.d.ts`, `src/adapters.d.ts`, `src/content.d.ts`,
-  `src/starlight.d.ts`, `src/edge.d.ts`, and the three provider-specific declarations under
+  `src/starlight.d.ts`, `src/emdash.d.ts`, `src/edge.d.ts`, and the three provider-specific declarations under
   `src/edge/`. Provider subpaths must declare only the runtime exports they actually provide. Update declarations
   and consumer type tests with their code.
 - There are five runtime dependencies: `@astrojs/sitemap`, `turndown`, `linkedom` via
@@ -179,6 +197,9 @@ plain ESM with no package build step.
 
 - Vitest tests are colocated as `*.test.js`; add or update tests with every behavior change.
   `pnpm test` runs unit, CLI, and static-build tests in the default configuration.
+- Every Vitest config runs `test/setup/clear-processing-caches.js` first. Fixture and recipe builds
+  import the working tree, but the processing cache keys on the package version, so a warm cache
+  would hide extractor edits. It deletes only `processing-v1`, never the rest of `aeo-cache`.
 - A test selected by the default configuration that shells out to `astro build` must use
   `*.e2e.test.js`. The Node compatibility job excludes that suffix because its installed Astro 7
   cannot run on Node 20. This naming rule does not apply to the separately selected server and

@@ -1,0 +1,13 @@
+---
+import Base from '../layouts/Base.astro';
+import { getEmDashCollection } from 'emdash';
+
+const query = Astro.url.searchParams.get('q')?.trim().toLowerCase() ?? '';
+const { entries } = query ? await getEmDashCollection('posts') : { entries: [] };
+const results = entries.filter((post) => `${post.data.title} ${post.data.excerpt ?? ''}`.toLowerCase().includes(query));
+---
+<Base title="Search" robots="noindex">
+  <h1>Search</h1>
+  <form action="/search"><input type="search" name="q" value={query} /><button>Search</button></form>
+  <ul>{results.map((post) => <li><a href={`/posts/${post.id}`}>{post.data.title}</a></li>)}</ul>
+</Base>

@@ -63,8 +63,12 @@ export function unresolvedRelativeImports(root) {
   const failures = [];
   for (const file of filesBelow(root).filter((path) => /\.(?:mjs|js)$/.test(path))) {
     const source = readFileSync(file, 'utf8');
-    for (const line of source.split('\n')) {
-      if (/^\s*(?:\/\/|\/\*|\*)/.test(line)) continue;
+    for (const raw of source.split('\n')) {
+      if (/^\s*(?:\/\/|\/\*|\*)/.test(raw)) continue;
+      // Rolldown 1.2 keeps inline JSDoc casts such as
+      // `/** @type {import('../core/page-model.js').AeoPage} */`, which name
+      // source paths that never exist in the output and are not imports.
+      const line = raw.replace(/\/\*.*?\*\//g, '');
       const specifiers = [];
       const staticImport = line.match(
         /^\s*(?:import|export)\s+(?:.+?\s+from\s+)?["'](\.[^"']+)["']/,

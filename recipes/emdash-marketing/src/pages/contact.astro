@@ -1,0 +1,11 @@
+---
+import Base from '../layouts/Base.astro';
+import MarketingBlocks from '../components/MarketingBlocks.astro';
+import { getEmDashEntry, getSeoMeta } from 'emdash';
+
+const { entry: page } = await getEmDashEntry('pages', 'contact');
+const seo = page ? getSeoMeta(page, { siteUrl: (Astro.site ?? new URL(Astro.url.origin)).href, path: '/contact' }) : null;
+---
+<Base title={seo?.title ?? 'Contact'} description={seo?.description} path="/contact">
+  {page ? <MarketingBlocks value={page.data.content} /> : <h1>Contact</h1>}
+</Base>
