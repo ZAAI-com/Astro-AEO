@@ -407,7 +407,10 @@ aliases such as `/llms-en.txt`.
 Astro string locale values are the directory identity. Locale objects use `path` as the directory
 and `codes[0]` as the primary BCP 47 language. Page language resolves after semantic enrichment.
 Invalid explicit declarations are errors; unresolved pages follow `i18n.unresolvedLanguage`.
-External public HTTPS `hreflang` links are allowed but never fetched.
+External public HTTPS `hreflang` links are allowed but never fetched. Plain `http:` alternates are
+accepted only on `localhost`, `127.0.0.1` and `[::1]`, and only while the page is served from one of
+those hosts or `astro dev` or `astro preview` is running, so a production build still rejects a
+stray local link.
 
 The private `.astro/aeo-cache` directory can contain normalized derived page content and IndexNow
 notification state. Keep `.astro` uncommitted, transfer the `indexnow` pending and acknowledgment

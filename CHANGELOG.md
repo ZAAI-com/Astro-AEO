@@ -4,7 +4,22 @@ All notable changes to this project are documented here. This project follows [S
 
 ## 1.5.1
 
-A patch release on top of 1.5.0.
+A patch release on top of 1.5.0 that lets multilingual sites run locally without hreflang errors.
+
+### Local hreflang alternates
+
+- Accept plain `http:` hreflang alternates on `localhost`, `127.0.0.1` and `[::1]` in a local
+  context: the page is served from one of those hosts (for example `site: 'http://localhost:4321'`,
+  or `astro dev` without a `site`), or `astro dev` or `astro preview` is running. Before, a page
+  served locally failed the build with `hreflang-invalid`, and a dev or preview server answered
+  `llms.txt`, `llms-full.txt` and the corpus artifacts with `500`, including on an https site whose
+  hreflang tags are built from `Astro.url`.
+- Apply the same rule to sitemap `xhtml:link` alternates in the build and in `astro-aeo validate`
+  and `astro-aeo audit`, so a sitemap built for a local origin no longer reports
+  `sitemap-hreflang-url-invalid`.
+- A production build for an https site still rejects a stray localhost alternate, in page markup and
+  in its sitemap. Credentials, fragments, other schemes and public `http:` hosts stay rejected
+  everywhere.
 
 ## 1.5.0
 
