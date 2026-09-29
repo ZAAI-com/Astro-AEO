@@ -1,0 +1,46 @@
+AGENTS.md
+  s_75434dc6ca634e::t_06f893a17c53a9 163-165
+recipes/emdash/README.md
+  s_75434dc6ca634e::t_02b81938bc37af 24-26
+src/index.d.ts
+  s_75434dc6ca634e::t_06f893a17c53a9 906-907
+src/runtime/serve.test.js
+  s_75434dc6ca634e::t_5622e8547739cd 40-41,1162-1165,1183
+  s_75434dc6ca634e::t_02fc00147d784d 1236,1245-1246,1254-1276
+  s_75434dc6ca634e::t_89f0f6aee8c685 1277-1278
+CHANGELOG.md
+  s_75434dc6ca634e::t_6fd60227469635 35-36
+  s_75434dc6ca634e::t_06f893a17c53a9 112-114
+  s_75434dc6ca634e::t_a8a34de5f2209f 90-91
+  s_75434dc6ca634e::t_02b81938bc37af 88
+  s_75434dc6ca634e::t_ee16b9e0022757 87
+  s_75434dc6ca634e::t_22db966aa38397 89
+src/emdash/inventory.test.js
+  s_75434dc6ca634e::t_7d5decc0a1fbcb 32,40-41,44
+src/runtime/serve.js
+  s_75434dc6ca634e::t_a59589c2d386fa 814-816
+  s_75434dc6ca634e::t_2fa7391992a138 830,835-838,843-853
+README.md
+  s_75434dc6ca634e::t_22db966aa38397 151-155
+  s_75434dc6ca634e::t_6fd60227469635 958-962
+  s_75434dc6ca634e::t_06f893a17c53a9 709
+  s_75434dc6ca634e::t_ee16b9e0022757 150
+src/emdash/inventory.js
+  s_75434dc6ca634e::t_1855f809440179 7-8,15,65-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "04d5ef4a243958ae2390fb38445372a2c21edab6",
+  "prompts": {},
+  "sessions": {
+    "s_75434dc6ca634e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ff91888e-033f-48d5-9db8-a6e35c985dce",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
