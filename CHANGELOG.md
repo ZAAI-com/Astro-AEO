@@ -4,6 +4,45 @@ All notable changes to this project are documented here. This project follows [S
 
 ## 1.5.0
 
+The cache-integrity and Markdown-fidelity release. The incremental processing cache now resets itself
+when astro-aeo is upgraded and stops growing without bound, and Markdown companions keep meaningful
+separators, intact bold definition terms, both images of a before/after figure, and languages on code
+fences. No configuration key changes.
+
+### Processing cache
+
+- The private `.astro/aeo-cache/processing-v1` state now names its producer: the astro-aeo version
+  plus the `turndown` and `linkedom` versions it extracts with. When that producer changes (an
+  upgrade, a downgrade, or a dependency refresh), the cache resets to empty entries automatically and
+  logs one line, for example `astro-aeo: processing cache reset after an extractor change
+  (astro-aeo 1.4.0 -> astro-aeo 1.5.0); 3 cached page(s) will be extracted again`, so a local build
+  can no longer silently emit another extractor's Markdown. The producer is part of every cache key
+  as well, so an older reader cannot reuse newer entries either. A state with a missing or malformed
+  producer (written before 1.5.0) resets the same way instead of blocking the build.
+- A complete build keeps only the entries it touched. Pages that were deleted or became excluded stop
+  occupying the cache, and their blobs are swept with the same confined-delete authority as before.
+  A build whose page inventory is incomplete keeps the entries it could not see.
+- Git modification dates are merged after extraction, so a cache hit no longer freezes a page's
+  modified date at its first extraction.
+
+### Markdown companions
+
+- Glyph-only `aria-hidden="true"` elements that carry reading meaning are unwrapped to their text
+  instead of dropped: a `→` between two addresses, a `·` between counts, and `├──` or `│` tree
+  prefixes all survive. Arrows inside links and buttons, "Copied" labels, empty dots, svgs, and
+  `[hidden]` elements are still removed.
+- A block-level icon inside a `<dt>` no longer splits the bold term across lines, so `**Track Data
+  Leaks**` stays one run. New strong and emphasis rules also collapse blank lines inside the delimiters
+  and drop whitespace-only runs.
+- A dark-mode border or background on a figure no longer counts as a light/dark screenshot pair, so a
+  before/after slider keeps both images. Images hidden from assistive technology are dropped only as
+  duplicates while a visible image remains. Adjacent image labels are spaced, so
+  `![...](...) Dots only Google original` reads correctly.
+- Code fences carry their language. It is resolved from the code element's `language-*` or `lang-*`
+  class, the `pre` class, `data-language` on either element (Astro/Shiki, Expressive Code), or, for a
+  lone code block in a figure, the filename extension in the caption: `index.html (what most bots see)`
+  yields a `html` fence. `plaintext`, `text`, `txt`, and `plain` stay bare.
+
 ## 1.4.0
 
 The quality and ecosystem release: a site-wide audit with seven report formats, deployment checks and
