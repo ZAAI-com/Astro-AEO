@@ -1,0 +1,25 @@
+src/index.d.ts
+  s_888f8e365b5f94::t_5f71e2cd0459be 367-372,385,387
+fixtures/types-consumer/consumer.ts
+  s_888f8e365b5f94::t_5f71e2cd0459be 69,142,144
+README.md
+  s_888f8e365b5f94::t_5f71e2cd0459be 915
+.changeset/section-page-locale.md
+  s_888f8e365b5f94::t_5f71e2cd0459be 1-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c7cec5fa893e311a49b20a28ed1c6d18cf1bebdc",
+  "prompts": {},
+  "sessions": {
+    "s_888f8e365b5f94": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "24ff9027-fb95-47e2-93ad-fb0f11deaaa1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
