@@ -668,8 +668,10 @@ quotes, colons) with text on both sides in the same inline run, or a box-drawing
 verbatim; an arrow directly after a link stays dropped. Emoji, stars, and check marks are never
 kept, since they usually repeat visually hidden text.
 
-Figures become one image (the first described image for light/dark variants) followed by the
-caption in emphasis. Image-free charts retain readable text or their accessible label.
+Figures keep their shown images followed by the caption in emphasis. Alternate states of one
+subject (images hidden from assistive technology, `[hidden]`, Starlight's `light:sl-hidden`, or a
+`hidden` image shown only in dark mode) are dropped while a shown image remains, so both images of
+a before/after comparison survive and adjacent labels are separated by a space. Image-free charts retain readable text or their accessible label.
 Definition lists become a
 bold term followed by its description, and tables whose cells are single-span inline
 content become GFM pipe tables. `time`, `address`, and `cite` convert to their text.

@@ -361,6 +361,76 @@ function hasDescribedImage(el) {
   return matchingElements(el, 'img').some((image) => (image.getAttribute('alt') ?? '').trim());
 }
 
+/** A dark-mode display utility, with stacked variants and `!` modifiers. */
+const DARK_SHOWN =
+  /(?:^|\s)(?:[\w-]+:)*dark:(?:[\w-]+:)*!?(?:block|inline(?:-block|-flex|-grid|-table)?|flex|grid|contents|flow-root|list-item|table(?:-[a-z-]+)?)!?(?=\s|$)/;
+
+/** Marks an image whose Markdown needs a trailing space before inline content. */
+const GAP_ATTRIBUTE = 'data-astro-aeo-gap';
+
+/**
+ * Whether an image is an alternate state on its path to the figure: hidden
+ * from assistive technology, `[hidden]`, Starlight's `light:sl-hidden`, or a
+ * bare `hidden` shown only in dark mode.
+ *
+ * @param {Element} image
+ * @param {Element} figure
+ */
+function isAlternateImage(image, figure) {
+  for (let el = /** @type {Element | null} */ (image); el && el !== figure; el = el.parentElement) {
+    const className = el.getAttribute('class') ?? '';
+    if (el.getAttribute('aria-hidden') === 'true' || el.hasAttribute('hidden')) return true;
+    if (/(?:^|\s)light:sl-hidden(?=\s|$)/.test(className)) return true;
+    if (/(?:^|\s)!?hidden!?(?=\s|$)/.test(className) && DARK_SHOWN.test(className)) return true;
+  }
+  return false;
+}
+
+/**
+ * Separate adjacent styled elements that have no source space (chart legends,
+ * slider labels). Code and, in image figures, captions keep their spacing.
+ * Images are marked for the gap rule instead of receiving a text node, which
+ * Turndown would hoist out of inline ancestors as leading whitespace.
+ *
+ * @param {Element} figure
+ * @param {boolean} hasImages
+ */
+function spaceFigure(figure, hasImages) {
+  const document = figure.ownerDocument;
+  const skip = hasImages ? 'pre, code, kbd, samp, figcaption' : 'pre, code, kbd, samp';
+  for (const parent of [figure, ...figure.querySelectorAll('*')]) {
+    if (parent.closest(skip)) continue;
+    for (const child of [...parent.children]) {
+      const next = child.nextSibling;
+      if (next?.nodeType !== 1) continue;
+      const nextEl = /** @type {Element} */ (next);
+      const image = child.localName === 'img' ? child
+        : child.localName === 'picture' ? child.querySelector('img') : null;
+      if (image) {
+        if (accessibleName(image) && (isImageLike(nextEl) ||
+            (!BLOCK_NEIGHBOURS.has(nextEl.localName) && (nextEl.textContent ?? '').trim()))) {
+          image.setAttribute(GAP_ATTRIBUTE, '');
+        }
+        continue;
+      }
+      if ((child.textContent ?? '').trim() && (nextEl.textContent ?? '').trim()) {
+        parent.insertBefore(document.createTextNode(' '), next);
+      }
+    }
+  }
+}
+
+/** Block elements that already separate from a preceding image. */
+const BLOCK_NEIGHBOURS = new Set([
+  'address', 'article', 'aside', 'blockquote', 'div', 'dl', 'figcaption', 'figure', 'footer', 'h1', 'h2',
+  'h3', 'h4', 'h5', 'h6', 'header', 'hr', 'ol', 'p', 'pre', 'section', 'table', 'ul',
+]);
+
+/** @param {Element} el */
+function isImageLike(el) {
+  return el.localName === 'img' || (el.localName === 'picture' && Boolean(el.querySelector('img')));
+}
+
 /**
  * Rewrite figures into ordinary blocks so images become `![alt](src)` and the
  * caption becomes an emphasized line, instead of a raw HTML dump.
@@ -370,30 +440,17 @@ function hasDescribedImage(el) {
 function normalizeFigures(root) {
   const document = root.ownerDocument;
   for (const figure of matchingElements(root, 'figure').reverse()) {
-    const images = [...figure.querySelectorAll('img')].filter((image) => image.closest('figure') === figure);
-    // Responsive light/dark screenshots describe one subject, not two images.
-    const themed = (/** @type {Element} */ image) => {
-      for (let el = /** @type {Element | null} */ (image); el && el !== figure; el = el.parentElement) {
-        if (/(?:^|\s)(?:dark:|hidden\b)/.test(el.getAttribute('class') ?? '')) return true;
-      }
-      return false;
-    };
-    if (images.length > 1 && images.some(themed)) {
-      const chosen = images.find((image) => (image.getAttribute('alt') ?? '').trim()) ?? images[0];
-      for (const image of images) if (image !== chosen) image.remove();
-    }
-    if (!images.length && !figure.querySelector('table')) {
-      // Chart legends often use adjacent styled elements with no source space.
-      for (const parent of [figure, ...figure.querySelectorAll('*')]) {
-        for (const child of [...parent.children]) {
-          const next = child.nextSibling;
-          if (next?.nodeType === 1 && (child.textContent ?? '').trim() &&
-              (next.textContent ?? '').trim()) {
-            parent.insertBefore(document.createTextNode(' '), next);
-          }
-        }
+    let images = [...figure.querySelectorAll('img')].filter((image) => image.closest('figure') === figure);
+    // Responsive light/dark screenshots and inactive switcher frames are
+    // alternate states of one subject: drop them while a shown image remains.
+    if (images.length > 1) {
+      const shown = images.filter((image) => !isAlternateImage(image, figure));
+      if (shown.length && shown.length < images.length) {
+        for (const image of images) if (!shown.includes(image)) image.remove();
+        images = shown;
       }
     }
+    if (!figure.querySelector('table')) spaceFigure(figure, images.length > 0);
     if (!images.length && !(figure.textContent ?? '').trim()) {
       const label = (figure.getAttribute('aria-label') ??
         figure.querySelector('[aria-label]')?.getAttribute('aria-label') ?? '').trim();
@@ -583,6 +640,15 @@ function markTopLevelRawHtml(root, selector, predicate) {
  * @returns {import('turndown')}
  */
 export function addKeepRule(td) {
+  // Added first so kept raw HTML and tables still take precedence.
+  td.addRule('astroAeoImageGap', {
+    filter: (node) => node.nodeName === 'IMG' && node.getAttribute(GAP_ATTRIBUTE) !== null &&
+      node.getAttribute(KEEP_ATTRIBUTE) === null,
+    replacement: (content, node, options) => {
+      const markdown = /** @type {any} */ (options).rules.image.replacement(content, node, options);
+      return markdown ? `${markdown} ` : '';
+    },
+  });
   td.addRule('astroAeoKeep', {
     filter: (node) => Boolean(node.getAttribute && node.getAttribute(KEEP_ATTRIBUTE) !== null),
     replacement: (_content, node) => {

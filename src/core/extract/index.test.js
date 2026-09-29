@@ -352,11 +352,60 @@ describe('conversion fidelity', () => {
     expect(md).toBe('![Chart](/chart.png)\n\n_Quarterly **results**_');
   });
 
-  test('light and dark screenshots emit only the first described image', () => {
+  test('light and dark screenshots emit only the light variant', () => {
     const md = convert('<main><figure><img class="dark:hidden" src="/light.png" alt="Dashboard"><img class="hidden dark:block" src="/dark.png" alt="Dashboard dark mode"><figcaption>Dashboard</figcaption></figure></main>');
     expect(md).toBe('![Dashboard](/light.png)\n\n_Dashboard_');
     const wrapped = convert('<main><figure><div class="dark:hidden"><img src="/light.png" alt="Dashboard"></div><div class="hidden dark:block"><img src="/dark.png" alt="Dashboard dark mode"></div></figure></main>');
     expect(wrapped).toBe('![Dashboard](/light.png)');
+  });
+
+  test('a dark: utility on a shared wrapper does not collapse distinct images', () => {
+    const md = convert('<main><figure><div class="overflow-hidden border dark:border-zinc-800"><img src="/a.png" alt="Before"><img src="/b.png" alt="After"></div></figure></main>');
+    expect(md).toBe('![Before](/a.png) ![After](/b.png)');
+  });
+
+  test('a hidden dark:block pair keeps one image', () => {
+    const md = convert('<main><figure><img class="block dark:hidden" src="/l.png" alt="Light"><img class="hidden dark:!block" src="/d.png" alt="Dark"></figure></main>');
+    expect(md).toBe('![Light](/l.png)');
+  });
+
+  test('a dark-first pair yields the light image', () => {
+    const md = convert('<main><figure><img class="hidden dark:block" src="/d.png" alt="Dark"><img class="dark:hidden" src="/l.png" alt="Light"></figure></main>');
+    expect(md).toBe('![Light](/l.png)');
+  });
+
+  test('a Starlight sl-hidden pair keeps the light image', () => {
+    const md = convert('<main><figure><img class="light:sl-hidden" src="/d.png" alt="Dark"><img class="dark:sl-hidden" src="/l.png" alt="Light"></figure></main>');
+    expect(md).toBe('![Light](/l.png)');
+  });
+
+  test('aria-hidden alternates are dropped only while a shown image remains', () => {
+    const md = convert('<main><figure><img src="/a.png" alt="Dots"><img aria-hidden="true" src="/b.png" alt="Smart"><img aria-hidden="true" src="/c.png" alt="Standard"></figure></main>');
+    expect(md).toBe('![Dots](/a.png)');
+    const all = convert('<main><figure><div aria-hidden="true"><img src="/a.png" alt="A"><img src="/b.png" alt="B"></div></figure></main>');
+    expect(all).toContain('![A](/a.png)');
+    expect(all).toContain('![B](/b.png)');
+  });
+
+  test('an image followed by inline labels is separated by spaces', () => {
+    const md = convert('<main><figure><div><img src="/a.png" alt="A"><span>One</span><span>Two</span></div></figure></main>');
+    expect(md).toBe('![A](/a.png) One Two');
+  });
+
+  test('images inside an inline wrapper get no leading indentation', () => {
+    const shots = [0, 1, 2, 3, 4].map((i) => `<img src="/g${i}.png" alt="Shot ${i}">`).join('');
+    const md = convert(`<main><p>Intro.</p><astro-island><figure>${shots}<figcaption>Gallery</figcaption></figure></astro-island></main>`);
+    expect(md).toBe(`Intro.\n\n${[0, 1, 2, 3, 4].map((i) => `![Shot ${i}](/g${i}.png)`).join(' ')}\n\n_Gallery_`);
+  });
+
+  test('code token spans inside a figure are not spaced', () => {
+    const md = convert('<main><figure data-rehype-pretty-code-figure><img src="/a.png" alt="A"><pre><code><span data-line><span>console</span><span>.log(</span><span>"a"</span><span>)</span></span></code></pre></figure></main>');
+    expect(md).toContain('console.log("a")');
+  });
+
+  test('figcaption punctuation spans are not spaced', () => {
+    const md = convert('<main><figure><img src="/a.png" alt="A"><figcaption><a href="/src">Source</a><span>.</span> Price <span>$</span><span>5</span></figcaption></figure></main>');
+    expect(md).toBe('![A](/a.png)\n\n_[Source](/src). Price $5_');
   });
 
   test('image-free charts retain their label when they have no readable text', () => {
