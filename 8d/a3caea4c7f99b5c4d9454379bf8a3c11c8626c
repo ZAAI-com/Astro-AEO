@@ -1,0 +1,24 @@
+README.md
+  h_a8c9574cd6b407 287-288,792,795-798,800-801
+src/build/collect.js
+  h_a8c9574cd6b407 100-101,152
+src/build/package-version.js
+  h_a8c9574cd6b407 1-17
+src/build/processing-cache.js
+  h_a8c9574cd6b407 11,15,19-20,26-27,30,34,47-48,85,109,124,130-132,137-140,148-152,156,187-192,199-215,258-264,270-272
+src/build/processing-cache.test.js
+  h_a8c9574cd6b407 7,140-247
+src/hooks/build-done.js
+  h_a8c9574cd6b407 24,101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8da3caea4c7f99b5c4d9454379bf8a3c11c8626c",
+  "prompts": {},
+  "humans": {
+    "h_a8c9574cd6b407": {
+      "author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
