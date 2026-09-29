@@ -299,7 +299,8 @@ function keptGlyphText(el, root, glyphs) {
   const before = runNeighbourText(el, root, glyphs, false);
   if (!before) return undefined;
   if (ARROW_GLYPH.test(text) && before.parentElement?.closest('a')) return undefined;
-  return ` ${text} `;
+  // A colon attaches to the label before it, as in running text.
+  return text === ':' ? `${text} ` : ` ${text} `;
 }
 
 /** @param {string} text @returns {string} */

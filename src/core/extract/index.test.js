@@ -514,6 +514,11 @@ describe('conversion fidelity', () => {
       expect(md).toBe('1 user · 2 orgs · 7 repos\n\nOpen source · Privacy-first');
     });
 
+    test('a colon separator attaches to its label', () => {
+      const md = convert(`<main><p><span>Status</span>${hidden(':')}<span>Stable</span></p></main>`);
+      expect(md).toBe('Status: Stable');
+    });
+
     test('a separator padded with no-break spaces is kept', () => {
       const md = convert(`<main><p><span>Before</span>${hidden('\u00a0\u2014\u00a0')}<span>After</span></p></main>`);
       expect(md).toBe('Before \u2014 After');

@@ -2,7 +2,65 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 1.5.0
+
+The cache-integrity and Markdown-fidelity release. The incremental processing cache now resets itself
+whenever the extractor changes and stops growing without bound, and Markdown companions keep
+meaningful separators, intact bold definition terms, both images of a before/after figure, and
+languages on code fences. No configuration key changes.
+
+### Behavior changes worth reading before upgrading
+
+- The first build after upgrading extracts every page again and logs the cache reset once. A cache
+  written by 1.4.0 or earlier has no producer record, so the line reads
+  `astro-aeo: processing cache reset after an extractor change (an earlier astro-aeo -> astro-aeo 1.5.0); 24 cached page(s) will be extracted again`.
+- Markdown changes on pages that use the affected markup: `aria-hidden` separators and tree glyphs,
+  icons inside `<dt>` terms, multi-image figures, and code blocks. The same changes apply to
+  on-demand and SSR Markdown and to `astro-aeo/extract`, not only to build companions.
+- IndexNow resubmits each page whose Markdown changed, once.
+- A `<pre>` whose `<code>` starts after a newline now becomes a fenced block instead of inline code.
+- Kept separator glyphs also appear inside raw HTML kept through `extraction.keepSelectors` and in
+  heading text, so a heading such as `Step 1 · Install` changes its `llms` chunk title.
+
+### Processing cache
+
+- The private `.astro/aeo-cache/processing-v1` state now names its producer: the astro-aeo version
+  plus the `turndown` and `linkedom` versions it extracts with. The producer is also part of every
+  cache key. When it changes (an upgrade, a downgrade, or a lockfile refresh of either dependency),
+  the cache drops its entries once and logs the change, for example `(astro-aeo 1.5.0 -> 1.5.1)` or
+  `(turndown 7.2.3 -> 7.2.4)`, so a local build can no longer emit Markdown produced by other code.
+- A missing or malformed producer record resets the entries instead of making the cache read-only,
+  so it never blocks IndexNow state from advancing.
+- A complete build keeps only the entries it used. Pages that were deleted or became excluded stop
+  occupying the cache, and their blobs are swept with the same confined-delete authority as before.
+  A build whose page inventory is incomplete keeps the entries it could not see.
+- Git modification dates are merged after the cached extraction, so a cache hit no longer freezes a
+  page's modified date at its first extraction. An invalid cached entry is now replaced instead of
+  being rebuilt on every build.
+
+### Markdown companions
+
+- Meaningful `aria-hidden="true"` glyphs are kept. A separator such as `→`, `·`, `|`, or a dash
+  between two runs of text in the same line is unwrapped and spaced (`1 user · 2 orgs`, `Status:
+  Stable`), and a box-drawing tree prefix such as `├──` or `│` is kept before its entry. Arrows in
+  or directly after links, glyphs inside buttons, labels, `pre` and `code`, emoji, stars and check
+  marks, "Copied" labels, empty dots, svgs, and `[hidden]` elements are still removed.
+- A block-level icon inside a `<dt>` no longer splits the bold term across lines, and a term that
+  already wraps its text in `<strong>` no longer doubles to `****Term****`. New strong and emphasis
+  rules keep any bold or italic run on one line: line breaks at its edges move outside the
+  delimiters, blank-line runs inside collapse to one space, and a run without line breaks converts
+  exactly as before.
+- Figures keep every shown image. Only alternates of another shown image are dropped: images hidden
+  from assistive technology or with `[hidden]`, the dark variant of a light/dark pair
+  (`hidden dark:block`, Starlight's `light:sl-hidden`), in either order. A dark-mode border no longer
+  collapses a before/after slider to one image. Adjacent images and labels are separated by spaces
+  (`![...](...) ![...](...) Dots only Google original`) without indenting figures inside inline
+  wrappers, and syntax-highlighted code inside a figure is no longer split by inserted spaces.
+- Code fences carry their language, taken from a `language-*` or `lang-*` class, `data-language` on
+  the `pre` or `code` (Astro's Shiki, Expressive Code), or a filename at the start of the caption of
+  a figure holding one code block (`index.html (what most bots see)` gives an `html` fence). An
+  explicit `language-*` class is used as written. `plaintext`, `text`, `txt`, and `plain` from the
+  other sources give a bare fence. Expressive Code lines keep their line breaks.
 
 ### Documentation and recipes
 
@@ -13,46 +71,12 @@ All notable changes to this project are documented here. This project follows [S
   negotiation, and draft exclusion. The README gained a "Using astro-aeo with EmDash" section with
   the same wiring.
 
-## 1.5.0
+### Package size
 
-The cache-integrity and Markdown-fidelity release. The incremental processing cache now resets itself
-when astro-aeo is upgraded and stops growing without bound, and Markdown companions keep meaningful
-separators, intact bold definition terms, both images of a before/after figure, and languages on code
-fences. No configuration key changes.
-
-### Processing cache
-
-- The private `.astro/aeo-cache/processing-v1` state now names its producer: the astro-aeo version
-  plus the `turndown` and `linkedom` versions it extracts with. When that producer changes (an
-  upgrade, a downgrade, or a dependency refresh), the cache resets to empty entries automatically and
-  logs one line, for example `astro-aeo: processing cache reset after an extractor change
-  (astro-aeo 1.4.0 -> astro-aeo 1.5.0); 3 cached page(s) will be extracted again`, so a local build
-  can no longer silently emit another extractor's Markdown. The producer is part of every cache key
-  as well, so an older reader cannot reuse newer entries either. A state with a missing or malformed
-  producer (written before 1.5.0) resets the same way instead of blocking the build.
-- A complete build keeps only the entries it touched. Pages that were deleted or became excluded stop
-  occupying the cache, and their blobs are swept with the same confined-delete authority as before.
-  A build whose page inventory is incomplete keeps the entries it could not see.
-- Git modification dates are merged after extraction, so a cache hit no longer freezes a page's
-  modified date at its first extraction.
-
-### Markdown companions
-
-- Glyph-only `aria-hidden="true"` elements that carry reading meaning are unwrapped to their text
-  instead of dropped: a `→` between two addresses, a `·` between counts, and `├──` or `│` tree
-  prefixes all survive. Arrows inside links and buttons, "Copied" labels, empty dots, svgs, and
-  `[hidden]` elements are still removed.
-- A block-level icon inside a `<dt>` no longer splits the bold term across lines, so `**Track Data
-  Leaks**` stays one run. New strong and emphasis rules also collapse blank lines inside the delimiters
-  and drop whitespace-only runs.
-- A dark-mode border or background on a figure no longer counts as a light/dark screenshot pair, so a
-  before/after slider keeps both images. Images hidden from assistive technology are dropped only as
-  duplicates while a visible image remains. Adjacent image labels are spaced, so
-  `![...](...) Dots only Google original` reads correctly.
-- Code fences carry their language. It is resolved from the code element's `language-*` or `lang-*`
-  class, the `pre` class, `data-language` on either element (Astro/Shiki, Expressive Code), or, for a
-  lone code block in a figure, the filename extension in the caption: `index.html (what most bots see)`
-  yields a `html` fence. `plaintext`, `text`, `txt`, and `plain` stay bare.
+The published package measures 365,087 packed and 1,403,094 unpacked bytes across 168 files, up from
+355,650 and 1,375,031 in 1.4.0 (about 3 and 2 percent). The growth is the cache producer record and
+the extraction passes with their documentation; nothing new enters a consumer's runtime bundle. The
+unpacked ceiling moves from 1,380,000 to 1,420,000 bytes.
 
 ## 1.4.0
 
