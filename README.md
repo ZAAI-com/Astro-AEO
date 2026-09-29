@@ -659,7 +659,14 @@ keeping, and the always-dropped tags can never be reintroduced this way.
 
 Buttons (except disclosure toggles with `aria-expanded` or `aria-controls`), `svg`,
 `template`, `[hidden]`, and `[aria-hidden="true"]` elements are dropped as interface
-chrome, unless they wrap an image with alt text.
+chrome, unless they wrap an image with alt text. One exception keeps meaningful glyphs: an inline
+`aria-hidden="true"` element with no child elements, outside links, buttons, `summary`, `label`,
+`pre`, and `code`, is unwrapped to its text when that text is either a separator of at most four
+characters (arrows, middle dots and bullets, bars and slashes, dashes, guillemets and angle
+quotes, colons) with text on both sides in the same inline run, or a box-drawing tree prefix
+(such as `├──`) with text after it. A separator is padded with spaces; a tree prefix is kept
+verbatim; an arrow directly after a link stays dropped. Emoji, stars, and check marks are never
+kept, since they usually repeat visually hidden text.
 
 Figures become one image (the first described image for light/dark variants) followed by the
 caption in emphasis. Image-free charts retain readable text or their accessible label.

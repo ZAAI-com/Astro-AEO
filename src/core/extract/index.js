@@ -13,16 +13,40 @@ const KEEP_ATTRIBUTE = 'data-astro-aeo-keep';
 const CHROME_SELECTOR = 'button:not([aria-expanded]):not([aria-controls]), svg, template, [hidden], [aria-hidden="true"]';
 
 /**
- * Symbols and punctuation only, no letters or digits (for example `→`, `·`,
- * `|`, or tree prefixes such as `├──`). A hidden run of these is often a
- * meaningful separator, not decoration.
+ * Inline elements whose `aria-hidden="true"` text may be a meaningful glyph
+ * (a `→` between two values, a `·` between counts, a `├──` tree
+ * prefix) rather than decoration.
  */
-const GLYPH_ONLY = /^[\p{P}\p{S}\p{Zs}─-╿]+$/u;
-const BOX_DRAWING = /[─-╿]/u;
+const GLYPH_ELEMENTS = new Set([
+  'span', 'i', 'b', 'em', 'strong', 'small', 'abbr', 'kbd', 'sup', 'sub', 'mark', 'time', 's', 'u', 'q',
+  'cite',
+]);
 
-/** Inline elements whose block container is the first ancestor beyond them. */
-const INLINE_ANCESTORS = new Set([
-  'span', 'a', 'em', 'strong', 'b', 'i', 'code', 'small', 'mark', 'sub', 'sup', 'abbr', 'kbd', 'time',
+/** Glyphs inside these stay decorative: link arrows, button icons, code prompts. */
+const GLYPH_EXCLUDED_ANCESTORS = 'a, button, summary, label, pre, code';
+
+/**
+ * Separators worth keeping between two runs of text: arrows, middle dots and
+ * bullets, bars and slashes, dashes, guillemets and angle quotes, and colons.
+ * Emoji, stars, check marks and close glyphs are deliberately absent: they
+ * usually pair with visually hidden text that already says the same thing.
+ */
+const SEPARATOR_GLYPH =
+  /^[\u2190-\u21ff\u27f0-\u27ff\u2900-\u297f\u00b7\u2022\u2219\u22c5\u2027|\/\u00a6\u2013\u2014\u2015\u00ab\u00bb\u2039\u203a<>:]+$/u;
+const ARROW_GLYPH = /^[\u2190-\u21ff\u27f0-\u27ff\u2900-\u297f]+$/u;
+/** Box-drawing tree prefixes such as `│   ├──`. */
+const BOX_DRAWING_GLYPH = /^[\u2500-\u257f \u00a0]+$/u;
+const MAX_SEPARATOR_LENGTH = 4;
+const MAX_BOX_DRAWING_LENGTH = 64;
+/** Ordinary and no-break spaces around a glyph. */
+const GLYPH_PADDING = /^[ \t\n\r\f\u00a0]+|[ \t\n\r\f\u00a0]+$/g;
+
+/** Elements that end an inline run of text, alongside `<br>`. */
+const RUN_BOUNDARIES = new Set([
+  'address', 'article', 'aside', 'blockquote', 'br', 'caption', 'dd', 'details', 'dialog', 'div', 'dl', 'dt',
+  'fieldset', 'figcaption', 'figure', 'footer', 'form', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header',
+  'hgroup', 'hr', 'li', 'main', 'menu', 'nav', 'ol', 'p', 'pre', 'search', 'section', 'summary', 'table',
+  'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'ul',
 ]);
 
 /**
@@ -191,80 +215,138 @@ export function cleanRoot(root, { removeSelectors, keepSelectors }) {
   return removed;
 }
 
-/** @param {Element} root @returns {number} */
+/**
+ * Removes interface chrome in two passes. The first removes everything except
+ * `aria-hidden` glyph candidates, so a following Copy button or `Copied` label
+ * cannot pass for neighbouring text. The second keeps a candidate only where
+ * it reads as content and removes the rest.
+ *
+ * @param {Element} root @returns {number}
+ */
 function removeChrome(root) {
   let removed = 0;
+  /** @type {Set<Node>} */
+  const glyphs = new Set();
   for (const el of matchingElements(root, CHROME_SELECTOR)) {
     if (el === root || !el.isConnected) continue;
     // A hidden wrapper around a described image still carries content.
     if (el.localName !== 'svg' && hasDescribedImage(el)) continue;
-    if (isContentGlyph(el)) {
-      el.replaceWith(el.ownerDocument.createTextNode(el.textContent ?? ''));
+    if (isGlyphCandidate(el)) {
+      glyphs.add(el);
       continue;
     }
     el.remove();
     removed++;
   }
+  for (const node of [...glyphs]) {
+    const el = /** @type {Element} */ (node);
+    if (!el.isConnected) continue;
+    const text = keptGlyphText(el, root, glyphs);
+    if (text === undefined) {
+      el.remove();
+      removed++;
+      continue;
+    }
+    const replacement = el.ownerDocument.createTextNode(text);
+    glyphs.add(replacement);
+    el.replaceWith(replacement);
+  }
   return removed;
 }
 
 /**
- * A glyph-only `aria-hidden="true"` element can still carry reading meaning:
- * a `→` between two links, a `·` between counts, or a `├──` tree prefix.
- * Those are unwrapped to their text instead of dropped.
+ * An inline `aria-hidden="true"` element holding only a separator or a
+ * box-drawing run, outside links, controls and code.
  *
  * @param {Element} el @returns {boolean}
  */
-function isContentGlyph(el) {
-  if (!el.matches('[aria-hidden="true"]') || el.matches('[hidden]')) return false;
-  if (el.localName === 'svg' || el.children.length > 0) return false;
-  const text = (el.textContent ?? '').trim();
-  if (!text || text.length > 12 || !GLYPH_ONLY.test(text)) return false;
-  // Arrows and icons inside links or buttons stay decorative.
-  if (el.closest('a, button, summary, label')) return false;
-  if (BOX_DRAWING.test(text)) return true;
-  const scope = nearestBlock(el);
-  return hasTextOnSide(el, scope, true) && hasTextOnSide(el, scope, false);
+function isGlyphCandidate(el) {
+  if (el.getAttribute('aria-hidden') !== 'true' || el.hasAttribute('hidden')) return false;
+  if (!GLYPH_ELEMENTS.has(el.localName) || el.children.length > 0) return false;
+  if (el.closest(GLYPH_EXCLUDED_ANCESTORS)) return false;
+  const text = trimGlyph(el.textContent ?? '');
+  const length = [...text].length;
+  return (SEPARATOR_GLYPH.test(text) && length <= MAX_SEPARATOR_LENGTH)
+    || (BOX_DRAWING_GLYPH.test(text) && text.length > 0 && length <= MAX_BOX_DRAWING_LENGTH);
 }
 
 /**
- * @param {Element} el
- * @returns {Element}
- */
-function nearestBlock(el) {
-  for (let node = el.parentElement; node; node = node.parentElement) {
-    if (!INLINE_ANCESTORS.has(node.localName)) return node;
-  }
-  return el.ownerDocument.documentElement ?? el;
-}
-
-/**
- * Whether non-whitespace text inside `scope` precedes or follows `el`, by
- * walking the scope in document order and watching for the crossing. This
- * avoids `compareDocumentPosition`, which linkedom reports unreliably for
- * text in sibling subtrees.
+ * The text a glyph candidate is unwrapped to, or `undefined` when it is
+ * decoration. A separator needs text before and after it in the same inline
+ * run and is padded with spaces, since its spacing usually came from CSS. A
+ * box-drawing prefix needs text after it and is kept verbatim. An arrow right
+ * after a link decorates that link.
  *
  * @param {Element} el
- * @param {Element} scope
- * @param {boolean} before  True for preceding text, false for following text.
- * @returns {boolean}
+ * @param {Element} root
+ * @param {Set<Node>} glyphs  Candidates and unwrapped glyphs, never neighbour text.
+ * @returns {string | undefined}
  */
-function hasTextOnSide(el, scope, before) {
-  let crossed = false;
-  /** @param {Element} parent */
-  const visit = (parent) => {
-    for (const child of parent.childNodes) {
-      if (child === el) {
-        crossed = true;
-      } else if (child.nodeType === 3) {
-        if ((child.nodeValue ?? '').trim() && crossed !== before) return true;
-      } else if (child.nodeType === 1 && !el.contains(child) && visit(/** @type {Element} */ (child))) {
-        return true;
-      }
+function keptGlyphText(el, root, glyphs) {
+  const raw = el.textContent ?? '';
+  const text = trimGlyph(raw);
+  const after = runNeighbourText(el, root, glyphs, true);
+  if (!after) return undefined;
+  if (BOX_DRAWING_GLYPH.test(text)) return raw;
+  const before = runNeighbourText(el, root, glyphs, false);
+  if (!before) return undefined;
+  if (ARROW_GLYPH.test(text) && before.parentElement?.closest('a')) return undefined;
+  return ` ${text} `;
+}
+
+/** @param {string} text @returns {string} */
+function trimGlyph(text) {
+  return text.replace(GLYPH_PADDING, '');
+}
+
+/**
+ * The nearest non-whitespace text node before or after `el` in its inline
+ * run: a sibling walk that climbs only through inline parents and stops at a
+ * block element or `<br>`. Document order comes from the sibling links alone,
+ * since linkedom's `compareDocumentPosition` compares depth, not position.
+ *
+ * @param {Element} el
+ * @param {Element} root
+ * @param {Set<Node>} glyphs
+ * @param {boolean} forward
+ * @returns {Text | undefined}
+ */
+function runNeighbourText(el, root, glyphs, forward) {
+  for (let node = /** @type {Element} */ (el); node !== root; ) {
+    for (let sibling = forward ? node.nextSibling : node.previousSibling; sibling;
+      sibling = forward ? sibling.nextSibling : sibling.previousSibling) {
+      const found = runText(sibling, glyphs, forward);
+      if (found === null) return undefined;
+      if (found) return found;
     }
-    return false;
-  };
-  return visit(scope);
+    const parent = node.parentElement;
+    if (!parent || RUN_BOUNDARIES.has(parent.localName)) return undefined;
+    node = parent;
+  }
+  return undefined;
+}
+
+/**
+ * The first non-whitespace text node inside `node` in walk order, `null` when
+ * the run ends inside it, or `undefined` when it holds no text.
+ *
+ * @param {Node} node
+ * @param {Set<Node>} glyphs
+ * @param {boolean} forward
+ * @returns {Text | null | undefined}
+ */
+function runText(node, glyphs, forward) {
+  if (glyphs.has(node)) return undefined;
+  if (node.nodeType === 3) return trimGlyph(node.nodeValue ?? '') ? /** @type {Text} */ (node) : undefined;
+  if (node.nodeType !== 1) return undefined;
+  if (RUN_BOUNDARIES.has(/** @type {Element} */ (node).localName)) return null;
+  const children = [...node.childNodes];
+  if (!forward) children.reverse();
+  for (const child of children) {
+    const found = runText(child, glyphs, forward);
+    if (found !== undefined) return found;
+  }
+  return undefined;
 }
 
 /** @param {Element} el @returns {boolean} */

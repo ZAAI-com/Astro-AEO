@@ -390,32 +390,81 @@ describe('conversion fidelity', () => {
     expect(md).toBe('Path\n\n![Screenshot](/shot.png)');
   });
 
-  test('meaningful aria-hidden glyphs are unwrapped to their text', () => {
-    const md = convert(
-      '<main><p><a href="/a">github.com</a> <span aria-hidden="true">→</span> <a href="/b">github.com@yourdomain.com</a></p>' +
-      '<p>1 user <span aria-hidden="true">·</span> 2 orgs</p>' +
-      '<pre><code>git-same/\n<span aria-hidden="true" class="whitespace-pre">│   ├── </span>docs/</code></pre></main>',
-    );
-    expect(md).toContain('github.com](/a) → [github.com@yourdomain.com](/b)');
-    expect(md).toContain('1 user · 2 orgs');
-    expect(md).toContain('│   ├── docs/');
-  });
+  describe('aria-hidden glyphs', () => {
+    const hidden = (glyph, extra = '') => `<span${extra} aria-hidden="true">${glyph}</span>`;
+    const folder = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 3h14"></path></svg>';
+    const treeRow = (prefix, name) =>
+      `<li class="flex"> ${hidden(prefix, ' class="whitespace-pre"')} ${folder} <span class="truncate"> ${name}\n</span> </li>`;
 
-  test('decorative aria-hidden glyphs are still dropped', () => {
-    const md = convert(
-      '<main><p><a href="/docs">Read the docs <span aria-hidden="true">→</span></a></p>' +
-      '<p><span aria-hidden="true">Copied</span> after copying</p>' +
-      '<p>Trailing <span aria-hidden="true">|</span></p>' +
-      '<h2>Heading<a aria-hidden="true" href="#heading">#</a></h2></main>',
-    );
-    expect(md).toContain('[Read the docs](/docs)');
-    expect(md).toContain('after copying');
-    expect(md).toContain('Trailing\n');
-    expect(md).toContain('## Heading');
-    expect(md).not.toContain('→');
-    expect(md).not.toContain('Copied');
-    expect(md).not.toContain('|');
-    expect(md).not.toContain('#heading');
+    test('an arrow between two values in one row is kept', () => {
+      const md = convert(
+        '<main><ul role="list"><li class="flex flex-wrap"> <span class="font-medium">github.com</span> ' +
+        `${hidden('→', ' class="text-gray-400"')} <span class="font-mono">github.com@yourdomain.com</span> ` +
+        '<span class="ml-auto"> Catch-All </span> </li></ul></main>',
+      );
+      expect(md).toBe('-   github.com → github.com@yourdomain.com Catch-All');
+    });
+
+    test('separators between spans are kept and spaced', () => {
+      const md = convert(
+        `<main><div class="flex"> <span>1 user</span> ${hidden('·')} <span>2 orgs</span> ${hidden('·')} ` +
+        '<span>7 repos</span> </div>' +
+        `<p class="mt-8">\nOpen source${hidden('·', ' class="mx-2"')}Privacy-first\n</p></main>`,
+      );
+      expect(md).toBe('1 user · 2 orgs · 7 repos\n\nOpen source · Privacy-first');
+    });
+
+    test('a separator padded with no-break spaces is kept', () => {
+      const md = convert(`<main><p><span>Before</span>${hidden('\u00a0\u2014\u00a0')}<span>After</span></p></main>`);
+      expect(md).toBe('Before \u2014 After');
+    });
+
+    test('tree prefixes are kept at any depth, across the icon before the name', () => {
+      const md = convert(
+        '<main><ul>' +
+        treeRow('├── ', 'manuelgruber/') +
+        treeRow('│   ├── ', '.github/') +
+        treeRow('│   │   │   └── ', 'deep/') +
+        treeRow('    └── ', 'example.ai/') +
+        '</ul></main>',
+      );
+      expect(md).toBe(
+        '-   ├── manuelgruber/\n-   │ ├── .github/\n' +
+        '-   │ │ │ └── deep/\n-   └── example.ai/',
+      );
+    });
+
+    test('unwrapped glyphs are not counted as removed nodes', () => {
+      const { diagnostics } = extractMarkdown(
+        doc(page(`<main><p><span>a</span> ${hidden('·')} <span>b</span> ${hidden('·')}</p></main>`)),
+        DEFAULT_EXTRACTION,
+        td,
+      );
+      expect(diagnostics.removedNodes).toBe(1);
+    });
+
+    test.each([
+      ['a link arrow', `<p><a href="/docs">Read the docs ${hidden('→')}</a></p>`, '[Read the docs](/docs)'],
+      ['a separator list item in a breadcrumb',
+        '<ol><li><a href="/">Home</a></li><li aria-hidden="true">/</li><li><a href="/docs">Docs</a></li></ol>',
+        '1.  [Home](/)\n2.  [Docs](/docs)'],
+      ['a separator followed only by a Copy button',
+        `<p>Note ${hidden('→')}<button>Copy</button></p>`, 'Note'],
+      ['a Copied label', `<p>Run it <span aria-hidden="true">Copied</span></p>`, 'Run it'],
+      ['a heading anchor', '<h2>Title <a href="#title" aria-hidden="true">#</a></h2>', '## Title'],
+      ['shell prompts in a code block',
+        `<pre><code>${hidden('$ ')}npm i\n${hidden('$ ')}npm test</code></pre>`, '```\nnpm i\nnpm test\n```'],
+      ['an emoji check mark with a variation selector',
+        `<p>Done ${hidden('✔️')} ok</p>`, 'Done ok'],
+      ['a glyph at the end of a block', `<p><span>Trailing</span> ${hidden('|')}</p><p>Next</p>`, 'Trailing\n\nNext'],
+      ['an arrow between two links',
+        `<div><a href="/a">GitHub</a>${hidden('→')}<a href="/b">npm</a>${hidden('→')}</div>`,
+        '[GitHub](/a)[npm](/b)'],
+      ['a box-drawing divider with nothing after it',
+        `<p>A</p><div>${hidden('────────')}</div><p>B</p>`, 'A\n\nB'],
+    ])('%s is dropped', (_name, body, expected) => {
+      expect(convert(`<main>${body}</main>`)).toBe(expected);
+    });
   });
 
   test('disclosure toggles keep their label', () => {
