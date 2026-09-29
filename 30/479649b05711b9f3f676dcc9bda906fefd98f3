@@ -1,0 +1,35 @@
+AGENTS.md
+  s_cdc4a3137771a2::t_b95b91fcc261c7 182-184
+test/setup/clear-processing-caches.js
+  s_cdc4a3137771a2::t_6cf3c8ef1329e6 1-29
+vitest.adapters-build.config.js
+  s_cdc4a3137771a2::t_2d2412da44fbde 7
+vitest.adapters-runtime.config.js
+  s_cdc4a3137771a2::t_cb4f04b5d9746c 16
+vitest.config.js
+  s_cdc4a3137771a2::t_ad87cb3308a70a 5
+vitest.dev.config.js
+  s_cdc4a3137771a2::t_ef5b115f0c1778 7
+vitest.edge.config.js
+  s_cdc4a3137771a2::t_34c5b2abea91b5 8
+vitest.recipes.config.js
+  s_cdc4a3137771a2::t_0446ca75fc8a55 6
+vitest.ssr.config.js
+  s_cdc4a3137771a2::t_88abf2fa1f1d62 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "30479649b05711b9f3f676dcc9bda906fefd98f3",
+  "prompts": {},
+  "sessions": {
+    "s_cdc4a3137771a2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6ea4cf9a-5536-4107-8842-8296dd28e6bf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
