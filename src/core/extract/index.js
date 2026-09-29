@@ -58,6 +58,13 @@ const RAW_HTML_ATTRIBUTES = new Set([
   'aria-label', 'poster', 'type',
 ]);
 
+/**
+ * Container blocks flattened inside a caption or a definition term, so the
+ * emphasis or bold run built around them stays on one line. Lists, code,
+ * tables and rules keep their own Turndown rules and stay blocks.
+ */
+const INLINE_BLOCKS = 'address, article, aside, blockquote, div, footer, h1, h2, h3, h4, h5, h6, header, hgroup, p, section';
+
 /** Cell content a GFM pipe table cannot represent on one line. */
 const TABLE_BLOCK_CONTENT = 'p, ul, ol, pre, blockquote, table, h1, h2, h3, h4, h5, h6, hr, dl, figure';
 
@@ -397,17 +404,29 @@ function normalizeFigures(root) {
       const paragraph = document.createElement('p');
       const emphasis = document.createElement('em');
       emphasis.innerHTML = caption.innerHTML;
-      for (const block of [...emphasis.querySelectorAll('h1, h2, h3, h4, h5, h6, p, div')]) {
-        block.before(document.createTextNode(' '));
-        block.after(document.createTextNode(' '));
-        replaceTag(block, 'span');
-      }
+      inlineBlocks(emphasis);
       paragraph.appendChild(emphasis);
       if ((caption.textContent ?? '').trim()) caption.replaceWith(paragraph);
       else caption.remove();
     }
     if (figure === root) continue;
     replaceTag(figure, 'div');
+  }
+}
+
+/**
+ * Surround block-level children with spaces and flatten them to inline spans,
+ * so one Markdown emphasis or bold run survives conversion instead of being
+ * split by Turndown's blank-line replacement for blocks.
+ *
+ * @param {Element} el
+ */
+function inlineBlocks(el) {
+  const document = el.ownerDocument;
+  for (const block of [...el.querySelectorAll(INLINE_BLOCKS)]) {
+    block.before(document.createTextNode(' '));
+    block.after(document.createTextNode(' '));
+    replaceTag(block, 'span');
   }
 }
 
@@ -424,6 +443,9 @@ function normalizeDefinitionLists(root) {
       const paragraph = document.createElement('p');
       const strong = document.createElement('strong');
       strong.innerHTML = term.innerHTML;
+      inlineBlocks(strong);
+      // A term that already bolds its text would otherwise give `****Term****`.
+      for (const inner of [...strong.querySelectorAll('strong, b')]) inner.replaceWith(...inner.childNodes);
       paragraph.appendChild(strong);
       term.replaceWith(paragraph);
     }

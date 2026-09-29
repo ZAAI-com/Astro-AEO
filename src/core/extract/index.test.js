@@ -376,6 +376,25 @@ describe('conversion fidelity', () => {
     expect(md).toBe('**Term**\n\nDefinition [link](/x).\n\n**Other**\n\nOne.\n\nTwo.');
   });
 
+  describe('definition terms with block markup stay one bold run', () => {
+    test.each([
+      ['an icon wrapper whose svg is dropped',
+        '<dt class="font-semibold"> <div class="absolute flex size-10 bg-accent"> ' +
+        '<svg viewBox="0 0 24 24" aria-hidden="true" class="size-6"> <path d="M3 12h3l3-9 4 18 3-9h5"></path> </svg> ' +
+        '</div> Track Data Leaks </dt><dd>Instantly know.</dd>',
+        '**Track Data Leaks**\n\nInstantly know.'],
+      ['a heading', '<dt><h3>Title</h3></dt><dd>d</dd>', '**Title**\n\nd'],
+      ['a header block before the label', '<dt><header><span>Kicker</span></header>Label</dt><dd>d</dd>',
+        '**Kicker Label**\n\nd'],
+      ['an icon image', '<dt><div><img src="/i.png" alt="Icon"></div>Label</dt><dd>d</dd>',
+        '**![Icon](/i.png) Label**\n\nd'],
+      ['a term that is already bold', '<dt><strong>Term</strong></dt><dd>d</dd>', '**Term**\n\nd'],
+      ['a partly bold term', '<dt><b>Term</b> extra</dt><dd>d</dd>', '**Term extra**\n\nd'],
+    ])('%s', (_name, body, expected) => {
+      expect(convert(`<main><dl>${body}</dl></main>`)).toBe(expected);
+    });
+  });
+
   test('time, address, and citations convert to their text', () => {
     const md = convert(
       '<main><p>Published <time datetime="2026-08-05">today</time>.</p><address>Berlin</address><p><cite>Primary source</cite></p></main>',
