@@ -1,0 +1,166 @@
+recipes/emdash-portfolio/src/pages/rss.xml.ts
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-20
+recipes/emdash-portfolio/src/layouts/Base.astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-40
+recipes/emdash-blog/README.md
+  s_bf091e8255d9a6::t_c20ac8d2a4e9d7 1-13,18-45
+  s_bf091e8255d9a6::t_a8cfdc2873c38a 14-17
+recipes/emdash-starter/src/pages/[slug].astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-20
+recipes/emdash-starter/src/pages/posts/index.astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-16
+recipes/emdash-starter/src/layouts/Base.astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-38
+recipes/emdash-starter/.gitignore
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-12
+recipes/emdash-blog/src/pages/search.astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-13
+recipes/emdash-blog/src/pages/rss.xml.ts
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-20
+recipes/emdash-marketing/src/pages/404.astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-8
+recipes/emdash-starter/src/pages/tag/[slug].astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-21
+recipes/emdash-starter/astro.config.mjs
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-23
+recipes/emdash-portfolio/src/pages/work/[slug].astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-24
+recipes/emdash-portfolio/package.json
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-26
+recipes/emdash-blog/package.json
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-26
+recipes/emdash-marketing/README.md
+  s_bf091e8255d9a6::t_c20ac8d2a4e9d7 1-39
+recipes/emdash-marketing/astro.config.mjs
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-22
+recipes/emdash-marketing/package.json
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-26
+recipes/emdash-portfolio/README.md
+  s_bf091e8255d9a6::t_c20ac8d2a4e9d7 1-40
+recipes/emdash-blog/src/pages/posts/index.astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-16
+recipes/emdash/src/pages/404.astro
+  s_bf091e8255d9a6::t_918e72e844d140 1-8
+recipes/emdash/src/pages/blog/index.astro
+  s_bf091e8255d9a6::t_918e72e844d140 1-17
+recipes/emdash/src/post-path.js
+  s_bf091e8255d9a6::t_918e72e844d140 1-8
+recipes/emdash-portfolio/src/pages/about.astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-14
+recipes/emdash-marketing/src/pages/contact.astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-11
+recipes/emdash/src/pages/index.astro
+  s_bf091e8255d9a6::t_918e72e844d140 20
+recipes/emdash-marketing/src/components/MarketingBlocks.astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-21,24-25,27-32
+  s_bf091e8255d9a6::t_acbfc8e84c9872 22-23,26
+recipes/emdash-portfolio/.gitignore
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-12
+recipes/emdash-blog/src/live.config.js
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-7
+recipes/emdash-portfolio/seed/seed.json
+  s_bf091e8255d9a6::t_0c3f31bb93799e 1-204,206-477,479-495
+  s_bf091e8255d9a6::t_78ed65cf2a4563 205,478
+recipes/emdash/src/pages/customers/index.astro
+  s_bf091e8255d9a6::t_918e72e844d140 1-16
+recipes/emdash-portfolio/src/pages/index.astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-15
+recipes/emdash-portfolio/src/pages/work/index.astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-17
+recipes/emdash-blog/src/pages/pages/[slug].astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-20
+recipes/emdash/src/pages/legal/[slug].astro
+  s_bf091e8255d9a6::t_09589fd31a31e7 1-14
+test/recipes/recipes.test.js
+  s_bf091e8255d9a6::t_6f5bc826251a42 11-14,17-32,40
+recipes/emdash-marketing/src/layouts/Base.astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-38
+recipes/emdash-blog/src/pages/category/[slug].astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-21
+recipes/emdash-starter/src/pages/category/[slug].astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-21
+recipes/emdash-portfolio/astro.config.mjs
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-22
+recipes/emdash-blog/astro.config.mjs
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-25
+recipes/README.md
+  s_bf091e8255d9a6::t_8631d5a992d453 15-23
+recipes/emdash-starter/seed/seed.json
+  s_bf091e8255d9a6::t_0c3f31bb93799e 1-256
+recipes/emdash-starter/package.json
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-26
+recipes/emdash-portfolio/src/pages/contact.astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-7
+recipes/emdash-starter/README.md
+  s_bf091e8255d9a6::t_a8cfdc2873c38a 14-16
+  s_bf091e8255d9a6::t_c20ac8d2a4e9d7 1-13,17-43
+recipes/emdash/README.md
+  s_bf091e8255d9a6::t_a32879d84b11b4 1-15,19-26,30,46,49-51
+recipes/emdash/package.json
+  s_bf091e8255d9a6::t_918e72e844d140 15,21
+recipes/emdash-starter/src/pages/posts/[slug].astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-31
+recipes/emdash-blog/src/pages/404.astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-8
+recipes/emdash/src/pages/customers/[slug].astro
+  s_bf091e8255d9a6::t_6c9994033cda45 1-21
+recipes/emdash-portfolio/src/live.config.js
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-7
+recipes/emdash-marketing/seed/seed.json
+  s_bf091e8255d9a6::t_0c3f31bb93799e 1-688
+recipes/emdash-blog/.gitignore
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-12
+recipes/emdash/src/pages/blog/[year]/[month]/[slug].astro
+  s_bf091e8255d9a6::t_918e72e844d140 1-35
+recipes/emdash-blog/src/pages/posts/[slug].astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-31
+recipes/emdash/astro.config.mjs
+  s_bf091e8255d9a6::t_918e72e844d140 6,16,18-25
+recipes/emdash-blog/seed/seed.json
+  s_bf091e8255d9a6::t_0c3f31bb93799e 1-946
+recipes/emdash/src/layouts/Base.astro
+  s_bf091e8255d9a6::t_918e72e844d140 26,32-34
+recipes/emdash-starter/src/pages/404.astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-8
+recipes/emdash-blog/src/pages/index.astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-14
+recipes/emdash-marketing/src/pages/index.astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-11
+test/recipes/emdash.test.js
+  s_bf091e8255d9a6::t_09c17dc4451952 3-5,7,11-14,18-21,23-59,61-94,105-108,117-131,133,135,137-159,161-186,189-192,195-196,199-201,204-205,207,210-225,231-235,238-239,242,245-246,249-269
+  s_bf091e8255d9a6::t_acbfc8e84c9872 60
+recipes/emdash-blog/src/pages/tag/[slug].astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-21
+recipes/emdash-portfolio/src/pages/404.astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-8
+recipes/emdash-marketing/.gitignore
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-12
+recipes/emdash-marketing/src/live.config.js
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-7
+recipes/emdash-starter/src/live.config.js
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-7
+recipes/emdash-starter/src/pages/index.astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-10
+recipes/emdash/seed/seed.json
+  s_bf091e8255d9a6::t_280fc7dd1b8fc1 7,16-61,66-73,76-94,98-108,111-129,133-141,145-148,150-154,164-166,168-175,183-186,188-199,204-299,315-320,329-334,343-348,354-360,377-382,391-396,402-407,424-429,438-443,449-454,471-476,483,498-503,509-512,529-534,540-543,560-565,571-573,577,579-581,583-584,587,591-596,599
+recipes/emdash-marketing/src/pages/pricing.astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-11
+recipes/emdash-blog/src/layouts/Base.astro
+  s_bf091e8255d9a6::t_4da2784f84bdd4 1-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "17184ba021cc2f6263f96cf0cf49f77772d45f35",
+  "prompts": {},
+  "sessions": {
+    "s_bf091e8255d9a6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b261f0a-3568-4193-998b-f27ca30a9a4a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
