@@ -1,0 +1,23 @@
+.changeset/multiline-starlight-tags.md
+  s_357fa713a0c925::t_f9c38a7a12f09d 1-10
+src/starlight/markdown.js
+  s_357fa713a0c925::t_dbda63897dfbaf 29-30,70-80,134,138-160
+src/starlight/markdown.test.js
+  s_357fa713a0c925::t_347fd9a4eb207e 59-82,91-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2ff2646cf5f82690f371a54f485bf255dc878c16",
+  "prompts": {},
+  "sessions": {
+    "s_357fa713a0c925": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "18bc1bc1-7b70-497c-8df9-038bfe0acdf2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
