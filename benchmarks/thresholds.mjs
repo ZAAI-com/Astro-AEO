@@ -23,7 +23,7 @@ export const RELEASE_THRESHOLDS = Object.freeze({
   //
   // 1.5 adds the producer-versioned cache state and the Markdown fidelity passes
   // (glyph unwrap, inline block flattening, code-fence language resolution) with
-  // their colocated tests. 1.5.0 measured 365,087 packed and 1,403,094 unpacked
+  // their colocated tests. 1.5.0 measured 365,548 packed and 1,404,823 unpacked
   // across 168 files, past the 1.4 unpacked ceiling, so it moves once here. The
   // growth is correctness work in extraction and build caching, none of it in a
   // consumer's runtime bundle unless imported, which the limits below still hold.

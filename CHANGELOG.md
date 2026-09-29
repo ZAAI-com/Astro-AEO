@@ -76,7 +76,7 @@ languages on code fences. No configuration key changes.
 
 ### Package size
 
-The published package measures 365,087 packed and 1,403,094 unpacked bytes across 168 files, up from
+The published package measures 365,548 packed and 1,404,823 unpacked bytes across 168 files, up from
 355,650 and 1,375,031 in 1.4.0 (about 3 and 2 percent). The growth is the cache producer record and
 the extraction passes with their documentation; nothing new enters a consumer's runtime bundle. The
 unpacked ceiling moves from 1,380,000 to 1,420,000 bytes.
