@@ -688,6 +688,27 @@ describe('request-time corpus limits', () => {
   );
 });
 
+describe('request-time corpus manifest', () => {
+  test('lists the .md companion, token count and hash the middleware serves', async () => {
+    const requestRuntime = runtime(['/guide', '/private']);
+    requestRuntime.config = resolveConfig({ corpus: { manifest: { enabled: true } } });
+    const fetcher = async (pathname) => loaded(pathname === '/private'
+      ? html('Private').replace('</head>', '<meta name="aeo" content="no-dotmd"></head>')
+      : html('Guide'));
+
+    const manifest = await serveCorpusArtifact('/llms/manifest.json', requestRuntime, fetcher);
+    const pages = JSON.parse(manifest.body).pages;
+    const guide = pages.find((page) => page.id === '/guide');
+    const opted = pages.find((page) => page.id === '/private');
+    expect(guide.markdownUrl).toBe('https://example.com/guide.md');
+    expect(guide.tokenCount).toEqual(expect.any(Number));
+    expect(guide.hash).toMatch(/^sha256:/);
+    expect(opted).toMatchObject({ markdownUrl: null, tokenCount: null });
+    // The middleware serves the companion the manifest now lists.
+    expect(await serveMarkdown('/guide.md', requestRuntime, fetcher)).not.toBeNull();
+  });
+});
+
 describe('locale-aware request-time corpus planning', () => {
   test('serves locale families, chunks, and the manifest from one semantic plan', async () => {
     const requestRuntime = runtime(['/en/guide', '/fr/guide'], 50);

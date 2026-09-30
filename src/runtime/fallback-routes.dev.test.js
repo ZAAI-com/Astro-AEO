@@ -227,7 +227,12 @@ describe.sequential('development artifacts survive a redirect-owned 404', () => 
 
     const manifest = await request(`${running.base}/llms/manifest.json`);
     expect(manifest.status).toBe(200);
-    expect(JSON.parse(await manifest.text())).toMatchObject({ version: expect.anything() });
+    const manifestBody = JSON.parse(await manifest.text());
+    expect(manifestBody).toMatchObject({ version: expect.anything() });
+    // Development collects every page on demand, and the middleware serves its companion.
+    const about = manifestBody.pages.find((entry) => entry.id === '/about');
+    expect(about.markdownUrl).toMatch(/\/about\.md$/);
+    expect(about.tokenCount).toEqual(expect.any(Number));
 
     const robots = await request(`${running.base}/robots.txt`);
     expect(robots.status).toBe(200);
