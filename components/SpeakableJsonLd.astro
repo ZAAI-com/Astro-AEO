@@ -1,5 +1,8 @@
 ---
 import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
+import { warnGoogleSchema } from '../src/core/schema-google.js';
+
+type Props = import('./index.js').SpeakableJsonLdProps;
 import { createWebPage } from '../src/schema.js';
 
 /**
@@ -21,6 +24,7 @@ const jsonLd = {
     },
   }),
 };
+if (true) warnGoogleSchema(jsonLd, Astro.props.eligibility ?? 'schema', { documentUrl: Astro.url.href, explicitType: 'WebPage' });
 ---
 
 <script type="application/ld+json" set:html={serializeJsonLd(jsonLd)} />

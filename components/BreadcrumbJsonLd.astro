@@ -1,5 +1,8 @@
 ---
 import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
+import { warnGoogleSchema } from '../src/core/schema-google.js';
+
+type Props = import('./index.js').BreadcrumbJsonLdProps;
 import { createBreadcrumbList } from '../src/schema.js';
 
 /**
@@ -49,6 +52,7 @@ const jsonLd = {
     })),
   }),
 };
+if (crumbs.length > 0) warnGoogleSchema(jsonLd, Astro.props.eligibility ?? 'schema', { documentUrl: Astro.url.href, explicitType: 'BreadcrumbList' });
 ---
 
 {crumbs.length > 0 && <script type="application/ld+json" set:html={serializeJsonLd(jsonLd)} />}

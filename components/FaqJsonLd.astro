@@ -1,6 +1,9 @@
 ---
 import { resolveEntityId } from '../src/lib/entity-id.js';
 import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
+import { warnGoogleSchema } from '../src/core/schema-google.js';
+
+type Props = import('./index.js').FaqJsonLdProps;
 import { createFAQPage } from '../src/schema.js';
 
 /**
@@ -32,6 +35,7 @@ const jsonLd = {
     })),
   }),
 };
+if (items.length > 0) warnGoogleSchema(jsonLd, Astro.props.eligibility ?? 'schema', { documentUrl: Astro.url.href, explicitType: 'FAQPage' });
 ---
 
 {items.length > 0 && <script type="application/ld+json" set:html={serializeJsonLd(jsonLd)} />}

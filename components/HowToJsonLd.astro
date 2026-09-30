@@ -1,5 +1,8 @@
 ---
 import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
+import { warnGoogleSchema } from '../src/core/schema-google.js';
+
+type Props = import('./index.js').HowToJsonLdProps;
 import { createHowTo } from '../src/schema.js';
 
 /**
@@ -24,6 +27,7 @@ const jsonLd = {
     })),
   }),
 };
+if (name && steps.length > 0) warnGoogleSchema(jsonLd, Astro.props.eligibility ?? 'schema', { documentUrl: Astro.url.href, explicitType: 'HowTo' });
 ---
 
 {name && steps.length > 0 && <script type="application/ld+json" set:html={serializeJsonLd(jsonLd)} />}

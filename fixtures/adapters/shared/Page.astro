@@ -1,4 +1,6 @@
 ---
+import { ProductJsonLd } from '../../../components/index.js';
+
 interface Props {
   page: 'home' | 'about' | 'protected' | 'dynamic';
 }
@@ -21,6 +23,7 @@ const query = Astro.url.searchParams.get('value');
     <meta charset="utf-8" />
     <meta name="description" content={description} />
     <title>{title}</title>
+    <ProductJsonLd entity={{ name: 'Adapter tool', offers: { '@type': 'Offer', price: 0 } }} eligibility="google" />
   </head>
   <body>
     <nav>Fixture navigation</nav>

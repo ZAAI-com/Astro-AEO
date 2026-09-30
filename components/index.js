@@ -1,3 +1,11 @@
+export { default as ProductJsonLd } from './ProductJsonLd.astro';
+export { default as SoftwareApplicationJsonLd } from './SoftwareApplicationJsonLd.astro';
+export { default as ReviewJsonLd } from './ReviewJsonLd.astro';
+export { default as ItemListJsonLd } from './ItemListJsonLd.astro';
+export { default as DatasetJsonLd } from './DatasetJsonLd.astro';
+export { default as ProfilePageJsonLd } from './ProfilePageJsonLd.astro';
+export { default as ServiceJsonLd } from './ServiceJsonLd.astro';
+export { default as LocalBusinessJsonLd } from './LocalBusinessJsonLd.astro';
 export { default as FaqJsonLd } from './FaqJsonLd.astro';
 export { default as HowToJsonLd } from './HowToJsonLd.astro';
 export { default as BreadcrumbJsonLd } from './BreadcrumbJsonLd.astro';

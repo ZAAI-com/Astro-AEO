@@ -1,0 +1,12 @@
+---
+import { createEntity } from '../src/schema.js';
+import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
+import { warnGoogleSchema } from '../src/core/schema-google.js';
+
+type Props = import('./index.js').LocalBusinessJsonLdProps;
+const { entity, eligibility = 'schema' } = Astro.props;
+const jsonLd = { '@context': 'https://schema.org', ...createEntity({ ...entity, '@type': 'LocalBusiness' }) };
+warnGoogleSchema(jsonLd, eligibility, { documentUrl: Astro.url.href, explicitType: 'LocalBusiness' });
+---
+
+<script type="application/ld+json" set:html={serializeJsonLd(jsonLd)} />
