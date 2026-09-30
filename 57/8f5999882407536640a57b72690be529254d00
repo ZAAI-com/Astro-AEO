@@ -1,0 +1,26 @@
+cli/audit-cli.test.js
+  s_bc21be4b6c0c80::t_79a54fb1a2b053 2,26
+  s_bc21be4b6c0c80::t_28a7a445081437 22-25,27-39
+cli/validate.js
+  s_bc21be4b6c0c80::t_da98d3ff6334e8 400-420,432-436
+cli/validate.test.js
+  s_bc21be4b6c0c80::t_28a7a445081437 11-12,118-151
+.changeset/content-signal-robots-check.md
+  s_bc21be4b6c0c80::t_1b8f02a9cca7f7 1-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "578f5999882407536640a57b72690be529254d00",
+  "prompts": {},
+  "sessions": {
+    "s_bc21be4b6c0c80": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a99e2e09-6980-473c-8022-4d8c25243f41",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
