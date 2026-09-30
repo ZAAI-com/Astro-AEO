@@ -19,6 +19,19 @@ afterEach(() => {
 const audit = (args, cwd) => spawnSync(process.execPath, [BIN, 'audit', ...args], { encoding: 'utf8', ...(cwd ? { cwd } : {}) });
 
 describe('audit CLI', () => {
+  test.each([
+    ['dist-valid', VALID, []],
+    ['dist-valid --fail-on warning', VALID, ['--fail-on', 'warning']],
+    ['dist-broken', BROKEN, []],
+    ['dist-broken --fail-on none', BROKEN, ['--fail-on', 'none']],
+  ])('a junit report of %s fails a case exactly when the audit exits 1', (_name, target, flags) => {
+    const result = audit([target, '--format', 'junit', ...flags]);
+    expect([0, 1]).toContain(result.status);
+    const failing = /<failure /.test(result.stdout);
+    expect(failing).toBe(result.status === 1);
+    expect(/<testsuites [^>]*failures="0"/.test(result.stdout)).toBe(result.status === 0);
+  });
+
   test('validate --strict and audit accept the robots.txt Astro-AEO writes with Content Signals', () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), 'astro-aeo-content-signals-')));
     roots.push(root);

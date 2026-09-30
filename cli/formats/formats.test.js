@@ -92,14 +92,43 @@ describe('audit report formats', () => {
     expect(renderAuditReport(percent, 'github')).toContain('100%250A::error::x');
   });
 
-  it('junit is well formed, fails errors and warnings, and passes notes', () => {
+  it('junit is well formed and fails only findings at or above the default error gate', () => {
     const output = renderAuditReport(report, 'junit');
-    expect(output).toContain('<testsuites name="astro-aeo audit" tests="3" failures="2">');
+    expect(output).toContain('<testsuites name="astro-aeo audit" tests="3" failures="1">');
     expect(output).toContain('&lt;/td&gt;&lt;script&gt;');
-    expect(output.match(/<failure /g)).toHaveLength(2);
-    expect(output.match(/<system-out>/g)).toHaveLength(1);
+    expect(output.match(/<failure /g)).toHaveLength(1);
+    expect(output).toContain('<failure type="error" message="bad id"/>');
+    expect(output.match(/<system-out>/g)).toHaveLength(2);
+    expect(output).toContain('<system-out>warning: &lt;/td&gt;');
+    expect(output).toContain('<system-out>skipped</system-out>');
     expect(output.match(/<testsuite /g)?.length).toBe(output.match(/<\/testsuite>/g)?.length);
     const attributes = output.match(/="[^"]*"/g) ?? [];
     expect(attributes.every((attribute) => !/[<>]/.test(attribute))).toBe(true);
+  });
+
+  it.each(/** @type {const} */ ([['warning', 2], ['error', 1], ['none', 0]]))(
+    'junit under --fail-on %s fails %i of the findings',
+    (failOn, failing) => {
+      const output = renderAuditReport(report, 'junit', { failOn });
+      expect(output).toContain(`<testsuites name="astro-aeo audit" tests="3" failures="${failing}">`);
+      expect(output.match(/<failure /g) ?? []).toHaveLength(failing);
+      const suiteFailures = [...output.matchAll(/<testsuite [^>]*failures="(\d+)"/g)]
+        .reduce((sum, match) => sum + Number(match[1]), 0);
+      expect(suiteFailures).toBe(failing);
+    },
+  );
+
+  it('junit passes a warning-only report under the default gate', () => {
+    const warningOnly = createAuditReport({
+      toolVersion: '1.4.0',
+      target: { kind: 'dist', value: 'dist' },
+      pagesChecked: 1,
+      findings: [createFinding({ ruleId: 'orphan-md', severity: 'warning', message: 'orphan', file: '/a.md' })],
+    });
+    for (const output of [renderAuditReport(warningOnly, 'junit'), renderAuditReport(warningOnly, 'junit', { failOn: 'error' })]) {
+      expect(output).not.toContain('<failure');
+      expect(output).toContain('failures="0"');
+      expect(output).toContain('<system-out>warning: orphan</system-out>');
+    }
   });
 });

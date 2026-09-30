@@ -6,6 +6,7 @@ import { UnsafeAuditRootError, auditDist } from '../src/audit/local.js';
 import { AuditTargetError, LIVE_DEFAULTS, auditLive } from '../src/audit/live.js';
 import { createAuditReport } from '../src/audit/report.js';
 import { isAuditFormat, renderAuditReport } from './formats/index.js';
+import { failsGate } from './formats/shared.js';
 
 /** A bad command line or an unreachable target: exit status 2. */
 export class AuditInvocationError extends Error {}
@@ -102,10 +103,8 @@ export async function runAudit(args, context) {
     ...(result.scope ? { scope: result.scope } : {}),
     score: !values['no-score'],
   });
-  const output = renderAuditReport(report, format);
-  const failed = failOn === 'none'
-    ? false
-    : report.summary.errors > 0 || (failOn === 'warning' && report.summary.warnings > 0);
+  const output = renderAuditReport(report, format, { failOn });
+  const failed = report.findings.some((finding) => failsGate(finding.severity, failOn));
   if (!values.output) return { exitCode: failed ? 1 : 0, output };
   const destination = resolve(cwd, values.output);
   writeAtomically(destination, output);

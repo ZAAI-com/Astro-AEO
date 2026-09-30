@@ -1566,7 +1566,7 @@ attributes are checked both offline and live, except on noindex pages.
 |---|---|
 | `--format <name>` | `terminal` (default), `json`, `sarif`, `html`, `markdown`, `github`, or `junit`. All seven render the same report. |
 | `--output <file>` | Write the report to a file (temporary file, then rename) and print nothing to standard output. |
-| `--fail-on <level>` | `error` (default), `warning`, or `none`. |
+| `--fail-on <level>` | `error` (default), `warning`, or `none`. A `junit` report fails exactly these findings' cases; the others pass with their message in `<system-out>`. |
 | `--no-score` | Omit scores and per-finding deductions. |
 | `--base <path>` | Base path of a build directory. |
 | `--max-pages <n>` | URL only. Page cap, default `500`, or `unlimited`. |

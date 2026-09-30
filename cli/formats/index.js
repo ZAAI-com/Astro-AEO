@@ -25,7 +25,15 @@ export function isAuditFormat(format) {
   return Object.hasOwn(AUDIT_FORMATS, format);
 }
 
-/** @param {AuditReportV1} report @param {keyof typeof AUDIT_FORMATS} format */
-export function renderAuditReport(report, format) {
-  return AUDIT_FORMATS[format](report);
+/** @typedef {{ failOn?: import('./shared.js').FailOn }} AuditRenderOptions */
+
+/**
+ * @param {AuditReportV1} report
+ * @param {keyof typeof AUDIT_FORMATS} format
+ * @param {AuditRenderOptions} [options] Only `junit` reads `failOn`; pass the CLI's gate.
+ */
+export function renderAuditReport(report, format, options = {}) {
+  /** @type {(report: AuditReportV1, options: AuditRenderOptions) => string} */
+  const render = AUDIT_FORMATS[format];
+  return render(report, options);
 }

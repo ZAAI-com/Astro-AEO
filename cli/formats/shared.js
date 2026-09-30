@@ -1,6 +1,19 @@
 // @ts-check
 
 /** @typedef {import('../../src/index.js').Finding} Finding */
+/** @typedef {'error' | 'warning' | 'none'} FailOn */
+
+/**
+ * Whether a finding of this severity fails `--fail-on`. The exit status and the
+ * JUnit report both read this, so a passing audit never reports a failed case.
+ *
+ * @param {Finding['severity']} severity
+ * @param {FailOn} failOn
+ */
+export function failsGate(severity, failOn) {
+  if (failOn === 'none') return false;
+  return severity === 'error' || (failOn === 'warning' && severity === 'warning');
+}
 
 /** Where a finding points, for a human reader. @param {Finding} finding */
 export function place(finding) {
