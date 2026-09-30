@@ -1,0 +1,25 @@
+test/recipes/recipes.test.js
+  s_bc21be4b6c0c80::t_1088da2ea7c1f5 45-47,50-53
+recipes/local-business/astro.config.mjs
+  s_bc21be4b6c0c80::t_e7a69e9f9c1a12 8-10
+test/recipes/emdash.test.js
+  s_bc21be4b6c0c80::t_e7a69e9f9c1a12 221-223
+.changeset/local-business-recipe-profile.md
+  s_bc21be4b6c0c80::t_41c6bb7bb30ff7 1-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "367751982c3bea4fd3466437a6c7256c6a3d4677",
+  "prompts": {},
+  "sessions": {
+    "s_bc21be4b6c0c80": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a99e2e09-6980-473c-8022-4d8c25243f41",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
