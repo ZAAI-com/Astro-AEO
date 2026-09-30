@@ -4,9 +4,14 @@ All notable changes to this project are documented here. This project follows [S
 
 ## 1.5.2
 
-A patch release on top of 1.5.1 that keeps Markdown companions free of raw Starlight tags and
-glued table words, stops a bad `FaqJsonLd` `id` from failing a render, and types `page.locale` for
-section predicates.
+A patch release on top of 1.5.1 that keeps Markdown companions free of raw Starlight tags, raw MDX
+and glued table words, stops a bad `FaqJsonLd` `id` from failing a render, and types `page.locale`
+for section predicates. It also fixes stale titles after a RegExp `stripTitleSuffix` change, stale
+deletion by a build whose cache is read-only, and request-time manifests without companions. The
+`validate` and `audit` checks no longer fail on Astro-AEO's own Content Signals or on sibling
+JSON-LD references, JUnit reports follow `--fail-on`, the Apache snippet scopes its charset to
+`.md`, the local-business recipe emits its domain profile, and three documented guarantees are
+corrected.
 
 ### Starlight components over several lines
 
@@ -42,6 +47,97 @@ section predicates.
   an `AeoPage` with `locale?: string | null`. Predicates already received the locale at run time,
   but a `// @ts-check` or TypeScript config rejected `match: (page) => page.locale === 'en'`.
   `AeoPage` itself is unchanged.
+
+### MDX content entries
+
+- Stop publishing raw MDX from `defineAeoPage({ source })`, `contentPage()`, `contentDescriptor()`
+  and `defineContentCatalog()`. The `body` of an `.mdx` content entry, with its `import` lines and
+  JSX, used to become the page's `.md` companion and corpus text verbatim, even with
+  `astro-aeo/mdx` registered. An MDX body now goes to a registered Markdown renderer as
+  `source.body`, so `astro-aeo/mdx` converts it, and without one the page's rendered HTML is
+  extracted. Explicit `markdown` still wins, and `.md` entries are unchanged.
+
+### RegExp title suffixes and the processing cache
+
+- Key a RegExp `pages.stripTitleSuffix` by its source and flags in the processing cache. Every
+  RegExp used to reduce to `{}` in the cache key, so changing only the pattern let a warm build
+  reuse the titles the old pattern produced in `.md` frontmatter, `llms.txt`, `llms-full.txt` and
+  page records until the page HTML changed. String, array and `false` suffixes keep their existing
+  cache keys.
+
+### Stale outputs during a read-only build
+
+- Keep stale outputs when the processing cache is read-only. A build whose cache was locked by
+  another process, or whose cache state was invalid, still deleted the outputs the previous build
+  wrote and this one no longer claims, although the README promises such a build has no stale
+  deletion authority. It now keeps them, records them in the ownership ledger again, and warns
+  once, so the next build with a writable cache removes them. A disabled cache
+  (`cache.enabled: false`) still deletes stale outputs as before.
+
+### Request-time corpus manifests
+
+- List `.md` companions in corpus manifests served at request time. Under `astro dev`, or a server
+  build whose corpus the middleware owns, `/llms/manifest.json` gave every page
+  `markdownUrl: null` and no `tokenCount` or `hash`, although the middleware serves each page's
+  `.md`. Such a manifest now lists the companion URL, its token count and its hash. Pages opted
+  out with `no-dotmd`, `generateMarkdown: false` or `markdown.enabled: false` stay `null`, and
+  build manifests are unchanged.
+
+### Content Signals in `robots.txt` checks
+
+- Accept `Content-Signal` lines in the `robots.txt` checks of `astro-aeo validate` and
+  `astro-aeo audit`. With `discovery.robots.contentSignals` set, the `robots.txt` Astro-AEO writes
+  drew a `robots-unknown-line` warning for every group, so `validate --strict` and
+  `audit --fail-on warning` failed on Astro-AEO's own output. A `Content-Signal` line whose value is
+  a comma-separated list of `search`, `ai-input` and `ai-train` set to `yes` or `no`, each at most
+  once, is now accepted. A malformed one still warns with the same code and message.
+
+### JSON-LD references in `audit`
+
+- Resolve JSON-LD references across the whole page in `astro-aeo audit`. The audit validated each
+  entity on its own, so a reference to a sibling in the same `@graph`, such as a `WebPage` whose
+  `breadcrumb` points at the page's `BreadcrumbList`, drew a false `schema.unresolved-reference`
+  warning, as did a reference to an entity in another script on the page. Each entity is still
+  checked alone for errors, and references are now resolved once over every valid entity of the
+  page, as the build does. A reference nothing on the page defines still warns.
+
+### JUnit failures follow `--fail-on`
+
+- Mark a JUnit test case as failed only when its finding fails `--fail-on`, the same rule as the
+  exit status of `astro-aeo audit`. Every warning used to be a `<failure>` even when the audit
+  exited `0` under the default `--fail-on error`, and `--fail-on none` still reported every error
+  and warning as failed, so CI test reporters failed a passing run. A finding below the gate is now
+  a passed case with its severity and message in `<system-out>`, and the `failures` counts follow
+  the same rule. Under `--fail-on warning` the report is unchanged, and other formats and exit
+  codes are unchanged.
+
+### Apache snippet charset
+
+- Scope the charset in the Apache snippet that `astro-aeo fix --provider apache` prints to `.md`
+  files. The snippet paired `AddType text/markdown .md` with `AddDefaultCharset utf-8`, which adds
+  a charset only to `text/plain` and `text/html` responses: `.md` companions were still served
+  without one, and every HTML and text response on the host was relabeled as UTF-8. It now prints
+  `AddCharset utf-8 .md`, so companions are served as `text/markdown; charset=utf-8` and nothing
+  else changes. If you copied the old snippet, replace its `AddDefaultCharset utf-8` line.
+
+### Local-business recipe
+
+- Fix the `local-business` recipe so it emits the domain profile its README promises. Its config
+  set a nonexistent `discovery.domainProfile` with a `contactEmail`, which was ignored with an
+  unknown-key warning, so `/.well-known/domain-profile.json` was never written. It now uses
+  `site.profile`. The recipe suites now fail when any recipe logs an unknown config key.
+
+### Documented guarantees
+
+- The README said the static edge handlers fail closed to the HTML on a stale manifest everywhere.
+  On Vercel, where the handler rewrites to the companion, a companion that a stale manifest still
+  lists but that is gone gets the platform's `404`; the README now says so.
+- The README said request contracts run for the Vercel and Netlify handlers. The full contract runs
+  for Node, Cloudflare in workerd and Deno; the Vercel and Netlify handlers run in process against
+  a smaller set, which the README now lists.
+- `SECURITY.md` now names the development-only loopback that re-requests one page from the dev
+  server's own address after an in-process rewrite fails, and the README's cache-lock paragraph
+  says what a read-only build does with stale files and when a lock or an invalid state clears.
 
 ## 1.5.1
 

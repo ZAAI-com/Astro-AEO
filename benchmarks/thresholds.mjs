@@ -28,8 +28,15 @@ export const RELEASE_THRESHOLDS = Object.freeze({
   // ceiling, so it moves once here. The growth is correctness work in extraction
   // and build caching plus the EmDash subpath, none of it in a consumer's runtime
   // bundle unless imported, which the limits below still hold.
+  //
+  // 1.5.2 fixes ten defects from the 1.4.0 audit (cache keys, stale deletion,
+  // MDX bodies, runtime manifests, validate and audit checks, JUnit gating) and
+  // corrects the docs. It measured 383,686 packed and 1,460,846 unpacked across
+  // 174 files, 846 bytes past the 1.5 ceiling, so the unpacked ceiling moves by
+  // 10,000 bytes. The growth is README, changelog, CLI and build code, not
+  // consumer runtime bundles, which the limits below still hold.
   packagePackedBytes: 450_000,
-  packageUnpackedBytes: 1_460_000,
+  packageUnpackedBytes: 1_470_000,
   parse100KbP95Ms: 50,
   convert100KbP95Ms: 150,
   // The rich document repeats hidden glyphs, a definition term, a two-image
