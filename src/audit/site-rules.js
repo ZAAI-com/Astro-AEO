@@ -24,6 +24,8 @@ export const RAW_HTML_MARKUP_RATIO = 0.25;
 // Layout elements, and any tag still carrying presentation (classes, inline styles, data attributes).
 const RESIDUE = /<\/?(?:div|span|section|article|nav|header|footer|script|style|iframe|figure|figcaption|dl|dt|dd)\b|<[a-z][\w-]*\s[^>]*\b(?:class|style|data-[\w-]+)=/i;
 const HTML_TAG = /<\/?[a-z][a-z0-9-]*(?:\s[^<>]*?)?\s*\/?>/gi;
+// Resolved once per page, over every valid entity, never per entity.
+const UNRESOLVED_REFERENCE = 'schema.unresolved-reference';
 
 /**
  * @param {readonly PageFacts[]} pages
@@ -94,15 +96,31 @@ function auditMarkdown(page, findings) {
 }
 
 /**
- * Entities are validated one at a time, without their `@context` and without
- * strict references, exactly as the build inspects authored JSON-LD: one bad
- * third-party node must not hide the rest, and an `@id` defined on another page
- * is a legitimate reference.
+ * As the build inspects authored JSON-LD, each entity is validated alone first,
+ * without its `@context` and without strict references, so one bad third-party
+ * node cannot hide the rest. References are then resolved once across every
+ * valid entity of the page, so a sibling in the same `@graph` or another script
+ * resolves, while an `@id` defined on another page stays a legitimate reference.
  *
  * @param {PageFacts} page @param {string | undefined} siteUrl @param {Finding[]} findings
  */
 function auditStructuredData(page, siteUrl, findings) {
   const canonical = absolute(page.canonical) ?? absolute(page.url);
+  const options = {
+    ...(canonical ? { documentCanonical: canonical } : {}),
+    ...(siteUrl ? { siteUrl } : {}),
+    strictReferences: false,
+  };
+  /** @param {import('../schema.js').GraphFinding[]} graphFindings */
+  const report = (graphFindings) => {
+    for (const graphFinding of graphFindings) {
+      findings.push({
+        ...fromGraphFinding({ ...graphFinding, pathname: page.url }),
+        ...(page.file ? { file: page.file } : {}),
+      });
+    }
+  };
+  const entries = [];
   for (const body of page.jsonLd) {
     let parsed;
     try {
@@ -114,19 +132,14 @@ function auditStructuredData(page, siteUrl, findings) {
     for (const entity of graphEntities(parsed)) {
       const { '@context': _context, ...withoutContext } = entity;
       // Audited JSON is untyped by nature; the validator is what decides whether it is an entity.
-      const result = validateGraph(/** @type {any} */ ([withoutContext]), {
-        ...(canonical ? { documentCanonical: canonical } : {}),
-        ...(siteUrl ? { siteUrl } : {}),
-        strictReferences: false,
-      });
-      for (const graphFinding of result.findings) {
-        findings.push({
-          ...fromGraphFinding({ ...graphFinding, pathname: page.url }),
-          ...(page.file ? { file: page.file } : {}),
-        });
-      }
+      const result = validateGraph(/** @type {any} */ ([withoutContext]), options);
+      report(result.findings.filter((graphFinding) => graphFinding.code !== UNRESOLVED_REFERENCE));
+      if (result.valid) entries.push(...result.graph.entries);
     }
   }
+  if (entries.length === 0) return;
+  const combined = validateGraph(entries, { ...options, conflictPolicy: 'first' });
+  report(combined.findings.filter((graphFinding) => graphFinding.code === UNRESOLVED_REFERENCE));
 }
 
 /** @param {unknown} value @returns {Record<string, unknown>[]} */
