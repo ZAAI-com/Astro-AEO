@@ -33,6 +33,9 @@ export class AuditTargetError extends Error {}
  *   concurrency?: number;
  *   toolVersion?: string;
  *   fetch?: typeof globalThis.fetch;
+ *   heuristics?: boolean;
+ *   schemaTarget?: 'schema' | 'google';
+ *   now?: Date;
  * }} [options]
  * @returns {Promise<{ findings: Finding[]; pagesChecked: number; languageCount: number; scope: AuditCrawlScope }>}
  */
@@ -124,6 +127,9 @@ export async function auditLive(startUrl, options = {}) {
   }
 
   findings.push(...auditPages(pages, {
+    heuristics: options.heuristics,
+    schemaTarget: options.schemaTarget,
+    now: options.now,
     siteUrl: start.origin,
     links: {
       resolve(from, href) {

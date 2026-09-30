@@ -25,7 +25,7 @@ export class UnsafeAuditRootError extends Error {}
  * already sanitized, and nothing here reports an absolute path or a source body.
  *
  * @param {string} distDir
- * @param {{ base?: string; projectRoot?: string; siteUrl?: string }} [options]
+ * @param {{ base?: string; projectRoot?: string; siteUrl?: string; heuristics?: boolean; schemaTarget?: 'schema' | 'google'; now?: Date }} [options]
  * @returns {{ findings: Finding[]; pagesChecked: number; languageCount: number }}
  */
 export function auditDist(distDir, options = {}) {
@@ -44,6 +44,9 @@ export function auditDist(distDir, options = {}) {
   const origin = localOrigin(root, options.siteUrl);
   const pages = readPages(root);
   findings.push(...auditPages(pages, {
+    heuristics: options.heuristics,
+    schemaTarget: options.schemaTarget,
+    now: options.now,
     links: createResolver(root, base, pages, origin),
     ...(options.siteUrl ? { siteUrl: options.siteUrl } : {}),
   }));

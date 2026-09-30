@@ -1,5 +1,6 @@
 // @ts-check
 import { parseDocument } from '../core/html-document.js';
+import { extractEditorialFacts } from './editorial.js';
 
 /**
  * What the audit rules need to know about one page. The offline audit, the live
@@ -21,6 +22,7 @@ import { parseDocument } from '../core/html-document.js';
  * @property {Set<string>} anchors        Every `id` and named anchor on the page.
  * @property {string[]} jsonLd            Raw JSON-LD script bodies.
  * @property {string} [markdown]          Companion Markdown, when one exists.
+ * @property {import('./editorial.js').EditorialFacts} [editorial]
  */
 
 /**
@@ -78,6 +80,7 @@ export function extractPageFacts(html, identity) {
     links,
     anchors,
     jsonLd,
+    editorial: extractEditorialFacts(html, document),
     ...(identity.markdown === undefined ? {} : { markdown: identity.markdown }),
   };
 }

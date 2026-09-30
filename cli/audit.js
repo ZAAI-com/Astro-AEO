@@ -38,6 +38,8 @@ export async function runAudit(args, context) {
         'allow-origin': { type: 'string', multiple: true },
         timeout: { type: 'string' },
         concurrency: { type: 'string' },
+        heuristics: { type: 'boolean', default: false },
+        'schema-target': { type: 'string', default: 'schema' },
       },
     });
   } catch (error) {
@@ -55,6 +57,10 @@ export async function runAudit(args, context) {
   }
 
   const cwd = context.cwd ?? process.cwd();
+  const schemaTarget = values['schema-target'];
+  if (schemaTarget !== 'schema' && schemaTarget !== 'google') {
+    throw new AuditInvocationError('--schema-target must be schema or google');
+  }
   const target = positionals[0] ?? 'dist';
   const live = /^https?:\/\//i.test(target);
   /** @type {ReturnType<typeof auditDist> & { scope?: import('../src/index.js').AuditCrawlScope }} */
@@ -63,6 +69,8 @@ export async function runAudit(args, context) {
     if (values.base) throw new AuditInvocationError('--base applies to a build directory, not a URL');
     try {
       result = await auditLive(target, {
+        heuristics: values.heuristics,
+        schemaTarget,
         maxPages: values['max-pages'] === 'unlimited'
           ? 'unlimited'
           : integer('--max-pages', values['max-pages'], LIVE_DEFAULTS.maxPages, 1, Number.MAX_SAFE_INTEGER),
@@ -84,7 +92,7 @@ export async function runAudit(args, context) {
       throw new AuditInvocationError(`build directory not found: ${target}`);
     }
     try {
-      result = auditDist(distDir, { base: values.base });
+      result = auditDist(distDir, { base: values.base, heuristics: values.heuristics, schemaTarget });
     } catch (error) {
       if (error instanceof UnsafeAuditRootError) throw new AuditInvocationError(error.message);
       throw error;

@@ -270,6 +270,14 @@ Severity: warning. Raised by: build, offline, live.
 
 Severity: warning. Raised by: build, offline, live.
 
+### editorial-missing-attribution
+
+Severity: info. Raised by: offline, live.
+
+### editorial-review-reminder
+
+Severity: info. Raised by: offline, live.
+
 ### managed-head-missing
 
 Severity: warning. Raised by: build.
@@ -335,6 +343,30 @@ Severity: warning. Raised by: build.
 ### duplicate-alternate-link
 
 Severity: warning. Raised by: offline.
+
+### editorial-comparison-structure
+
+Severity: info. Raised by: offline, live.
+
+### editorial-faq-structure
+
+Severity: info. Raised by: offline, live.
+
+### editorial-howto-structure
+
+Severity: info. Raised by: offline, live.
+
+### editorial-long-paragraph
+
+Severity: info. Raised by: offline, live.
+
+### editorial-unanswered-question
+
+Severity: info. Raised by: offline, live.
+
+### editorial-unsourced-number
+
+Severity: info. Raised by: offline, live.
 
 ### img-missing-alt
 
@@ -595,6 +627,18 @@ Severity: warning. Raised by: build.
 ### authored-jsonld-malformed
 
 Severity: warning. Raised by: build.
+
+### google-schema-recommended
+
+Severity: info. Raised by: offline, live.
+
+### google-schema-required
+
+Severity: warning. Raised by: offline, live.
+
+### google-schema-unsupported
+
+Severity: info. Raised by: offline, live.
 
 ### managed-graph-canonical-missing
 

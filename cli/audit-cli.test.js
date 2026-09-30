@@ -130,6 +130,36 @@ describe('audit CLI', () => {
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('could not audit');
   });
+  test('rejects an unknown schema target with invocation status 2', () => {
+    const result = audit([VALID, '--schema-target', 'bing']);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('--schema-target must be schema or google');
+  });
+  test('keeps editorial advice score-neutral and applies Google warning gates', async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'astro-aeo-opt-in-')));
+    roots.push(root);
+    const html = '<html lang="en"><head><title>How to publish</title><meta name="description" content="Publishing guide"><script type="application/ld+json">{"@type":"Product","name":"Tool"}</script></head><body><main><h1>How to publish</h1><p>42% agree.</p></main></body></html>';
+    writeFileSync(join(root, 'index.html'), html);
+    const context = { version: '1.5.3', fetch: async () => new Response(html, { headers: { 'content-type': 'text/html' } }) };
+    const baseline = await runAudit([root, '--format', 'json'], context);
+    const editorial = await runAudit([root, '--heuristics', '--format', 'json'], context);
+    expect(editorial.exitCode).toBe(baseline.exitCode);
+    expect(JSON.parse(editorial.output).scores).toMatchObject({ overall: JSON.parse(baseline.output).scores.overall });
+    const added = JSON.parse(editorial.output).findings.filter((finding) => finding.ruleId.startsWith('editorial-'));
+    expect(added).toHaveLength(2);
+    expect(added.every((finding) => finding.severity === 'info' && finding.deduction === 0)).toBe(true);
+    const live = await runAudit(['https://example.com/', '--heuristics', '--schema-target', 'google', '--format', 'json'], context);
+    const local = await runAudit([root, '--heuristics', '--schema-target', 'google', '--format', 'json'], context);
+    const comparable = (result) => JSON.parse(result.output).findings.filter((finding) => /^(editorial|google)-/.test(finding.ruleId)).map(({ ruleId, severity, message }) => ({ ruleId, severity, message }));
+    expect(comparable(live)).toEqual(comparable(local));
+    expect((await runAudit([root, '--schema-target', 'google', '--fail-on', 'warning'], context)).exitCode).toBe(1);
+    expect(JSON.parse(local.output).scores.overall).toBeLessThan(JSON.parse(editorial.output).scores.overall);
+    for (const format of ['terminal', 'json', 'sarif', 'html', 'markdown', 'github', 'junit']) {
+      const result = await runAudit([root, '--heuristics', '--schema-target', 'google', '--format', format], context);
+      expect(result.output, format).toContain('editorial-unsourced-number');
+      expect(result.output, format).toContain('google-schema-required');
+    }
+  });
 
   test('records the target relative to the working directory, never absolute', () => {
     const report = JSON.parse(audit([VALID, '--format', 'json']).stdout);
