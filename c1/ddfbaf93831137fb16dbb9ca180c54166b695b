@@ -1,0 +1,42 @@
+src/audit/editorial.js
+  s_7ad5fa97dc1640::t_e77e01789213be 1-165
+cli/audit-cli.test.js
+  s_7ad5fa97dc1640::t_50f3c856959749 133-162
+cli/audit.js
+  s_7ad5fa97dc1640::t_c458f9cf0224d9 41-42,60-63,72-73,95
+bin/astro-aeo.js
+  s_7ad5fa97dc1640::t_c458f9cf0224d9 36-37
+src/audit/rules.js
+  s_7ad5fa97dc1640::t_c458f9cf0224d9 57-65
+src/audit/local.js
+  s_7ad5fa97dc1640::t_e77e01789213be 28,47-49
+src/audit/facts.js
+  s_7ad5fa97dc1640::t_e77e01789213be 3,25
+  s_7ad5fa97dc1640::t_41c8d80e122ca0 83
+src/audit/site-rules.js
+  s_7ad5fa97dc1640::t_e77e01789213be 4-5,34,44-52
+src/audit/live.js
+  s_7ad5fa97dc1640::t_c458f9cf0224d9 130-132
+  s_7ad5fa97dc1640::t_e77e01789213be 36-38
+src/audit/editorial.test.js
+  s_7ad5fa97dc1640::t_50f3c856959749 67
+  s_7ad5fa97dc1640::t_011678ec395403 1-66,68-86
+docs/rules.md
+  s_7ad5fa97dc1640::t_4f5a5d94efd561 273-280,347-370,631-642
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c1ddfbaf93831137fb16dbb9ca180c54166b695b",
+  "prompts": {},
+  "sessions": {
+    "s_7ad5fa97dc1640": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f2a2-23c8-7ff2-a319-6f815c1f72ed",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
