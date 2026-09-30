@@ -1,0 +1,24 @@
+src/audit/site-rules.js
+  s_bc21be4b6c0c80::t_77b25661782c87 99-103,109-123,135-137,140
+  s_bc21be4b6c0c80::t_b3455b1b9cd541 27-28,141-142
+src/audit/site-rules.test.js
+  s_bc21be4b6c0c80::t_093cd9187f7fe8 41-81
+.changeset/audit-graph-siblings.md
+  s_bc21be4b6c0c80::t_9ee58f8d3753b3 1-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2e137dd4ead29c285618fdff5a7be49197542ea1",
+  "prompts": {},
+  "sessions": {
+    "s_bc21be4b6c0c80": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a99e2e09-6980-473c-8022-4d8c25243f41",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
