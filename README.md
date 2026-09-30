@@ -970,13 +970,14 @@ merged after extraction and are never frozen by a cache hit. A complete build pr
 it did not use; an incomplete inventory keeps them.
 
 An exclusive same-host process lock protects reusable state. A locked or invalid state makes the
-build run cold and read-only, with no stale deletion authority, and IndexNow state does not
-advance until `.astro/aeo-cache/processing-v1` is deleted. Project routes and `public/` files
-still win. A stale file is deleted only when the prior ledger names Astro-AEO, the path is
-confined, the file is regular and not a symlink, and its bytes still match the prior emitted hash.
-To clear the cache by hand, delete only `.astro/aeo-cache/processing-v1`: deleting all of
-`.astro/aeo-cache` also discards the artifact ownership and IndexNow ledgers. Set
-`cache.enabled: false` to stop reuse.
+build run cold and read-only, with no stale deletion authority: stale files are kept, recorded for a
+later build to remove, and reported once, and IndexNow state does not advance. A lock ends with the
+build that holds it (a lock left by a dead process on the same host is reclaimed); an invalid state
+stays until `.astro/aeo-cache/processing-v1` is deleted. Project routes and `public/` files still
+win. A stale file is deleted only when the prior ledger names Astro-AEO, the path is confined, the
+file is regular and not a symlink, and its bytes still match the prior emitted hash. To clear the
+cache by hand, delete only `.astro/aeo-cache/processing-v1`: deleting all of `.astro/aeo-cache` also
+discards the artifact ownership and IndexNow ledgers. Set `cache.enabled: false` to stop reuse.
 
 ### The universal robots.txt group
 
@@ -1061,11 +1062,12 @@ spelling. The exact artifact paths (`llms.txt`, `llms-full.txt`, `robots.txt`,
 Astro, because a static endpoint path carrying a file extension is already exempt. Astro 7 extends
 that exemption to dynamic endpoint patterns, so companions work there too.
 
-Release gates build Node, Cloudflare, Deno, Vercel, and Netlify fixtures. Request
-contracts run locally for Node, Cloudflare in workerd, Deno, and the emitted Vercel and Netlify
-handlers. Separate assertions verify that Vercel routes runtime artifacts to `_render` before its
-status-404 fallback and that Netlify does not short-circuit `.md` through bundled custom-404
-content.
+Release gates build Node, Cloudflare, Deno, Vercel, and Netlify fixtures. The full request
+contract runs locally for Node, Cloudflare in workerd, and Deno. The emitted Vercel and Netlify
+handlers run in process against a smaller set: `.md` `GET`, `HEAD` and `304`, the runtime
+artifacts, `robots.txt` passthrough, and the Markdown `404` for an unknown `.md`. Separate
+assertions verify that Vercel routes runtime artifacts to `_render` before its status-404 fallback
+and that Netlify does not short-circuit `.md` through bundled custom-404 content.
 
 The stock `@astrojs/cloudflare()` adapter needs no extra wiring. If you replace its worker
 entrypoint with a hand-written `astro/fetch` handler, wrap the app response in
@@ -1455,10 +1457,12 @@ The handlers follow the Astro middleware's rules exactly, and one shared contrac
 and `HEAD` only, exact manifest routes only (with or without a trailing slash), Markdown only when it
 strictly outranks HTML, `303` with the query preserved in `'redirect'` mode, and `Vary: Accept` on every
 listed route whichever representation is chosen. They fail closed to the unmodified HTML response when
-the manifest is missing, malformed, from a future version, or stale. On Cloudflare and Netlify the
-handler serves the companion itself as `text/markdown; charset=utf-8` with the asset's `ETag` and cache
-policy, `304` for a matching `If-None-Match`, and no body for `HEAD`. Vercel middleware cannot read a
-response, so there the handler rewrites to the companion and the platform serves it.
+the manifest is missing, malformed, or from a future version. On Cloudflare and Netlify the handler
+serves the companion itself as `text/markdown; charset=utf-8` with the asset's `ETag` and cache policy,
+`304` for a matching `If-None-Match`, and no body for `HEAD`, and it also falls back to the HTML when a
+stale manifest lists a companion that is gone. Vercel middleware cannot read a response, so there the
+handler rewrites to the companion and the platform serves it: for a companion that a stale manifest
+lists but that is gone, the negotiated request gets the platform's `404`, not the HTML.
 
 The plugin is rejected with an error when the project configures an adapter (the Astro middleware already
 negotiates there), when a page renders on demand, or when `markdown.negotiation` is `'off'`. Without the

@@ -73,6 +73,12 @@ the [1.2 semantic validation record](docs/release-evidence/1.2.0-semantic-valida
 - Live corpora fan out through trusted in-process rewrites without network self-fetch. Caller
   credentials and request state are not reused. Astro 5 and Astro 6.0 through 6.2 fail closed with
   `503` and `Cache-Control: no-store`; secure full request-time corpora require Astro 6.3 or newer.
+- One development-only exception: under `astro dev`, when an in-process rewrite has already failed
+  (overlapping dynamic routes), Astro-AEO re-requests that one page for the corpus or its `.md`
+  companion over the network, from the address the development server reported at startup. The
+  destination is never derived from the request, no caller headers or cookies are sent, and
+  redirects are not followed. This transport is generated only for `astro dev` and is absent from
+  production and adapter bundles.
 - Injected provider fallback routes are inert `404` responders when Astro-AEO pre-middleware
   declines. They do not bypass project `.md` routes or authorize replacement of project/public
   artifacts.
