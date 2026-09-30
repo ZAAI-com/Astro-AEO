@@ -1,0 +1,23 @@
+README.md
+  s_bc21be4b6c0c80::t_bc8fb8ebda2629 973-976,1065-1070,1460-1465
+SECURITY.md
+  s_bc21be4b6c0c80::t_b4e3459e8769e2 76-81
+.changeset/docs-guarantee-corrections.md
+  s_bc21be4b6c0c80::t_efb1abcd50dac7 1-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "54bfea52d1ed0770f8096effa05eb24cd22ee861",
+  "prompts": {},
+  "sessions": {
+    "s_bc21be4b6c0c80": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a99e2e09-6980-473c-8022-4d8c25243f41",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
