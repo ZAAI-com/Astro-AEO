@@ -27,7 +27,7 @@ A Markdown copy of a page is roughly 20 to 30 percent smaller in tokens than its
 - **.md companion pages**: a clean Markdown copy of every page, preserving authored Markdown when available and otherwise extracting from rendered HTML.
 - **llms.txt and llms-full.txt**: a site index and a full-content file following the [llmstxt.org](https://llmstxt.org/) spec.
 - **Alternate link tags**: `<link rel="alternate" type="text/markdown">` injected into every page so crawlers can find the Markdown.
-- **JSON-LD components**: `FaqJsonLd`, `HowToJsonLd`, `BreadcrumbJsonLd`, `OrganizationJsonLd`, `SpeakableJsonLd`, `ArticleJsonLd`.
+- **JSON-LD components**: FAQ, how-to, breadcrumb, organization, speakable, article, product, software application, review, item list, dataset, profile page, service, and local business.
 - **Semantic graph**: one deterministic, XSS-safe managed Schema.org graph on every eligible page, with typed builders and integrity validation.
 - **Complete head metadata**: `AeoHead` owns canonical, robots, Open Graph, Twitter/X, locale, alternate, feed, pagination, author, and graph output without replacing unrelated authored tags.
 - **robots.txt**: allow search and retrieval bots, block training crawlers, with automatic `Sitemap:` and `llms.txt` hints.
@@ -1334,11 +1334,65 @@ import { FaqJsonLd, BreadcrumbJsonLd, ArticleJsonLd } from 'astro-aeo/components
 | `BreadcrumbJsonLd` | `items?`, `labels?`, `includeHome?` | Auto-derives the trail from the URL when `items` is omitted |
 | `OrganizationJsonLd` | `name`, `url?`, `logo?`, `sameAs?`, `contactEmail?` | `url` defaults to `site`. Place once, e.g. the homepage |
 | `SpeakableJsonLd` | `cssSelector?` (default `['main']`), `url?` | Drop-in with no props |
-| `ArticleJsonLd` | `headline`, `datePublished?`, `dateModified?`, `author?`, `image?`, `description?` | For posts and dated content. Google prefers ISO 8601 datetimes with an offset or `Z`; values pass through unchanged |
+| `ArticleJsonLd` | `headline`, `type?`, `datePublished?`, `dateModified?`, `author?`, `publisher?`, `image?`, `keywords?`, `inLanguage?`, `description?`, `url?` | `Article` by default; also `BlogPosting` or `TechArticle`. Person/Organization author or author array, string image or image array. Dates pass through unchanged |
+| `ProductJsonLd` | `entity` | Fixed `Product`; Product snippet checks, not merchant-listing requirements |
+| `SoftwareApplicationJsonLd` | `entity` | Fixed `SoftwareApplication` |
+| `ReviewJsonLd` | `entity` | Fixed `Review`; caller supplies the reviewed item and rating |
+| `ItemListJsonLd` | `entity` | Fixed `ItemList`; no speculative Google profile |
+| `DatasetJsonLd` | `entity` | Fixed `Dataset` |
+| `ProfilePageJsonLd` | `entity` | Fixed `ProfilePage` |
+| `ServiceJsonLd` | `entity` | Fixed `Service`; no speculative Google profile |
+| `LocalBusinessJsonLd` | `entity` | Fixed `LocalBusiness`; caller supplies business details |
 
 Each compatibility component renders a single, XSS-safe `<script type="application/ld+json">`.
 They use the graph builders internally while preserving their established props and serialized
 output. New semantic pages should prefer `AeoHead` and `astro-aeo/schema`.
+
+The eight entity-bag components supply their fixed `@type` and Schema.org context. Their required
+`entity` bag uses the Schema.org vocabulary types, omitting these reserved fields. They clone inputs,
+escape script-sensitive characters, and invent no IDs, prices, offers, ratings, or business details.
+
+```astro
+---
+import { ProductJsonLd, ArticleJsonLd } from 'astro-aeo/components';
+---
+<ProductJsonLd entity={{
+  name: 'Published product',
+  offers: { '@type': 'Offer', price: 25, priceCurrency: 'EUR' },
+}} eligibility="google" />
+<ArticleJsonLd headline="Publishing guide" type="BlogPosting"
+  author={[{ name: 'Ada' }, { '@type': 'Organization', name: 'Editorial team' }]}
+  publisher={{ '@type': 'Organization', name: 'Publisher' }}
+  image={['https://example.com/cover.jpg']} keywords={['publishing', 'schema']}
+  inLanguage="en" />
+```
+
+All schema components accept `eligibility="schema" | "google"`, defaulting to `schema`.
+Despite its name, this prop only selects field checks: it never certifies eligibility, changes
+JSON-LD, throws for a Google finding, or suppresses output. A component can resolve references only
+within its own entity; use the audit to resolve references across the page's final scripts.
+
+### Optional publishing advice
+
+```bash
+astro-aeo audit dist --heuristics
+astro-aeo audit https://example.com/ --heuristics
+astro-aeo audit dist --schema-target google --fail-on warning
+```
+
+`--heuristics` adds deterministic English/German and language-neutral editorial advice at `info`
+severity. Advice is score-neutral and cannot fail CI. `--schema-target schema` (the default) keeps
+existing graph checks; `google` adds documented field checks on final rendered JSON-LD. Required
+Google fields produce warnings with the existing readiness deductions and `--fail-on` behavior;
+recommendations remain informational. Both flags work for build directories and live URLs, with
+all report formats. Neither flag changes the integration's on-build audit or `validate`.
+
+Schema.org validity and Google support are distinct. `FAQPage` and `TechArticle` output remains
+available, but neither receives a current Google profile here. Explicit `eligibility="google"`
+requests explain this at `info` severity; site-wide Google checks skip unsupported types.
+`Article` and `BlogPosting` receive documented recommendations, not universal required fields.
+See [content optimization](docs/CONTENT_OPTIMIZATION.md) for examples and false positives, and
+[Google profile scope](docs/GOOGLE_SCHEMA_PROFILES.md) for documentation references and limitations.
 
 ## Doctor and fix
 

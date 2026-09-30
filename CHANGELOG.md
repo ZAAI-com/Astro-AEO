@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+- Add opt-in `audit --heuristics` editorial advice for English, German, and language-neutral
+  structure, attribution, and date checks. Informational advice is score-neutral and cannot fail CI.
+- Add eight typed JSON-LD components for Product, SoftwareApplication, Review, ItemList, Dataset,
+  ProfilePage, Service, and LocalBusiness without inventing data or IDs.
+- Extend ArticleJsonLd with Article/BlogPosting/TechArticle variants, Person/Organization author
+  arrays, publisher, image arrays, keywords, and language while retaining default output.
+- Add shared opt-in Google field profiles through `audit --schema-target google` and component
+  `eligibility="google"`. Requirements are warnings with existing score deductions; unsupported
+  profiles and recommendations are informational. FAQPage and TechArticle output stays intact.
+- Document publishing practices, profile scope, official references, and September 30, 2026
+  verification. Default audits, on-build validation, and existing report contracts remain unchanged.
+
 ## 1.5.3
 
 Update the package version and documented GitHub Action pin to 1.5.3. This release adds no new
