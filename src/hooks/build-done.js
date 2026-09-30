@@ -311,6 +311,11 @@ async function onBuildDoneLocked(config, options, env, session) {
     home?.title ?? '',
   );
 
+  // A disabled cache opted out of reuse, not out of private-state writes; only
+  // an enabled cache that failed to open (locked or invalid) is read-only, and
+  // then this build has no stale deletion authority and IndexNow state waits.
+  const processingReadOnly = processingCache.enabled && processingCache.readOnly;
+
   // One writer for the whole build, so it can see every claim and report a
   // collision between two generators, a project route, or a public/ file.
   const writer = createArtifactWriter({
@@ -333,6 +338,7 @@ async function onBuildDoneLocked(config, options, env, session) {
     ],
     onDiagnostics: () => writeDiagnosticsManifest(env.projectRoot, pages, env.diagnostics ?? []),
     onSettled: releaseLocks,
+    staleDeletion: !processingReadOnly,
   });
   if (env.projectRoot) {
     /** @type {any} */ (writer).stagePrivateWrite?.(
@@ -805,9 +811,7 @@ async function onBuildDoneLocked(config, options, env, session) {
       semanticPages,
       writer,
       privateState: indexNowPrivate,
-      // A disabled cache opted out of reuse, not out of private-state writes;
-      // only an enabled cache that failed to open may withhold IndexNow state.
-      processingReadOnly: processingCache.enabled ? processingCache.readOnly : false,
+      processingReadOnly,
       inventoryComplete,
       diagnostics: buildDiagnostics,
     });

@@ -10,7 +10,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { tmpdir } from 'node:os';
+import { hostname, tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { resolveConfig } from '../config.js';
 import { createPluginDispatcher } from '../plugins/dispatcher.js';
@@ -180,6 +180,33 @@ describe('staged build plugin pipeline', () => {
     warm.commit();
     expect(infos.some((message) => message.includes('processing cache reset'))).toBe(false);
     expect(infos).toContainEqual(expect.stringContaining('processing cache 1 hit(s), 0 miss(es)'));
+  });
+
+  test('keeps stale outputs while another process holds the processing cache', async () => {
+    const files = fixture('<!doctype html><html><head><title>Home</title></head><body><main>Home</main></body></html>');
+    const build = async (index) => {
+      const warnings = [];
+      const writer = await onBuildDone(
+        config({ corpus: { index: { enabled: index }, full: { enabled: false } } }),
+        { dir: files.dir, pages: [{ pathname: '/' }], logger: { info() {}, warn: (message) => warnings.push(message) } },
+        environment(files.root, undefined, []),
+      );
+      writer.commit();
+      return warnings;
+    };
+    const llms = join(files.dist, 'llms.txt');
+
+    await build(true);
+    expect(existsSync(llms)).toBe(true);
+    const lock = join(files.root, '.astro', 'aeo-cache', 'processing-v1', 'lock');
+    writeFileSync(lock, `${JSON.stringify({ version: 1, hostname: hostname(), pid: process.pid, nonce: 'held' })}\n`);
+    const warnings = await build(false);
+    expect(existsSync(llms)).toBe(true);
+    expect(warnings.some((message) => message.includes('stale output'))).toBe(true);
+
+    rmSync(lock);
+    await build(false);
+    expect(existsSync(llms)).toBe(false);
   });
 
   test('keeps cache entries of unseen pages until the inventory is complete', async () => {

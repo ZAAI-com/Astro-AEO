@@ -1075,6 +1075,36 @@ describe('deferred ownership and transaction', () => {
     expect(readFileSync(join(dir, 'keep.txt'), 'utf8')).toBe('user modified');
   });
 
+  test('keeps stale outputs and their ledger entries without stale deletion authority', () => {
+    const first = deferredWriter();
+    first.write(artifact({ path: join(dir, 'old.txt'), route: '/old.txt', contents: 'old' }));
+    first.write(artifact({ path: join(dir, 'keep.txt'), route: '/keep.txt', contents: 'first' }));
+    first.commit();
+
+    const warnings = [];
+    const readOnly = deferredWriter({
+      staleDeletion: false,
+      logger: { info() {}, warn: (message) => warnings.push(message) },
+    });
+    readOnly.write(artifact({ path: join(dir, 'keep.txt'), route: '/keep.txt', contents: 'second' }));
+    expect(readOnly.isPlannedStaleDeletion('/old.txt')).toBe(false);
+    readOnly.commit();
+    expect(readFileSync(join(dir, 'old.txt'), 'utf8')).toBe('old');
+    expect(readFileSync(join(dir, 'keep.txt'), 'utf8')).toBe('second');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('1 stale output');
+    const manifest = JSON.parse(
+      readFileSync(join(dir, '.astro', 'aeo-cache', 'ownership-v1.json'), 'utf8'),
+    );
+    expect(manifest.artifacts.map((entry) => entry.pathname)).toEqual(['/keep.txt', '/old.txt']);
+
+    // The next build with a writable cache still owns, and removes, the kept output.
+    const next = deferredWriter();
+    next.write(artifact({ path: join(dir, 'keep.txt'), route: '/keep.txt', contents: 'third' }));
+    next.commit();
+    expect(existsSync(join(dir, 'old.txt'))).toBe(false);
+  });
+
   test('retains ownership of the same output path when the configured base changes', () => {
     const first = deferredWriter({ base: '/old' });
     first.write(artifact({ route: '/keep.txt', contents: 'first' }));
