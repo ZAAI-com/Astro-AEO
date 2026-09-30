@@ -1,0 +1,22 @@
+src/core/schema-google.test.js
+  s_7ad5fa97dc1640::t_50f3c856959749 16,32,42,47-63,84,91
+  s_7ad5fa97dc1640::t_918346aca6863b 1-15,17-31,33-41,43-46,64-83,85-90,92
+src/core/schema-google.js
+  s_7ad5fa97dc1640::t_4ada342aa39757 1-226
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1fe6c7e67822f361922b408b4498d4cad7ddbb25",
+  "prompts": {},
+  "sessions": {
+    "s_7ad5fa97dc1640": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f2a2-23c8-7ff2-a319-6f815c1f72ed",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
