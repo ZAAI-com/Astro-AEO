@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## 1.5.3
+
+Update the package version and documented GitHub Action pin to 1.5.3. This release adds no new
+functionality.
+
 ## 1.5.2
 
 A patch release on top of 1.5.1 that keeps Markdown companions free of raw Starlight tags, raw MDX
