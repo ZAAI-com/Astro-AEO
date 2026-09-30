@@ -29,8 +29,16 @@ export function defineAeoPage(input = {}) {
   /** @type {import('./core/extract/marker.js').PageMarker} */
   const marker = {};
 
-  const markdown = input.markdown ?? (typeof entry?.body === 'string' ? entry.body : undefined);
+  const sourcePath = input.sourcePath ?? entry?.filePath ?? entry?.id;
+  const hasPath = typeof sourcePath === 'string' && sourcePath !== '';
+  const body = typeof entry?.body === 'string' ? entry.body : undefined;
+  // The kind decides what an entry body is: an MDX body holds imports and JSX,
+  // so it goes to a registered renderer (or rendered extraction), never verbatim.
+  const inferredKind = hasPath ? sourceKindFor(sourcePath, typeof (input.markdown ?? body) === 'string') : undefined;
+  const sourceKind = isSourceKind(input.sourceKind) ? input.sourceKind : inferredKind;
+  const markdown = input.markdown ?? (sourceKind === 'mdx' ? undefined : body);
   if (typeof markdown === 'string') marker.markdown = markdown;
+  else if (sourceKind === 'mdx' && body !== undefined) marker.sourceBody = body;
 
   const title = input.title ?? entry?.data?.title;
   if (typeof title === 'string' && title) marker.title = title;
@@ -55,15 +63,7 @@ export function defineAeoPage(input = {}) {
   const iso = toIsoDate(lastModified);
   if (iso) marker.lastModified = iso;
 
-  const sourcePath = input.sourcePath ?? entry?.filePath ?? entry?.id;
-  if (typeof sourcePath === 'string' && sourcePath) {
-    marker.sourcePath = sourcePath;
-  }
-  const sourceKind = isSourceKind(input.sourceKind)
-    ? input.sourceKind
-    : typeof sourcePath === 'string' && sourcePath
-      ? sourceKindFor(sourcePath, typeof markdown === 'string')
-      : undefined;
+  if (hasPath) marker.sourcePath = sourcePath;
   if (sourceKind) marker.sourceKind = sourceKind;
 
   if (Array.isArray(input.authors)) marker.authors = input.authors;

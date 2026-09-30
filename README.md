@@ -565,7 +565,9 @@ const { Content } = await render(post);
 `defineAeoPage` reads `body`, `data.title`, `data.description`, image, language, version, and dates from a
 content-collection entry, or accepts explicit authored Markdown/MDX, source kind/path, authors,
 Schema.org entities, and directive hints. Every field is optional; supplying none is the same as
-not using it at all, and extraction runs as usual.
+not using it at all, and extraction runs as usual. The `body` of an `.mdx` entry is never used as
+Markdown, because it holds imports and JSX: a registered `astro-aeo/mdx` renderer converts it, and
+without one the page's rendered HTML is extracted.
 
 The marker the component emits is internal. It is written only when Astro-AEO is
 the one rendering the page (the build's prerender pass, or a request for the `.md`),
@@ -673,7 +675,8 @@ export default defineCmsAdapter({
 - `contentPage(entry, overrides?)` returns `<AeoPage>` props from a content-collection entry. It is
   `defineAeoPage({ source: entry, ...overrides })`.
 - `contentDescriptor(entry, { pathname, ...overrides })` returns a serializable catalog descriptor from
-  an entry: title, description, image, language, version, dates, Markdown body, and source path.
+  an entry: title, description, image, language, version, dates, Markdown body, and source path. An
+  `.mdx` body is carried as `source.body` for a registered renderer instead of as Markdown.
 - `defineContentCatalog({ name?, entries, toPage })` builds a catalog. `entries(context)` loads your
   entries and `toPage(entry, context)` returns `{ pathname, ...overrides }`, or `null` to leave one out.
 - `defineCmsAdapter({ name, listPages })` builds a catalog whose pages always carry

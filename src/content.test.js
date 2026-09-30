@@ -48,6 +48,14 @@ describe('content helpers', () => {
     expect(() => contentDescriptor(entry, /** @type {any} */ ({ pathname: 'relative' }))).toThrow(/root-relative/);
   });
 
+  it('contentDescriptor hands an MDX body to renderers instead of publishing it', () => {
+    const mdx = { ...entry, filePath: 'src/content/docs/guide/install.mdx', body: "import X from './x.js';\n\n# Install\n\n<X />\n" };
+    const descriptor = contentDescriptor(mdx, { pathname: '/guide/install' });
+    expect(descriptor).not.toHaveProperty('markdown');
+    expect(descriptor.source).toEqual({ kind: 'mdx', path: mdx.filePath, body: mdx.body });
+    expect(contentPage(mdx)).not.toHaveProperty('markdown');
+  });
+
   it('defineContentCatalog maps entries, skips nulls, and flows through the catalog loader', async () => {
     const catalog = defineContentCatalog({
       name: 'docs',

@@ -13,8 +13,8 @@ import { defineAeoPage } from './page.js';
 
 /**
  * Props for `<AeoPage>` from a content-collection entry. The entry's `body`
- * becomes the authored Markdown and its `data` supplies metadata; `overrides`
- * win over both.
+ * becomes the authored Markdown (an MDX body goes to a registered renderer
+ * instead) and its `data` supplies metadata; `overrides` win over both.
  *
  * @param {unknown} entry
  * @param {Omit<import('./page.js').AeoPageInput, 'source'>} [overrides]
@@ -56,7 +56,14 @@ export function contentDescriptor(entry, page) {
     ...(Object.keys(dates).length > 0 ? { dates } : {}),
     ...(sourcePath ? { sourcePath } : {}),
     ...(overrides.source ?? (props.sourceKind
-      ? { source: { kind: props.sourceKind, ...(sourcePath ? { path: sourcePath } : {}) } }
+      ? {
+        source: {
+          kind: props.sourceKind,
+          ...(sourcePath ? { path: sourcePath } : {}),
+          // An MDX body reaches a registered renderer as source, never as Markdown.
+          ...(typeof props.sourceBody === 'string' ? { body: props.sourceBody } : {}),
+        },
+      }
       : {})),
   };
 }
