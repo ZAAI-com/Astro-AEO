@@ -426,4 +426,27 @@ describe('logical corpus artifact planner', () => {
       hash: null,
     });
   });
+
+  test('lists on-demand companions only in a request-time plan', async () => {
+    const config = resolveConfig({ corpus: { manifest: { enabled: true } } });
+    const live = { ...page('/live', 'en', 'en'), rendering: 'on-demand' };
+    const plan = (requestTime) => planCorpusArtifacts({
+      pages: [live],
+      config,
+      siteMeta,
+      origin: 'https://example.test',
+      base: '',
+      ...(requestTime ? { requestTime } : {}),
+    });
+    const record = async (requestTime) => (await plan(requestTime)).manifest.pages[0];
+
+    // The build writes no `.md` for an on-demand page, so its manifest keeps null.
+    expect(await record(false)).toMatchObject({ markdownUrl: null, tokenCount: null, hash: null });
+    // The middleware serves that page's companion, so a request-time plan lists it.
+    const served = await record(true);
+    expect(served.markdownUrl).toBe('https://example.test/live.md');
+    expect(served.tokenCount).toEqual(expect.any(Number));
+    expect(served.hash).toMatch(/^sha256:/);
+    expect((await plan(true)).artifacts).toEqual((await plan(false)).artifacts);
+  });
 });

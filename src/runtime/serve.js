@@ -639,6 +639,9 @@ export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {
     tokenizer: loadedTokenizer.implementation,
     tokenizerOptions: 'options' in loadedTokenizer ? loadedTokenizer.options : undefined,
     tokenizerProbed: true,
+    // Every page here is collected on demand, but the middleware serves each
+    // one's `.md` companion, so the manifest must list it.
+    requestTime: true,
     note: opts.note,
   });
   if (plan.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {

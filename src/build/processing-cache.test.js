@@ -51,6 +51,17 @@ describe('processing cache', () => {
       .toBe('{"a":{"c":1,"d":2},"z":[2,1]}');
   });
 
+  test('keys a RegExp by its source and flags', () => {
+    expect(canonicalStringify({ suffix: /Acme$/i }))
+      .toBe('{"suffix":{"$regexp":"Acme$","$flags":"i"}}');
+    const cache = openProcessingCache(project(), { enabled: false });
+    const key = (stripTitleSuffix) => cache.key('extraction-v1', { pages: { stripTitleSuffix } });
+    expect(key(/\s*\|\s*Acme$/)).not.toBe(key(/\s*\|\s*Other$/));
+    expect(key(/acme$/)).not.toBe(key(/acme$/i));
+    expect(key(/Acme$/)).not.toBe(key('Acme$'));
+    expect(key(/\s*\|\s*Acme$/)).toBe(key(new RegExp('\\s*\\|\\s*Acme$')));
+  });
+
   test('persists private content-addressed blobs and reuses them warm', () => {
     const root = project();
     const cold = openProcessingCache(root, { enabled: true });

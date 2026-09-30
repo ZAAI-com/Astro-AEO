@@ -1,4 +1,5 @@
 ---
+import { resolveEntityId } from '../src/lib/entity-id.js';
 import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
 import { createFAQPage } from '../src/schema.js';
 
@@ -8,13 +9,14 @@ import { createFAQPage } from '../src/schema.js';
  * `id` gives the FAQPage a stable `@id` so the graph and schema map can list it
  * instead of reporting an anonymous entity. A page-relative value such as `#faq`
  * resolves against this page's URL on the configured `site`; without a `site`
- * it is emitted as written.
+ * it is emitted as written. An `id` that does not parse, or that resolves to
+ * the page URL itself (such as `""` or `"./"`), is omitted.
  * @typedef {{ question: string; answer: string }} FaqItem
  */
 const { items = [], id } = Astro.props;
 
 const pageUrl = Astro.site ? new URL(Astro.url.pathname, Astro.site) : undefined;
-const entityId = typeof id === 'string' && pageUrl ? new URL(id, pageUrl).href : id;
+const entityId = resolveEntityId(id, pageUrl);
 
 const jsonLd = {
   '@context': 'https://schema.org',

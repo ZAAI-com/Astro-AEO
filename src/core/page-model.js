@@ -162,8 +162,14 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
   const authoredMarkdown = typeof authored?.markdown === 'string' ? authored.markdown : undefined;
   const markerMarkdown = typeof marker?.markdown === 'string' ? marker.markdown : undefined;
   const markerWins = markerMarkdown !== undefined;
-  const authoredWins = !markerWins && authoredMarkdown !== undefined;
-  const sourceMarkdown = markerMarkdown ?? authoredMarkdown;
+  // An MDX entry body from `defineAeoPage({ source })`. It is never published
+  // as Markdown: only a registered renderer may convert it, and otherwise the
+  // rendered HTML is extracted. It still speaks for the page over a route source.
+  const markerBody = !markerWins && marker?.sourceKind === 'mdx' && typeof marker.sourceBody === 'string'
+    ? marker.sourceBody
+    : undefined;
+  const authoredWins = !markerWins && markerBody === undefined && authoredMarkdown !== undefined;
+  const sourceMarkdown = markerMarkdown ?? (markerBody === undefined ? authoredMarkdown : undefined);
   let markdown = '';
   /** @type {import('./extract/index.js').ExtractionDiagnostics | undefined} */
   let extraction = authoredWins ? authored?.extraction : undefined;
@@ -180,16 +186,24 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
         ...(canonicalUrl ? { canonicalUrl } : {}),
         ...(routePattern ? { routePattern } : {}),
         rendering,
-        ...(authored?.kind
+        ...(markerBody !== undefined
           ? {
               source: {
-                kind: authored.kind,
-                ...(authored.path ? { path: authored.path } : {}),
-                ...(typeof authored.body === 'string' ? { body: authored.body } : {}),
-                ...(typeof authored.hash === 'string' ? { hash: authored.hash } : {}),
+                kind: 'mdx',
+                ...(typeof marker?.sourcePath === 'string' && marker.sourcePath ? { path: marker.sourcePath } : {}),
+                body: markerBody,
               },
             }
-          : {}),
+          : authored?.kind
+            ? {
+                source: {
+                  kind: authored.kind,
+                  ...(authored.path ? { path: authored.path } : {}),
+                  ...(typeof authored.body === 'string' ? { body: authored.body } : {}),
+                  ...(typeof authored.hash === 'string' ? { hash: authored.hash } : {}),
+                },
+              }
+            : {}),
         extraction: config.markdown.extraction,
       });
       rendererDiagnostics.push(...rendered.diagnostics);
@@ -302,7 +316,7 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
       ...(extraction ? { extraction } : {}),
       source: {
         kind,
-        strategy: markerWins
+        strategy: markerWins || (rendererWins && markerBody !== undefined)
           ? 'marker'
           : authoredWins
             ? authored?.strategy ?? 'markdown-route'

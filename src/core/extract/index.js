@@ -602,16 +602,28 @@ const IN_WORD_TAGS = new Set(['a', 'abbr', 'b', 'code', 'em', 'i', 'mark', 's', 
  * @param {Element} strong
  */
 function spaceTermParts(strong) {
-  const document = strong.ownerDocument;
-  for (const node of [...strong.childNodes]) {
-    const next = node.nextSibling;
-    if (!next || !(node.textContent ?? '').trim() || !(next.textContent ?? '').trim()) continue;
-    if (/\s$/.test(node.textContent ?? '') || /^\s/.test(next.textContent ?? '')) continue;
-    if (CLOSING_PUNCTUATION.test(next.textContent ?? '')) continue;
-    const separate = [node, next].some((part) =>
-      part.nodeType === 1 && !IN_WORD_TAGS.has(/** @type {Element} */ (part).localName));
-    if (separate) strong.insertBefore(document.createTextNode(' '), next);
-  }
+  for (const node of [...strong.childNodes]) spaceAdjacentParts(node, false);
+}
+
+/**
+ * Insert one space between a node and its next sibling when their texts touch
+ * and the tags say CSS lays them out apart. A tag outside `IN_WORD_TAGS`
+ * separates: `requireBoth` asks for both sides to separate instead of one.
+ *
+ * @param {ChildNode} node
+ * @param {boolean} requireBoth
+ */
+function spaceAdjacentParts(node, requireBoth) {
+  const next = node.nextSibling;
+  const parent = node.parentNode;
+  if (!next || !parent || !(node.textContent ?? '').trim() || !(next.textContent ?? '').trim()) return;
+  if (/\s$/.test(node.textContent ?? '') || /^\s/.test(next.textContent ?? '')) return;
+  if (CLOSING_PUNCTUATION.test(next.textContent ?? '')) return;
+  /** @param {ChildNode} part */
+  const separates = (part) =>
+    part.nodeType === 1 && !IN_WORD_TAGS.has(/** @type {Element} */ (part).localName);
+  const separate = requireBoth ? separates(node) && separates(next) : separates(node) || separates(next);
+  if (separate) parent.insertBefore(/** @type {Document} */ (node.ownerDocument).createTextNode(' '), next);
 }
 
 /**
@@ -717,6 +729,9 @@ function minimizeRawHtml(root) {
   for (const columns of [...root.querySelectorAll('colgroup, col')]) columns.remove();
   for (const wrapper of [...root.querySelectorAll('div, span')].reverse()) {
     if (wrapper.attributes.length > 0) continue;
+    // Two wrappers that CSS laid out as blocks would otherwise glue their words together.
+    if (wrapper.previousSibling) spaceAdjacentParts(wrapper.previousSibling, true);
+    spaceAdjacentParts(wrapper, true);
     wrapper.replaceWith(...wrapper.childNodes);
   }
 }

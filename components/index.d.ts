@@ -71,7 +71,8 @@ export interface FaqJsonLdProps {
   /**
    * Stable `@id` for the FAQPage, so the schema graph and map can list it instead
    * of reporting an anonymous entity. A page-relative value such as `'#faq'`
-   * resolves against the page URL on the configured `site`. Default: none.
+   * resolves against the page URL on the configured `site`. A value that does not
+   * parse, or that resolves to the page URL itself, is omitted. Default: none.
    */
   id?: string;
 }

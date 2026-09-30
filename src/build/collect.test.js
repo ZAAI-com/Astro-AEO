@@ -7,6 +7,7 @@ import { absoluteUrl, collectPages, mdHrefFor, resolveHtmlPath, stripLeadingFron
 import { resolveConfig } from '../config.js';
 import mdxRenderer from '../adapters/mdx.js';
 import { _clearGitCache } from '../lib/git-mtime.js';
+import { openProcessingCache } from './processing-cache.js';
 
 const roots = [];
 afterEach(() => {
@@ -219,6 +220,44 @@ describe('collectPages processing cache', () => {
 
     await collect(cache, '2026-02-15T12:30:00Z');
     expect(cache.puts).toHaveLength(3);
+  });
+
+  test('extracts again when only a RegExp title suffix changes', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-collect-regexp-'));
+    roots.push(root);
+    const distRoot = join(root, 'dist');
+    mkdirSync(join(distRoot, 'post'), { recursive: true });
+    writeFileSync(
+      join(distRoot, 'post', 'index.html'),
+      '<!doctype html><html><head><title>Post | Acme - Docs</title></head><body><main>Body.</main></body></html>',
+    );
+    // The real key, over an in-memory store: a disabled cache never touches disk.
+    const { key } = openProcessingCache(root, { enabled: false });
+    const store = new Map();
+    const cache = {
+      key,
+      get: (cacheKey) => store.get(cacheKey),
+      put: (cacheKey, value) => store.set(cacheKey, JSON.parse(JSON.stringify(value))),
+    };
+    const collect = (stripTitleSuffix) => collectPages(
+      [{ pathname: '/post' }],
+      resolveConfig({ pages: { stripTitleSuffix } }),
+      {
+        distDir: pathToFileURL(`${distRoot}/`),
+        siteUrl: 'https://x.com',
+        base: '',
+        trailingSlash: 'always',
+        buildFormat: 'directory',
+        projectRoot: root,
+        routeEntrypoints: new Map(),
+        logger: { warn() {} },
+        cache,
+      },
+    );
+
+    expect((await collect(/\s*-\s*Docs$/))[0].title).toBe('Post | Acme');
+    expect((await collect(/\s*\|\s*Acme - Docs$/))[0].title).toBe('Post');
+    expect(store.size).toBe(2);
   });
 });
 

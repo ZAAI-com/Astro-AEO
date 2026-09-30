@@ -38,3 +38,44 @@ describe('markdown-raw-html', () => {
     expect(rawHtmlFindings(`${prose}\n\n<link rel="alternate"\\>\n\n<link rel="alternate"\\>\n\n<link rel="alternate"\\>`)).toHaveLength(0);
   });
 });
+
+describe('structured data references', () => {
+  /** @param {string[]} scripts */
+  function referenceFindings(scripts) {
+    const head = scripts.map((script) => `<script type="application/ld+json">${script}</script>`).join('');
+    const page = extractPageFacts(`<html lang="en"><head><title>Example</title><meta name="description" content="Example"><link rel="canonical" href="https://example.test/guide/">${head}</head><body></body></html>`, {
+      url: 'https://example.test/guide/', markdown: prose,
+    });
+    return auditPages([page]).filter((finding) => finding.category === 'structured-data');
+  }
+
+  test('resolves a reference to a sibling entity of the same @graph', () => {
+    expect(referenceFindings([JSON.stringify({
+      '@context': 'https://schema.org',
+      '@graph': [
+        { '@type': 'WebPage', '@id': 'https://example.test/guide/#webpage', breadcrumb: { '@id': 'https://example.test/guide/#breadcrumb' } },
+        { '@type': 'BreadcrumbList', '@id': 'https://example.test/guide/#breadcrumb', itemListElement: [] },
+      ],
+    })])).toEqual([]);
+  });
+
+  test('resolves a reference to an entity in another script of the same page', () => {
+    expect(referenceFindings([
+      JSON.stringify({ '@context': 'https://schema.org', '@type': 'WebPage', '@id': '#webpage', breadcrumb: { '@id': '#breadcrumb' } }),
+      JSON.stringify({ '@context': 'https://schema.org', '@type': 'BreadcrumbList', '@id': '#breadcrumb', itemListElement: [] }),
+    ])).toEqual([]);
+  });
+
+  test('still warns once for a same-document reference nothing defines', () => {
+    const findings = referenceFindings([JSON.stringify({
+      '@context': 'https://schema.org',
+      '@graph': [
+        { '@type': 'WebPage', '@id': '#webpage', breadcrumb: { '@id': '#missing' } },
+        { '@type': 'BreadcrumbList', '@id': '#breadcrumb', itemListElement: [] },
+      ],
+    })]);
+    expect(findings.map((finding) => [finding.ruleId, finding.severity])).toEqual([
+      ['schema.unresolved-reference', 'warning'],
+    ]);
+  });
+});

@@ -103,7 +103,9 @@ export function groupSections(pages, sections, defaultSection) {
 /**
  * Whether a page publishes a `.md` companion under the current config. Mirrors
  * `emitDotMd`: global markdown off, `no-dotmd`, `generateMarkdown: false`, and
- * on-demand pages (no static companion file) all return false.
+ * on-demand pages (no static companion file) all return false. A request-time
+ * plan ignores rendering, because the middleware serves the companion of every
+ * page that is not opted out, on demand or prerendered.
  *
  * @param {{
  *   aeoTokens?: string[];
@@ -111,12 +113,13 @@ export function groupSections(pages, sections, defaultSection) {
  *   rendering?: string;
  * }} page
  * @param {import('../../index.js').ResolvedAstroAeoConfig} config
+ * @param {{ requestTime?: boolean }} [options]
  * @returns {boolean}
  */
-export function hasMarkdownCompanion(page, config) {
+export function hasMarkdownCompanion(page, config, options = {}) {
   if (!config.markdown.enabled) return false;
   if (page.aeoTokens?.includes('no-dotmd') || page.directives?.generateMarkdown === false) return false;
-  if (page.rendering === 'on-demand') return false;
+  if (!options.requestTime && page.rendering === 'on-demand') return false;
   return true;
 }
 

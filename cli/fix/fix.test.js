@@ -244,4 +244,16 @@ describe('astro-aeo fix', () => {
     expect(result.output).toContain('text/markdown');
     expect(tree(root)).toEqual([]);
   });
+
+  test('prints an Apache snippet that sets UTF-8 on .md files only', async () => {
+    const root = project({});
+    const result = await runFix([root, '--provider', 'apache']);
+    expect(result.output).toBe(
+      'astro-aeo fix: apache is not edited automatically. Add this yourself:\n\n' +
+      '# Apache: .htaccess or the virtual host\nAddType text/markdown .md\nAddCharset utf-8 .md\n',
+    );
+    // AddDefaultCharset relabels every text/plain and text/html response on the host.
+    expect(result.output).not.toContain('AddDefaultCharset');
+    expect(tree(root)).toEqual([]);
+  });
 });

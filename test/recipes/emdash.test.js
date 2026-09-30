@@ -218,7 +218,9 @@ describe.skipIf(!SUPPORTED).each(CASES)('$name recipe', (recipe) => {
     resetDatabase(root);
     if (!cloudflare) run(root, [EMDASH_BIN, 'seed', 'seed/seed.json']);
     // Built from the recipe root: EmDash resolves `file:./data.db` against cwd.
-    run(root, [ASTRO_BIN, 'build']);
+    const build = run(root, [ASTRO_BIN, 'build']);
+    // An ignored option would silently drop what the recipe's README promises.
+    expect(`${build.stdout}${build.stderr}`).not.toMatch(/unknown config key/);
     const port = await freePort();
     base = `http://127.0.0.1:${port}`;
     // A Cloudflare build runs in real workerd through `astro preview`, with the

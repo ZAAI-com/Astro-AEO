@@ -10,6 +10,8 @@ export interface AeoPageInput {
   /**
    * A content-collection entry. Its `body` becomes the Markdown and its `data`
    * supplies the title, description and dates when they are not given directly.
+   * An `.mdx` body is never used as Markdown: a registered `astro-aeo/mdx`
+   * renderer converts it, and otherwise the rendered HTML is extracted.
    */
   source?: unknown;
   title?: string;

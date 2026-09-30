@@ -70,6 +70,7 @@ export function chunkTopology(mode, localeCount) {
  *   tokenizer?: unknown;
  *   tokenizerOptions?: unknown;
  *   tokenizerProbed?: boolean;
+ *   requestTime?: boolean;
  *   note?: string;
  * }} input
  * @returns {Promise<{ artifacts: CorpusTextArtifact[]; manifest?: any; manifestText?: string; diagnostics: Array<{ code: string; severity: 'info'|'warning'|'error'; message: string; pathname?: string; details?: unknown }>; tokenizer?: { name: string; version: string; approximate: boolean } }>}
@@ -84,6 +85,10 @@ export async function planCorpusArtifacts(input) {
   const locales = localeGroups(participatingPages, input.i18n, input.config);
   /** @type {Array<{ code: string; severity: 'info'|'warning'|'error'; message: string; pathname?: string; details?: unknown }>} */
   const diagnostics = [];
+  // A request-time plan lists the companions the middleware serves, on-demand pages included.
+  const companionOptions = { requestTime: input.requestTime === true };
+  /** @param {any} page */
+  const hasCompanion = (page) => hasMarkdownCompanion(page, input.config, companionOptions);
 
   // Locale-prefixed families spell the locale into a public path, so an
   // unresolved group may only use the legacy root layout: alone in auto mode.
@@ -375,7 +380,7 @@ export async function planCorpusArtifacts(input) {
       /** @type {Map<string, number>} */
       const pageTokenCounts = new Map();
       for (const page of participatingPages) {
-        if (!hasMarkdownCompanion(page, input.config)) continue;
+        if (!hasCompanion(page)) continue;
         const published = renderMarkdownDocument(page, input.config);
         // Keyed by locale as well: two locales may share a page id on one
         // origin and each owns its companion token count.
@@ -450,7 +455,7 @@ export async function planCorpusArtifacts(input) {
         for (const locale of locales) {
           for (const section of manifestSections(locale.pages, input.config)) {
             for (const page of section.pages) {
-              const companion = hasMarkdownCompanion(page, input.config);
+              const companion = hasCompanion(page);
               const identity = corpusPageIdentity(page);
               // Page records are stamped with the site origin, and so is the chunk map.
               // Most pages carry no origin of their own, so the page identity used for

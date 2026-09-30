@@ -88,6 +88,8 @@ const MANDATORY_ARTIFACT_CODES = new Set([
  * @param {() => void} [deps.onDiagnostics] Persist the sanitized diagnostics attempt.
  * @param {(operation: any, index: number) => void} [deps.beforeApply] Test seam for rollback.
  * @param {(result: { committed: boolean }) => void} [deps.onSettled] Release build-session resources.
+ * @param {boolean} [deps.staleDeletion] False while the processing cache is read-only (locked or
+ *   invalid): stale outputs from the prior ledger are kept, and stay in the ledger for a later build.
  */
 export function createArtifactWriter(deps) {
   return deps.deferred ? createDeferredArtifactWriter(deps) : createImmediateArtifactWriter(deps);
@@ -491,6 +493,7 @@ function createDeferredArtifactWriter(deps) {
     onDiagnostics,
     beforeApply,
     onSettled,
+    staleDeletion = true,
   } = deps;
   const root = fileURLToPath(distDir);
   const publicRoot = publicDir ? fileURLToPath(publicDir) : undefined;
@@ -1037,6 +1040,7 @@ function createDeferredArtifactWriter(deps) {
 
       operations.push(...transformOperations(false));
       operations.push(...staleCleanupOperations(resolved.byServed));
+      const kept = staleDeletion ? [] : staleOutputs(resolved.byServed);
 
       for (const operation of privateWrites) {
         const contents = typeof operation.contents === 'function'
@@ -1058,8 +1062,7 @@ function createDeferredArtifactWriter(deps) {
           generatedAt: new Date().toISOString(),
           base: canonicalBase(base) || '/',
           outputRootId: outputId,
-          artifacts: resolved.manifestEntries,
-          groups: resolved.manifestGroups,
+          ...ledgerWithKept(resolved, kept),
         };
         operations.push({
           kind: 'write',
@@ -1071,6 +1074,12 @@ function createDeferredArtifactWriter(deps) {
 
       commitFileTransaction(operations.map(confineOperation), { beforeApply });
       committed = true;
+      if (kept.length) {
+        logger.warn(
+          `astro-aeo: the processing cache is read-only, so ${kept.length} stale output(s) from the previous build were kept; ` +
+            'the next build with a writable cache removes them.',
+        );
+      }
     } catch (error) {
       counts.clear();
       reportDiagnostic(
@@ -1210,6 +1219,42 @@ function createDeferredArtifactWriter(deps) {
 
   /** @param {Map<string, any[]>} currentClaims */
   function staleCleanupOperations(currentClaims) {
+    if (!staleDeletion) return [];
+    return staleOutputs(currentClaims).map(({ path }) => ({ kind: /** @type {const} */ ('delete'), path }));
+  }
+
+  /**
+   * The current ledger, plus the prior entries and groups of stale outputs a
+   * read-only build kept, so a later build still has the authority to remove
+   * them. Entries recorded under another base would name the wrong pathname.
+   * @param {{ manifestEntries: any[]; manifestGroups: any[] }} resolved
+   * @param {{ entry: any }[]} kept
+   */
+  function ledgerWithKept(resolved, kept) {
+    if (!kept.length || previousBase !== (canonicalBase(base) || '/')) {
+      return { artifacts: resolved.manifestEntries, groups: resolved.manifestGroups };
+    }
+    const current = new Set(resolved.manifestEntries.map((entry) => entry.pathname));
+    const carried = kept.map(({ entry }) => entry).filter((entry) => !current.has(entry.pathname));
+    const currentGroups = new Set(resolved.manifestGroups.map((group) => group.id));
+    const carriedGroupIds = new Set(carried.flatMap((entry) => entry.group ? [entry.group] : []));
+    const carriedGroups = (previousUsable?.groups ?? []).filter(
+      (/** @type {any} */ group) => carriedGroupIds.has(group.id) && !currentGroups.has(group.id),
+    );
+    return {
+      artifacts: [...resolved.manifestEntries, ...carried]
+        .sort((a, b) => codeUnitCompare(a.pathname, b.pathname)),
+      groups: [...resolved.manifestGroups, ...carriedGroups]
+        .sort((a, b) => a.id.localeCompare(b.id)),
+    };
+  }
+
+  /**
+   * Prior-ledger outputs this build no longer claims and could safely remove.
+   * @param {Map<string, any[]>} currentClaims
+   * @returns {{ entry: any; path: string }[]}
+   */
+  function staleOutputs(currentClaims) {
     if (!previousUsable) return [];
     const currentOutputPaths = new Set(
       [...currentClaims.values()].flatMap((related) =>
@@ -1248,17 +1293,17 @@ function createDeferredArtifactWriter(deps) {
       if (fileEtag(path) !== entry.representation?.etag) return null;
       return path;
     };
-    const deletes = ungrouped.flatMap((entry) => {
+    const stale = ungrouped.flatMap((entry) => {
       const path = safe(entry);
-      return path ? [{ kind: /** @type {const} */ ('delete'), path }] : [];
+      return path ? [{ entry, path }] : [];
     });
     for (const entries of priorGroups.values()) {
       const paths = entries.map(safe);
       if (paths.every(Boolean)) {
-        for (const path of paths) deletes.push({ kind: 'delete', path: /** @type {string} */ (path) });
+        entries.forEach((entry, index) => stale.push({ entry, path: /** @type {string} */ (paths[index]) }));
       }
     }
-    return deletes;
+    return stale;
   }
 
   /** @param {string} pathname */

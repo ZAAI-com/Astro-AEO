@@ -5,8 +5,10 @@ export default defineConfig({
   site: 'https://recipe.example.com',
   integrations: [
     aeo({
+      site: {
+        profile: { enabled: true, name: 'Harbor Street Bakery', description: 'A neighborhood bakery.', email: 'hello@recipe.example.com' },
+      },
       discovery: {
-        domainProfile: { enabled: true, name: 'Harbor Street Bakery', description: 'A neighborhood bakery.', contactEmail: 'hello@recipe.example.com' },
         sitemap: { mode: 'disabled' },
       },
     }),

@@ -9,6 +9,9 @@ import {
   urlPath,
 } from './page-model.js';
 import { resolveConfig } from '../config.js';
+import { defineAeoPage } from '../page.js';
+import { serializeJsonLd } from '../lib/serialize-jsonld.js';
+import mdxRenderer from '../adapters/mdx.js';
 
 const site = { siteUrl: 'https://x.com', base: '', trailingSlash: 'always' };
 const page = (body, head = '') =>
@@ -219,6 +222,42 @@ describe('buildPage', () => {
     });
     expect(result.page.extraction).toBeUndefined();
     expect(loads).toBe(0);
+  });
+
+  test('never publishes the raw body of an MDX entry passed to defineAeoPage', async () => {
+    const entry = {
+      id: 'guide',
+      filePath: 'src/content/docs/guide.mdx',
+      body: "import Callout from '../../components/Callout.astro';\n\n# Guide\n\n<Callout>Read this first.</Callout>\n",
+      data: { title: 'Guide' },
+    };
+    const marker = '<script type="application/vnd.astro-aeo+json" data-astro-aeo-marker>' +
+      `${serializeJsonLd(defineAeoPage({ source: entry }))}</script>`;
+    const html = page(`${marker}<h1>Guide</h1><p>Read this first.</p>`);
+
+    const extracted = await buildPage({ pathname: '/guide', html, config, site });
+    expect(extracted.page.markdown).not.toContain('import ');
+    expect(extracted.page.markdown).not.toContain('<Callout');
+    expect(extracted.page.markdown).toContain('Read this first.');
+    expect(extracted.page.source).toMatchObject({ kind: 'mdx', strategy: 'rendered', path: entry.filePath });
+
+    const rendered = await buildPage({
+      pathname: '/guide',
+      html,
+      config,
+      site,
+      renderers: [{
+        name: 'astro-aeo/mdx',
+        options: { components: { Callout: { action: 'unwrap' } } },
+        render: mdxRenderer.render,
+      }],
+    });
+    expect(rendered.page.markdown).toContain('# Guide');
+    expect(rendered.page.markdown).toContain('Read this first.');
+    expect(rendered.page.markdown).not.toContain('import ');
+    expect(rendered.page.markdown).not.toContain('<Callout');
+    expect(rendered.page.extraction).toMatchObject({ strategy: 'renderer:astro-aeo/mdx' });
+    expect(rendered.page.source).toMatchObject({ kind: 'mdx', strategy: 'marker', path: entry.filePath });
   });
 
   test('preserves explicitly empty authored Markdown without initializing Turndown', async () => {

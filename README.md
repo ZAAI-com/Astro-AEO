@@ -565,7 +565,9 @@ const { Content } = await render(post);
 `defineAeoPage` reads `body`, `data.title`, `data.description`, image, language, version, and dates from a
 content-collection entry, or accepts explicit authored Markdown/MDX, source kind/path, authors,
 Schema.org entities, and directive hints. Every field is optional; supplying none is the same as
-not using it at all, and extraction runs as usual.
+not using it at all, and extraction runs as usual. The `body` of an `.mdx` entry is never used as
+Markdown, because it holds imports and JSX: a registered `astro-aeo/mdx` renderer converts it, and
+without one the page's rendered HTML is extracted.
 
 The marker the component emits is internal. It is written only when Astro-AEO is
 the one rendering the page (the build's prerender pass, or a request for the `.md`),
@@ -673,7 +675,8 @@ export default defineCmsAdapter({
 - `contentPage(entry, overrides?)` returns `<AeoPage>` props from a content-collection entry. It is
   `defineAeoPage({ source: entry, ...overrides })`.
 - `contentDescriptor(entry, { pathname, ...overrides })` returns a serializable catalog descriptor from
-  an entry: title, description, image, language, version, dates, Markdown body, and source path.
+  an entry: title, description, image, language, version, dates, Markdown body, and source path. An
+  `.mdx` body is carried as `source.body` for a registered renderer instead of as Markdown.
 - `defineContentCatalog({ name?, entries, toPage })` builds a catalog. `entries(context)` loads your
   entries and `toPage(entry, context)` returns `{ pathname, ...overrides }`, or `null` to leave one out.
 - `defineCmsAdapter({ name, listPages })` builds a catalog whose pages always carry
@@ -912,7 +915,7 @@ Astro-AEO's core Turndown converter. Missing optional peers warn and retain norm
 
 `corpus.index.sections` groups pages in `llms.txt`. Each rule has a `title` and a `match` that is a glob string, an array of globs, a RegExp, or a predicate `(page) => boolean`. Rules are evaluated in order, first match wins. Empty sections are dropped. Pages matching no rule fall into `defaultSection`.
 
-On a multilingual site, path rules are evaluated against the locale-relative pathname: a page grouped under locale `de` and served at `/de/blog/post` is matched as `/blog/post`, so one rule such as `/blog/**` applies inside every locale. Write rules without the locale prefix. A predicate still receives the page with its full `pathname`.
+On a multilingual site, path rules are evaluated against the locale-relative pathname: a page grouped under locale `de` and served at `/de/blog/post` is matched as `/blog/post`, so one rule such as `/blog/**` applies inside every locale. Write rules without the locale prefix. A predicate still receives the page with its full `pathname`, plus `page.locale`: the locale the page is grouped under, or `null` or absent without i18n.
 
 ```js
 corpus: {
@@ -967,13 +970,14 @@ merged after extraction and are never frozen by a cache hit. A complete build pr
 it did not use; an incomplete inventory keeps them.
 
 An exclusive same-host process lock protects reusable state. A locked or invalid state makes the
-build run cold and read-only, with no stale deletion authority, and IndexNow state does not
-advance until `.astro/aeo-cache/processing-v1` is deleted. Project routes and `public/` files
-still win. A stale file is deleted only when the prior ledger names Astro-AEO, the path is
-confined, the file is regular and not a symlink, and its bytes still match the prior emitted hash.
-To clear the cache by hand, delete only `.astro/aeo-cache/processing-v1`: deleting all of
-`.astro/aeo-cache` also discards the artifact ownership and IndexNow ledgers. Set
-`cache.enabled: false` to stop reuse.
+build run cold and read-only, with no stale deletion authority: stale files are kept, recorded for a
+later build to remove, and reported once, and IndexNow state does not advance. A lock ends with the
+build that holds it (a lock left by a dead process on the same host is reclaimed); an invalid state
+stays until `.astro/aeo-cache/processing-v1` is deleted. Project routes and `public/` files still
+win. A stale file is deleted only when the prior ledger names Astro-AEO, the path is confined, the
+file is regular and not a symlink, and its bytes still match the prior emitted hash. To clear the
+cache by hand, delete only `.astro/aeo-cache/processing-v1`: deleting all of `.astro/aeo-cache` also
+discards the artifact ownership and IndexNow ledgers. Set `cache.enabled: false` to stop reuse.
 
 ### The universal robots.txt group
 
@@ -1058,11 +1062,12 @@ spelling. The exact artifact paths (`llms.txt`, `llms-full.txt`, `robots.txt`,
 Astro, because a static endpoint path carrying a file extension is already exempt. Astro 7 extends
 that exemption to dynamic endpoint patterns, so companions work there too.
 
-Release gates build Node, Cloudflare, Deno, Vercel, and Netlify fixtures. Request
-contracts run locally for Node, Cloudflare in workerd, Deno, and the emitted Vercel and Netlify
-handlers. Separate assertions verify that Vercel routes runtime artifacts to `_render` before its
-status-404 fallback and that Netlify does not short-circuit `.md` through bundled custom-404
-content.
+Release gates build Node, Cloudflare, Deno, Vercel, and Netlify fixtures. The full request
+contract runs locally for Node, Cloudflare in workerd, and Deno. The emitted Vercel and Netlify
+handlers run in process against a smaller set: `.md` `GET`, `HEAD` and `304`, the runtime
+artifacts, `robots.txt` passthrough, and the Markdown `404` for an unknown `.md`. Separate
+assertions verify that Vercel routes runtime artifacts to `_render` before its status-404 fallback
+and that Netlify does not short-circuit `.md` through bundled custom-404 content.
 
 The stock `@astrojs/cloudflare()` adapter needs no extra wiring. If you replace its worker
 entrypoint with a hand-written `astro/fetch` handler, wrap the app response in
@@ -1324,7 +1329,7 @@ import { FaqJsonLd, BreadcrumbJsonLd, ArticleJsonLd } from 'astro-aeo/components
 
 | Component | Props | Notes |
 | --- | --- | --- |
-| `FaqJsonLd` | `items: { question, answer }[]`, `id?` | FAQPage. `id` (such as `#faq`) sets a stable `@id`, resolved against the page URL, so the schema map can list it |
+| `FaqJsonLd` | `items: { question, answer }[]`, `id?` | FAQPage. `id` (such as `#faq`) sets a stable `@id`, resolved against the page URL, so the schema map can list it. An `id` that does not parse or names the page itself is omitted |
 | `HowToJsonLd` | `name`, `steps: { name, text, url?, image? }[]`, `description?`, `totalTime?` | HowTo |
 | `BreadcrumbJsonLd` | `items?`, `labels?`, `includeHome?` | Auto-derives the trail from the URL when `items` is omitted |
 | `OrganizationJsonLd` | `name`, `url?`, `logo?`, `sameAs?`, `contactEmail?` | `url` defaults to `site`. Place once, e.g. the homepage |
@@ -1384,7 +1389,7 @@ permissions:
 steps:
   - uses: actions/checkout@v4
   - run: npm ci && npm run build
-  - uses: ZAAI-com/Astro-AEO@1.5.1
+  - uses: ZAAI-com/Astro-AEO@1.5.2
     with:
       target: dist            # or a deployed URL
       fail-on: error          # error, warning or none
@@ -1452,10 +1457,12 @@ The handlers follow the Astro middleware's rules exactly, and one shared contrac
 and `HEAD` only, exact manifest routes only (with or without a trailing slash), Markdown only when it
 strictly outranks HTML, `303` with the query preserved in `'redirect'` mode, and `Vary: Accept` on every
 listed route whichever representation is chosen. They fail closed to the unmodified HTML response when
-the manifest is missing, malformed, from a future version, or stale. On Cloudflare and Netlify the
-handler serves the companion itself as `text/markdown; charset=utf-8` with the asset's `ETag` and cache
-policy, `304` for a matching `If-None-Match`, and no body for `HEAD`. Vercel middleware cannot read a
-response, so there the handler rewrites to the companion and the platform serves it.
+the manifest is missing, malformed, or from a future version. On Cloudflare and Netlify the handler
+serves the companion itself as `text/markdown; charset=utf-8` with the asset's `ETag` and cache policy,
+`304` for a matching `If-None-Match`, and no body for `HEAD`, and it also falls back to the HTML when a
+stale manifest lists a companion that is gone. Vercel middleware cannot read a response, so there the
+handler rewrites to the companion and the platform serves it: for a companion that a stale manifest
+lists but that is gone, the negotiated request gets the platform's `404`, not the HTML.
 
 The plugin is rejected with an error when the project configures an adapter (the Astro middleware already
 negotiates there), when a page renders on demand, or when `markdown.negotiation` is `'off'`. Without the
@@ -1563,7 +1570,7 @@ attributes are checked both offline and live, except on noindex pages.
 |---|---|
 | `--format <name>` | `terminal` (default), `json`, `sarif`, `html`, `markdown`, `github`, or `junit`. All seven render the same report. |
 | `--output <file>` | Write the report to a file (temporary file, then rename) and print nothing to standard output. |
-| `--fail-on <level>` | `error` (default), `warning`, or `none`. |
+| `--fail-on <level>` | `error` (default), `warning`, or `none`. A `junit` report fails exactly these findings' cases; the others pass with their message in `<system-out>`. |
 | `--no-score` | Omit scores and per-finding deductions. |
 | `--base <path>` | Base path of a build directory. |
 | `--max-pages <n>` | URL only. Page cap, default `500`, or `unlimited`. |

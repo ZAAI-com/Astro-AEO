@@ -405,6 +405,16 @@ describe('conversion fidelity', () => {
     expect(md).not.toMatch(/class=|data-astro|<div|<span/);
   });
 
+  test('unwrapped wrappers that CSS lays out apart keep their words apart', () => {
+    const table = (cell) => convert(`<main><table><tr><th>${cell}</th></tr><tr><td><ul><li>x</li></ul></td></tr></table></main>`);
+    expect(table('<span><span>Name</span> <span>Pilot</span></span><span class="mt-2 block">Summary</span>'))
+      .toContain('<th>Name Pilot Summary</th>');
+    expect(table('<div>Pilot</div><div>Fleet</div>')).toContain('<th>Pilot Fleet</th>');
+    expect(table('<span>A</span><b>b</b>')).toContain('<th>A<b>b</b></th>');
+    expect(table('Total<span>5</span>')).toContain('<th>Total5</th>');
+    expect(table('<span>Pilot</span><span>.</span><span>Fleet</span><span>)</span>')).toContain('<th>Pilot. Fleet)</th>');
+  });
+
   test('tables with block content in a cell stay HTML', () => {
     const md = convert('<main><table><tr><td><p>One</p><p>Two</p></td></tr></table></main>');
     expect(md).toContain('<table>');

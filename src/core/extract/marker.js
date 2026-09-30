@@ -24,6 +24,8 @@ export const COLLECT_FLAG = 'astroAeoCollect';
  * @property {unknown[]} [entities]
  * @property {{ index?: boolean; includeInLlms?: boolean; includeInLlmsFull?: boolean; generateMarkdown?: boolean }} [directives]
  * @property {string} [sourceFallback] Why an inferred marker could not supply Markdown; rendered extraction is used.
+ * @property {string} [sourceBody] An MDX entry body. Never published as Markdown: only a registered
+ *   renderer (such as `astro-aeo/mdx`) may convert it, otherwise the rendered HTML is extracted.
  */
 
 /**

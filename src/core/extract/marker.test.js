@@ -87,6 +87,22 @@ describe('defineAeoPage', () => {
     expect(marker.sourcePath).toBe('src/content/blog/a.md');
   });
 
+  test('keeps an MDX entry body out of the marker Markdown', () => {
+    const body = "import Card from './Card.astro';\n\n# Guide\n\n<Card />\n";
+    const marker = defineAeoPage({ source: { body, data: { title: 'Guide' }, filePath: 'src/content/docs/guide.mdx' } });
+    expect(marker).not.toHaveProperty('markdown');
+    expect(marker.sourceBody).toBe(body);
+    expect(marker.sourceKind).toBe('mdx');
+    // Explicit Markdown is still the page's own choice, even for an MDX entry.
+    expect(defineAeoPage({ source: { body, filePath: 'guide.mdx' }, markdown: '# Mine' })).toMatchObject({
+      markdown: '# Mine',
+      sourceKind: 'mdx',
+    });
+    expect(defineAeoPage({ source: { body, filePath: 'guide.mdx' }, markdown: '# Mine' })).not.toHaveProperty('sourceBody');
+    // An explicit kind overrides the path.
+    expect(defineAeoPage({ source: { body, filePath: 'guide.md' }, sourceKind: 'mdx' })).not.toHaveProperty('markdown');
+  });
+
   test('preserves an explicit source kind without requiring a source path', () => {
     expect(defineAeoPage({ markdown: '# MDX source', sourceKind: 'mdx' })).toEqual({
       markdown: '# MDX source',
