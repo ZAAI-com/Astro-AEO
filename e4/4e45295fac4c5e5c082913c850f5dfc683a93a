@@ -1,0 +1,28 @@
+CHANGELOG.md
+  s_7ad5fa97dc1640::t_b37e10fdc7c20e 5-18
+docs/CONTENT_OPTIMIZATION.md
+  s_7ad5fa97dc1640::t_b37e10fdc7c20e 1-106
+README.md
+  s_7ad5fa97dc1640::t_b37e10fdc7c20e 30,1337-1345,1351-1395
+  s_7ad5fa97dc1640::t_9d52a56e4ee51f 1396
+.changeset/content-guidance-schema-tools.md
+  s_7ad5fa97dc1640::t_b37e10fdc7c20e 1-8
+docs/GOOGLE_SCHEMA_PROFILES.md
+  s_7ad5fa97dc1640::t_b37e10fdc7c20e 1-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e44e45295fac4c5e5c082913c850f5dfc683a93a",
+  "prompts": {},
+  "sessions": {
+    "s_7ad5fa97dc1640": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f2a2-23c8-7ff2-a319-6f815c1f72ed",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
