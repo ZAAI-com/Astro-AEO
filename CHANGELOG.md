@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## 1.6.0
+
+In preparation. Release notes will be folded in from changesets before the 1.6.0 tag is created.
+
 ## 1.5.3
 
 Add opt-in editorial audit advice, eight typed JSON-LD components, extended Article publishing
