@@ -35,8 +35,14 @@ export const RELEASE_THRESHOLDS = Object.freeze({
   // 174 files, 846 bytes past the 1.5 ceiling, so the unpacked ceiling moves by
   // 10,000 bytes. The growth is README, changelog, CLI and build code, not
   // consumer runtime bundles, which the limits below still hold.
+  //
+  // The content guidance and schema tools release adds eight JSON-LD components,
+  // the shared Google field checker, editorial audit rules and their docs. It
+  // measured 394,796 packed and 1,504,218 unpacked across 184 files, 34,218 bytes
+  // past the 1.5.2 ceiling, so the unpacked ceiling moves by 40,000 bytes. Only
+  // the components a page imports and the checker reach a consumer bundle.
   packagePackedBytes: 450_000,
-  packageUnpackedBytes: 1_470_000,
+  packageUnpackedBytes: 1_510_000,
   parse100KbP95Ms: 50,
   convert100KbP95Ms: 150,
   // The rich document repeats hidden glyphs, a definition term, a two-image
