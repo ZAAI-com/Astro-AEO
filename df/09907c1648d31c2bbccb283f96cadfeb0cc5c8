@@ -1,0 +1,40 @@
+src/content.js
+  s_bc21be4b6c0c80::t_5699305dffb926 16-17
+  s_bc21be4b6c0c80::t_a582429a6cff20 59-66
+src/core/extract/marker.test.js
+  s_bc21be4b6c0c80::t_e651d5dc6ea04a 90-105
+src/content.test.js
+  s_bc21be4b6c0c80::t_e651d5dc6ea04a 51-58
+src/core/page-model.js
+  s_bc21be4b6c0c80::t_8c6203d0125c8e 165-172,189,192-194,197-206,319
+src/page.d.ts
+  s_bc21be4b6c0c80::t_5699305dffb926 13-14
+src/core/extract/marker.js
+  s_bc21be4b6c0c80::t_8c6203d0125c8e 27-28
+README.md
+  s_bc21be4b6c0c80::t_5699305dffb926 568-570,678-679
+src/page.js
+  s_bc21be4b6c0c80::t_a582429a6cff20 32-39,41,66
+src/core/page-model.test.js
+  s_bc21be4b6c0c80::t_a45c31c37e7cfd 249-253
+  s_bc21be4b6c0c80::t_e651d5dc6ea04a 12-14,227-248,254-260
+  s_bc21be4b6c0c80::t_dc42bc390ede05 261-262
+.changeset/mdx-entry-body.md
+  s_bc21be4b6c0c80::t_8e28465627026b 1-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "df09907c1648d31c2bbccb283f96cadfeb0cc5c8",
+  "prompts": {},
+  "sessions": {
+    "s_bc21be4b6c0c80": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a99e2e09-6980-473c-8022-4d8c25243f41",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
