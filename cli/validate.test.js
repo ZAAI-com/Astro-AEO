@@ -8,6 +8,8 @@ import { gzipSync } from 'node:zlib';
 import { validateDist } from './validate.js';
 import { countApproximateTokens, normalizePublishedText } from '../src/core/corpus-tokenizer.js';
 import { normalizeCorpusManifest } from '../src/core/corpus-manifest.js';
+import { buildRobotsTxt } from '../src/generators/robots-txt.js';
+import { resolveConfig } from '../src/config.js';
 
 const DIR = dirname(fileURLToPath(import.meta.url));
 const FIX = join(DIR, '..', 'fixtures');
@@ -112,6 +114,40 @@ describe('validateDist', () => {
     test('an inline comment after "User-agent: *" is not mistaken for a named agent', () => {
       const r = validateDist(buildDist('User-agent: * # default crawlers\nAllow: /\n\nUser-agent: Googlebot\nAllow: /\n'));
       expect(r.warnings.map((w) => w.code)).not.toContain('robots-no-wildcard');
+    });
+
+    test.each([
+      ['a custom group', { policy: 'open', contentSignals: { search: true, aiInput: false, aiTrain: false } }],
+      ['every preset group', { policy: 'search-open-training-closed', contentSignals: { search: true, aiInput: true, aiTrain: false } }],
+      ['a synthesized wildcard group', { universalAllow: false, contentSignals: { search: false, aiInput: false, aiTrain: false } }],
+    ])('accepts the Content-Signal lines Astro-AEO renders in %s', (_name, robots) => {
+      const config = resolveConfig({ discovery: { robots: { enabled: true, includeSitemap: false, includeLlmsTxt: false, ...robots } } });
+      const rendered = buildRobotsTxt(config, 'https://x.com');
+      expect(rendered).toContain('Content-Signal:');
+      const r = validateDist(buildDist(rendered));
+      expect(r.warnings.filter((w) => w.code === 'robots-unknown-line')).toEqual([]);
+    });
+
+    test('accepts a hand-written Content Signals subset in any case', () => {
+      const r = validateDist(buildDist('User-agent: *\nContent-Signal: ai-train=no # training\ncontent-signal : Search=Yes, AI-Input=no\nAllow: /\n'));
+      expect(r.warnings.filter((w) => w.code === 'robots-unknown-line')).toEqual([]);
+    });
+
+    test.each([
+      'Content-Signal: search=maybe',
+      'Content-Signal: ai-training=no',
+      'Content-Signal: search=yes, search=no',
+      'Content-Signal: search=yes,',
+      'Content-Signal:',
+      'Content-Signal: search',
+    ])('still flags a malformed %s line with the unchanged warning', (line) => {
+      const r = validateDist(buildDist(`User-agent: *\nAllow: /\n${line}\n`));
+      expect(r.warnings.filter((w) => w.code === 'robots-unknown-line')).toEqual([{
+        level: 'warn',
+        code: 'robots-unknown-line',
+        message: `unrecognized robots.txt line: ${line}`,
+        file: 'robots.txt',
+      }]);
     });
   });
 

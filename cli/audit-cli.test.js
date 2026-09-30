@@ -1,5 +1,5 @@
 // @ts-check
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -19,6 +19,24 @@ afterEach(() => {
 const audit = (args, cwd) => spawnSync(process.execPath, [BIN, 'audit', ...args], { encoding: 'utf8', ...(cwd ? { cwd } : {}) });
 
 describe('audit CLI', () => {
+  test('validate --strict and audit accept the robots.txt Astro-AEO writes with Content Signals', () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'astro-aeo-content-signals-')));
+    roots.push(root);
+    const dist = join(root, 'dist');
+    cpSync(VALID, dist, { recursive: true });
+    const robots = readFileSync(join(VALID, 'robots.txt'), 'utf8').replace(
+      /^(Allow: \/)$/gm,
+      '$1\n# Experimental Content Signals, not part of RFC 9309\nContent-Signal: search=yes, ai-input=yes, ai-train=no',
+    );
+    expect(robots.match(/Content-Signal:/g)).toHaveLength(2);
+    writeFileSync(join(dist, 'robots.txt'), robots);
+
+    const validate = spawnSync(process.execPath, [BIN, 'validate', dist, '--strict'], { encoding: 'utf8' });
+    expect(validate.status, validate.stdout + validate.stderr).toBe(0);
+    const report = JSON.parse(audit([dist, '--format', 'json', '--fail-on', 'none']).stdout);
+    expect(report.findings.filter((finding) => finding.ruleId === 'robots-unknown-line')).toEqual([]);
+  });
+
   test('refuses a symlinked build root with invocation status 2', () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), 'astro-aeo-audit-cli-')));
     roots.push(root);

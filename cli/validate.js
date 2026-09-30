@@ -397,6 +397,27 @@ function findImagesMissingAlt(html) {
   return count;
 }
 
+/** The Content Signals keys: the three Astro-AEO writes, and the only ones the policy defines. */
+const CONTENT_SIGNAL_KEYS = new Set(['search', 'ai-input', 'ai-train']);
+
+/**
+ * Whether a `Content-Signal` value is a comma-separated list of `key=yes|no`
+ * pairs, each key known and stated at most once. Astro-AEO writes all three; a
+ * hand-written file may state only some.
+ * @param {string} value
+ */
+function isContentSignalValue(value) {
+  const seen = new Set();
+  for (const item of value.split(',')) {
+    const pair = item.trim().match(/^([a-z-]+)\s*=\s*(yes|no)$/i);
+    if (!pair) return false;
+    const key = pair[1].toLowerCase();
+    if (!CONTENT_SIGNAL_KEYS.has(key) || seen.has(key)) return false;
+    seen.add(key);
+  }
+  return true;
+}
+
 /**
  * @param {string} robots
  * @param {{ warnings: LegacyFinding[] }} out
@@ -408,7 +429,11 @@ function validateRobots(robots, out) {
     // "User-agent: * # default" parse as "*", not "* # default".
     const line = raw.replace(/\s+#.*$/, '').trim();
     if (!line || line.startsWith('#')) continue;
-    if (!/^(User-agent|Allow|Disallow|Sitemap|Crawl-delay|Host)\s*:/i.test(line)) {
+    const signal = line.match(/^Content-Signal\s*:\s*(.*)$/i);
+    const known = signal
+      ? isContentSignalValue(signal[1])
+      : /^(User-agent|Allow|Disallow|Sitemap|Crawl-delay|Host)\s*:/i.test(line);
+    if (!known) {
       out.warnings.push({ level: 'warn', code: 'robots-unknown-line', message: `unrecognized robots.txt line: ${line}`, file: 'robots.txt' });
     }
     const ua = line.match(/^User-agent\s*:\s*(.+)$/i);
