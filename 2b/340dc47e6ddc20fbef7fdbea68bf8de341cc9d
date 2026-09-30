@@ -1,0 +1,23 @@
+package.json
+  s_bb4e0d366b37f6::t_f51649c6114aba 3
+CHANGELOG.md
+  s_bb4e0d366b37f6::t_f51649c6114aba 5-9
+README.md
+  s_bb4e0d366b37f6::t_f51649c6114aba 1392
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2b340dc47e6ddc20fbef7fdbea68bf8de341cc9d",
+  "prompts": {},
+  "sessions": {
+    "s_bb4e0d366b37f6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f29f-8ff6-77c1-b8d8-f17410ad0a47",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
