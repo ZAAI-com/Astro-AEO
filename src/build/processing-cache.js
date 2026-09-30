@@ -242,6 +242,10 @@ function canonicalValue(value) {
   if (typeof value === 'bigint') return String(value);
   if (typeof value === 'function') return '[function]';
   if (value instanceof URL) return value.href;
+  // A RegExp has no enumerable own properties, so the object branch would key
+  // every `pages.stripTitleSuffix` pattern as {}. The `$` names keep it apart
+  // from a plain object or a string with the same text.
+  if (value instanceof RegExp) return { $regexp: value.source, $flags: value.flags };
   if (Array.isArray(value)) return value.map(canonicalValue);
   if (typeof value === 'object') {
     return Object.fromEntries(
