@@ -2,6 +2,7 @@
 import { ArticleJsonLd, ProductJsonLd, SoftwareApplicationJsonLd, ReviewJsonLd,
   ItemListJsonLd, DatasetJsonLd, ProfilePageJsonLd, ServiceJsonLd, LocalBusinessJsonLd,
   FaqJsonLd, HowToJsonLd, BreadcrumbJsonLd, OrganizationJsonLd, SpeakableJsonLd } from '../../../components/index.js';
+import { serializeJsonLd } from '../../../src/lib/serialize-jsonld.js';
 const unsafe = 'Tool </script><script>alert("unsafe")</script>\u2028\u2029';
 const entity = Object.freeze({ name: unsafe, offers: Object.freeze({ '@type': 'Offer', price: 0 }) });
 const before = JSON.stringify(entity);
@@ -27,7 +28,16 @@ const before = JSON.stringify(entity);
     <BreadcrumbJsonLd eligibility="google" />
     <OrganizationJsonLd name="Publisher" eligibility="google" />
     <SpeakableJsonLd eligibility="google" />
-    <script type="application/ld+json" set:html={JSON.stringify({ '@context': 'https://schema.org', '@graph': [{ '@type': 'Product', '@id': '#product', name: 'Reviewed tool', offers: { '@type': 'Offer', price: 10 } }, { '@type': 'Person', '@id': '#ada', name: 'Ada' }] })} />
+    <script type="application/ld+json" set:html={serializeJsonLd({ '@context': 'https://schema.org', '@graph': [{ '@type': 'Product', '@id': '#product', name: 'Reviewed tool', offers: { '@type': 'Offer', price: 10 } }, { '@type': 'Person', '@id': '#ada', name: 'Ada' }] })} />
+    <ArticleJsonLd headline="Empty authors" author={[]} />
+    <ProductJsonLd eligibility="google" />
+    <SoftwareApplicationJsonLd eligibility="google" />
+    <ReviewJsonLd eligibility="google" />
+    <ItemListJsonLd eligibility="google" />
+    <DatasetJsonLd eligibility="google" />
+    <ProfilePageJsonLd eligibility="google" />
+    <ServiceJsonLd eligibility="google" />
+    <LocalBusinessJsonLd eligibility="google" />
   </head>
   <body><main><h1>Schema tools</h1><p>Publishing components.</p><p id="immutable">{before === JSON.stringify(entity) ? 'Input unchanged' : 'Input mutated'}</p></main></body>
 </html>

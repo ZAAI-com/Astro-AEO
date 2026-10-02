@@ -61,7 +61,7 @@ const RULE_LIST = Object.freeze([
   ...rules('metadata', 'info', ['offline', 'live'], [
     'editorial-review-reminder', 'editorial-missing-attribution',
   ]),
-  ...rules('structured-data', 'warning', ['offline', 'live'], ['google-schema-required']),
+  ...rules('structured-data', 'warning', ['offline', 'live'], ['google-schema-required', 'google-schema-incomplete']),
   ...rules('structured-data', 'info', ['offline', 'live'], ['google-schema-recommended', 'google-schema-unsupported']),
   ...rules('markdown', 'info', ['build'], ['authored-source-fallback']),
   ...rules('build', 'warning', ['build'], ['catalog-invalid-version']),

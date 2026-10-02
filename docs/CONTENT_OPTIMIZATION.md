@@ -1,7 +1,7 @@
 # Content optimization
 
 Run `astro-aeo audit dist --heuristics` or `astro-aeo audit https://example.com/ --heuristics`
-to request editorial advice. This is deterministic guidance, not an AI rewrite or a ranking model.
+to request editorial advice. This is fixed-rule guidance, not an AI rewrite or a ranking model.
 Every finding is informational, has a documentation link, adds zero score deductions, and cannot
 fail a severity gate. Ordinary audits are unchanged. No article passages are copied into findings.
 
@@ -83,7 +83,9 @@ An article whose latest valid publication/modification date is more than 365 UTC
 a review reminder. Age alone does not make evergreen content outdated. Review factual accuracy,
 examples, source links, and instructions; change modification dates only after a genuine edit.
 Missing or invalid calendar dates do not trigger the freshness reminder. Future dates are not
-treated as old. Automated tests inject the current date for reproducibility.
+treated as old. Offset-free datetimes are interpreted as UTC. Each audit captures one current date
+for all pages. Freshness advice can change across audit dates for otherwise identical content;
+programmatic callers and automated tests can pin the `now` option for reproducibility.
 
 ## Analysis scope and false positives
 

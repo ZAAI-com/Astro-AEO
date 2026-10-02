@@ -628,6 +628,10 @@ Severity: warning. Raised by: build.
 
 Severity: warning. Raised by: build.
 
+### google-schema-incomplete
+
+Severity: warning. Raised by: offline, live.
+
 ### google-schema-recommended
 
 Severity: info. Raised by: offline, live.

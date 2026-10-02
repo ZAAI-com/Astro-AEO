@@ -7,7 +7,7 @@ type Props = import('./index.js').ArticleJsonLdProps;
 
 /**
  * Article JSON-LD for blog posts and dated content.
- * @typedef {{ name: string; url?: string }} Author
+ * Authors accept names, Person/Organization objects, ID references, or arrays.
  */
 const { headline, datePublished, dateModified, author, image, description, url,
   type = 'Article', publisher, keywords, inLanguage, eligibility = 'schema' } = Astro.props;
@@ -15,7 +15,9 @@ const { headline, datePublished, dateModified, author, image, description, url,
 const canonical =
   url || (Astro.site ? new URL(Astro.url.pathname, Astro.site).toString() : Astro.url.pathname);
 
-const builder = { Article: createArticle, BlogPosting: createBlogPosting, TechArticle: createTechArticle }[type];
+const builders = { Article: createArticle, BlogPosting: createBlogPosting, TechArticle: createTechArticle };
+if (!Object.hasOwn(builders, type)) throw new TypeError('ArticleJsonLd type must be Article, BlogPosting, or TechArticle');
+const builder = builders[type];
 const authors = author ? (Array.isArray(author) ? author : [author])
   .map((entry) => typeof entry === 'string' ? { name: entry } : entry)
   .map((entry) => 'name' in entry ? ({
@@ -34,13 +36,13 @@ const jsonLd = {
     ...(dateModified && { dateModified }),
     ...(image && { image }),
     mainEntityOfPage: canonical,
-    ...(authors && { author: Array.isArray(author) ? authors : authors[0] }),
+    ...(authors?.length ? { author: Array.isArray(author) ? authors : authors[0] } : {}),
     ...(publisher && { publisher }),
     ...(keywords && { keywords }),
     ...(inLanguage && { inLanguage }),
   }),
 };
-if (headline) warnGoogleSchema(jsonLd, eligibility, { documentUrl: canonical, explicitType: type });
+if (headline) warnGoogleSchema(jsonLd, eligibility, { documentUrl: new URL(canonical, Astro.url).href, explicitType: type });
 ---
 
 {headline && <script type="application/ld+json" set:html={serializeJsonLd(jsonLd)} />}

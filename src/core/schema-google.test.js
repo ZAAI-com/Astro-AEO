@@ -1,6 +1,6 @@
 // @ts-check
 import { describe, expect, it, vi } from 'vitest';
-import { checkGoogleSchema, GOOGLE_PROFILES, warnGoogleSchema } from './schema-google.js';
+import { checkGoogleSchema, GOOGLE_PROFILES, warnGoogleSchema, jsonLdEntities } from './schema-google.js';
 import { extractPageFacts } from '../audit/facts.js';
 import { auditPages } from '../audit/site-rules.js';
 
@@ -11,6 +11,7 @@ const review = { '@type': 'Review', author, reviewRating: { '@type': 'Rating', r
 describe('Google field profiles', () => {
   it.each(['Article', 'BlogPosting', 'NewsArticle'])('%s has recommendations, not universal requirements', (type) => {
     expect(warnings({ '@type': type })).toEqual([]);
+    expect(checkGoogleSchema({ '@type': type })).toHaveLength(5);
     expect(checkGoogleSchema({ '@type': type }).every((finding) => finding.severity === 'info')).toBe(true);
     expect(checkGoogleSchema({ '@type': type, headline: 'Title', author, datePublished: '2026-09-30T00:00:00Z', dateModified: '2026-09-30T00:00:00Z', image: ['https://example.org/image.jpg'] })).toEqual([]);
   });
@@ -230,5 +231,51 @@ describe('Google field profiles', () => {
       expect(profile.verified).toBe('2026-09-30');
       expect(Object.isFrozen(profile)).toBe(true);
     }
+  });
+});
+
+describe('Google checker failure containment and shapes', () => {
+  it.each(['https://?', 'https://', 'ftp://example.org/image', 'not a URL'])('rejects malformed/non-HTTP URL %s', (image) => {
+    expect(checkGoogleSchema({ '@type': 'Article', image })).toContainEqual(expect.objectContaining({ message: expect.stringContaining('Article: image') }));
+    expect(checkGoogleSchema({ '@type': 'Article', author: { ...author, url: image } })).toContainEqual(expect.objectContaining({ message: expect.stringContaining('Article: author.url') }));
+    expect(checkGoogleSchema({ '@type': 'Dataset', license: image })).toContainEqual(expect.objectContaining({ message: expect.stringContaining('Dataset: license') }));
+  });
+  it('accepts valid sameAs even when url is empty or invalid', () => {
+    for (const url of ['', 'https://?']) {
+      expect(checkGoogleSchema({ '@type': 'Article', author: { ...author, url, sameAs: author.url } }).some((finding) => finding.message.startsWith('Article: author.url'))).toBe(false);
+    }
+  });
+  it('flattens object-valued graphs and retains their profiles', () => {
+    const entity = { '@type': 'Article' };
+    expect(jsonLdEntities([{ '@graph': entity }])).toEqual([entity]);
+    expect(checkGoogleSchema({ '@graph': entity })).toHaveLength(5);
+  });
+  it('accepts offer-level currency when nested price has no currency', () => {
+    const entity = { '@type': 'Product', name: 'Tool', offers: { '@type': 'Offer', priceCurrency: 'USD', priceSpecification: { '@type': 'PriceSpecification', price: 10 } } };
+    expect(checkGoogleSchema(entity).some((finding) => finding.message.startsWith('Product: offers.priceCurrency'))).toBe(false);
+  });
+  it('uses type-aware author name guidance', () => {
+    expect(checkGoogleSchema({ '@type': 'Article', author: { '@type': 'Person' } }).find((finding) => finding.message.startsWith('Article: author.name'))?.message).not.toContain('review');
+    expect(warnings({ ...review, author: { '@type': 'Person', name: 'x'.repeat(100) } })).toContainEqual(expect.objectContaining({ message: expect.stringContaining('fewer than 100 characters') }));
+  });
+  it('provides nonempty evidence and documentation for unsupported profiles', () => {
+    expect(checkGoogleSchema({ '@type': 'WebPage', '@id': '' }, { explicitType: 'WebPage' })).toEqual([expect.objectContaining({ evidence: '/', documentation: expect.stringContaining('developers.google.com'), message: expect.stringContaining('implemented by this checker') })]);
+  });
+  it.each(['deep', 'wide', 'references', 'comparisons'])('contains %s data processing limits without exposing input', (shape) => {
+    let input;
+    if (shape === 'deep') input = JSON.parse('{"nested":'.repeat(3000) + '{}' + '}'.repeat(3000));
+    if (shape === 'wide') input = Array.from({ length: 20_001 }, () => ({ '@type': 'Thing' }));
+    if (shape === 'references') input = Array.from({ length: 300 }, (_, index) => ({ '@id': `#${index}`, child: { '@id': `#${index + 1}` } }));
+    if (shape === 'comparisons') input = [{ '@id': '#x', items: Array.from({ length: 1000 }, (_, index) => ({ index })) }, { '@id': '#x', items: Array.from({ length: 1000 }, (_, index) => ({ index: index + 1000 })) }];
+    expect(checkGoogleSchema(input)).toEqual([expect.objectContaining({ ruleId: 'google-schema-incomplete', severity: 'warning', evidence: '/' })]);
+  });
+  it('continues auditing other pages after a checker limit', () => {
+    const first = extractPageFacts('<main><p>Content.</p></main>', { url: '/deep' });
+    first.jsonLd = ['{"@type":"Thing","nested":' + '{"nested":'.repeat(3000) + '{}' + '}'.repeat(3000) + '}'];
+    const second = extractPageFacts('<main><p>Content.</p></main>', { url: '/product' });
+    second.jsonLd = ['{"@type":"Product"}'];
+    const findings = auditPages([first, second], { schemaTarget: 'google' });
+    expect(findings).toContainEqual(expect.objectContaining({ ruleId: 'google-schema-incomplete', url: '/deep', category: 'structured-data', helpUrl: expect.any(String) }));
+    expect(findings).toContainEqual(expect.objectContaining({ ruleId: 'google-schema-required', url: '/product' }));
   });
 });

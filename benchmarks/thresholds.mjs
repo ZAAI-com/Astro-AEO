@@ -45,8 +45,11 @@ export const RELEASE_THRESHOLDS = Object.freeze({
   // Google findings, and visible-prose/citation filtering. They measured 397,368
   // packed and 1,515,305 unpacked bytes across 184 files, 5,305 bytes past the
   // prior ceiling, so it moves by 10,000 bytes. Runtime and packed limits stay put.
+  // Bounded schema processing, offline URL bases, Markdown filtering and component
+  // guards measured 399,168 packed and 1,523,214 unpacked bytes across 184 files.
+  // Raise the unpacked ceiling by another 10,000 bytes for these review fixes.
   packagePackedBytes: 450_000,
-  packageUnpackedBytes: 1_520_000,
+  packageUnpackedBytes: 1_530_000,
   parse100KbP95Ms: 50,
   convert100KbP95Ms: 150,
   // The rich document repeats hidden glyphs, a definition term, a two-image

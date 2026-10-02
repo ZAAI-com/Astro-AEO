@@ -42,6 +42,23 @@ function rulesOf(project, options) {
 }
 
 describe('offline audit', () => {
+  it.each(['explicit', 'manifest', 'profile'])('resolves offline author IDs using the %s origin including deployment base', async (source) => {
+    const documentUrl = 'https://example.com/docs/guide/';
+    const entities = [{ '@type': 'Article', '@id': '#article', author: { '@id': '#author' } },
+      { '@type': 'Person', '@id': `${documentUrl}#author`, name: 'Ada', url: 'https://example.com/ada' }];
+    const contents = html({ title: 'Guide', description: 'Guide', canonical: './', body: '<article><p>Content.</p></article>',
+      head: `<script type="application/ld+json">${JSON.stringify(entities)}</script>` });
+    const project = site({ 'dist/guide/index.html': contents,
+      ...(source === 'profile' ? { 'dist/.well-known/domain-profile.json': JSON.stringify({ url: 'https://example.com' }) } : {}),
+      ...(source === 'manifest' ? { 'dist/llms/manifest.json': JSON.stringify({ version: 1, origin: 'https://example.com', base: '/docs', tokenizer: { name: 'test', version: '1', approximate: true }, locales: ['en'], pages: [], artifacts: [{}] }) } : {}),
+    });
+    const local = auditDist(join(project, 'dist'), { base: '/docs', heuristics: true, schemaTarget: 'google', ...(source === 'explicit' ? { siteUrl: 'https://example.com' } : {}) });
+    const fetch = /** @type {typeof globalThis.fetch} */ (async () => new Response(contents, { headers: { 'content-type': 'text/html' } }));
+    const live = await auditLive(documentUrl, { heuristics: true, schemaTarget: 'google', fetch });
+    const comparable = (findings) => findings.filter((finding) => /^(editorial|google)-/.test(finding.ruleId)).map(({ ruleId, severity, message, evidence }) => ({ ruleId, severity, message, evidence }));
+    expect(comparable(local.findings)).toEqual(comparable(live.findings));
+    expect(local.findings.some((finding) => finding.ruleId === 'editorial-missing-attribution')).toBe(false);
+  });
   it.each(['identified', 'anonymous'])('preserves distinct %s Google entities consistently in local and live audits', async (identity) => {
     const canonical = 'https://example.com/';
     const entities = [1, 2].map((number) => ({

@@ -24,7 +24,7 @@ const jsonLd = {
     },
   }),
 };
-if (true) warnGoogleSchema(jsonLd, Astro.props.eligibility ?? 'schema', { documentUrl: Astro.url.href, explicitType: 'WebPage' });
+warnGoogleSchema(jsonLd, Astro.props.eligibility ?? 'schema', { documentUrl: Astro.url.href, explicitType: 'WebPage' });
 ---
 
 <script type="application/ld+json" set:html={serializeJsonLd(jsonLd)} />

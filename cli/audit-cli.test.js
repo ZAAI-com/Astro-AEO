@@ -146,7 +146,9 @@ describe('audit CLI', () => {
     expect(editorial.exitCode).toBe(baseline.exitCode);
     expect(JSON.parse(editorial.output).scores).toMatchObject({ overall: JSON.parse(baseline.output).scores.overall });
     const added = JSON.parse(editorial.output).findings.filter((finding) => finding.ruleId.startsWith('editorial-'));
-    expect(added).toHaveLength(2);
+    expect(added.map((finding) => finding.ruleId).sort()).toEqual(['editorial-howto-structure', 'editorial-unsourced-number']);
+    expect(added.find((finding) => finding.ruleId === 'editorial-howto-structure').message).toContain('ordered list');
+    expect(added.find((finding) => finding.ruleId === 'editorial-unsourced-number').message).toContain('source link');
     expect(added.every((finding) => finding.severity === 'info' && finding.deduction === 0)).toBe(true);
     const live = await runAudit(['https://example.com/', '--heuristics', '--schema-target', 'google', '--format', 'json'], context);
     const local = await runAudit([root, '--heuristics', '--schema-target', 'google', '--format', 'json'], context);

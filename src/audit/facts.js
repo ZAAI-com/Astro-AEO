@@ -14,6 +14,7 @@ import { extractEditorialFacts } from './editorial.js';
  * @property {string} [title]
  * @property {string} [description]
  * @property {string} [canonical]
+ * @property {string} [documentUrl]       Absolute base for same-page structured-data references.
  * @property {string} [language]
  * @property {boolean} noindex
  * @property {{ language: string; href: string }[]} alternates
@@ -27,7 +28,7 @@ import { extractEditorialFacts } from './editorial.js';
 
 /**
  * @param {string} html
- * @param {{ url: string; file?: string; markdown?: string }} identity
+ * @param {{ url: string; file?: string; markdown?: string; documentUrl?: string; heuristics?: boolean }} identity
  * @returns {PageFacts}
  */
 export function extractPageFacts(html, identity) {
@@ -67,6 +68,7 @@ export function extractPageFacts(html, identity) {
   }
   const language = document.documentElement?.getAttribute('lang')?.trim();
   const canonical = text('link[rel="canonical" i]', 'href');
+  const documentUrl = documentUrlFor(identity.documentUrl ?? identity.url, canonical);
   return {
     url: identity.url,
     renderedHtml: true,
@@ -74,6 +76,7 @@ export function extractPageFacts(html, identity) {
     ...(title ? { title } : {}),
     ...(text('meta[name="description" i]', 'content') ? { description: text('meta[name="description" i]', 'content') } : {}),
     ...(canonical ? { canonical } : {}),
+    ...(documentUrl ? { documentUrl } : {}),
     ...(language ? { language } : {}),
     noindex: /(?:^|[\s,])(?:noindex|none)(?:$|[\s,])/i.test(robots),
     alternates,
@@ -81,9 +84,23 @@ export function extractPageFacts(html, identity) {
     links,
     anchors,
     jsonLd,
-    editorial: extractEditorialFacts(html, document, /^https?:\/\//i.test(canonical ?? '') ? canonical : identity.url),
+    ...(identity.heuristics ? { editorial: extractEditorialFacts(html, document, documentUrl) } : {}),
     ...(identity.markdown === undefined ? {} : { markdown: identity.markdown }),
   };
+}
+
+/** @param {string} pageUrl @param {string} [canonical] @param {string} [siteUrl] */
+export function documentUrlFor(pageUrl, canonical, siteUrl) {
+  try {
+    const page = new URL(pageUrl, siteUrl);
+    const url = canonical ? new URL(canonical, page) : page;
+    return /^https?:$/.test(url.protocol) ? url.href : undefined;
+  } catch {
+    try {
+      const url = new URL(canonical ?? '');
+      return /^https?:$/.test(url.protocol) ? url.href : undefined;
+    } catch { return undefined; }
+  }
 }
 
 /**

@@ -3,6 +3,14 @@
 const DOCUMENTATION = 'https://developers.google.com/search/docs/appearance/structured-data/';
 const VERIFIED = '2026-09-30';
 const CONFLICT_REASON = 'has conflicting definitions; checks retain the first value';
+const MAX_DEPTH = 128;
+const MAX_NODES = 20_000;
+const MAX_WORK = 100_000;
+
+/** UTC interpretation for dates that do not specify an offset. @param {string} value */
+export function schemaTimestamp(value) {
+  return Date.parse(value.includes('T') && !/(?:Z|[+-]\d{2}:\d{2})$/.test(value) ? `${value}Z` : value);
+}
 
 /** @param {string} document @param {string[]} required @param {string[]} recommended */
 function profile(document, required, recommended) {
@@ -33,7 +41,7 @@ const APPLICATION_CATEGORIES = new Set(['Game', 'SocialNetworking', 'Travel', 'S
 /** @param {unknown} value */
 export function validSchemaDate(value) {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?)?$/.test(value)) return false;
-  const timestamp = Date.parse(value);
+  const timestamp = schemaTimestamp(value);
   if (!Number.isFinite(timestamp)) return false;
   const day = new Date(`${value.slice(0, 10)}T00:00:00Z`);
   return Number.isFinite(day.getTime()) && day.toISOString().slice(0, 10) === value.slice(0, 10);
@@ -52,16 +60,44 @@ function text(value) { return typeof value === 'string' && value.trim().length >
 /** @param {unknown} value */
 function numeric(value) { return (typeof value === 'number' || text(value)) && Number.isFinite(Number(value)); }
 /** @param {unknown} value */
-function url(value) { return text(value) && /^https?:\/\/\S+$/i.test(/** @type {string} */ (value)); }
+function url(value) {
+  if (!text(value)) return false;
+  try {
+    const parsed = new URL(/** @type {string} */ (value));
+    return /^https?:$/.test(parsed.protocol) && Boolean(parsed.hostname);
+  } catch { return false; }
+}
 /** @param {unknown} value @returns {string[]} */
 export function schemaTypes(value) { return values(record(value)?.['@type']).filter((type) => typeof type === 'string'); }
 
 /** @param {unknown} input @returns {Record<string, any>[]} */
 export function jsonLdEntities(input) {
-  if (Array.isArray(input)) return input.flatMap(jsonLdEntities);
-  const entity = record(input);
-  if (!entity) return [];
-  return Array.isArray(entity['@graph']) ? entity['@graph'].flatMap(jsonLdEntities) : [entity];
+  let work = 0;
+  return flattenEntities(input, (depth) => {
+    if (++work > MAX_WORK || depth > MAX_DEPTH) throw new Error('JSON-LD traversal limit');
+  });
+}
+
+/** @param {unknown} input @param {(depth: number) => void} visit @returns {Record<string, any>[]} */
+function flattenEntities(input, visit) {
+  /** @type {Record<string, any>[]} */
+  const entities = [];
+  const pending = [{ value: input, depth: 0 }];
+  const seen = new Set();
+  while (pending.length) {
+    const { value, depth } = /** @type {{ value: unknown; depth: number }} */ (pending.pop());
+    visit(depth);
+    if (!value || typeof value !== 'object' || seen.has(value)) continue;
+    seen.add(value);
+    if (seen.size > MAX_NODES) throw new Error('JSON-LD node limit');
+    const entity = record(value);
+    const children = Array.isArray(value) ? value : entity && entity['@graph'] !== undefined ? values(entity['@graph']) : undefined;
+    if (children) {
+      if (pending.length + children.length > MAX_WORK) throw new Error('JSON-LD traversal limit');
+      for (let index = children.length - 1; index >= 0; index--) pending.push({ value: children[index], depth: depth + 1 });
+    } else if (entity) entities.push(entity);
+  }
+  return entities;
 }
 
 /**
@@ -70,6 +106,18 @@ export function jsonLdEntities(input) {
  * @returns {GoogleFinding[]}
  */
 export function checkGoogleSchema(input, options = {}) {
+  try { return googleFindings(input, options); } catch {
+    return [{ ruleId: 'google-schema-incomplete', severity: 'warning', evidence: '/', documentation: DOCUMENTATION,
+      message: 'Google schema checks could not complete: structured data exceeds processing limits or cannot be inspected safely. Other pages are still audited.' }];
+  }
+}
+
+/** @param {unknown} input @param {{ documentUrl?: string; explicitType?: string }} options @returns {GoogleFinding[]} */
+function googleFindings(input, options) {
+  let work = 0;
+  const budget = (depth = 0) => {
+    if (++work > MAX_WORK || depth > MAX_DEPTH) throw new Error('Google schema traversal limit');
+  };
   /** @type {GoogleFinding[]} */
   const findings = [];
   /** @type {Map<string, Record<string, any>>} */
@@ -85,13 +133,15 @@ export function checkGoogleSchema(input, options = {}) {
   const identity = (/** @type {string} */ id) => {
     try { return new URL(id, options.documentUrl).href; } catch { return id; }
   };
-  const clone = (/** @type {any} */ value, /** @type {string} */ pointer = '') => {
+  const clone = (/** @type {any} */ value, /** @type {string} */ pointer = '', depth = 0) => {
+    budget(depth);
     if (!value || typeof value !== 'object') return value;
     if (clones.has(value)) return clones.get(value);
     const copy = Array.isArray(value) ? [] : Object.create(null);
     clones.set(value, copy);
+    if (clones.size > MAX_NODES) throw new Error('Google schema node limit');
     if (Array.isArray(value)) {
-      value.forEach((item, index) => copy.push(clone(item, `${pointer}/${index}`)));
+      value.forEach((item, index) => copy.push(clone(item, `${pointer}/${index}`, depth + 1)));
       return copy;
     }
     pointers.set(copy, pointer || '/');
@@ -103,21 +153,24 @@ export function checkGoogleSchema(input, options = {}) {
     }
     for (const [key, child] of Object.entries(value)) {
       if (key === '@context') continue;
-      copy[key] = key === '@id' && text(child) ? identity(child) : clone(child, `${pointer}/${key.replace(/~/g, '~0').replace(/\//g, '~1')}`);
+      copy[key] = key === '@id' && text(child) ? identity(child) : clone(child, `${pointer}/${key.replace(/~/g, '~0').replace(/\//g, '~1')}`, depth + 1);
     }
     return copy;
   };
   const copied = clone(input);
   /** @returns {boolean} */
-  const equal = (/** @type {any} */ first, /** @type {any} */ incoming) => {
+  const equal = (/** @type {any} */ first, /** @type {any} */ incoming, depth = 0) => {
+    budget(depth);
     if (first === incoming) return true;
     if (!first || !incoming || typeof first !== 'object' || typeof incoming !== 'object' || Array.isArray(first) !== Array.isArray(incoming)) return false;
     const keys = Object.keys(first);
-    return keys.length === Object.keys(incoming).length && keys.every((key) => Object.hasOwn(incoming, key) && equal(first[key], incoming[key]));
+    return keys.length === Object.keys(incoming).length && keys.every((key) => Object.hasOwn(incoming, key) && equal(first[key], incoming[key], depth + 1));
   };
-  const merge = (/** @type {Record<string, any>} */ first, /** @type {Record<string, any>} */ incoming) => {
+  const merge = (/** @type {Record<string, any>} */ first, /** @type {Record<string, any>} */ incoming, depth = 0) => {
+    budget(depth);
     if (first === incoming) return;
     for (const [key, child] of Object.entries(incoming)) {
+      budget();
       if (!Object.hasOwn(first, key) || first[key] === undefined) { first[key] = child; continue; }
       const previous = first[key];
       if (equal(previous, child)) continue;
@@ -131,7 +184,7 @@ export function checkGoogleSchema(input, options = {}) {
         // Their own ID group merges in source order, not their parent's merge order.
         continue;
       } else if (record(previous) && record(child) && !text(previous['@id']) && !text(child['@id'])) {
-        merge(previous, child);
+        merge(previous, child, depth + 1);
       } else {
         const fields = conflicts.get(first) ?? new Set();
         fields.add(key);
@@ -148,7 +201,7 @@ export function checkGoogleSchema(input, options = {}) {
     const entity = record(value);
     return entity && text(entity['@id']) ? byId.get(entity['@id']) ?? entity : entity;
   };
-  const roots = jsonLdEntities(copied).map((entity) => resolve(entity) ?? entity);
+  const roots = flattenEntities(copied, budget).map((entity) => resolve(entity) ?? entity);
   /** @type {Set<Record<string, any>>} */
   const visited = new Set();
   /** @type {Map<Record<string, any>, Set<string>>} */
@@ -168,14 +221,20 @@ export function checkGoogleSchema(input, options = {}) {
       }
     }
   }
-  const index = (/** @type {unknown} */ value) => {
-    if (Array.isArray(value)) { value.forEach(index); return; }
+  const arrays = new Set();
+  const index = (/** @type {unknown} */ value, depth = 0) => {
+    budget(depth);
+    if (Array.isArray(value)) {
+      if (arrays.has(value)) return;
+      arrays.add(value);
+      value.forEach((child) => index(child, depth + 1)); return;
+    }
     const entity = resolve(value);
     if (!entity || visited.has(entity)) return;
     visited.add(entity);
-    Object.values(entity).forEach(index);
+    Object.values(entity).forEach((child) => index(child, depth + 1));
   };
-  roots.forEach(index);
+  roots.forEach((entity) => index(entity));
   const read = (/** @type {Record<string, any>} */ entity, /** @type {string} */ path) => {
     let candidates = [entity];
     for (const part of path.split('.')) candidates = candidates.flatMap((candidate) => values(resolve(candidate)?.[part]));
@@ -237,7 +296,8 @@ export function checkGoogleSchema(input, options = {}) {
     }
   }
   const checked = new Set();
-  const check = (/** @type {Record<string, any>} */ entity, /** @type {Record<string, any> | undefined} */ parent) => {
+  const check = (/** @type {Record<string, any>} */ entity, /** @type {Record<string, any> | undefined} */ parent, depth = 0) => {
+    budget(depth);
     if (checked.has(entity)) return;
     checked.add(entity);
     const type = schemaTypes(entity).find((name) => Object.hasOwn(GOOGLE_PROFILES, name));
@@ -269,8 +329,15 @@ export function checkGoogleSchema(input, options = {}) {
       if (['Article', 'BlogPosting', 'NewsArticle', 'Review'].includes(type)) {
         for (const author of read(entity, 'author')) {
           const resolved = resolve(author);
-          if (!resolved || (!conflict(resolved, 'name', type === 'Review', 'author.name') && (!text(resolved.name) || (type === 'Review' && resolved.name.length >= 100)))) report(type, 'author.name', type === 'Review', 'needs a named author (review names must be shorter than 100 characters)', documentation);
-          if (type !== 'Review' && (!resolved || (!conflict(resolved, resolved.url !== undefined ? 'url' : 'sameAs', false, 'author.url') && !values(resolved.url ?? resolved.sameAs).some(url)))) report(type, 'author.url', false, 'should identify the author with a URL or sameAs', documentation);
+          if (!resolved || !conflict(resolved, 'name', type === 'Review', 'author.name')) {
+            if (!text(resolved?.name)) report(type, 'author.name', type === 'Review', 'needs a named author', documentation);
+            else if (type === 'Review' && resolved && resolved.name.length >= 100) report(type, 'author.name', true, 'must contain fewer than 100 characters', documentation);
+          }
+          if (type !== 'Review') {
+            const identified = resolved && ['url', 'sameAs'].some((field) => !ambiguous(resolved, field) && values(resolved[field]).some(url));
+            const conflicted = resolved && ['url', 'sameAs'].map((field) => conflict(resolved, field, false, 'author.url')).some(Boolean);
+            if (!identified && !conflicted) report(type, 'author.url', false, 'should identify the author with a URL or sameAs', documentation);
+          }
         }
       }
       if (type === 'Product' || type === 'SoftwareApplication') {
@@ -288,7 +355,8 @@ export function checkGoogleSchema(input, options = {}) {
             const priceField = Object.hasOwn(resolved, 'price') || type !== 'Product' ? 'price' : 'priceSpecification.price';
             const prices = read(resolved, priceField);
             if (!conflict(resolved, priceField, true, 'offers.price') && (!prices.length || !prices.every((value) => numeric(value) && Number(value) >= 0))) report(type, 'offers.price', true, 'needs a non-negative price (Product also accepts priceSpecification.price)', documentation);
-            const currencyField = priceField === 'price' ? 'priceCurrency' : 'priceSpecification.priceCurrency';
+            const nestedCurrency = read(resolved, 'priceSpecification.priceCurrency');
+            const currencyField = priceField === 'price' || !nestedCurrency.length ? 'priceCurrency' : 'priceSpecification.priceCurrency';
             const currencies = read(resolved, currencyField);
             if ((type === 'Product' || prices.some((value) => Number(value) > 0)) && !conflict(resolved, currencyField, false, 'offers.priceCurrency') && (!currencies.length || !currencies.every((value) => valid('priceCurrency', value)))) report(type, 'offers.priceCurrency', false, 'should use a currency code', documentation);
           }
@@ -342,15 +410,16 @@ export function checkGoogleSchema(input, options = {}) {
       if (field === '@context') continue;
       for (const value of values(nested)) {
         const related = resolve(value);
-        if (related) check(related, field === 'review' ? entity : undefined);
+        if (related) check(related, field === 'review' ? entity : undefined, depth + 1);
       }
     }
   };
   roots.forEach((entity) => check(entity, undefined));
   if (options.explicitType && !Object.hasOwn(GOOGLE_PROFILES, options.explicitType)) {
     findings.push({ ruleId: 'google-schema-unsupported', severity: 'info',
-      message: `${options.explicitType}: no current documented Google profile is provided. Schema.org output is unchanged; checks do not guarantee rich results.`,
-      ...(roots[0] ? { evidence: roots[0]['@id'] ?? pointers.get(roots[0]) } : {}) });
+      message: `${options.explicitType}: no Google profile is implemented by this checker. Schema.org output is unchanged; checks do not guarantee rich results.`,
+      documentation: DOCUMENTATION,
+      evidence: text(roots[0]?.['@id']) ? roots[0]['@id'] : pointers.get(roots[0]) ?? '/' });
   }
   return findings;
 }

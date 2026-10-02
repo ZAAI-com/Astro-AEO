@@ -52,13 +52,18 @@ and TechArticle output is retained unchanged.
   name, not unrelated standalone requirements. Additional uses such as `mainEntity`, standalone
   entities, and explicit component checks retain their full profiles.
 - A supplied Product `offers.price` takes precedence over `priceSpecification.price`, including
-  its currency source. Dataset licenses accept documented URL and CreativeWork representations.
+  its currency source. A nested price with no nested currency can use the Offer's `priceCurrency`.
+  Dataset licenses accept documented URL and CreativeWork representations.
 - No external references are fetched. Unknown references cannot substitute for observed required
   fields. The checker does not crawl author or offer URLs.
 - Shape checks are intentionally bounded. They do not implement all Schema.org inference,
   provider-specific business subtypes, editorial policies, or every conditional recommendation.
+- Graph processing allows at most 128 nesting/reference traversal levels, 20,000 object/array nodes,
+  and 100,000 processing steps per checker call. Exceeding a limit or encountering an inspection
+  failure emits a page-scoped `google-schema-incomplete` warning rather than aborting the audit.
+  No source content or exception details are included, and the remaining pages are still checked.
 - No field check certifies visible-content consistency, eligibility, indexing, rich results,
   search ranking, or AI citations. Google may change these profiles after the verification date.
 
-Stable codes are `google-schema-required`, `google-schema-recommended`, and
-`google-schema-unsupported`. Messages identify fields and documentation without copying page prose.
+Stable codes are `google-schema-required`, `google-schema-recommended`, `google-schema-unsupported`,
+and `google-schema-incomplete`. Messages identify fields and documentation without copying page prose.

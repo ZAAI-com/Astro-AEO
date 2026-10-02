@@ -1,5 +1,5 @@
 // @ts-check
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { extractPageFacts } from './facts.js';
 import { auditEditorial, markdownBlocks } from './editorial.js';
 import { auditPages } from './site-rules.js';
@@ -8,9 +8,60 @@ import { scoreFindings } from './score.js';
 const NOW = new Date('2026-09-30T12:00:00Z');
 const prose = 'word '.repeat(151).trim();
 const html = (body, head = '', language = 'en-US') => `<html lang="${language}"><head><title>Guide</title><meta name="description" content="Guide">${head}</head><body><main>${body}</main></body></html>`;
-const codes = (body, head = '', language = 'en-US', markdown) => auditEditorial(extractPageFacts(html(body, head, language), { url: '/guide', ...(markdown === undefined ? {} : { markdown }) }), NOW).map((finding) => finding.ruleId);
+const codes = (body, head = '', language = 'en-US', markdown) => auditEditorial(extractPageFacts(html(body, head, language), { heuristics: true, url: '/guide', ...(markdown === undefined ? {} : { markdown }) }), NOW).map((finding) => finding.ruleId);
 
 describe('opt-in editorial advice', () => {
+  it('does not extract editorial facts unless requested', () => {
+    expect(extractPageFacts(html('<p>42%</p>'), { url: '/' })).not.toHaveProperty('editorial');
+    expect(extractPageFacts(html('<p>42%</p>'), { url: '/', heuristics: true }).editorial?.blocks).toHaveLength(1);
+  });
+  it.each(['<nav>42%</nav>', '<!-- 42% -->', '<div hidden>42%</div>', '<span aria-hidden="TRUE">42%</span>', '<iframe><p>42%</p></iframe>', '<template>42%</template>'])('excludes noncontent Markdown HTML %s', (excluded) => {
+    expect(codes('', '', 'en', `# Guide\n\n${excluded}`)).toEqual([]);
+    const opening = excluded.slice(0, excluded.indexOf('>') + 1);
+    const closing = excluded.slice(excluded.lastIndexOf('<'));
+    const wrapper = excluded.startsWith('<!--') ? '<!--\n[ref]: /study\n-->' : `${opening}\n[ref]: /study\n${closing}`;
+    expect(codes('', '', 'en', `# Guide\n\n42% [Source][ref].\n\n${wrapper}`)).toContain('editorial-unsourced-number');
+  });
+  it.each(['<OL><li>Answer.</li></ol>', '<UL><li>Answer.</li></UL >', '<TABLE><tr><td>Answer.</td></table>'])('retains content following mixed-case raw HTML %s', (block) => {
+    expect(codes('', '', 'en', `# Guide\n\n${block}\n\n## Why?`)).toContain('editorial-unanswered-question');
+  });
+  it('does not swallow a heading or fence after a quote', () => {
+    expect(codes('', '', 'en', '# Guide\n\n> Quote\n## Why?')).toContain('editorial-unanswered-question');
+    expect(codes('', '', 'en', '# Guide\n\n> Quote\n```\n42%\n```\n## Why?')).toContain('editorial-unanswered-question');
+  });
+  it('keeps example HTML in inline/fenced code from excluding later prose', () => {
+    for (const example of ['`<nav>`', '```html\n<nav>\n```', '<code><nav></code>']) {
+      expect(codes('', '', 'en', `# Guide\n\n${example}\n\n42% agree.`)).toContain('editorial-unsourced-number');
+    }
+  });
+  it('normalizes reference labels and cleans reference heading text', () => {
+    expect(codes('', '', 'en', '# Guide\n\n42% [Source][ a   b ].\n\n[a b]: /study')).not.toContain('editorial-unsourced-number');
+    expect(codes('', '', 'en', '# Guide\n\n## [Why?][faq]\n\n[faq]: /faq')).toContain('editorial-unanswered-question');
+    expect(markdownBlocks('[Answer][ a   b ]\n\n[a b]: /study')[0].text).toBe('Answer');
+  });
+  it.each(['<a href="/study"></a>', '<a href="/study"><code>Source</code></a>', '<a href="/study"><img src="/chart.png"></a>', '<a href="/study"><span hidden>Source</span></a>'])('does not count an invisible source link %s', (link) => {
+    expect(codes(`<p>42% agree. ${link}</p>`)).toContain('editorial-unsourced-number');
+  });
+  it.each(['noscript', 'iframe', 'template'])('ignores %s prose and author metadata', (tag) => {
+    expect(codes(`<${tag}><p>42%</p><a rel="author">Ada</a></${tag}><article><p>Content.</p></article>`)).toEqual(['editorial-missing-attribution']);
+  });
+  it('interprets offset-free timestamps as UTC independent of host timezone', () => {
+    const previous = process.env.TZ;
+    try {
+      for (const timezone of ['UTC', 'America/Los_Angeles', 'Europe/Berlin']) {
+        process.env.TZ = timezone;
+        expect(codes('<article><p>Content.</p></article>', '<meta name="author" content="Ada"><meta property="article:published_time" content="2025-09-29T23:30:00">'), timezone).toEqual(['editorial-review-reminder']);
+      }
+    } finally { if (previous === undefined) delete process.env.TZ; else process.env.TZ = previous; }
+  });
+  it('uses one audit clock for pages crossing a UTC midnight boundary', () => {
+    const page = extractPageFacts(html('<article><p>Content.</p></article>', '<meta name="author" content="Ada"><meta property="article:published_time" content="2025-09-29">'), { heuristics: true, url: '/' });
+    vi.useFakeTimers();
+    vi.setSystemTime('2026-09-29T23:59:59Z');
+    const second = { ...page, url: '/second', get noindex() { vi.setSystemTime('2026-09-30T00:00:01Z'); return false; } };
+    try { expect(auditPages([page, second], { heuristics: true }).filter((finding) => finding.ruleId === 'editorial-review-reminder')).toEqual([]); }
+    finally { vi.useRealTimers(); }
+  });
   it.each([
     ['editorial-long-paragraph', `<p>${prose}</p>`, '<p>Brief answer.</p>'],
     ['editorial-unanswered-question', '<h2>Why?</h2><h2>Next</h2>', '<h2>Why?</h2><p>An answer.</p>'],
@@ -44,7 +95,7 @@ describe('opt-in editorial advice', () => {
     for (const identity of ['canonical', 'live']) {
       const facts = extractPageFacts(html('<article><p>Content.</p></article>',
         scripts + (identity === 'canonical' ? '<link rel="canonical" href="https://example.com/guide">' : '')), {
-        url: identity === 'canonical' ? '/guide' : 'https://example.com/guide',
+        heuristics: true, url: identity === 'canonical' ? '/guide' : 'https://example.com/guide',
       });
       expect(auditEditorial(facts, NOW).map((finding) => finding.ruleId), identity).not.toContain('editorial-missing-attribution');
     }
@@ -52,7 +103,7 @@ describe('opt-in editorial advice', () => {
   it('does not resolve absent authors or similarly named IDs on another page', () => {
     for (const definition of ['#different-author', 'https://example.com/other#author']) {
       const entities = [{ '@type': 'Article', author: { '@id': '#author' } }, { '@type': 'Person', '@id': definition, name: 'Ada' }];
-      const facts = extractPageFacts(html('<article><p>Content.</p></article>', `<script type="application/ld+json">${JSON.stringify(entities)}</script>`), { url: 'https://example.com/guide' });
+      const facts = extractPageFacts(html('<article><p>Content.</p></article>', `<script type="application/ld+json">${JSON.stringify(entities)}</script>`), { heuristics: true, url: 'https://example.com/guide' });
       expect(auditEditorial(facts, NOW).map((finding) => finding.ruleId)).toContain('editorial-missing-attribution');
     }
   });
@@ -60,24 +111,24 @@ describe('opt-in editorial advice', () => {
     const definitions = [{ '@type': 'Person', '@id': '#author', name: 'Ada' }, { '@id': 'https://example.com/guide#author' }];
     if (order === 'reverse') definitions.reverse();
     const entities = [{ '@type': 'Article', author: { '@id': '#author' } }, ...definitions];
-    const facts = extractPageFacts(html('<article><p>Content.</p></article>', `<script type="application/ld+json">${JSON.stringify(entities)}</script>`), { url: 'https://example.com/guide' });
+    const facts = extractPageFacts(html('<article><p>Content.</p></article>', `<script type="application/ld+json">${JSON.stringify(entities)}</script>`), { heuristics: true, url: 'https://example.com/guide' });
     expect(auditEditorial(facts, NOW).map((finding) => finding.ruleId)).not.toContain('editorial-missing-attribution');
   });
   it.each(['forward', 'reverse'])('combines complementary author definitions in %s order', (order) => {
     const definitions = [{ '@type': 'Person', '@id': '#author' }, { '@id': 'https://example.com/guide#author', name: 'Ada' }];
     if (order === 'reverse') definitions.reverse();
     const entities = [{ '@type': 'Article', author: { '@id': '#author' } }, ...definitions];
-    const facts = extractPageFacts(html('<article><p>Content.</p></article>', `<script type="application/ld+json">${JSON.stringify(entities)}</script>`), { url: 'https://example.com/guide' });
+    const facts = extractPageFacts(html('<article><p>Content.</p></article>', `<script type="application/ld+json">${JSON.stringify(entities)}</script>`), { heuristics: true, url: 'https://example.com/guide' });
     expect(auditEditorial(facts, NOW).map((finding) => finding.ruleId)).not.toContain('editorial-missing-attribution');
     expect(facts.jsonLd).toEqual([JSON.stringify(entities)]);
   });
   it('preserves inline named author metadata when same-ID definitions omit it', () => {
     const entities = [{ '@type': 'Article', author: { '@type': 'Person', '@id': '#author', name: 'Ada' } }, { '@id': 'https://example.com/guide#author', url: 'https://example.com/ada' }];
-    const facts = extractPageFacts(html('<article><p>Content.</p></article>', `<script type="application/ld+json">${JSON.stringify(entities)}</script>`), { url: 'https://example.com/guide' });
+    const facts = extractPageFacts(html('<article><p>Content.</p></article>', `<script type="application/ld+json">${JSON.stringify(entities)}</script>`), { heuristics: true, url: 'https://example.com/guide' });
     expect(auditEditorial(facts, NOW).map((finding) => finding.ruleId)).not.toContain('editorial-missing-attribution');
   });
   it('uses UTC days and the latest valid date without calling evergreen content outdated', () => {
-    const facts = extractPageFacts(html('<article><p>Content.</p></article>'), { url: '/' });
+    const facts = extractPageFacts(html('<article><p>Content.</p></article>'), { heuristics: true, url: '/' });
     facts.editorial.dates = ['invalid', '2025-09-30'];
     expect(auditEditorial(facts, NOW).map((finding) => finding.ruleId)).not.toContain('editorial-review-reminder');
     facts.editorial.dates = ['2025-09-29'];
@@ -96,7 +147,7 @@ describe('opt-in editorial advice', () => {
   });
   it('skips noindex and unreliable content, and prefers Markdown to rendered prose', () => {
     expect(codes(`<p>${prose}</p>`, '<meta name="robots" content="noindex">')).toEqual([]);
-    expect(auditEditorial(extractPageFacts('<body><p>42%</p></body>', { url: '/' }), NOW)).toEqual([]);
+    expect(auditEditorial(extractPageFacts('<body><p>42%</p></body>', { heuristics: true, url: '/' }), NOW)).toEqual([]);
     expect(codes(`<p>${prose}</p>`, '', 'en', '# Guide\n\nBrief.')).toEqual([]);
   });
   it.each(['<pre><p>42%</p></pre>', '<blockquote><p>42%</p></blockquote>', '<ul><li><p>42%</p></li></ul>', '<table><tr><td><p>42%</p></td></tr></table>', '<nav><p>42%</p></nav>', '<div hidden><p>42%</p></div>'])('ignores non-prose HTML %s', (body) => expect(codes(body)).not.toContain('editorial-unsourced-number'));
@@ -169,7 +220,7 @@ describe('opt-in editorial advice', () => {
   });
   it.each(['<ul><li>Answer.</li></ul>', '<table><tr><td>Answer.</td></tr></table>', '<h3>Details</h3><p>Answer.</p>'])('accepts structured answers %s', (answer) => expect(codes(`<h2>Why?</h2>${answer}`)).not.toContain('editorial-unanswered-question'));
   it('preserves scores and default findings, and never includes article passages', () => {
-    const facts = extractPageFacts(html(`<p>${prose}</p>`), { url: '/' });
+    const facts = extractPageFacts(html(`<p>${prose}</p>`), { heuristics: true, url: '/' });
     const baseline = auditPages([facts]);
     const enabled = auditPages([facts], { heuristics: true, now: NOW });
     expect(enabled.filter((finding) => !finding.ruleId.startsWith('editorial-'))).toEqual(baseline);

@@ -1,0 +1,5 @@
+---
+import { ArticleJsonLd } from '../../../../../components/index.js';
+const type = Astro.url.searchParams.get('type') as 'Article';
+---
+<ArticleJsonLd headline="Invalid runtime type" type={type} />

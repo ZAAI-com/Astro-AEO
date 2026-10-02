@@ -4,6 +4,11 @@ All notable changes to this project are documented here. This project follows [S
 
 ## Unreleased
 
+- Contain oversized Google schema graphs with page-scoped warnings, resolve offline references
+  against the deployment origin, and correct URL, graph, author, and offer-currency checks.
+- Fix editorial Markdown exclusions, references, visible citations, and UTC freshness checks.
+  Skip optional editorial extraction by default, reject unsupported Article types, and omit
+  empty authors and missing-entity component output.
 - Add opt-in `audit --heuristics` editorial advice for English, German, and language-neutral
   structure, attribution, and date checks. Informational advice is score-neutral and cannot fail CI.
 - Add eight typed JSON-LD components for Product, SoftwareApplication, Review, ItemList, Dataset,
