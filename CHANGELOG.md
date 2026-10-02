@@ -2,7 +2,11 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 1.5.3
+
+Add opt-in editorial audit advice, eight typed JSON-LD components, extended Article publishing
+props, and shared Google field profiles. Preserve default audits and existing output while fixing
+opt-in schema and editorial edge cases. The release owner selected 1.5.3 for this complete scope.
 
 - Contain oversized Google schema graphs with page-scoped warnings, resolve offline references
   against the deployment origin, and correct URL, graph, author, and offer-currency checks.
@@ -26,10 +30,28 @@ All notable changes to this project are documented here. This project follows [S
 - Keep editorial advice focused on visible prose and genuine citation links, and resolve equivalent
   relative and absolute same-page author references without changing default audits.
 
-## 1.5.3
+- Keep Google component checks for unresolved cross-component `@id` references provisional until
+  the final rendered page is audited. Share one internal body across the eight entity components
+  without changing their public props or emitted JSON-LD.
+- Prevent multi-line inline-code examples from hiding later editorial prose, retain a valid page
+  URL when its canonical is unusable, and document that review reminders depend on the audit date.
 
-Update the package version and documented GitHub Action pin to 1.5.3. This release adds no new
-functionality.
+### Package size and benchmark rationale
+
+Benchmark regression explanation: against the committed 1.4 baseline, the feature snapshot before
+the review fixes grows from 350,713 to about 397,368 packed bytes (about 13 percent) and from
+1,358,848 to about 1,515,305 unpacked bytes (about 12 percent; about 4 percent over 1.5.2) across
+184 files. The growth is the eight new JSON-LD components, the shared Google field checker with
+immutable same-ID consolidation and subject identity, the editorial audit rules with visible-prose
+and citation filtering, and their documentation. Only components a page imports and the checker
+reach a consumer bundle. The unpacked ceiling moved to 1,520,000 bytes for that snapshot; packed,
+runtime bundle and performance limits stay unchanged.
+
+Benchmark regression explanation: the final review-fix snapshot measures 400,193 packed bytes and
+1,523,619 unpacked bytes across 185 files. Bounded schema processing, offline URL bases, Markdown
+filtering, component guards and the shared internal entity component explain the growth. The
+unpacked ceiling moves from 1,520,000 to 1,530,000 bytes; packed, runtime bundle and performance
+limits stay unchanged.
 
 ## 1.5.2
 

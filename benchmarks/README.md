@@ -44,8 +44,8 @@ framework code that both builds share.
 
 `--enforce` applies the 1.4 safety ceilings embedded in the report:
 
-- Packed package at most 450,000 bytes and unpacked package at most 1,530,000 bytes. The unreleased
-  review-fix snapshot measured 399,168 packed and 1,523,214 unpacked bytes across 184 files.
+- Packed package at most 450,000 bytes and unpacked package at most 1,530,000 bytes. The 1.5.3
+  review-fix snapshot measured 400,193 packed and 1,523,619 unpacked bytes across 185 files.
   Bounded schema processing, offline URL bases, Markdown filtering and component guards account
   for the growth; packed and runtime bundle ceilings stay unchanged. The measured
   1.5.2 package is 383,686 packed and 1,460,846 unpacked bytes across 174 files; 1.5.0 was 377,711
