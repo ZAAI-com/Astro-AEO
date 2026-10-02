@@ -875,6 +875,10 @@ page's own canonical URL, because a `.md` companion is usually read away from th
 that served it. Fragment links and non-navigational schemes (`mailto:`, `tel:`) are
 left exactly as authored.
 
+Rendered ARIA tabs become labelled Markdown sections, including inactive panels and
+Starlight tabs whose source conversion falls back to HTML. Panels retain their document
+order. Unrelated hidden interface content and explicitly removed elements remain excluded.
+
 The same extractor is available to integrations and tooling without importing
 Turndown directly:
 
