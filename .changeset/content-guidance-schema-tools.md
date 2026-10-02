@@ -15,7 +15,7 @@ equivalent relative and absolute same-page author IDs. Default checks and compon
 unchanged.
 
 Benchmark regression explanation: against the committed 1.4 baseline the published package grows
-from 350,713 to about 397,313 packed bytes (about 13 percent) and from 1,358,848 to about 1,515,124
+from 350,713 to about 397,368 packed bytes (about 13 percent) and from 1,358,848 to about 1,515,305
 unpacked bytes (about 12 percent; about 4 percent over 1.5.2) across 184 files. The growth is the
 eight new JSON-LD components, the shared Google field checker with immutable same-ID consolidation
 and subject identity, the editorial audit rules with visible-prose and citation filtering, and their
