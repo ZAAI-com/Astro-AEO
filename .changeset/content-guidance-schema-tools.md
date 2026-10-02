@@ -22,8 +22,8 @@ components, the shared Google field checker, the editorial audit rules, and thei
 Only components a page imports and the checker reach a consumer bundle, and the measured package
 remains below the updated unpacked safety ceiling.
 
-After the review corrections, the package measures 397,313 packed and 1,515,124 unpacked bytes
+After the review corrections, the package measures 397,368 packed and 1,515,305 unpacked bytes
 across 184 files. Immutable graph consolidation, subject identity and visible-prose/citation checks
-add 10,778 unpacked bytes over the pre-review state. The measured 5,124-byte overage moves only the
+add 10,959 unpacked bytes over the pre-review state. The measured 5,305-byte overage moves only the
 unpacked ceiling by 10,000 bytes to 1,520,000; packed, runtime bundle and performance limits stay
 unchanged.
