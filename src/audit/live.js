@@ -33,6 +33,9 @@ export class AuditTargetError extends Error {}
  *   concurrency?: number;
  *   toolVersion?: string;
  *   fetch?: typeof globalThis.fetch;
+ *   heuristics?: boolean;
+ *   schemaTarget?: 'schema' | 'google';
+ *   now?: Date;
  * }} [options]
  * @returns {Promise<{ findings: Finding[]; pagesChecked: number; languageCount: number; scope: AuditCrawlScope }>}
  */
@@ -124,6 +127,9 @@ export async function auditLive(startUrl, options = {}) {
   }
 
   findings.push(...auditPages(pages, {
+    heuristics: options.heuristics,
+    schemaTarget: options.schemaTarget,
+    now: options.now,
     siteUrl: start.origin,
     links: {
       resolve(from, href) {
@@ -169,7 +175,7 @@ export async function auditLive(startUrl, options = {}) {
       };
     }
     if (!/\b(?:text\/html|application\/xhtml\+xml)\b/i.test(response.contentType)) return { finalUrl: response.url };
-    const facts = extractPageFacts(response.body, { url: response.url });
+    const facts = extractPageFacts(response.body, { url: response.url, heuristics: options.heuristics });
     const markdownHref = facts.markdownAlternates[0];
     const markdownUrl = markdownHref ? resolveHref(response.url, markdownHref) : null;
     if (markdownUrl && origins.has(markdownUrl.origin)) {

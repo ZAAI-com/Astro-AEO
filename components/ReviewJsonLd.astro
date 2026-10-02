@@ -1,0 +1,7 @@
+---
+import EntityJsonLd from './EntityJsonLd.astro';
+
+type Props = import('./index.js').ReviewJsonLdProps;
+---
+
+<EntityJsonLd {...Astro.props} type="Review" />

@@ -118,7 +118,8 @@ import mdxRenderer from 'astro-aeo/mdx';
 import defuddleRenderer from 'astro-aeo/defuddle';
 import type { MdxRendererOptions } from 'astro-aeo/mdx';
 import type { DefuddleRendererOptions } from 'astro-aeo/defuddle';
-import { AeoHead } from 'astro-aeo/components';
+import { AeoHead, ArticleJsonLd, FaqJsonLd, ProductJsonLd, SoftwareApplicationJsonLd, ReviewJsonLd,
+  ItemListJsonLd, DatasetJsonLd, ProfilePageJsonLd, ServiceJsonLd, LocalBusinessJsonLd } from 'astro-aeo/components';
 import type {
   AeoHeadProps,
   AeoPageProps,
@@ -425,6 +426,37 @@ export const crumbs: BreadcrumbJsonLdProps = { includeHome: true, labels: { blog
 export const org: OrganizationJsonLdProps = { name: 'Example', sameAs: ['https://example.com'] };
 export const speakable: SpeakableJsonLdProps = { cssSelector: ['main'] };
 export const article: ArticleJsonLdProps = { headline: 'Hello', author: { name: 'Ada' } };
+ArticleJsonLd({ headline: 'Blog', type: 'BlogPosting', eligibility: 'google',
+  author: [{ '@type': 'Organization', name: 'Editors' }, { '@id': '#ada' }],
+  publisher: { '@type': 'Organization', name: 'Publisher' }, image: ['https://example.com/image'],
+  keywords: ['astro', 'schema'], inLanguage: 'de-DE' });
+ArticleJsonLd({ headline: 'Technical', type: 'TechArticle', author: { '@id': '#author' } });
+ArticleJsonLd({ headline: 'Named', author: ['Field Notes', { name: 'Ada' }] });
+FaqJsonLd({ items: [{ question: 'Why?', answer: 'Because.' }], eligibility: 'google' });
+ProductJsonLd({ entity: { name: 'Tool', offers: { '@type': 'Offer', price: 10 } }, eligibility: 'google' });
+SoftwareApplicationJsonLd({ entity: { name: 'App', operatingSystem: 'Web' } });
+ReviewJsonLd({ entity: { itemReviewed: { '@id': '#product' }, reviewRating: { '@type': 'Rating', ratingValue: 4 } } });
+ItemListJsonLd({ entity: { itemListElement: [{ '@type': 'ListItem', position: 1, name: 'First' }] } });
+DatasetJsonLd({ entity: { name: 'Measurements', description: 'Collected observations' } });
+ProfilePageJsonLd({ entity: { mainEntity: { '@type': 'Person', name: 'Ada' } } });
+ServiceJsonLd({ entity: { name: 'Consulting', provider: { '@id': '#business' } } });
+LocalBusinessJsonLd({ entity: { name: 'Shop', address: { '@type': 'PostalAddress', addressLocality: 'Berlin' } } });
+// @ts-expect-error The entity bag is required.
+ProductJsonLd({});
+// @ts-expect-error The component supplies the fixed type.
+ProductJsonLd({ entity: { '@type': 'Product', name: 'Tool' } });
+// @ts-expect-error The component supplies the context.
+DatasetJsonLd({ entity: { '@context': 'https://schema.org', name: 'Data' } });
+// @ts-expect-error Entity fields use the Schema.org vocabulary.
+SoftwareApplicationJsonLd({ entity: { inventedProperty: true } });
+// @ts-expect-error Offers are typed entities, not numbers.
+ProductJsonLd({ entity: { offers: 12 } });
+// @ts-expect-error Author types are Person or Organization.
+ArticleJsonLd({ headline: 'Invalid', author: { '@type': 'Product', name: 'Tool' } });
+// @ts-expect-error Only supported Article variants can be selected.
+ArticleJsonLd({ headline: 'Invalid', type: 'NewsArticle' });
+// @ts-expect-error Eligibility selects one of two check targets.
+FaqJsonLd({ items: [], eligibility: 'bing' });
 export const head: AeoHeadProps = {
   title: 'Hello',
   description: 'A page.',

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { extractPageFacts } from './facts.js';
+import { documentUrlFor, extractPageFacts } from './facts.js';
 import { auditPages } from './site-rules.js';
 
 const prose = `# Example\n\n${'ordinary words '.repeat(80)}`;
@@ -77,5 +77,16 @@ describe('structured data references', () => {
     expect(findings.map((finding) => [finding.ruleId, finding.severity])).toEqual([
       ['schema.unresolved-reference', 'warning'],
     ]);
+  });
+});
+
+describe('documentUrlFor', () => {
+  test('keeps a valid page URL when the canonical is non-HTTP or malformed', () => {
+    expect(documentUrlFor('https://example.test/a', 'ftp://example.test/a')).toBe('https://example.test/a');
+    expect(documentUrlFor('https://example.test/a', 'http://[bad')).toBe('https://example.test/a');
+    expect(documentUrlFor('https://example.test/a', '/b')).toBe('https://example.test/b');
+    expect(documentUrlFor('/a', 'https://canonical.test/x')).toBe('https://canonical.test/x');
+    expect(documentUrlFor('/a', undefined, 'https://site.test')).toBe('https://site.test/a');
+    expect(documentUrlFor('/a')).toBeUndefined();
   });
 });

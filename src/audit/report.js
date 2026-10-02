@@ -31,7 +31,8 @@ export function compareFindings(left, right) {
 
 /**
  * Assemble the versioned report. It carries no timestamp and no absolute path:
- * it is a pure function of the audited content.
+ * it is a pure function of the supplied findings and report inputs. Opt-in
+ * freshness findings also depend on the audit date captured by the producer.
  *
  * @param {{
  *   toolVersion: string;

@@ -54,6 +54,15 @@ function rules(category, severity, applicability, ruleIds) {
 
 /** @type {readonly AuditRule[]} */
 const RULE_LIST = Object.freeze([
+  ...rules('markdown', 'info', ['offline', 'live'], [
+    'editorial-long-paragraph', 'editorial-unanswered-question', 'editorial-unsourced-number',
+    'editorial-howto-structure', 'editorial-comparison-structure', 'editorial-faq-structure',
+  ]),
+  ...rules('metadata', 'info', ['offline', 'live'], [
+    'editorial-review-reminder', 'editorial-missing-attribution',
+  ]),
+  ...rules('structured-data', 'warning', ['offline', 'live'], ['google-schema-required', 'google-schema-incomplete']),
+  ...rules('structured-data', 'info', ['offline', 'live'], ['google-schema-recommended', 'google-schema-unsupported']),
   ...rules('markdown', 'info', ['build'], ['authored-source-fallback']),
   ...rules('build', 'warning', ['build'], ['catalog-invalid-version']),
   // Rules the 1.4 audit adds. Everything below them predates it.

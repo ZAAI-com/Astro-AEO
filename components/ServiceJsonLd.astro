@@ -1,0 +1,7 @@
+---
+import EntityJsonLd from './EntityJsonLd.astro';
+
+type Props = import('./index.js').ServiceJsonLdProps;
+---
+
+<EntityJsonLd {...Astro.props} type="Service" />

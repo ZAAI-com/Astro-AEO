@@ -1,7 +1,10 @@
 ---
 import { resolveEntityId } from '../src/lib/entity-id.js';
 import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
+import { warnGoogleSchema } from '../src/core/schema-google.js';
 import { createFAQPage } from '../src/schema.js';
+
+type Props = import('./index.js').FaqJsonLdProps;
 
 /**
  * FAQPage JSON-LD. Pass a list of question/answer pairs.
@@ -32,6 +35,7 @@ const jsonLd = {
     })),
   }),
 };
+if (items.length > 0) warnGoogleSchema(jsonLd, Astro.props.eligibility ?? 'schema', { documentUrl: Astro.url.href, explicitType: 'FAQPage' });
 ---
 
 {items.length > 0 && <script type="application/ld+json" set:html={serializeJsonLd(jsonLd)} />}

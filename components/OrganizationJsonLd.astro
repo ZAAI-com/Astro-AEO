@@ -1,6 +1,9 @@
 ---
 import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
+import { warnGoogleSchema } from '../src/core/schema-google.js';
 import { createOrganization } from '../src/schema.js';
+
+type Props = import('./index.js').OrganizationJsonLdProps;
 
 /**
  * Organization JSON-LD. Typically placed once, on the homepage.
@@ -21,6 +24,7 @@ const jsonLd = {
     }),
   }),
 };
+if (name) warnGoogleSchema(jsonLd, Astro.props.eligibility ?? 'schema', { documentUrl: Astro.url.href, explicitType: 'Organization' });
 ---
 
 {name && <script type="application/ld+json" set:html={serializeJsonLd(jsonLd)} />}

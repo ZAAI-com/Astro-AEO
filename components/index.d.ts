@@ -1,7 +1,28 @@
 import type { AstroComponentFactory } from 'astro/runtime/server/index.js';
-import type { GraphInput } from '../src/schema.js';
+import type { GraphInput, SchemaBuilderInput, ExactSchemaType, EntityReference } from '../src/schema.js';
+import type { Product, SoftwareApplication, Review, ItemList, Dataset, ProfilePage, Service, LocalBusiness, Organization, ImageObject } from 'schema-dts';
 
 type AstroComponentWithProps<Props> = AstroComponentFactory & ((props: Props) => any);
+
+/** Selects checks only, not a guarantee of Google eligibility. Default: schema. */
+export type SchemaEligibility = 'schema' | 'google';
+export interface SchemaEligibilityProps { eligibility?: SchemaEligibility }
+export interface ProductJsonLdProps extends SchemaEligibilityProps { entity: SchemaBuilderInput<ExactSchemaType<Product, 'Product'>> }
+export interface SoftwareApplicationJsonLdProps extends SchemaEligibilityProps { entity: SchemaBuilderInput<ExactSchemaType<SoftwareApplication, 'SoftwareApplication'>> }
+export interface ReviewJsonLdProps extends SchemaEligibilityProps { entity: SchemaBuilderInput<ExactSchemaType<Review, 'Review'>> }
+export interface ItemListJsonLdProps extends SchemaEligibilityProps { entity: SchemaBuilderInput<ExactSchemaType<ItemList, 'ItemList'>> }
+export interface DatasetJsonLdProps extends SchemaEligibilityProps { entity: SchemaBuilderInput<ExactSchemaType<Dataset, 'Dataset'>> }
+export interface ProfilePageJsonLdProps extends SchemaEligibilityProps { entity: SchemaBuilderInput<ExactSchemaType<ProfilePage, 'ProfilePage'>> }
+export interface ServiceJsonLdProps extends SchemaEligibilityProps { entity: SchemaBuilderInput<ExactSchemaType<Service, 'Service'>> }
+export interface LocalBusinessJsonLdProps extends SchemaEligibilityProps { entity: SchemaBuilderInput<ExactSchemaType<LocalBusiness, 'LocalBusiness'>> }
+export declare const ProductJsonLd: AstroComponentWithProps<ProductJsonLdProps>;
+export declare const SoftwareApplicationJsonLd: AstroComponentWithProps<SoftwareApplicationJsonLdProps>;
+export declare const ReviewJsonLd: AstroComponentWithProps<ReviewJsonLdProps>;
+export declare const ItemListJsonLd: AstroComponentWithProps<ItemListJsonLdProps>;
+export declare const DatasetJsonLd: AstroComponentWithProps<DatasetJsonLdProps>;
+export declare const ProfilePageJsonLd: AstroComponentWithProps<ProfilePageJsonLdProps>;
+export declare const ServiceJsonLd: AstroComponentWithProps<ServiceJsonLdProps>;
+export declare const LocalBusinessJsonLd: AstroComponentWithProps<LocalBusinessJsonLdProps>;
 
 export type AeoHeadUrl = string | URL;
 
@@ -66,7 +87,7 @@ export interface FaqItem {
   question: string;
   answer: string;
 }
-export interface FaqJsonLdProps {
+export interface FaqJsonLdProps extends SchemaEligibilityProps {
   items: FaqItem[];
   /**
    * Stable `@id` for the FAQPage, so the schema graph and map can list it instead
@@ -76,7 +97,7 @@ export interface FaqJsonLdProps {
    */
   id?: string;
 }
-export declare const FaqJsonLd: AstroComponentFactory;
+export declare const FaqJsonLd: AstroComponentWithProps<FaqJsonLdProps>;
 
 export interface HowToStep {
   name: string;
@@ -84,20 +105,20 @@ export interface HowToStep {
   url?: string;
   image?: string;
 }
-export interface HowToJsonLdProps {
+export interface HowToJsonLdProps extends SchemaEligibilityProps {
   name: string;
   description?: string;
   /** ISO 8601 duration, e.g. "PT5M". */
   totalTime?: string;
   steps: HowToStep[];
 }
-export declare const HowToJsonLd: AstroComponentFactory;
+export declare const HowToJsonLd: AstroComponentWithProps<HowToJsonLdProps>;
 
 export interface Crumb {
   name: string;
   url: string;
 }
-export interface BreadcrumbJsonLdProps {
+export interface BreadcrumbJsonLdProps extends SchemaEligibilityProps {
   /** Explicit trail. Omit to auto-derive from the current URL. */
   items?: Crumb[];
   /** Override the humanized label for a given path segment. */
@@ -105,9 +126,9 @@ export interface BreadcrumbJsonLdProps {
   /** Include the leading Home crumb. Default: true. */
   includeHome?: boolean;
 }
-export declare const BreadcrumbJsonLd: AstroComponentFactory;
+export declare const BreadcrumbJsonLd: AstroComponentWithProps<BreadcrumbJsonLdProps>;
 
-export interface OrganizationJsonLdProps {
+export interface OrganizationJsonLdProps extends SchemaEligibilityProps {
   name: string;
   /** Defaults to the Astro `site` URL. */
   url?: string;
@@ -115,22 +136,26 @@ export interface OrganizationJsonLdProps {
   sameAs?: string[];
   contactEmail?: string;
 }
-export declare const OrganizationJsonLd: AstroComponentFactory;
+export declare const OrganizationJsonLd: AstroComponentWithProps<OrganizationJsonLdProps>;
 
-export interface SpeakableJsonLdProps {
+export interface SpeakableJsonLdProps extends SchemaEligibilityProps {
   /** CSS selectors for the speakable regions. Default: ['main']. */
   cssSelector?: string | string[];
   /** Canonical URL. Defaults to the current page URL against `site`. */
   url?: string;
 }
-export declare const SpeakableJsonLd: AstroComponentFactory;
+export declare const SpeakableJsonLd: AstroComponentWithProps<SpeakableJsonLdProps>;
 
 export interface ArticleAuthor {
   name: string;
   url?: string;
+  '@type'?: 'Person' | 'Organization';
+  '@id'?: string;
+  sameAs?: string | readonly string[];
 }
-export interface ArticleJsonLdProps {
+export interface ArticleJsonLdProps extends SchemaEligibilityProps {
   headline: string;
+  type?: 'Article' | 'BlogPosting' | 'TechArticle';
   /**
    * Google prefers an ISO 8601 datetime with an offset or `Z`. Bare Schema.org dates remain valid
    * but may trigger non-critical Rich Results warnings. Astro-AEO passes the value through unchanged
@@ -143,12 +168,16 @@ export interface ArticleJsonLdProps {
    * without normalization.
    */
   dateModified?: string;
-  author?: ArticleAuthor;
-  image?: string;
+  /** A string is a Person name. */
+  author?: string | ArticleAuthor | EntityReference | readonly (string | ArticleAuthor | EntityReference)[];
+  publisher?: Organization | EntityReference;
+  image?: string | readonly (string | ImageObject)[];
+  keywords?: string | readonly string[];
+  inLanguage?: string;
   description?: string;
   url?: string;
 }
-export declare const ArticleJsonLd: AstroComponentFactory;
+export declare const ArticleJsonLd: AstroComponentWithProps<ArticleJsonLdProps>;
 
 /**
  * Props for the `AeoPage` marker component. Every field is optional: supplying

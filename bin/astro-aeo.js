@@ -33,6 +33,8 @@ Options for "validate":
   --base <path>   Site base path, if the build was generated with one
 
 Options for "audit":
+  --heuristics                 Include score-neutral editorial advice
+  --schema-target <target>     schema (default) or google: provider field checks
   --format <name>   terminal (default), json, sarif, html, markdown, github, or junit
   --output <file>   Write the report to a file instead of standard output
   --fail-on <level> Exit 1 on findings at this level: error (default), warning, or none

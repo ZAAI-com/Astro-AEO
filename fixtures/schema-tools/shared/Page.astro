@@ -1,0 +1,43 @@
+---
+import { ArticleJsonLd, ProductJsonLd, SoftwareApplicationJsonLd, ReviewJsonLd,
+  ItemListJsonLd, DatasetJsonLd, ProfilePageJsonLd, ServiceJsonLd, LocalBusinessJsonLd,
+  FaqJsonLd, HowToJsonLd, BreadcrumbJsonLd, OrganizationJsonLd, SpeakableJsonLd } from '../../../components/index.js';
+import { serializeJsonLd } from '../../../src/lib/serialize-jsonld.js';
+const unsafe = 'Tool </script><script>alert("unsafe")</script>\u2028\u2029';
+const entity = Object.freeze({ name: unsafe, offers: Object.freeze({ '@type': 'Offer', price: 0 }) });
+const before = JSON.stringify(entity);
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Schema tools</title>
+    <meta name="description" content="Typed publishing components" />
+    <ArticleJsonLd headline="Legacy" author={{ name: 'Ada', url: 'https://example.com/ada' }} image="https://example.com/cover.jpg" />
+    <ArticleJsonLd headline="Blog" type="BlogPosting" eligibility="google" author={[{ '@type': 'Organization', name: 'Editors' }, { '@id': '#ada' }]} publisher={{ '@type': 'Organization', name: 'Publisher' }} image={['https://example.com/cover.jpg']} keywords={['astro', 'schema']} inLanguage="de-DE" />
+    <ArticleJsonLd headline="Technical" type="TechArticle" author="Field Notes" eligibility="google" />
+    <ProductJsonLd entity={entity} eligibility="google" />
+    <SoftwareApplicationJsonLd entity={{ name: 'App', offers: { '@type': 'Offer', price: 0 }, aggregateRating: { '@type': 'AggregateRating', ratingValue: 4, ratingCount: 3 } }} eligibility="google" />
+    <ReviewJsonLd entity={{ author: { '@type': 'Person', name: 'Ada' }, itemReviewed: { '@id': '#product' }, reviewRating: { '@type': 'Rating', ratingValue: 4 } }} eligibility="google" />
+    <ItemListJsonLd entity={{ itemListElement: [{ '@type': 'ListItem', position: 1, name: 'First' }] }} eligibility="google" />
+    <DatasetJsonLd entity={{ name: 'Measurements', description: 'A documented dataset of daily temperatures observed over fifty years.' }} eligibility="google" />
+    <ProfilePageJsonLd entity={{ mainEntity: { '@type': 'Person', name: 'Ada' } }} eligibility="google" />
+    <ServiceJsonLd entity={{ name: 'Consulting', provider: { '@id': '#business' } }} eligibility="google" />
+    <LocalBusinessJsonLd entity={{ '@id': '#business', name: 'Shop', address: { '@type': 'PostalAddress', addressLocality: 'Berlin' } }} eligibility="google" />
+    <FaqJsonLd items={[{ question: 'Why?', answer: 'Because.' }]} eligibility="google" />
+    <HowToJsonLd name="Publish" steps={[{ name: 'Build', text: 'Run the build.' }]} eligibility="google" />
+    <BreadcrumbJsonLd eligibility="google" />
+    <OrganizationJsonLd name="Publisher" eligibility="google" />
+    <SpeakableJsonLd eligibility="google" />
+    <script type="application/ld+json" set:html={serializeJsonLd({ '@context': 'https://schema.org', '@graph': [{ '@type': 'Product', '@id': '#product', name: 'Reviewed tool', offers: { '@type': 'Offer', price: 10 } }, { '@type': 'Person', '@id': '#ada', name: 'Ada' }] })} />
+    <ArticleJsonLd headline="Empty authors" author={[]} />
+    <ProductJsonLd eligibility="google" />
+    <SoftwareApplicationJsonLd eligibility="google" />
+    <ReviewJsonLd eligibility="google" />
+    <ItemListJsonLd eligibility="google" />
+    <DatasetJsonLd eligibility="google" />
+    <ProfilePageJsonLd eligibility="google" />
+    <ServiceJsonLd eligibility="google" />
+    <LocalBusinessJsonLd eligibility="google" />
+  </head>
+  <body><main><h1>Schema tools</h1><p>Publishing components.</p><p id="immutable">{before === JSON.stringify(entity) ? 'Input unchanged' : 'Input mutated'}</p></main></body>
+</html>

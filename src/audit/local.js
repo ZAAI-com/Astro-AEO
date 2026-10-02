@@ -25,7 +25,7 @@ export class UnsafeAuditRootError extends Error {}
  * already sanitized, and nothing here reports an absolute path or a source body.
  *
  * @param {string} distDir
- * @param {{ base?: string; projectRoot?: string; siteUrl?: string }} [options]
+ * @param {{ base?: string; projectRoot?: string; siteUrl?: string; heuristics?: boolean; schemaTarget?: 'schema' | 'google'; now?: Date }} [options]
  * @returns {{ findings: Finding[]; pagesChecked: number; languageCount: number }}
  */
 export function auditDist(distDir, options = {}) {
@@ -42,8 +42,11 @@ export function auditDist(distDir, options = {}) {
 
   const base = normalizeBase(options.base);
   const origin = localOrigin(root, options.siteUrl);
-  const pages = readPages(root);
+  const pages = readPages(root, origin, base, options.heuristics);
   findings.push(...auditPages(pages, {
+    heuristics: options.heuristics,
+    schemaTarget: options.schemaTarget,
+    now: options.now,
     links: createResolver(root, base, pages, origin),
     ...(options.siteUrl ? { siteUrl: options.siteUrl } : {}),
   }));
@@ -53,8 +56,8 @@ export function auditDist(distDir, options = {}) {
   return { findings: unique(findings), pagesChecked: pages.length, languageCount: languages.size };
 }
 
-/** @param {string} root @returns {PageFacts[]} */
-function readPages(root) {
+/** @param {string} root @param {string | undefined} origin @param {string} base @param {boolean | undefined} heuristics @returns {PageFacts[]} */
+function readPages(root, origin, base, heuristics) {
   /** @type {PageFacts[]} */
   const pages = [];
   for (const path of walk(root)) {
@@ -67,6 +70,8 @@ function readPages(root) {
     pages.push(extractPageFacts(html, {
       url: pathname,
       file,
+      heuristics,
+      ...(origin ? { documentUrl: `${origin}${base}${pathname}` } : {}),
       ...(isSafeOutputPath(root, companion) && existsSync(companion) && lstatSync(companion).isFile()
         ? { markdown: readFileSync(companion, 'utf8') } : {}),
     }));

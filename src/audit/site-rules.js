@@ -1,6 +1,9 @@
 // @ts-check
 import { validateGraph } from '../schema.js';
 import { createFinding, fromGraphFinding } from './finding.js';
+import { auditEditorial } from './editorial.js';
+import { checkGoogleSchema } from '../core/schema-google.js';
+import { documentUrlFor } from './facts.js';
 
 /**
  * Site-wide rules over `PageFacts`. Every cross-page check goes through a map
@@ -29,16 +32,26 @@ const UNRESOLVED_REFERENCE = 'schema.unresolved-reference';
 
 /**
  * @param {readonly PageFacts[]} pages
- * @param {{ links?: LinkResolver; siteUrl?: string }} [options]
+ * @param {{ links?: LinkResolver; siteUrl?: string; heuristics?: boolean; schemaTarget?: 'schema' | 'google'; now?: Date }} [options]
  * @returns {Finding[]}
  */
 export function auditPages(pages, options = {}) {
   /** @type {Finding[]} */
   const findings = [];
+  const now = options.now ?? new Date();
   for (const page of pages) {
     auditMetadata(page, findings);
     auditMarkdown(page, findings);
     auditStructuredData(page, options.siteUrl, findings);
+    if (options.heuristics) findings.push(...auditEditorial(page, now));
+    if (options.schemaTarget === 'google') {
+      const entities = page.jsonLd.flatMap((body) => {
+        try { return [JSON.parse(body)]; } catch { return []; }
+      });
+      for (const finding of checkGoogleSchema(entities, { documentUrl: page.documentUrl ?? documentUrlFor(page.url, page.canonical, options.siteUrl) })) {
+        findings.push(createFinding({ ...finding, url: page.url, file: page.file }));
+      }
+    }
   }
   auditDuplicates(pages, findings);
   if (options.links) {

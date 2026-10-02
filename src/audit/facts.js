@@ -1,5 +1,6 @@
 // @ts-check
 import { parseDocument } from '../core/html-document.js';
+import { extractEditorialFacts } from './editorial.js';
 
 /**
  * What the audit rules need to know about one page. The offline audit, the live
@@ -13,6 +14,7 @@ import { parseDocument } from '../core/html-document.js';
  * @property {string} [title]
  * @property {string} [description]
  * @property {string} [canonical]
+ * @property {string} [documentUrl]       Absolute base for same-page structured-data references.
  * @property {string} [language]
  * @property {boolean} noindex
  * @property {{ language: string; href: string }[]} alternates
@@ -21,11 +23,12 @@ import { parseDocument } from '../core/html-document.js';
  * @property {Set<string>} anchors        Every `id` and named anchor on the page.
  * @property {string[]} jsonLd            Raw JSON-LD script bodies.
  * @property {string} [markdown]          Companion Markdown, when one exists.
+ * @property {import('./editorial.js').EditorialFacts} [editorial]
  */
 
 /**
  * @param {string} html
- * @param {{ url: string; file?: string; markdown?: string }} identity
+ * @param {{ url: string; file?: string; markdown?: string; documentUrl?: string; heuristics?: boolean }} identity
  * @returns {PageFacts}
  */
 export function extractPageFacts(html, identity) {
@@ -64,13 +67,16 @@ export function extractPageFacts(html, identity) {
     jsonLd.push(script.textContent ?? '');
   }
   const language = document.documentElement?.getAttribute('lang')?.trim();
+  const canonical = text('link[rel="canonical" i]', 'href');
+  const documentUrl = documentUrlFor(identity.documentUrl ?? identity.url, canonical);
   return {
     url: identity.url,
     renderedHtml: true,
     ...(identity.file ? { file: identity.file } : {}),
     ...(title ? { title } : {}),
     ...(text('meta[name="description" i]', 'content') ? { description: text('meta[name="description" i]', 'content') } : {}),
-    ...(text('link[rel="canonical" i]', 'href') ? { canonical: text('link[rel="canonical" i]', 'href') } : {}),
+    ...(canonical ? { canonical } : {}),
+    ...(documentUrl ? { documentUrl } : {}),
     ...(language ? { language } : {}),
     noindex: /(?:^|[\s,])(?:noindex|none)(?:$|[\s,])/i.test(robots),
     alternates,
@@ -78,8 +84,21 @@ export function extractPageFacts(html, identity) {
     links,
     anchors,
     jsonLd,
+    ...(identity.heuristics ? { editorial: extractEditorialFacts(html, document, documentUrl) } : {}),
     ...(identity.markdown === undefined ? {} : { markdown: identity.markdown }),
   };
+}
+
+/** @param {string} pageUrl @param {string} [canonical] @param {string} [siteUrl] */
+export function documentUrlFor(pageUrl, canonical, siteUrl) {
+  const http = (/** @type {URL | undefined} */ url) => url && /^https?:$/.test(url.protocol) ? url.href : undefined;
+  const parse = (/** @type {string} */ value, /** @type {string | URL | undefined} */ base) => {
+    try { return new URL(value, base); } catch { return undefined; }
+  };
+  const page = parse(pageUrl, siteUrl);
+  // A non-HTTP or malformed canonical must not discard a valid page URL.
+  if (canonical) return http(parse(canonical, page)) ?? http(page);
+  return http(page);
 }
 
 /**
