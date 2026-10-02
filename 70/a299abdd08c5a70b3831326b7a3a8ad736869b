@@ -1,0 +1,65 @@
+src/runtime/rewrite-diagnostics.js
+  s_f8660d98b07a77::t_75be7aa01a9a97 13-14
+src/runtime/middleware.js
+  s_f8660d98b07a77::t_75be7aa01a9a97 45,304,309,320,350,363,366,374
+fixtures/ssr-node/src/middleware.ts
+  s_f8660d98b07a77::t_75be7aa01a9a97 5,27,29-32,59-71
+src/runtime/serve.test.js
+  s_f8660d98b07a77::t_75be7aa01a9a97 9,692-791
+  s_f8660d98b07a77::t_0a1dbcc6d4f94d 792-793
+src/runtime/middleware.ssr.test.js
+  s_f8660d98b07a77::t_75be7aa01a9a97 7,37-38,41,55-56,82-89,241,251,324-325,331-381
+  s_f8660d98b07a77::t_28075c3137a396 382
+src/runtime/serve.js
+  s_f8660d98b07a77::t_75be7aa01a9a97 13,16,79-124,560-561,742-743
+src/runtime/middleware-corpus-auth.test.js
+  s_f8660d98b07a77::t_75be7aa01a9a97 490-492
+fixtures/ssr-node/src/pages/sourced-error.astro
+  s_f8660d98b07a77::t_75be7aa01a9a97 6-7,14,16
+fixtures/ssr-node/src/pages/tab-panels.astro
+  s_4d3e2ebae71f6c::t_0f3cf77bb276b1 1-7
+src/runtime/middleware-corpus-completeness.test.js
+  s_4d3e2ebae71f6c::t_213bfaf246a497 1-271
+fixtures/ssr-mixed/astro.config.mjs
+  s_0824db95c1e271::t_c1371523c01c2e 1-10
+fixtures/ssr-mixed/package.json
+  s_0824db95c1e271::t_eeb90e044a76fd 1
+fixtures/ssr-mixed/src/pages/index.astro
+  s_0824db95c1e271::t_79ebc9d61bcaaf 1-6
+fixtures/ssr-mixed/src/pages/static-page.astro
+  s_0824db95c1e271::t_6c8945a1db0f39 5
+src/runtime/middleware-mixed.ssr.test.js
+  s_0824db95c1e271::t_234f2a0346931d 1-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "70a299abdd08c5a70b3831326b7a3a8ad736869b",
+  "prompts": {},
+  "sessions": {
+    "s_0824db95c1e271": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fd5d-ccf7-7723-97b6-b73c83249486",
+        "model": "unknown"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_4d3e2ebae71f6c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fd4f-2e6b-7ad0-9fb6-3439f559f336",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_f8660d98b07a77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84f6ceda-7cc9-4745-81e0-a88873876321",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
