@@ -66,13 +66,14 @@ export function extractPageFacts(html, identity) {
     jsonLd.push(script.textContent ?? '');
   }
   const language = document.documentElement?.getAttribute('lang')?.trim();
+  const canonical = text('link[rel="canonical" i]', 'href');
   return {
     url: identity.url,
     renderedHtml: true,
     ...(identity.file ? { file: identity.file } : {}),
     ...(title ? { title } : {}),
     ...(text('meta[name="description" i]', 'content') ? { description: text('meta[name="description" i]', 'content') } : {}),
-    ...(text('link[rel="canonical" i]', 'href') ? { canonical: text('link[rel="canonical" i]', 'href') } : {}),
+    ...(canonical ? { canonical } : {}),
     ...(language ? { language } : {}),
     noindex: /(?:^|[\s,])(?:noindex|none)(?:$|[\s,])/i.test(robots),
     alternates,
@@ -80,7 +81,7 @@ export function extractPageFacts(html, identity) {
     links,
     anchors,
     jsonLd,
-    editorial: extractEditorialFacts(html, document),
+    editorial: extractEditorialFacts(html, document, /^https?:\/\//i.test(canonical ?? '') ? canonical : identity.url),
     ...(identity.markdown === undefined ? {} : { markdown: identity.markdown }),
   };
 }

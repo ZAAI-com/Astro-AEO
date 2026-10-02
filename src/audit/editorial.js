@@ -6,15 +6,81 @@ import { createFinding } from './finding.js';
 /** @typedef {{ kind: 'heading' | 'paragraph' | 'list' | 'table'; text: string; level?: number; ordered?: boolean; source?: boolean }} ContentBlock */
 /** @typedef {{ blocks: ContentBlock[]; article: boolean; attributed: boolean; dates: string[] }} EditorialFacts */
 
+const EXCLUDED_CONTENT = 'pre,code,blockquote,nav,aside,footer,header,script,style,[hidden],[aria-hidden="true" i]';
+const HIDDEN_CONTENT = 'script,style,[hidden],[aria-hidden="true" i]';
+
 /** @param {string} text */
-function clean(text) { return text.replace(/`[^`]*`/g, '').replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[*_~]/g, '').trim(); }
+function withoutInlineCode(text) {
+  return text.replace(/<code\b[^>]*>[\s\S]*?<\/code\s*>/gi, '')
+    .replace(/(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)/g, '');
+}
+
+/** @param {string} text */
+function clean(text) { return withoutInlineCode(text).replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[*_~]/g, '').trim(); }
+
+/** @param {string} destination */
+function citationUrl(destination) {
+  const href = destination.trim();
+  return Boolean(href) && !/^(?:javascript|data|mailto|tel):/i.test(href);
+}
+
+/** @param {string} text @param {Map<string, string>} references */
+function markdownCitation(text, references) {
+  let source = false;
+  const prose = withoutInlineCode(text)
+    .replace(/!\[[^\]]*\](?:\([^)]*\)|\[[^\]]*\])?/g, '')
+    .replace(/<img\b[^>]*>/gi, '')
+    .replace(/\[[^\]]*\]\(\s*(?:<([^>]+)>|([^\s)]+))[^)]*\)/g, (_match, angle, plain) => {
+      source ||= citationUrl(angle ?? plain);
+      return '';
+    })
+    .replace(/\[([^\]]+)\](?:\[([^\]]*)\])?/g, (match, label, reference) => {
+      const destination = references.get((reference || label).toLowerCase());
+      if (destination === undefined) return match;
+      source ||= citationUrl(destination);
+      return '';
+    })
+    .replace(/<([a-z][a-z\d+.-]*:[^<>\s]*)>/gi, (_match, destination) => {
+      source ||= citationUrl(destination);
+      return '';
+    });
+  return source || [...prose.matchAll(/https?:\/\/[^\s<>]+/gi)].some((match) => citationUrl(match[0]));
+}
+
+/** @param {string[]} lines @returns {Map<string, string>} */
+function markdownReferences(lines) {
+  const references = new Map();
+  let fence = '';
+  let fenceLength = 0;
+  let htmlBlock = '';
+  for (const line of lines) {
+    if (htmlBlock) {
+      if (line.toLowerCase().includes(`</${htmlBlock}>`)) htmlBlock = '';
+      continue;
+    }
+    const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+    if (fence) {
+      if (marker && marker[1][0] === fence && marker[1].length >= fenceLength && /^ {0,3}(?:`+|~+)\s*$/.test(line)) fence = '';
+      continue;
+    }
+    if (marker) { fence = marker[1][0]; fenceLength = marker[1].length; continue; }
+    const tag = /^ {0,3}<(script|style|pre|blockquote|table|ol|ul)\b/i.exec(line)?.[1].toLowerCase();
+    if (tag) {
+      if (!line.toLowerCase().includes(`</${tag}>`)) htmlBlock = tag;
+      continue;
+    }
+    const reference = /^ {0,3}\[([^\]]+)\]:\s*(?:<([^>]+)>|(\S+))/.exec(line);
+    if (reference) references.set(reference[1].toLowerCase(), reference[2] ?? reference[3]);
+  }
+  return references;
+}
 
 /** @param {string} markdown @returns {ContentBlock[]} */
 export function markdownBlocks(markdown) {
   /** @type {ContentBlock[]} */
   const blocks = [];
-  const references = new Set([...markdown.matchAll(/^ {0,3}\[([^\]]+)\]:\s*\S+/gm)].map((match) => match[1].toLowerCase()));
   const lines = markdown.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '').split(/\r?\n/);
+  const references = markdownReferences(lines);
   let fence = '';
   let fenceLength = 0;
   /** @type {string[]} */
@@ -22,8 +88,7 @@ export function markdownBlocks(markdown) {
   const flush = () => {
     if (!paragraph.length) return;
     const raw = paragraph.join(' ');
-    blocks.push({ kind: 'paragraph', text: clean(raw), source: /(?<!!)\[[^\]]+\]\(\s*[^\s)]+/.test(raw) ||
-      /https?:\/\/\S+/.test(raw) || [...raw.matchAll(/(?<!!)\[([^\]]+)\](?:\[([^\]]*)\])?/g)].some((match) => references.has((match[2] || match[1]).toLowerCase())) });
+    blocks.push({ kind: 'paragraph', text: clean(raw), source: markdownCitation(raw, references) });
     paragraph = [];
   };
   for (let position = 0; position < lines.length; position++) {
@@ -71,25 +136,22 @@ export function markdownBlocks(markdown) {
   return blocks;
 }
 
-/** @param {string} html @param {Document} [parsed] @returns {EditorialFacts | undefined} */
-export function extractEditorialFacts(html, parsed) {
+/** @param {string} html @param {Document} [parsed] @param {string} [documentUrl] @returns {EditorialFacts | undefined} */
+export function extractEditorialFacts(html, parsed, documentUrl) {
   const document = parsed ?? parseDocument(html);
   const region = document.querySelector('main') ?? document.querySelector('article');
   if (!region) return undefined;
   /** @type {ContentBlock[]} */
   const blocks = [];
   for (const element of region.querySelectorAll('h1,h2,h3,h4,h5,h6,p,ol,ul,table')) {
-    if (element.closest('pre,code,blockquote,nav,aside,footer,header,script,style,[hidden],[aria-hidden="true"]')) continue;
+    if (element.closest(EXCLUDED_CONTENT)) continue;
     const tag = element.localName;
     if (tag === 'p' && element.closest('li,table')) continue;
     const prose = /** @type {Element} */ (element.cloneNode(true));
-    for (const code of prose.querySelectorAll('code')) code.remove();
+    for (const excluded of prose.querySelectorAll(EXCLUDED_CONTENT)) excluded.remove();
     const text = prose.textContent?.trim() ?? '';
     if (/^h[1-6]$/.test(tag)) blocks.push({ kind: 'heading', text, level: Number(tag[1]) });
-    else if (tag === 'p') blocks.push({ kind: 'paragraph', text, source: [...element.querySelectorAll('a[href]')].some((anchor) => {
-      const href = anchor.getAttribute('href') ?? '';
-      return Boolean(href.trim()) && !/^(?:javascript|data|mailto|tel):/i.test(href);
-    }) });
+    else if (tag === 'p') blocks.push({ kind: 'paragraph', text, source: [...prose.querySelectorAll('a[href]')].some((anchor) => citationUrl(anchor.getAttribute('href') ?? '')) });
     else if (tag === 'table') blocks.push({ kind: 'table', text });
     else blocks.push({ kind: 'list', text, ordered: tag === 'ol' });
   }
@@ -97,13 +159,30 @@ export function extractEditorialFacts(html, parsed) {
     try { return jsonLdEntities(JSON.parse(script.textContent ?? '')); } catch { return []; }
   });
   const articleEntities = entities.filter((entity) => schemaTypes(entity).some((type) => ['Article', 'BlogPosting', 'TechArticle', 'NewsArticle'].includes(type)));
-  const byId = new Map(entities.filter((entity) => typeof entity['@id'] === 'string').map((entity) => [entity['@id'], entity]));
+  const identity = (/** @type {string} */ id) => {
+    try { return new URL(id, documentUrl).href; } catch { return id; }
+  };
+  /** @type {Map<string, Record<string, any>[]>} */
+  const byId = new Map();
+  for (const entity of entities) {
+    if (typeof entity['@id'] !== 'string' || !Object.keys(entity).some((key) => key !== '@id' && key !== '@context')) continue;
+    const id = identity(entity['@id']);
+    const definitions = byId.get(id) ?? [];
+    definitions.push(entity);
+    byId.set(id, definitions);
+  }
   const named = (/** @type {any} */ author) => {
-    const resolved = author?.['@id'] ? byId.get(author['@id']) ?? author : author;
-    return schemaTypes(resolved).some((type) => type === 'Person' || type === 'Organization') && typeof resolved?.name === 'string' && Boolean(resolved.name.trim());
+    const definitions = typeof author?.['@id'] === 'string' ? [author, ...(byId.get(identity(author['@id'])) ?? [])] : [author];
+    return definitions.some((entity) => schemaTypes(entity).some((type) => type === 'Person' || type === 'Organization')) &&
+      definitions.some((entity) => typeof entity?.name === 'string' && Boolean(entity.name.trim()));
   };
   const visible = document.querySelector('meta[name="author" i]')?.getAttribute('content')?.trim() ||
-    [...region.querySelectorAll('[rel~="author" i],[itemprop="author" i]')].some((element) => Boolean(element.textContent?.trim()));
+    [...region.querySelectorAll('[rel~="author" i],[itemprop="author" i]')].some((element) => {
+      if (element.closest(HIDDEN_CONTENT)) return false;
+      const author = /** @type {Element} */ (element.cloneNode(true));
+      for (const hidden of author.querySelectorAll(HIDDEN_CONTENT)) hidden.remove();
+      return Boolean(author.textContent?.trim());
+    });
   const dates = articleEntities.flatMap((entity) => [entity.dateModified, entity.datePublished]).filter((date) => typeof date === 'string');
   for (const element of document.querySelectorAll('meta[property="article:published_time"],meta[property="article:modified_time"],time[itemprop="datePublished"],time[itemprop="dateModified"]')) {
     const date = element.getAttribute('content') ?? element.getAttribute('datetime');

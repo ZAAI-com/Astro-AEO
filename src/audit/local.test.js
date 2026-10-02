@@ -4,7 +4,9 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { UnsafeAuditRootError, auditDist } from './local.js';
+import { auditLive } from './live.js';
 import { createAuditReport, serializeAuditReport } from './report.js';
+import { scoreFindings } from './score.js';
 
 /** @type {string[]} */
 const roots = [];
@@ -40,6 +42,38 @@ function rulesOf(project, options) {
 }
 
 describe('offline audit', () => {
+  it.each(['identified', 'anonymous'])('preserves distinct %s Google entities consistently in local and live audits', async (identity) => {
+    const canonical = 'https://example.com/';
+    const entities = [1, 2].map((number) => ({
+      '@context': 'https://schema.org', '@type': 'Product',
+      ...(identity === 'identified' ? { '@id': `${canonical}#product-${number}` } : {}),
+      offers: { '@type': 'Offer', price: 10, priceCurrency: 'USD' },
+    }));
+    const contents = html({ title: 'Products', description: 'Published products', canonical,
+      head: entities.map((entity) => `<script type="application/ld+json">${JSON.stringify(entity)}</script>`).join(''),
+    });
+    const project = site({ 'dist/index.html': contents });
+    const local = auditDist(join(project, 'dist'), { schemaTarget: 'google' });
+    const fetch = /** @type {typeof globalThis.fetch} */ (async () => new Response(contents, {
+      headers: { 'content-type': 'text/html' },
+    }));
+    const live = await auditLive(canonical, { schemaTarget: 'google', fetch });
+    const google = (findings) => findings.filter((finding) => finding.ruleId.startsWith('google-'));
+    const comparable = (findings) => google(findings).map(({ ruleId, severity, message, evidence }) => ({ ruleId, severity, message, evidence }));
+    expect(comparable(local.findings)).toEqual(comparable(live.findings));
+    const required = google(local.findings).filter((finding) => finding.severity === 'warning');
+    expect(required).toHaveLength(2);
+    expect(required.every((finding) => Boolean(finding.evidence))).toBe(true);
+    expect(new Set(required.map((finding) => finding.evidence)).size).toBe(2);
+    for (const findings of [local.findings, live.findings]) {
+      const scored = scoreFindings(google(findings));
+      expect(scored.findings.reduce((total, finding) => total + finding.deduction, 0)).toBe(10);
+      expect(scored.scores.categories.find((category) => category.category === 'structured-data')?.score).toBe(90);
+    }
+    expect(auditDist(join(project, 'dist')).findings.some((finding) => finding.ruleId.startsWith('google-'))).toBe(false);
+    expect((await auditLive(canonical, { fetch })).findings.some((finding) => finding.ruleId.startsWith('google-'))).toBe(false);
+  });
+
   it('refuses a symlinked build root or parent before reading outside files', () => {
     const project = site({ 'dist/index.html': html({ title: 'Home' }) });
     symlinkSync(join(project, 'dist'), join(project, 'linked-dist'));

@@ -41,8 +41,12 @@ export const RELEASE_THRESHOLDS = Object.freeze({
   // measured 394,796 packed and 1,504,218 unpacked across 184 files, 34,218 bytes
   // past the 1.5.2 ceiling, so the unpacked ceiling moves by 40,000 bytes. Only
   // the components a page imports and the checker reach a consumer bundle.
+  // The review corrections add immutable same-ID consolidation, subject-aware
+  // Google findings, and visible-prose/citation filtering. They measured 397,313
+  // packed and 1,515,124 unpacked bytes across 184 files, 5,124 bytes past the
+  // prior ceiling, so it moves by 10,000 bytes. Runtime and packed limits stay put.
   packagePackedBytes: 450_000,
-  packageUnpackedBytes: 1_510_000,
+  packageUnpackedBytes: 1_520_000,
   parse100KbP95Ms: 50,
   convert100KbP95Ms: 150,
   // The rich document repeats hidden glyphs, a definition term, a two-image

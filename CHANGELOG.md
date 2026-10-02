@@ -15,6 +15,11 @@ All notable changes to this project are documented here. This project follows [S
   profiles and recommendations are informational. FAQPage and TechArticle output stays intact.
 - Document publishing practices, profile scope, official references, and September 30, 2026
   verification. Default audits, on-build validation, and existing report contracts remain unchanged.
+- Resolve complementary same-ID Google entities once, distinguish reviewed subjects from standalone
+  profiles, honor direct Product prices, and accept CreativeWork Dataset licenses. Preserve entity
+  identity so local and live provider findings receive consistent readiness deductions.
+- Keep editorial advice focused on visible prose and genuine citation links, and resolve equivalent
+  relative and absolute same-page author references without changing default audits.
 
 ## 1.5.3
 

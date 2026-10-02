@@ -63,6 +63,9 @@ paragraph. A link is only a citation signal: the audit does not verify evidence 
 Dates and version numbers are excluded. A citation in a different paragraph may not satisfy this
 small, deliberately local heuristic.
 
+Image destinations, URLs inside code, and contact links such as `mailto:` and `tel:` do not count
+as citations. Hidden rendered descendants contribute neither prose nor citation links.
+
 ```markdown
 In the sample, 42% chose the static option ([study](https://example.com/study)).
 

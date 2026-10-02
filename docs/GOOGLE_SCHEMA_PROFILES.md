@@ -45,6 +45,14 @@ and TechArticle output is retained unchanged.
 - Final audit JSON-LD can resolve `@id` references across scripts on the same page. A component
   sees only its own entity, so sibling-script references can produce provisional missing-shape
   findings there. Audit the rendered page to evaluate its complete graph.
+- Complementary definitions of one `@id` are combined without changing the input. Conflicting
+  checked fields retain the first value and receive required-field warnings or recommendation advice.
+  Findings identify their entity through the existing report evidence field.
+- An entity used only as a Review's `itemReviewed` is checked for the supported reviewed type and
+  name, not unrelated standalone requirements. Additional uses such as `mainEntity`, standalone
+  entities, and explicit component checks retain their full profiles.
+- A supplied Product `offers.price` takes precedence over `priceSpecification.price`, including
+  its currency source. Dataset licenses accept documented URL and CreativeWork representations.
 - No external references are fetched. Unknown references cannot substitute for observed required
   fields. The checker does not crawl author or offer URLs.
 - Shape checks are intentionally bounded. They do not implement all Schema.org inference,
