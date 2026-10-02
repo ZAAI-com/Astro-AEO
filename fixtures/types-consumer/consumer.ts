@@ -431,6 +431,7 @@ ArticleJsonLd({ headline: 'Blog', type: 'BlogPosting', eligibility: 'google',
   publisher: { '@type': 'Organization', name: 'Publisher' }, image: ['https://example.com/image'],
   keywords: ['astro', 'schema'], inLanguage: 'de-DE' });
 ArticleJsonLd({ headline: 'Technical', type: 'TechArticle', author: { '@id': '#author' } });
+ArticleJsonLd({ headline: 'Named', author: ['Field Notes', { name: 'Ada' }] });
 FaqJsonLd({ items: [{ question: 'Why?', answer: 'Because.' }], eligibility: 'google' });
 ProductJsonLd({ entity: { name: 'Tool', offers: { '@type': 'Offer', price: 10 } }, eligibility: 'google' });
 SoftwareApplicationJsonLd({ entity: { name: 'App', operatingSystem: 'Web' } });

@@ -13,7 +13,7 @@ const before = JSON.stringify(entity);
     <meta name="description" content="Typed publishing components" />
     <ArticleJsonLd headline="Legacy" author={{ name: 'Ada', url: 'https://example.com/ada' }} image="https://example.com/cover.jpg" />
     <ArticleJsonLd headline="Blog" type="BlogPosting" eligibility="google" author={[{ '@type': 'Organization', name: 'Editors' }, { '@id': '#ada' }]} publisher={{ '@type': 'Organization', name: 'Publisher' }} image={['https://example.com/cover.jpg']} keywords={['astro', 'schema']} inLanguage="de-DE" />
-    <ArticleJsonLd headline="Technical" type="TechArticle" eligibility="google" />
+    <ArticleJsonLd headline="Technical" type="TechArticle" author="Field Notes" eligibility="google" />
     <ProductJsonLd entity={entity} eligibility="google" />
     <SoftwareApplicationJsonLd entity={{ name: 'App', offers: { '@type': 'Offer', price: 0 }, aggregateRating: { '@type': 'AggregateRating', ratingValue: 4, ratingCount: 3 } }} eligibility="google" />
     <ReviewJsonLd entity={{ author: { '@type': 'Person', name: 'Ada' }, itemReviewed: { '@id': '#product' }, reviewRating: { '@type': 'Rating', ratingValue: 4 } }} eligibility="google" />

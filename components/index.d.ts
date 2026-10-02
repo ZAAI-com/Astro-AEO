@@ -168,7 +168,8 @@ export interface ArticleJsonLdProps extends SchemaEligibilityProps {
    * without normalization.
    */
   dateModified?: string;
-  author?: ArticleAuthor | EntityReference | readonly (ArticleAuthor | EntityReference)[];
+  /** A string is a Person name. */
+  author?: string | ArticleAuthor | EntityReference | readonly (string | ArticleAuthor | EntityReference)[];
   publisher?: Organization | EntityReference;
   image?: string | readonly (string | ImageObject)[];
   keywords?: string | readonly string[];

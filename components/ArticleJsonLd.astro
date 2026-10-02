@@ -16,7 +16,9 @@ const canonical =
   url || (Astro.site ? new URL(Astro.url.pathname, Astro.site).toString() : Astro.url.pathname);
 
 const builder = { Article: createArticle, BlogPosting: createBlogPosting, TechArticle: createTechArticle }[type];
-const authors = author ? (Array.isArray(author) ? author : [author]).map((entry) => 'name' in entry ? ({
+const authors = author ? (Array.isArray(author) ? author : [author])
+  .map((entry) => typeof entry === 'string' ? { name: entry } : entry)
+  .map((entry) => 'name' in entry ? ({
   '@type': entry['@type'] ?? 'Person',
   ...(entry.name !== undefined && { name: entry.name }),
   ...(entry.url && { url: entry.url }),

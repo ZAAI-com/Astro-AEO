@@ -11,6 +11,7 @@ export function verifySchemaComponents(html) {
   expect(entities[1]).toMatchObject({ publisher: { '@type': 'Organization', name: 'Publisher' },
     author: [{ '@type': 'Organization', name: 'Editors' }, { '@id': '#ada' }],
     image: ['https://example.com/cover.jpg'], keywords: ['astro', 'schema'], inLanguage: 'de-DE' });
+  expect(entities[2].author).toEqual({ '@type': 'Person', name: 'Field Notes' });
   expect(bodies[3]).not.toContain('</script>');
   expect(bodies[3]).toContain('\\u003c');
   expect(bodies[3]).toContain('\\u2028');
