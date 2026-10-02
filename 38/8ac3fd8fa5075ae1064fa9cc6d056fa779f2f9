@@ -1,0 +1,21 @@
+src/schema-components.e2e.test.js
+  s_ed94aa4c360a84::t_ad9a9c2ed6d62e 4,7-9,13
+src/schema-components.ssr.test.js
+  s_ed94aa4c360a84::t_a0af2514a0c6a9 3-4,7-9,14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "388ac3fd8fa5075ae1064fa9cc6d056fa779f2f9",
+  "prompts": {},
+  "sessions": {
+    "s_ed94aa4c360a84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b931bb54-31c4-4ab7-9b9f-94c4fc1edacf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
