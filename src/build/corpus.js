@@ -7,6 +7,7 @@ import {
   sha256Digest,
 } from '../core/corpus-manifest.js';
 import { normalizeOrigin } from '../core/locale.js';
+import { cachedStage } from './stage-cache.js';
 
 /**
  * Materialize the runtime-safe logical corpus plan through the shared artifact
@@ -14,7 +15,7 @@ import { normalizeOrigin } from '../core/locale.js';
  *
  * @param {any[]} inputPages
  * @param {import('../index.js').ResolvedAstroAeoConfig} config
- * @param {{ siteUrl: string; base: string; siteMeta: { name: string; description: string }; writer: any; runtime?: boolean; tokenizer?: unknown; i18n?: import('../core/locale.js').LocaleSnapshot; diagnostics: import('../index.js').Diagnostic[] }} env
+ * @param {{ siteUrl: string; base: string; siteMeta: { name: string; description: string }; writer: any; runtime?: boolean; tokenizer?: unknown; i18n?: import('../core/locale.js').LocaleSnapshot; diagnostics: import('../index.js').Diagnostic[]; cache?: import('./stage-cache.js').StageCache }} env
  */
 export async function stageCorpusArtifacts(inputPages, config, env) {
   const origin = normalizeOrigin(env.siteUrl) ?? '';
@@ -32,6 +33,14 @@ export async function stageCorpusArtifacts(inputPages, config, env) {
     tokenizer: env.tokenizer,
     tokenizerOptions: config.corpus.tokenizer?.options,
     tokenizerProbed: env.tokenizer != null,
+    cachedCount: (tokenizer, text, options, count) => cachedStage(env.cache,
+      'tokenization-v1', { tokenizer, text, options, module: config.corpus.tokenizer?.module }, count,
+      (value) => Number.isSafeInteger(value) && /** @type {number} */ (value) >= 0),
+    cachedText: (identity, produce) => cachedStage(env.cache, 'artifact-text-v1',
+      identity, produce, (value) => typeof value === 'string'),
+    cachedChunks: (identity, produce) => cachedStage(env.cache, 'artifact-chunks-v1',
+      { identity, module: config.corpus.tokenizer?.module }, produce, (value) => Boolean(value && typeof value === 'object' &&
+        Array.isArray(/** @type {any} */ (value).chunks) && Array.isArray(/** @type {any} */ (value).diagnostics))),
   });
   env.diagnostics.push(...plan.diagnostics.map((diagnostic) => /** @type {import('../index.js').Diagnostic} */ ({
     version: /** @type {const} */ (1),
@@ -45,7 +54,10 @@ export async function stageCorpusArtifacts(inputPages, config, env) {
       artifacts.push({
         ...source,
         pathname: `${source.pathname}.gz`,
-        contents: deterministicGzip(source.contents),
+        contents: new Uint8Array(Buffer.from(await cachedStage(env.cache, 'artifact-gzip-v1',
+          { contents: source.contents, zlib: process.versions.zlib, level: 9 },
+          () => Buffer.from(deterministicGzip(source.contents)).toString('base64'),
+          (value) => typeof value === 'string' && /^[A-Za-z\d+/]*={0,2}$/.test(value)), 'base64')),
         sourcePathname: source.pathname,
         encoding: 'gzip',
       });

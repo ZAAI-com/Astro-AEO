@@ -10,6 +10,8 @@ import type {
   AeoGraph,
   AeoPage,
   AeoPageRecord,
+  AeoPageSnapshotV1,
+  AeoProcessingTraceV1,
   AuditCategory,
   AuditReportV1,
   Artifact,
@@ -1014,3 +1016,16 @@ export function consumeFeatureConfiguration(config: ResolvedAstroAeoConfig) {
   const sampleRate: number = config.analytics.sampleRate;
   return { cacheControl, version, maxTokens, sampleRate };
 }
+
+export const privateSnapshot: AeoPageSnapshotV1 = {
+  version: 1, buildDigest: 'sha256:example', inventoryComplete: true,
+  pages: [{ pathname: '/guide', routePattern: '/[slug]', locale: 'en', version: null,
+    components: { source: null, html: 'hash', markdown: 'hash', metadata: 'hash', graph: 'hash', directives: 'hash' } }],
+  artifacts: [{ pathname: '/guide.md', status: 'emitted', owner: 'dotmd', etag: 'etag', byteLength: 12 }],
+};
+export const privateTrace: AeoProcessingTraceV1 = {
+  version: 1, buildDigest: privateSnapshot.buildDigest, inventoryComplete: true, stages: [],
+  pages: [{ pathname: '/guide', source: 'rendered', renderer: null, graphEntities: 0,
+    graphProvenance: {}, htmlTransforms: [], diagnostics: {} }],
+  artifacts: [], diagnostics: {}, cacheReasons: {},
+};

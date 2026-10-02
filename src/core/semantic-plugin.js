@@ -38,7 +38,7 @@ export function createSemanticPlugin(config) {
           },
           diagnostics: result.diagnostics.map(({ code, severity, message }) => ({ code, severity, message })),
         };
-      });
+      }, { cache: { pure: true, version: '2' } });
     },
   };
 }

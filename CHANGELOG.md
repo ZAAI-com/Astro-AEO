@@ -16,6 +16,10 @@ In preparation. Release notes will be folded in from changesets before the 1.6.0
   companions, with inherited behavior when omitted. Vercel checks companion availability
   before negotiating. Request-time semantic enrichment uses the internal node-free plugin.
 
+- Separate incremental processing identities, preserve unrelated caches after unsafe stages,
+  and restore missing owned output without rewriting identical bytes. Private snapshots and
+  traces share content-derived digests and omit raw content and diagnostic values.
+
 ## 1.5.5
 
 ### Patch Changes

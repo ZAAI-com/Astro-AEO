@@ -131,7 +131,7 @@ describe('collectPages processing cache', () => {
       key: (stage, inputs) => `${stage}:${/** @type {any} */ (inputs).pathname}`,
       get: (key) => store.get(key),
       put: (key, value) => {
-        puts.push({ key, value });
+        if (key.startsWith('normalization-v2:')) puts.push({ key, value });
         store.set(key, JSON.parse(JSON.stringify(value)));
       },
     };
@@ -185,7 +185,7 @@ describe('collectPages processing cache', () => {
     // The payload holds only the extraction result, never the merged git date,
     // which is not a key input. (A descriptor date is authored source, so it
     // is a key input and may stay in the payload.)
-    const payload = cache.store.get('extraction-v1:/git');
+    const payload = cache.store.get('normalization-v2:/git');
     expect(payload.page).not.toHaveProperty('lastModified');
     expect(payload.page.dates?.modified).toBeUndefined();
     expect(payload.page).not.toHaveProperty('htmlPath');
@@ -208,16 +208,16 @@ describe('collectPages processing cache', () => {
     const { collect, touch } = fixture();
     touch('2026-01-02T03:04:05.000Z');
     const cache = fakeCache(new Map([
-      ['extraction-v1:/git', { page: { id: 42 } }],
-      ['extraction-v1:/catalog', { skip: 'not-a-reason' }],
-      ['extraction-v1:/hidden', { page: { id: '/hidden' } }],
+      ['normalization-v2:/git', { page: { id: 42 } }],
+      ['normalization-v2:/catalog', { skip: 'not-a-reason' }],
+      ['normalization-v2:/hidden', { page: { id: '/hidden' } }],
     ]));
     const pages = await collect(cache, '2026-02-15T12:30:00Z');
     expect(pages.map((page) => page.pathname)).toEqual(['/git', '/catalog']);
     expect(cache.puts.map((item) => item.key))
-      .toEqual(['extraction-v1:/git', 'extraction-v1:/catalog', 'extraction-v1:/hidden']);
-    expect(cache.store.get('extraction-v1:/git').page.id).toBe(pages[0].id);
-    expect(cache.store.get('extraction-v1:/hidden')).toEqual({ skip: 'noindex' });
+      .toEqual(['normalization-v2:/git', 'normalization-v2:/catalog', 'normalization-v2:/hidden']);
+    expect(cache.store.get('normalization-v2:/git').page.id).toBe(pages[0].id);
+    expect(cache.store.get('normalization-v2:/hidden')).toEqual({ skip: 'noindex' });
 
     await collect(cache, '2026-02-15T12:30:00Z');
     expect(cache.puts).toHaveLength(3);
@@ -258,7 +258,7 @@ describe('collectPages processing cache', () => {
 
     expect((await collect(/\s*-\s*Docs$/))[0].title).toBe('Post | Acme');
     expect((await collect(/\s*\|\s*Acme - Docs$/))[0].title).toBe('Post');
-    expect(store.size).toBe(2);
+    expect([...store.keys()].filter((key) => key.startsWith('normalization-v2:')).length).toBe(2);
   });
 });
 

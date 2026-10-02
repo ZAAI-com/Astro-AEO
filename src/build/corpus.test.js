@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { resolveConfig } from '../config.js';
 import { createLocaleSnapshot } from '../core/locale.js';
 import { stageCorpusArtifacts } from './corpus.js';
+import { canonicalStringify } from './processing-cache.js';
 
 const SITE = 'https://example.test';
 const FR_SITE = 'https://fr.example.test';
@@ -71,6 +72,41 @@ function environment(overrides = {}) {
 const twoDomains = () => [page('/en/guide', 'en'), page('/fr/guide', 'fr', FR_SITE)];
 
 describe('stageCorpusArtifacts', () => {
+  test('a locale edit invalidates its full family, not other locales or unchanged index text', async () => {
+    const entries = new Map();
+    const misses = [];
+    const cache = {
+      key: (stage, inputs) => `${stage}:${canonicalStringify(inputs)}`,
+      get(key) { if (!entries.has(key)) misses.push(key); return entries.get(key); },
+      put: (key, value) => entries.set(key, value),
+    };
+    const pages = [page('/en/guide', 'en'), page('/fr/guide', 'fr')];
+    const config = resolveConfig({ i18n: { indexes: 'both' }, corpus: { compression: { gzip: true } } });
+    const build = (pages) => stageCorpusArtifacts(pages, config, environment({ cache,
+      i18n: createLocaleSnapshot({ locales: ['en', 'fr'], defaultLocale: 'en' }, SITE) }));
+    await build(pages); misses.length = 0;
+    await build(pages); expect(misses).toEqual([]);
+    const edited = [{ ...pages[0], markdown: 'Edited English body' }, pages[1]];
+    const result = await build(edited);
+    const textMisses = misses.filter((key) => key.startsWith('artifact-text-v1:'))
+      .map((key) => JSON.parse(key.slice('artifact-text-v1:'.length)).pathname).sort();
+    expect(textMisses).toEqual(['/en/llms-full.txt', '/llms-full.txt']);
+    expect(result.artifacts.find((artifact) => artifact.pathname === '/en/llms-full.txt').contents).toContain('Edited English body');
+    expect(result.artifacts.find((artifact) => artifact.pathname === '/fr/llms-full.txt').contents).toContain('Authored fr content');
+  });
+
+  test('function-dependent section rendering bypasses text reuse without disabling tokenization', async () => {
+    const entries = new Map();
+    const writes = [];
+    const cache = { key: (stage, inputs) => `${stage}:${canonicalStringify(inputs)}`,
+      get: (key) => entries.get(key), put(key, value) { writes.push(key); entries.set(key, value); } };
+    const calls = [];
+    const config = resolveConfig({ corpus: { index: { sections: [{ title: 'Custom', match(page) { calls.push(page.pathname); return true; } }] } } });
+    for (let index = 0; index < 2; index++) await stageCorpusArtifacts([page('/en/guide', 'en')], config, environment({ cache }));
+    expect(calls).toHaveLength(2);
+    expect(writes.filter((key) => key.startsWith('artifact-text-v1:'))).toHaveLength(1); // Full text only.
+    expect(writes.some((key) => key.startsWith('tokenization-v1:'))).toBe(true);
+  });
   // Astro honours i18n.domains only under SSR and rejects prerendered routes in
   // that mode, so every route is on demand and middleware owns the corpus. The
   // build still has to reserve the right ownership claims.

@@ -493,8 +493,9 @@ function createDeferredArtifactWriter(deps) {
     onDiagnostics,
     beforeApply,
     onSettled,
-    staleDeletion = true,
   } = deps;
+  let staleDeletion = deps.staleDeletion !== false;
+  let staleRetentionReason = 'the processing cache is read-only';
   const root = fileURLToPath(distDir);
   const publicRoot = publicDir ? fileURLToPath(publicDir) : undefined;
   const outputId = outputRootId(root);
@@ -1072,11 +1073,13 @@ function createDeferredArtifactWriter(deps) {
         });
       }
 
-      commitFileTransaction(operations.map(confineOperation), { beforeApply });
+      commitFileTransaction(operations.map((operation) => confineOperation(
+        operation.kind === 'write' ? { ...operation, skipIdentical: true } : operation,
+      )), { beforeApply });
       committed = true;
       if (kept.length) {
         logger.warn(
-          `astro-aeo: the processing cache is read-only, so ${kept.length} stale output(s) from the previous build were kept; ` +
+          `astro-aeo: ${staleRetentionReason}, so ${kept.length} stale output(s) from the previous build were kept; ` +
             'the next build with a writable cache removes them.',
         );
       }
@@ -1385,9 +1388,36 @@ function createDeferredArtifactWriter(deps) {
     stagePrivateWrite,
     stagePrivateDelete,
     isPlannedStaleDeletion,
+    withholdStaleDeletion() {
+      if (resolution || committed) throw new Error('astro-aeo: cannot change stale deletion authority after resolution');
+      staleDeletion = false;
+      staleRetentionReason = 'the page inventory is incomplete';
+    },
     commit,
     report,
     resolve: resolveClaims,
+    /** @param {string} path */
+    transformOwners(path) { return (transforms.get(path) ?? []).map((edit) => edit.owner); },
+    /** Safe public output actions for private evidence, without filesystem paths. */
+    outputActions() {
+      const resolved = resolveClaims();
+      const priorPaths = new Set((previousUsable?.artifacts ?? [])
+        .filter((/** @type {any} */ entry) => entry.status === 'emitted')
+        .map((/** @type {any} */ entry) => entry.pathname));
+      const actions = resolved.manifestEntries.map((/** @type {any} */ entry) => {
+        if (entry.status !== 'emitted') return { pathname: entry.pathname, action: entry.status };
+        const claim = (resolved.byServed.get(internalPathKey(entry.pathname)) ?? [])
+          .find((/** @type {any} */ value) => resolved.decisions.get(value.id)?.status === 'emit');
+        const previous = claim ? fileEtag(claim.artifact.path) : null;
+        const ownedBefore = priorPaths.has(entry.pathname);
+        return { pathname: entry.pathname, action: previous === entry.representation.etag
+          ? 'preserved' : previous === null && ownedBefore ? 'restored' : 'generated' };
+      });
+      for (const { entry } of staleOutputs(resolved.byServed)) {
+        actions.push({ pathname: entry.pathname, action: staleDeletion ? 'removed' : 'preserved' });
+      }
+      return actions.sort((/** @type {any} */ a, /** @type {any} */ b) => codeUnitCompare(a.pathname, b.pathname));
+    },
     preview() {
       return resolveClaims(false);
     },

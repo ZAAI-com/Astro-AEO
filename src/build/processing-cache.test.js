@@ -15,6 +15,7 @@ import { createRequire } from 'node:module';
 import { afterEach, describe, expect, test } from 'vitest';
 import { extractionProducer } from './package-version.js';
 import { canonicalStringify, describeProcessingCacheReset, openProcessingCache } from './processing-cache.js';
+import { cachedStage } from './stage-cache.js';
 
 const roots = [];
 afterEach(() => {
@@ -46,6 +47,21 @@ function memoryWriter() {
 }
 
 describe('processing cache', () => {
+  test('warm parent stages retain skipped dependency blobs through the sweep', async () => {
+    const root = project();
+    const produce = (cache) => cachedStage(cache, 'artifact-chunks-v1', { section: 'Docs' },
+      () => cachedStage(cache, 'tokenization-v1', { text: 'Body' }, () => 42, Number.isInteger), Number.isInteger);
+    let cache = openProcessingCache(root, { enabled: true });
+    expect(await produce(cache)).toBe(42);
+    stageAndApply(cache);
+    cache = openProcessingCache(root, { enabled: true });
+    expect(await produce(cache)).toBe(42);
+    expect(cache.stats.hits).toBe(1);
+    stageAndApply(cache);
+    cache = openProcessingCache(root, { enabled: true });
+    expect(cache.get(cache.key('tokenization-v1', { text: 'Body' }))).toBe(42);
+    cache.close();
+  });
   test('canonicalizes object keys while preserving ordered arrays', () => {
     expect(canonicalStringify({ z: [2, 1], a: { d: 2, c: 1 } }))
       .toBe('{"a":{"c":1,"d":2},"z":[2,1]}');
@@ -233,6 +249,27 @@ describe('processing cache', () => {
       'astro-aeo: processing cache reset after an extractor change (turndown 7.2.3 -> 7.2.4); ' +
         '1 cached page(s) will be extracted again',
     );
+    after.close();
+  });
+
+  test('dependency refreshes retain unrelated stages and pending blobs are immediately reusable', () => {
+    const root = project();
+    const before = openProcessingCache(root, { enabled: true, producer: producer('1.5.0', { turndown: '7.2.3' }) });
+    const tokenKey = before.key('tokenization-v1', { text: 'Body', version: '1' });
+    const graphKey = before.key('graph-baseline-v1', { html: '<main>Body</main>' });
+    before.put(tokenKey, 1);
+    before.put(graphKey, { graph: [] });
+    expect(before.get(tokenKey)).toBe(1);
+    const extractionKey = before.key('extraction-v2', { html: '<main>Body</main>' });
+    before.put(extractionKey, { markdown: 'Body' });
+    stageAndApply(before);
+    const after = openProcessingCache(root, { enabled: true, producer: producer('1.5.0') });
+    expect(after.key('tokenization-v1', { text: 'Body', version: '1' })).toBe(tokenKey);
+    expect(after.get(tokenKey)).toBe(1);
+    expect(after.key('graph-baseline-v1', { html: '<main>Body</main>' })).toBe(graphKey);
+    expect(after.get(graphKey)).toEqual({ graph: [] });
+    expect(after.get(after.key('extraction-v2', { html: '<main>Body</main>' }))).toBeUndefined();
+    expect(after.stats.reset.dropped).toBe(1);
     after.close();
   });
 
