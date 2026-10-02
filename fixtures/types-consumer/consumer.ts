@@ -634,7 +634,7 @@ export const extractionDefaults: string[] = DEFAULT_EXTRACTION.selectors;
 export const extractedPromise: Promise<ExtractedDocument> = extractHtml('<main>Hello</main>');
 export const extractedFromSubpath: Promise<ExtractedDocumentFromSubpath> = extractedPromise;
 export const representation: Representation = { body: 'Answers\n', contentType: 'text/plain; charset=utf-8' };
-export const artifact: Artifact = { pathname: '/answers.txt', representation, replace: true };
+export const artifact: Artifact = { claim: { id: 'answers', pathname: '/answers.txt', replace: true }, representation };
 export const artifactOwner: ArtifactOwner = { kind: 'plugin', name: 'consumer-plugin', claimId: 'answers' };
 
 export const diagnosticsManifest: DiagnosticManifestV1 = {
@@ -886,8 +886,8 @@ export const badChunkStrategy: AstroAeoConfig = { corpus: { chunks: { by: 'page'
 export const literalIndexNowKey: AstroAeoConfig = { discovery: { indexNow: { key: { source: 'literal', value: 'secret' } } } };
 // @ts-expect-error Content Signals require all three booleans
 export const incompleteSignals: AstroAeoConfig = { discovery: { robots: { contentSignals: { search: true, aiInput: false } } } };
-// @ts-expect-error 1.5 analytics configuration is intentionally absent in 1.2
-export const noAnalyticsYet: AstroAeoConfig = { analytics: { enabled: true } };
+// @ts-expect-error analytics cannot collect or hash IP addresses
+export const noIdentifyingAnalytics: AstroAeoConfig = { analytics: { privacy: { ip: 'hash' } } };
 // @ts-expect-error artifact replacements are exact pathname arrays, never globs as a scalar
 export const badReplacementType: AstroAeoConfig = { artifacts: { replace: '/**' } };
 // @ts-expect-error schema.infer is a closed 1.2 role union
@@ -989,3 +989,27 @@ export const vercelMiddleware: (request: Request) => Promise<Response> = createV
   next: () => new Response(null),
   rewrite: () => new Response(null),
 });
+
+// 1.6 configuration contracts remain consumable on TypeScript 5.5.
+export const featureConfiguration: AstroAeoConfig = {
+  markdown: { cacheControl: 'public, max-age=60' },
+  corpus: { versions: { current: 'v2', order: ['v1'] }, rag: { enabled: true, maxTokens: 512, publish: false } },
+  analytics: { enabled: true, scope: 'agents', sampleRate: 0.5, strict: false,
+    privacy: { ip: 'omit', query: 'omit', referrer: 'omit' },
+    adapter: { type: 'webhook', url: 'https://events.example.com/', headers: { Authorization: { env: 'AEO_TOKEN', prefix: 'Bearer ' } } },
+  },
+};
+export const recoveryPlugin: AstroAeoPlugin = {
+  name: 'recoverable', apiVersion: 1, setup(api) {
+    api.on('page:metadata', () => undefined, { recoverable: true, cache: { pure: true, version: '1' } });
+    api.on('artifact:generate', () => undefined, { recoverable: true });
+    api.on('rag:record', () => ({ action: 'drop' }));
+  },
+};
+export function consumeFeatureConfiguration(config: ResolvedAstroAeoConfig) {
+  const cacheControl: string | undefined = config.markdown.cacheControl;
+  const version: string | undefined = config.corpus.versions?.current;
+  const maxTokens: number = config.corpus.rag.maxTokens;
+  const sampleRate: number = config.analytics.sampleRate;
+  return { cacheControl, version, maxTokens, sampleRate };
+}

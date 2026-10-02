@@ -902,6 +902,10 @@ Severity: error. Raised by: build.
 
 Severity: error. Raised by: build.
 
+### plugin-hook-recovered
+
+Severity: warning. Raised by: build.
+
 ### plugin-html-delta-conflict
 
 Severity: error. Raised by: build.

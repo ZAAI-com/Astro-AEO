@@ -54,6 +54,7 @@ function rules(category, severity, applicability, ruleIds) {
 
 /** @type {readonly AuditRule[]} */
 const RULE_LIST = Object.freeze([
+  ...rules('build', 'warning', ['build'], ['plugin-hook-recovered']),
   ...rules('markdown', 'info', ['offline', 'live'], [
     'editorial-long-paragraph', 'editorial-unanswered-question', 'editorial-unsourced-number',
     'editorial-howto-structure', 'editorial-comparison-structure', 'editorial-faq-structure',

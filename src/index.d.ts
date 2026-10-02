@@ -286,13 +286,18 @@ export interface Representation {
   readonly contentType: string;
 }
 
-export interface Artifact {
-  /** Browser-visible pathname, including Astro's configured base. */
-  readonly pathname: string;
-  readonly representation: Representation;
-  /** Plugin claims only: authorize replacing external ownership at this exact path. */
-  readonly replace?: boolean;
+/** The actual value supplied to artifact generation and validation hooks. */
+export interface ArtifactEnvelope {
+  readonly claim: ArtifactClaim;
+  /** Null until a generation hook supplies a representation. */
+  readonly representation: Representation | null;
+  /** Build generation hooks receive enumerated public page identities. */
+  readonly pages?: readonly { readonly id: string; readonly pathname: string }[];
 }
+
+export type Artifact = ArtifactEnvelope;
+export type ArtifactClaim = PluginArtifactClaim;
+export type ArtifactRepresentation = Representation;
 
 export type GeneratedArtifactOwner =
   | { readonly kind: 'core'; readonly name: string }
@@ -741,6 +746,10 @@ export interface CorpusRuntimeOptions {
 }
 
 export interface CorpusOptions {
+  /** Opt in to version-partitioned corpora. Omit to keep version labels metadata-only. */
+  versions?: CorpusVersionsOptions;
+  /** Token-bounded RAG exports. Private unless publish is explicitly enabled. */
+  rag?: CorpusRagOptions;
   /** The /llms.txt index. */
   index?: CorpusIndexOptions;
   /** The /llms-full.txt full-text corpus. */
@@ -771,6 +780,53 @@ export interface I18nOptions {
 export interface CacheOptions {
   /** Reuse content-addressed page-processing payloads. Default: true. */
   enabled?: boolean;
+}
+
+export interface CorpusVersionsOptions {
+  current: string;
+  order?: string[];
+}
+
+export interface ResolvedCorpusVersions {
+  current: string;
+  order: string[];
+}
+
+export interface CorpusRagOptions {
+  enabled?: boolean;
+  maxTokens?: number;
+  publish?: boolean;
+}
+
+/** A secret reference, resolved on the serving runtime, never at build time. */
+export interface AnalyticsRuntimeSecret {
+  env: string;
+  prefix?: string;
+}
+
+export type AnalyticsAdapter =
+  | { type: 'console' }
+  | { type: 'jsonl'; path?: string }
+  | { type: 'webhook'; url: string; headers?: Record<string, AnalyticsRuntimeSecret> }
+  | { type: 'opentelemetry'; endpoint?: string; headers?: Record<string, AnalyticsRuntimeSecret> }
+  | { type: 'module'; module: string | URL; options?: JsonValue };
+
+export interface AnalyticsOptions {
+  enabled?: boolean;
+  scope?: 'agents' | 'all';
+  sampleRate?: number;
+  strict?: boolean;
+  adapter?: AnalyticsAdapter;
+  privacy?: { ip?: 'omit'; query?: 'omit'; referrer?: 'omit' };
+}
+
+export interface ResolvedAnalyticsOptions {
+  enabled: boolean;
+  scope: 'agents' | 'all';
+  sampleRate: number;
+  strict: boolean;
+  adapter: AnalyticsAdapter;
+  privacy: { ip: 'omit'; query: 'omit'; referrer: 'omit' };
 }
 
 export interface ExtractionOptions {
@@ -869,6 +925,8 @@ export interface MarkdownOptions {
    * everything and cannot negotiate anywhere; `.md` companions are unaffected.
    */
   negotiation?: 'off' | 'response' | 'redirect';
+  /** Cache-Control for generated Markdown. Omit to inherit the source policy. */
+  cacheControl?: string;
   /** Which part of a rendered page becomes Markdown. */
   extraction?: ExtractionOptions;
 }
@@ -998,6 +1056,7 @@ export type AstroAeoPluginStage =
   | 'page:transform'
   | 'page:metadata'
   | 'graph:build'
+  | 'rag:record'
   | 'artifact:generate'
   | 'artifact:validate'
   | 'build:complete';
@@ -1011,6 +1070,8 @@ export interface PluginDiagnostic {
 
 export type AstroAeoPluginHookResult<T> =
   | void
+  /** Drop only the current RAG record. Invalid at every other stage. */
+  | { action: 'drop'; diagnostics?: readonly PluginDiagnostic[] }
   | { action: 'keep'; diagnostics?: readonly PluginDiagnostic[] }
   | { action: 'replace'; value: T; diagnostics?: readonly PluginDiagnostic[] }
   | { action: 'isolate'; diagnostics?: readonly PluginDiagnostic[] };
@@ -1082,11 +1143,12 @@ export interface AstroAeoPluginApi {
   /** Present only in an importable runtime module, after strict JSON validation. */
   readonly options?: JsonValue;
   on<T>(stage: AstroAeoPluginStage, hook: AstroAeoPluginHook<T>): void;
+  on<T>(stage: AstroAeoPluginStage, hook: AstroAeoPluginHook<T>, options: { recoverable?: boolean }): void;
   on<T>(
     // Edit together with CACHEABLE_STAGES in src/plugins/dispatcher.js.
-    stage: 'page:discovered' | 'page:extract' | 'page:transform' | 'page:metadata' | 'graph:build',
+    stage: 'page:discovered' | 'page:extract' | 'page:transform' | 'page:metadata' | 'graph:build' | 'rag:record',
     hook: AstroAeoPluginHook<T>,
-    options: { cache?: CacheDeclaration },
+    options: { cache?: CacheDeclaration; recoverable?: boolean },
   ): void;
   claimArtifact(claim: PluginArtifactClaim): void;
 }
@@ -1105,6 +1167,8 @@ export interface AstroAeoPlugin {
  * The canonical configuration surface.
  */
 export interface CanonicalAeoConfig {
+  /** Privacy-first request observation, disabled by default. */
+  analytics?: AnalyticsOptions;
   site?: SiteOptions;
   pages?: PagesOptions;
   markdown?: MarkdownOptions;
@@ -1170,7 +1234,7 @@ export interface ResolvedAstroAeoConfig {
     profile: Required<ProfileOptions>;
   };
   pages: Required<PagesOptions>;
-  markdown: Omit<Required<MarkdownOptions>, 'extraction'> & { extraction: Required<ExtractionOptions> };
+  markdown: Omit<Required<MarkdownOptions>, 'extraction' | 'cacheControl'> & { extraction: Required<ExtractionOptions>; cacheControl: string | undefined };
   artifacts: { replace: string[] };
   metadata: { fillMissing: boolean; defaults: MetadataDefaults };
   schema: {
@@ -1183,7 +1247,10 @@ export interface ResolvedAstroAeoConfig {
   plugins: AstroAeoPlugin[];
   i18n: Required<I18nOptions>;
   cache: Required<CacheOptions>;
+  analytics: ResolvedAnalyticsOptions;
   corpus: {
+    versions: ResolvedCorpusVersions | undefined;
+    rag: Required<CorpusRagOptions>;
     index: Required<CorpusIndexOptions>;
     full: Required<CorpusFullOptions>;
     small: Required<CorpusSmallOptions>;

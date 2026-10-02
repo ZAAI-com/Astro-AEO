@@ -8,6 +8,7 @@ import { assertValidExtractionOptions } from './core/extract/index.js';
 import { cloneJsonValue } from './core/json-value.js';
 import { assertExactPathname } from './core/artifact-path.js';
 import { isPublicIp } from './build/public-ip.js';
+import { resolveAnalytics, resolveCacheControl, resolveCorpusRag, resolveCorpusVersions, validateScalarOptions } from './lib/config-features.js';
 
 /** @type {import('./index.js').SectionRule[]} */
 export const DEFAULT_SECTIONS = [{ title: 'Home', match: '/' }];
@@ -34,6 +35,7 @@ export function resolveConfig(rawConfig = {}, logger) {
   }
 
   const userConfig = /** @type {import('./index.js').AstroAeoConfig} */ (merged);
+  validateScalarOptions(userConfig);
   validateExtractionSelectors(userConfig.markdown?.extraction);
   validateCatalogs(userConfig.pages?.catalogs);
   const renderers = validateRenderers(userConfig.markdown?.renderers);
@@ -124,6 +126,7 @@ export function resolveConfig(rawConfig = {}, logger) {
       includeLastModified: markdown.includeLastModified ?? true,
       frontmatter: markdown.frontmatter ?? false,
       negotiation: markdown.negotiation ?? 'off',
+      cacheControl: resolveCacheControl(markdown.cacheControl),
       extraction: {
         selectors: extraction.selectors ?? ['article', 'main'],
         removeSelectors: extraction.removeSelectors ?? ['nav', 'footer'],
@@ -140,7 +143,10 @@ export function resolveConfig(rawConfig = {}, logger) {
     plugins,
     i18n,
     cache,
+    analytics: resolveAnalytics(userConfig.analytics),
     corpus: {
+      versions: resolveCorpusVersions(userConfig.corpus?.versions),
+      rag: resolveCorpusRag(userConfig.corpus?.rag),
       index: {
         enabled: indexEnabled,
         sections: corpusIndex.sections ?? DEFAULT_SECTIONS,
@@ -637,9 +643,12 @@ const CONFIG_SHAPE = {
     includeLastModified: null,
     frontmatter: null,
     negotiation: null,
+    cacheControl: null,
     extraction: { selectors: null, removeSelectors: null, keepSelectors: null },
   },
   corpus: {
+    versions: { current: null, order: null },
+    rag: { enabled: null, maxTokens: null, publish: null },
     index: { enabled: null, sections: null, defaultSection: null, includeDescriptions: null, showLastModified: null, includeHtmlOnly: null },
     full: { enabled: null, mode: null },
     small: { enabled: null, maxTokens: null },
@@ -652,6 +661,11 @@ const CONFIG_SHAPE = {
   },
   i18n: { indexes: null, unresolvedLanguage: null },
   cache: { enabled: null },
+  analytics: {
+    enabled: null, scope: null, sampleRate: null, strict: null,
+    adapter: { type: null, path: null, url: null, endpoint: null, headers: PASSTHROUGH, module: null, options: PASSTHROUGH },
+    privacy: { ip: null, query: null, referrer: null },
+  },
   site: {
     name: null,
     description: null,
