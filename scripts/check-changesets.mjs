@@ -18,6 +18,22 @@ if (status.status === 0) {
   process.exit(0);
 }
 
+// Colocated tests live in published folders, so Changesets flags them even when
+// no package behavior changed. Documentation, tests and developer scripts need
+// no version bump; none of these are shipped runtime code.
+const diff = spawnSync('git', ['diff', '--name-only', '-z', `${since}...HEAD`], {
+  cwd: root,
+  encoding: 'utf8',
+});
+if (diff.status !== 0) throw new Error(`Could not inspect changes since ${since}.`);
+const changedFiles = diff.stdout.split('\0').filter(Boolean);
+if (changedFiles.length > 0 && changedFiles.every((path) =>
+  path.startsWith('docs/') || path.startsWith('scripts/') || path.endsWith('.test.js')
+)) {
+  console.log(`Only documentation, tests and developer scripts changed since ${since}; no changeset is required.`);
+  process.exit(0);
+}
+
 const pending = (await readdir(resolve(root, '.changeset')))
   .filter((name) => name.endsWith('.md') && name !== 'README.md');
 if (pending.length > 0) {
