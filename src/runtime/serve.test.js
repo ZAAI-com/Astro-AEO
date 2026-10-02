@@ -646,6 +646,7 @@ describe('request-time corpus limits', () => {
     }));
 
     expect(body).not.toContain('encoded bytes');
+
     expect(cancel).toHaveBeenCalledOnce();
   });
 

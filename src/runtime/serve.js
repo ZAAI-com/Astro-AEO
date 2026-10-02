@@ -109,6 +109,7 @@ async function loadCorpusPage(runtime, fetchHtml, target) {
   if (
     !loaded || loaded.html === null || !loaded.response.ok ||
     loaded.response.status === 206 || !isIdentityEncoded(loaded.response) ||
+    (strict && loaded.response.headers.has('content-range')) ||
     (strict && (!loaded.html.trim() || malformedCharset ||
       !isUtf8HtmlResponse(loaded.response) || isNullBodyStatus(loaded.response.status)))
   ) {
