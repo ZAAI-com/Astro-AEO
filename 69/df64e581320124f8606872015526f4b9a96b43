@@ -1,0 +1,36 @@
+CHANGELOG.md
+  s_4d3e2ebae71f6c::t_e971877ad49880 14-16,19-21
+  s_f8660d98b07a77::t_75be7aa01a9a97 5-13,17-18,22-23
+package.json
+  s_f8660d98b07a77::t_75be7aa01a9a97 3
+README.md
+  s_f8660d98b07a77::t_75be7aa01a9a97 755-761,833-836,1459
+docs/release-evidence/1.5.4-semantic-validation.md
+  s_4d3e2ebae71f6c::t_76c02fb5b409c9 75,79-81
+  s_4d3e2ebae71f6c::t_e971877ad49880 1-19,21-23,25-44,47,49-56,61,67-72,74,76-78
+  s_4d3e2ebae71f6c::t_e13fa8416d7092 20,24,45-46,48,57-60,62-66,73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "69df64e581320124f8606872015526f4b9a96b43",
+  "prompts": {},
+  "sessions": {
+    "s_4d3e2ebae71f6c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fd4f-2e6b-7ad0-9fb6-3439f559f336",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_f8660d98b07a77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84f6ceda-7cc9-4745-81e0-a88873876321",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
