@@ -1,0 +1,27 @@
+.changeset/tab-content.md
+  s_923fecc9e5a133::t_11ea9e30ea1c70 1-5
+README.md
+  s_923fecc9e5a133::t_869efe974c3019 870-873
+src/core/extract/index.js
+  s_923fecc9e5a133::t_99b48af3bb07d2 7,242,255-302,305-332,874-882
+  s_923fecc9e5a133::t_2b9032aecbeabd 303-304
+src/core/extract/tabs.test.js
+  s_923fecc9e5a133::t_11ea9e30ea1c70 1-45,51-153
+  s_923fecc9e5a133::t_2b9032aecbeabd 46-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f5d8c957ba5bd7d1980615e80537fd2269836a52",
+  "prompts": {},
+  "sessions": {
+    "s_923fecc9e5a133": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fd4f-7966-7552-9bed-766ed9b00461",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
