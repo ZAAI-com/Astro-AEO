@@ -1,0 +1,35 @@
+components/ReviewJsonLd.astro
+  s_ed94aa4c360a84::t_b8758cf8b1e13a 2,7
+components/EntityJsonLd.astro
+  s_ed94aa4c360a84::t_b8758cf8b1e13a 1-20
+components/ProfilePageJsonLd.astro
+  s_ed94aa4c360a84::t_b8758cf8b1e13a 2,7
+components/SoftwareApplicationJsonLd.astro
+  s_ed94aa4c360a84::t_b8758cf8b1e13a 2,7
+components/ItemListJsonLd.astro
+  s_ed94aa4c360a84::t_b8758cf8b1e13a 2,7
+components/ServiceJsonLd.astro
+  s_ed94aa4c360a84::t_b8758cf8b1e13a 2,7
+components/DatasetJsonLd.astro
+  s_ed94aa4c360a84::t_b8758cf8b1e13a 2,7
+components/ProductJsonLd.astro
+  s_ed94aa4c360a84::t_b8758cf8b1e13a 2,7
+components/LocalBusinessJsonLd.astro
+  s_ed94aa4c360a84::t_b8758cf8b1e13a 2,7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "cfdca795e62f55a4e90c798ef6b7bb577cb132e1",
+  "prompts": {},
+  "sessions": {
+    "s_ed94aa4c360a84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b931bb54-31c4-4ab7-9b9f-94c4fc1edacf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
