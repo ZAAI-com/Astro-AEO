@@ -255,6 +255,7 @@ const extractionProperties = {
 };
 
 const markdownProperties = {
+  cacheControl: { type: 'string', minLength: 1, pattern: '^[ -~]+$', description: 'Cache-Control for generated Markdown; omission inherits the source policy.' },
   enabled: boolean('Generate .md companion pages.', true),
   strategy: {
     type: 'string',
@@ -324,7 +325,41 @@ const stripTitleSuffix = {
   default: false,
 };
 
+const analyticsHeaders = {
+  type: 'object',
+  propertyNames: { pattern: "^[!#$%&'*+.^_`|~0-9A-Za-z-]+$" },
+  additionalProperties: {
+    ...object({
+      env: { type: 'string', pattern: '^[A-Za-z_][A-Za-z_0-9]*$' },
+      prefix: { type: 'string', pattern: '^[ -~]*$' },
+    }, 'Runtime environment secret reference.'),
+    required: ['env'],
+  },
+};
+const analyticsAdapter = (type, properties = {}, required = []) => ({
+  ...object({ type: { const: type }, ...properties }, `${type} analytics delivery.`),
+  required: ['type', ...required],
+});
+const analyticsUrl = { type: 'string', pattern: '^https://', format: 'uri' };
+
 const canonicalProperties = {
+  analytics: object({
+    enabled: boolean('Observe public requests without collecting identifying request data.', false),
+    scope: { type: 'string', enum: ['agents', 'all'], default: 'agents' },
+    sampleRate: { type: 'number', minimum: 0, maximum: 1, default: 1 },
+    strict: boolean('Report delivery failures and fail adapter preflight.', false),
+    privacy: object({ ip: { const: 'omit' }, query: { const: 'omit' }, referrer: { const: 'omit' } }, 'Fixed privacy policy.'),
+    adapter: {
+      default: { type: 'console' },
+      oneOf: [
+        analyticsAdapter('console'),
+        analyticsAdapter('jsonl', { path: string('Private Node JSONL destination.', '.astro/aeo-analytics/events-v1.jsonl') }),
+        analyticsAdapter('webhook', { url: analyticsUrl, headers: analyticsHeaders }, ['url']),
+        analyticsAdapter('opentelemetry', { endpoint: analyticsUrl, headers: analyticsHeaders }),
+        analyticsAdapter('module', { module: { type: 'string', minLength: 1 }, options: {} }, ['module']),
+      ],
+    },
+  }, 'Optional privacy-first request analytics.'),
   site: object(
     {
       name: string('Site name used in corpus headings.', ''),
@@ -379,6 +414,18 @@ const canonicalProperties = {
   markdown: object(markdownProperties, 'Markdown representation settings.'),
   corpus: object(
     {
+      versions: {
+        ...object({
+          current: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$' },
+          order: { type: 'array', items: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$' }, uniqueItems: true, default: [] },
+        }, 'Opt-in version partitions. Omission keeps page labels metadata-only.'),
+        required: ['current'],
+      },
+      rag: object({
+        enabled: boolean('Generate private RAG exports.', false),
+        maxTokens: positiveSafeInteger('Maximum tokens per indivisible-block-aware record.', 512),
+        publish: boolean('Publish ownership-managed RAG exports.', false),
+      }, 'RAG export settings.'),
       index: object(indexProperties, 'llms.txt settings.'),
       full: object(fullProperties, 'llms-full.txt settings.'),
       small: object(

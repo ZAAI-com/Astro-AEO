@@ -693,6 +693,19 @@ See [EmDash CMS](#emdash-cms).
 
 ### Page versions
 
+Version labels remain metadata-only unless `corpus.versions` is explicitly configured.
+Opt in with `corpus: { versions: { current: 'v2', order: ['v1'] } }`: `current` is required,
+unlabelled pages belong to it, and `order` lists unique safe version labels.
+
+The additional opt-in configuration contracts are `markdown.cacheControl` (an HTTP header
+value, omitted to inherit), `corpus.rag` (`enabled: false`, `maxTokens: 512`, `publish: false`),
+and `analytics` (`enabled: false`, `scope: 'agents'`, `sampleRate: 1`, `strict: false`).
+Analytics adapters use a `type` of `console`, `jsonl`, `webhook`, `opentelemetry`, or `module`.
+IP, query and referrer privacy settings accept only `'omit'`. Delivery headers use runtime
+environment references such as `{ Authorization: { env: 'AEO_TOKEN', prefix: 'Bearer ' } }`,
+never build-time secret values. Invalid booleans, enum values and new options report their
+configuration path through `AeoConfigError`.
+
 A page may carry a documentation version label: `version: 'v2'` on a catalog descriptor, on
 `defineAeoPage`, or as `data.version` on a content entry. A label is one path segment of letters,
 digits, `.`, `_` or `-` (at most 64 characters); anything else is ignored, and a catalog reports
@@ -1313,7 +1326,7 @@ aeo({ plugins: [plugin] });
 ```
 
 Hooks run sequentially in configured order through `page:discovered`, `page:extract`,
-`page:transform`, `page:metadata`, `graph:build`, `artifact:generate`, `artifact:validate`, and
+`page:transform`, `page:metadata`, `graph:build`, `rag:record`, `artifact:generate`, `artifact:validate`, and
 `build:complete`. Inputs are immutable; a hook keeps, replaces, or isolates its current scope.
 Runtime modules use literal entrypoints and strict JSON options. Omitting runtime `options` leaves
 `api.options` undefined, while an explicit JSON `null` remains `null`. Graph replacements are
@@ -1321,6 +1334,14 @@ reconciled with unchanged authored JSON-LD before Astro-AEO regenerates its one 
 build and runtime corpora use the same final graph. Artifact claims are exact
 app-relative pathnames, and runtime page access never exposes raw requests, cookies, credentials,
 or arbitrary rendering. The built-in semantic pipeline uses this same dispatcher.
+
+Register a hook with `{ recoverable: true }` to warn and retain its last valid input when
+that hook throws. Later hooks continue. Malformed results or replacements, explicit
+isolation, setup errors and module failures still fail closed. Build and runtime must
+register the same recovery setting. Only `rag:record` accepts `{ action: 'drop' }`, which
+drops that record without isolating the page. Artifact hooks receive an `ArtifactEnvelope`
+(`Artifact` is its alias): `{ claim, representation }`, with a null representation before
+generation. `ArtifactClaim` and `ArtifactRepresentation` describe those actual boundaries.
 
 Hooks on `page:discovered`, `page:extract`, `page:transform`, `page:metadata`, and `graph:build`
 may declare themselves pure:
