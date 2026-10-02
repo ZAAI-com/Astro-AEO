@@ -63,14 +63,17 @@ describe('acquirePrivateLock', () => {
     mkdirSync(results);
     const script = join(directory, 'contender.mjs');
     writeFileSync(script, `
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { acquirePrivateLock } from ${JSON.stringify(fileURLToPath(new URL('./private-lock.js', import.meta.url)))};
 const [, , lockPath, barrierPath, resultPath] = process.argv;
 while (!existsSync(barrierPath)) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
 try {
   const release = acquirePrivateLock(lockPath, { busy: 'busy', unsafe: 'unsafe', changed: 'changed' });
   writeFileSync(resultPath, 'winner');
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+  // Keep the winner alive and locked until every contender has attempted acquisition.
+  // A fixed delay permits late-starting children to acquire the released lock legally.
+  while (readdirSync(dirname(resultPath)).length < 8) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
   release();
 } catch {
   writeFileSync(resultPath, 'loser');

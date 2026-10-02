@@ -66,12 +66,14 @@ describe('live audit', () => {
         .replace('</head>', '<link rel="alternate" type="text/markdown" href="/bad.md"></head>');
       response.end(request.url === '/' ? home : page('Good'));
     });
-    const result = await auditLive(`${origin}/`, { timeout: 150 });
+    // Leave healthy loopback responses scheduling headroom under the full suite's load.
+    // The deliberately unfinished bodies still exercise the real request timeout.
+    const result = await auditLive(`${origin}/`, { timeout: 1000 });
     expect(result.pagesChecked).toBe(2);
     const failures = result.findings.filter((finding) => finding.ruleId === 'live-target-unreachable');
     expect(failures.map((finding) => finding.url).sort()).toEqual([`${origin}/bad.md`, `${origin}/bad/`]);
     expect(failures.every((finding) => finding.message.includes(mode === 'timeout' ? 'timed out' : 'could not be fetched'))).toBe(true);
-    await expect(auditLive(`${origin}/bad/`, { timeout: 150 })).rejects.toBeInstanceOf(AuditTargetError);
+    await expect(auditLive(`${origin}/bad/`, { timeout: 1000 })).rejects.toBeInstanceOf(AuditTargetError);
   });
 
   it.each([404, 500])('reports HTTP %s for an advertised companion without losing the HTML page', async (status) => {
