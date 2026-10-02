@@ -1,0 +1,27 @@
+components/index.d.ts
+  s_ed94aa4c360a84::t_cb76ef383c3607 171-172
+test/contracts/schema-components.js
+  s_ed94aa4c360a84::t_b5e6839d562502 14
+components/ArticleJsonLd.astro
+  s_ed94aa4c360a84::t_95435b7fb264b8 19-21
+fixtures/types-consumer/consumer.ts
+  s_ed94aa4c360a84::t_b5e6839d562502 434
+fixtures/schema-tools/shared/Page.astro
+  s_ed94aa4c360a84::t_b5e6839d562502 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "160278c03e0b974e884db4250b1654b10e7b15d8",
+  "prompts": {},
+  "sessions": {
+    "s_ed94aa4c360a84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b931bb54-31c4-4ab7-9b9f-94c4fc1edacf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
