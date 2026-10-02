@@ -1,0 +1,114 @@
+benchmarks/README.md
+  s_a71ed91fa7b341::t_ff97f975a40e3d 47-50
+src/audit/editorial.js
+  s_a71ed91fa7b341::t_b300b1a7bc5969 3,9-35,37-49,51-63,71-78,97,117,128,132,141,150,163,169,172-175,179,181,190,216,296
+  s_a71ed91fa7b341::t_ff97f975a40e3d 36,50
+docs/rules.md
+  s_a71ed91fa7b341::t_2f91f3bc98f1d4 631-634
+.changeset/plain-pigs-yell.md
+  s_a71ed91fa7b341::t_2f91f3bc98f1d4 1,3
+  s_a71ed91fa7b341::t_ff97f975a40e3d 12-16
+  s_a71ed91fa7b341::t_e52a06b15ab671 2,4-11
+src/audit/live.js
+  s_a71ed91fa7b341::t_a831fa08dd5398 178
+components/ProfilePageJsonLd.astro
+  s_a71ed91fa7b341::t_98d8d47a838806 9,12
+docs/GOOGLE_SCHEMA_PROFILES.md
+  s_a71ed91fa7b341::t_e7615ace9a283b 55-56,61-64,68-69
+components/ReviewJsonLd.astro
+  s_a71ed91fa7b341::t_98d8d47a838806 9,12
+components/DatasetJsonLd.astro
+  s_a71ed91fa7b341::t_98d8d47a838806 9,12
+cli/audit-cli.test.js
+  s_a71ed91fa7b341::t_9e1e9643a811f2 149-151
+components/ServiceJsonLd.astro
+  s_a71ed91fa7b341::t_98d8d47a838806 9,12
+src/audit/rules.js
+  s_a71ed91fa7b341::t_a831fa08dd5398 64
+components/LocalBusinessJsonLd.astro
+  s_a71ed91fa7b341::t_98d8d47a838806 9,12
+fixtures/schema-tools/shared/Page.astro
+  s_a71ed91fa7b341::t_98d8d47a838806 5,31-40
+src/schema-components.ssr.test.js
+  s_a71ed91fa7b341::t_98d8d47a838806 5,8-12,18,22,27-29,40-41
+  s_a71ed91fa7b341::t_e52a06b15ab671 45,47-50
+  s_a71ed91fa7b341::t_9e1e9643a811f2 43-44,46,51-52
+  s_a71ed91fa7b341::t_33cc820b16b6dc 42
+src/audit/editorial.test.js
+  s_a71ed91fa7b341::t_98d8d47a838806 11,98,106,114,121,127,131,150,223
+  s_a71ed91fa7b341::t_bddd9b5d436815 2,14-31,37-64
+  s_a71ed91fa7b341::t_ff97f975a40e3d 32-36
+components/SoftwareApplicationJsonLd.astro
+  s_a71ed91fa7b341::t_98d8d47a838806 9,12
+src/core/schema-google.test.js
+  s_a71ed91fa7b341::t_bddd9b5d436815 3,14,236-280
+  s_81625f093b770e::t_08110af79132c0 281
+CHANGELOG.md
+  s_a71ed91fa7b341::t_e7615ace9a283b 7-11
+fixtures/schema-tools/node/src/pages/invalid-type.astro
+  s_a71ed91fa7b341::t_9e1e9643a811f2 1-5
+components/ItemListJsonLd.astro
+  s_a71ed91fa7b341::t_98d8d47a838806 9,12
+benchmarks/thresholds.mjs
+  s_a71ed91fa7b341::t_ff97f975a40e3d 48-50,52
+src/audit/local.js
+  s_a71ed91fa7b341::t_a831fa08dd5398 45,59-60,73-74
+src/audit/report.js
+  s_a71ed91fa7b341::t_e7615ace9a283b 34-35
+src/schema-components.e2e.test.js
+  s_a71ed91fa7b341::t_98d8d47a838806 5,8-12,17,20,25-26
+src/core/schema-google.js
+  s_a71ed91fa7b341::t_e7615ace9a283b 334
+  s_a71ed91fa7b341::t_32bb14cb4aca20 75-82,89,204
+  s_a71ed91fa7b341::t_0b4b886377ad27 6-13,44,63-69,83-88,90-100,109-120,136-137,142,144,156,162-163,167,169-170,173,187,224-231,235,237,299-300,332-333,335-340,358-359,413,420-422
+src/audit/facts.js
+  s_a71ed91fa7b341::t_a831fa08dd5398 17,31,71,79,87,92-103
+  s_dcb147397a5977::t_2b4e3ece12d6e1 104-105
+components/SpeakableJsonLd.astro
+  s_a71ed91fa7b341::t_98d8d47a838806 27
+src/audit/local.test.js
+  s_a71ed91fa7b341::t_e7615ace9a283b 53
+  s_a71ed91fa7b341::t_9e1e9643a811f2 45-52,54-61
+src/audit/site-rules.js
+  s_a71ed91fa7b341::t_a831fa08dd5398 5-6,41,46,49,51
+docs/CONTENT_OPTIMIZATION.md
+  s_a71ed91fa7b341::t_e7615ace9a283b 4,86-88
+components/ArticleJsonLd.astro
+  s_a71ed91fa7b341::t_7cbac7e0147118 10,18-20,39,45
+components/ProductJsonLd.astro
+  s_a71ed91fa7b341::t_98d8d47a838806 9,12
+test/contracts/schema-components.js
+  s_a71ed91fa7b341::t_98d8d47a838806 9,18,22-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a072b9d30272b888ed9f84418407328014577f30",
+  "prompts": {},
+  "sessions": {
+    "s_81625f093b770e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fd02-61cc-79f0-a21a-35570284a024",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_a71ed91fa7b341": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fcf6-9054-7c41-b124-8c958eb6c5fd",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_dcb147397a5977": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fc96-59e0-7953-86e9-c57bbe2934fe",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
