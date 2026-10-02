@@ -4,6 +4,7 @@ import { AeoConfigError } from '../../lib/errors.js';
 export const NEVER_CONTENT = ['script', 'style', 'noscript', 'iframe', 'head', 'meta', 'base', 'link'];
 
 const KEEP_ATTRIBUTE = 'data-astro-aeo-keep';
+const TAB_LABEL_ATTRIBUTE = 'data-astro-aeo-tab-label';
 
 /**
  * Interface chrome with no reading value: copy buttons (disclosure toggles
@@ -238,6 +239,7 @@ export function cleanRoot(root, { removeSelectors, keepSelectors }) {
   for (const selector of keepSelectors) {
     for (const el of matchingElements(root, selector)) el.setAttribute(KEEP_ATTRIBUTE, '');
   }
+  removed += normalizeTabPanels(root, removeSelectors);
   removed += removeChrome(root);
   sanitizeRoot(root);
   normalizeCodeBlocks(root);
@@ -248,6 +250,84 @@ export function cleanRoot(root, { removeSelectors, keepSelectors }) {
   markTopLevelRawHtml(root, 'table, video, audio', (el) =>
     unmarked(el) && (el.localName !== 'table' || !isSimpleTable(el)));
   return removed;
+}
+
+/**
+ * Render ARIA tab panels as labelled sections. Only an unambiguous relationship
+ * to a real tab in a tablist admits hidden content; ordinary hidden ancestors
+ * and descendants still pass through chrome removal. Labels are read before
+ * removing controls, including when a panel is itself the selected root.
+ *
+ * @param {Element} root
+ * @param {string[]} removeSelectors
+ * @returns {number}
+ */
+function normalizeTabPanels(root, removeSelectors) {
+  const panels = matchingElements(root, '[role="tabpanel"]');
+  if (!panels.length) return 0;
+  const forbidden = [...NEVER_CONTENT, ...removeSelectors].join(',');
+  /** @type {Map<string, Element | null>} */
+  const ids = new Map();
+  for (const element of root.ownerDocument.querySelectorAll('[id]')) {
+    if (element.id) ids.set(element.id, ids.has(element.id) ? null : element);
+  }
+  const tabs = [...root.ownerDocument.querySelectorAll('[role="tab"]')].filter((tab) =>
+    tab.closest('[role="tablist"]') && !tab.closest(forbidden));
+  const tabSet = new Set(tabs);
+  /** @type {Map<string, Element[]>} */
+  const controls = new Map();
+  for (const tab of tabs) {
+    for (const id of attributeIds(tab, 'aria-controls')) {
+      const entries = controls.get(id) ?? [];
+      entries.push(tab);
+      controls.set(id, entries);
+    }
+  }
+  /** @type {Set<Element>} */
+  const usedTabs = new Set();
+  for (const panel of panels) {
+    if (panel.id && ids.get(panel.id) !== panel) continue;
+    const labelledTabs = attributeIds(panel, 'aria-labelledby')
+      .map((id) => ids.get(id)).filter((tab) => tab && tabSet.has(tab));
+    const candidates = new Set([...labelledTabs, ...(controls.get(panel.id) ?? [])]);
+    if (candidates.size !== 1) continue;
+    const tab = /** @type {Element} */ ([...candidates][0]);
+    const controlledIds = attributeIds(tab, 'aria-controls');
+    if (controlledIds.length && !controlledIds.includes(panel.id)) continue;
+    // A nested widget cannot borrow its outer widget's controls.
+    if (tab.closest('[role="tabpanel"]') !== panel.parentElement?.closest('[role="tabpanel"]')) continue;
+    const clone = /** @type {Element} */ (tab.cloneNode(true));
+    for (const element of clone.querySelectorAll(
+      `${forbidden}, svg, [hidden], [aria-hidden="true"], [role="tablist"], [role="tabpanel"]`,
+    )) element.remove();
+    const label = ((tab.getAttribute('aria-label') ?? '').trim() || clone.textContent || '')
+      .replace(/\s+/g, ' ').trim();
+    if (!label) continue;
+    const paragraph = root.ownerDocument.createElement('p');
+    const strong = root.ownerDocument.createElement('strong');
+    strong.setAttribute(TAB_LABEL_ATTRIBUTE, '');
+    strong.textContent = label;
+    paragraph.appendChild(strong);
+    panel.prepend(paragraph);
+    panel.removeAttribute('hidden');
+    panel.removeAttribute('aria-hidden');
+    usedTabs.add(tab);
+  }
+  let removed = 0;
+  for (const list of matchingElements(root, '[role="tablist"]')) {
+    const ownTabs = [...list.querySelectorAll('[role="tab"]')].filter((tab) =>
+      tab.closest('[role="tablist"]') === list);
+    if (list !== root && ownTabs.length && ownTabs.every((tab) => usedTabs.has(tab))) {
+      list.remove();
+      removed++;
+    }
+  }
+  return removed;
+}
+
+/** @param {Element} element @param {string} name @returns {string[]} */
+function attributeIds(element, name) {
+  return (element.getAttribute(name) ?? '').trim().split(/\s+/).filter(Boolean);
 }
 
 /**
@@ -791,6 +871,15 @@ function markTopLevelRawHtml(root, selector, predicate) {
  * @returns {import('turndown')}
  */
 export function addKeepRule(td) {
+  td.addRule('astroAeoTabLabel', {
+    filter: (node) => node.nodeName === 'STRONG' && node.getAttribute(TAB_LABEL_ATTRIBUTE) !== null,
+    replacement: (_content, node) => {
+      // Turndown escapes Markdown punctuation, but not HTML delimiters in text.
+      const label = td.escape(node.textContent ?? '').replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return `**${label}**`;
+    },
+  });
   // Added first so kept raw HTML and tables still take precedence.
   td.addRule('astroAeoImageGap', {
     filter: (node) => node.nodeName === 'IMG' && node.getAttribute(GAP_ATTRIBUTE) !== null &&
