@@ -1,12 +1,7 @@
 ---
-import { createEntity } from '../src/schema.js';
-import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
-import { warnGoogleSchema } from '../src/core/schema-google.js';
+import EntityJsonLd from './EntityJsonLd.astro';
 
 type Props = import('./index.js').DatasetJsonLdProps;
-const { entity, eligibility = 'schema' } = Astro.props;
-const jsonLd = { '@context': 'https://schema.org', ...createEntity({ ...entity, '@type': 'Dataset' }) };
-if (entity) warnGoogleSchema(jsonLd, eligibility, { documentUrl: Astro.site ? new URL(Astro.url.pathname, Astro.site).href : Astro.url.href, explicitType: 'Dataset' });
 ---
 
-{entity && <script type="application/ld+json" set:html={serializeJsonLd(jsonLd)} />}
+<EntityJsonLd {...Astro.props} type="Dataset" />
