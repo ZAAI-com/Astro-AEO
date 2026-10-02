@@ -70,11 +70,18 @@ const [, , lockPath, barrierPath, resultPath] = process.argv;
 while (!existsSync(barrierPath)) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
 try {
   const release = acquirePrivateLock(lockPath, { busy: 'busy', unsafe: 'unsafe', changed: 'changed' });
-  writeFileSync(resultPath, 'winner');
-  // Keep the winner alive and locked until every contender has attempted acquisition.
-  // A fixed delay permits late-starting children to acquire the released lock legally.
-  while (readdirSync(dirname(resultPath)).length < 8) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
-  release();
+  try {
+    writeFileSync(resultPath, 'winner');
+    // Keep the winner alive and locked until every contender has attempted acquisition.
+    // A fixed delay permits late-starting children to acquire the released lock legally.
+    const deadline = Date.now() + 10_000;
+    while (readdirSync(dirname(resultPath)).length < 8) {
+      if (Date.now() >= deadline) throw new Error('contender did not record an attempt');
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
+    }
+  } finally {
+    release();
+  }
 } catch {
   writeFileSync(resultPath, 'loser');
 }
