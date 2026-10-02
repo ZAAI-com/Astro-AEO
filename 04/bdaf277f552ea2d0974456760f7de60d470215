@@ -1,0 +1,19 @@
+src/build/private-lock.test.js
+  s_d168f4aa617e53::t_523cea5dd72822 73-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "04bdaf277f552ea2d0974456760f7de60d470215",
+  "prompts": {},
+  "sessions": {
+    "s_d168f4aa617e53": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fd1d-fafd-7ea3-a370-fc800dd6c04c",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
