@@ -1,0 +1,22 @@
+src/audit/site-rules.test.js
+  s_ed94aa4c360a84::t_e5c92802f80fe8 2,82-90
+  s_ed94aa4c360a84::t_d9a6d13d821eca 91-92
+src/audit/facts.js
+  s_ed94aa4c360a84::t_559e3d635be7da 94-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c956564dfb87ab3ee0a43fce2fe564c0a3951a57",
+  "prompts": {},
+  "sessions": {
+    "s_ed94aa4c360a84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b931bb54-31c4-4ab7-9b9f-94c4fc1edacf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
