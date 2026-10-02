@@ -211,6 +211,20 @@ describe('Google field profiles', () => {
     { '@type': 'ProfilePage', mainEntity: { '@type': 'Product', name: 'Tool' } },
     { ...review, author: { '@type': 'Person', name: 'x'.repeat(100) } },
   ])('rejects an invalid required shape for $@type', (entity) => expect(warnings(entity).length).toBeGreaterThan(0));
+  it('keeps component requirements on unresolved ID-only references provisional', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const external = { ...review, itemReviewed: { '@id': '#product' } };
+    warnGoogleSchema(external, 'google', { documentUrl: 'https://example.com/', explicitType: 'Review' });
+    const reviewed = warn.mock.calls.map(([message]) => message).filter((message) => message.includes('itemReviewed'));
+    expect(reviewed).toEqual([expect.stringMatching(/^\[astro-aeo\] info: .*\(provisional: itemReviewed references an @id/)]);
+    warn.mockClear();
+    warnGoogleSchema({ '@graph': [{ ...external }, { '@id': '#product', '@type': 'Thing', name: 'Tool' }] }, 'google', { documentUrl: 'https://example.com/' });
+    expect(warn.mock.calls.map(([message]) => message)).toContainEqual(expect.stringMatching(/^\[astro-aeo\] warning: Review: itemReviewed/));
+    warn.mockClear();
+    warnGoogleSchema({ ...review, itemReviewed: { '@type': 'Thing', name: 'Tool' } }, 'google', { explicitType: 'Review' });
+    expect(warn.mock.calls.map(([message]) => message)).toContainEqual(expect.stringMatching(/^\[astro-aeo\] warning: Review: itemReviewed/));
+    warn.mockRestore();
+  });
   it('agrees between explicit component checks and final rendered audit checks', () => {
     const entity = { '@type': 'Product', name: 'Tool' };
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -267,7 +281,9 @@ describe('Google checker failure containment and shapes', () => {
     if (shape === 'wide') input = Array.from({ length: 20_001 }, () => ({ '@type': 'Thing' }));
     if (shape === 'references') input = Array.from({ length: 300 }, (_, index) => ({ '@id': `#${index}`, child: { '@id': `#${index + 1}` } }));
     if (shape === 'comparisons') input = [{ '@id': '#x', items: Array.from({ length: 1000 }, (_, index) => ({ index })) }, { '@id': '#x', items: Array.from({ length: 1000 }, (_, index) => ({ index: index + 1000 })) }];
-    expect(checkGoogleSchema(input)).toEqual([expect.objectContaining({ ruleId: 'google-schema-incomplete', severity: 'warning', evidence: '/' })]);
+    expect(checkGoogleSchema(input)).toEqual([{ ruleId: 'google-schema-incomplete', severity: 'warning', evidence: '/',
+      documentation: expect.stringContaining('developers.google.com'),
+      message: 'Google schema checks could not complete: structured data exceeds processing limits or cannot be inspected safely. Other pages are still audited.' }]);
   });
   it('continues auditing other pages after a checker limit', () => {
     const first = extractPageFacts('<main><p>Content.</p></main>', { url: '/deep' });

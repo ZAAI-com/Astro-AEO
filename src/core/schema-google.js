@@ -427,5 +427,44 @@ function googleFindings(input, options) {
 /** @param {unknown} entity @param {'schema' | 'google'} eligibility @param {{ documentUrl?: string; explicitType?: string }} [options] */
 export function warnGoogleSchema(entity, eligibility, options = {}) {
   if (eligibility !== 'google') return;
-  for (const finding of checkGoogleSchema(entity, options)) console.warn(`[astro-aeo] ${finding.severity}: ${finding.message}`);
+  const external = externalReferenceFields(entity);
+  for (const finding of checkGoogleSchema(entity, options)) {
+    // A component sees only its own entity, so an ID-only reference to a node rendered elsewhere
+    // cannot be resolved here. Its requirement stays advisory until the rendered page is audited.
+    const field = /^[^:]+: ([^\s.]+)/.exec(finding.message)?.[1];
+    const provisional = finding.severity === 'warning' && field !== undefined && external.has(field);
+    console.warn(provisional
+      ? `[astro-aeo] info: ${finding.message} (provisional: ${field} references an @id outside this component; audit the rendered page to check it)`
+      : `[astro-aeo] ${finding.severity}: ${finding.message}`);
+  }
+}
+
+/**
+ * Top-level fields that hold an ID-only reference not defined inside the entity itself.
+ * @param {unknown} entity @returns {Set<string>}
+ */
+function externalReferenceFields(entity) {
+  const root = record(entity);
+  /** @type {Set<string>} */
+  const fields = new Set();
+  if (!root) return fields;
+  /** @type {Set<string>} */
+  const defined = new Set();
+  /** @type {[string, string][]} */
+  const references = [];
+  let work = 0;
+  const visit = (/** @type {unknown} */ value, /** @type {string | undefined} */ field, depth = 0) => {
+    if (++work > MAX_WORK || depth > MAX_DEPTH) return;
+    for (const item of values(value)) {
+      const node = record(item);
+      if (!node) continue;
+      const id = node['@id'];
+      if (text(id) && field !== undefined && Object.keys(node).every((key) => key === '@id')) references.push([field, id]);
+      else if (text(id)) defined.add(id);
+      for (const [key, nested] of Object.entries(node)) if (key !== '@context') visit(nested, field ?? key, depth + 1);
+    }
+  };
+  visit(root, undefined);
+  for (const [field, id] of references) if (!defined.has(id)) fields.add(field);
+  return fields;
 }
