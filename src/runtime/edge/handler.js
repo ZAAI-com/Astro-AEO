@@ -23,12 +23,14 @@ const MAX_ROUTES = 200_000;
  * anything unexpected: a manifest is all or nothing.
  *
  * @param {unknown} value
- * @returns {{ mode: 'response' | 'redirect'; routes: Map<string, string> } | null}
+ * @returns {{ mode: 'response' | 'redirect'; routes: Map<string, string>; cacheControl?: string } | null}
  */
 export function readEdgeManifest(value) {
   const manifest = /** @type {any} */ (value);
   if (!manifest || typeof manifest !== 'object' || manifest.version !== 1) return null;
   if (manifest.mode !== 'response' && manifest.mode !== 'redirect') return null;
+  if (manifest.cacheControl !== undefined && (typeof manifest.cacheControl !== 'string' ||
+    !manifest.cacheControl.trim() || /[^\x20-\x7e]/.test(manifest.cacheControl))) return null;
   if (!Array.isArray(manifest.routes) || manifest.routes.length > MAX_ROUTES) return null;
   /** @type {Map<string, string>} */
   const routes = new Map();
@@ -44,7 +46,7 @@ export function readEdgeManifest(value) {
     if (routes.has(key)) return null;
     routes.set(key, route.markdown);
   }
-  return { mode: manifest.mode, routes };
+  return { mode: manifest.mode, routes, ...(manifest.cacheControl === undefined ? {} : { cacheControl: manifest.cacheControl }) };
 }
 
 /**
@@ -115,14 +117,24 @@ export function createEdgeNegotiator(host) {
   }
 
   return async function negotiate(request, next, context) {
-    if ((request.method !== 'GET' && request.method !== 'HEAD') || isEdgeSubrequest(request)) return next();
-    const decision = decideEdgeRepresentation(request, await manifestFor(request, /** @type {C} */ (context)));
+    if (request.method !== 'GET' && request.method !== 'HEAD') return next();
+    if (new URL(request.url).pathname.endsWith('.md')) {
+      const manifest = await manifestFor(request, /** @type {C} */ (context));
+      const response = await next();
+      if (manifest?.cacheControl === undefined || ![...manifest.routes.values()].includes(new URL(request.url).pathname)) return response;
+      const headers = new Headers(response.headers);
+      if (response.ok || response.status === 304) headers.set('cache-control', manifest.cacheControl);
+      return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+    }
+    if (isEdgeSubrequest(request)) return next();
+    const manifest = await manifestFor(request, /** @type {C} */ (context));
+    const decision = decideEdgeRepresentation(request, manifest);
     if (decision.kind === 'pass') return next();
     if (decision.kind === 'redirect') {
       return new Response(null, { status: 303, headers: { location: decision.location, vary: 'Accept' } });
     }
     if (decision.kind === 'markdown') {
-      const markdown = await markdownResponse(() => host.fetchAsset(decision.pathname, request, /** @type {C} */ (context)), request);
+      const markdown = await markdownResponse(() => host.fetchAsset(decision.pathname, request, /** @type {C} */ (context)), request, manifest?.cacheControl);
       if (markdown) return markdown;
     }
     return withVaryAccept(await next());
@@ -132,9 +144,10 @@ export function createEdgeNegotiator(host) {
 /**
  * @param {() => Promise<Response>} fetchCompanion
  * @param {Request} request
+ * @param {string} [cacheControl]
  * @returns {Promise<Response | null>} `null` when the companion is not there: the manifest is stale.
  */
-async function markdownResponse(fetchCompanion, request) {
+async function markdownResponse(fetchCompanion, request, cacheControl) {
   let asset;
   try {
     asset = await fetchCompanion();
@@ -151,6 +164,7 @@ async function markdownResponse(fetchCompanion, request) {
     if (value) headers.set(name, value);
   }
   headers.set('content-type', MARKDOWN_CONTENT_TYPE);
+  if (cacheControl !== undefined) headers.set('cache-control', cacheControl);
   headers.set('vary', 'Accept');
   const etag = headers.get('etag');
   if (etag && isNotModified(request, etag.replace(/^W\//, ''))) {

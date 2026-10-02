@@ -184,15 +184,36 @@ describe.each(Object.keys(FACTORIES))('%s edge handler', (name) => {
     expect(['html', 'pass']).toContain((await run(request('/stale/', { accept: 'text/markdown' }))).kind);
   });
 
-  test('never inspects a manifest for its own subrequests', async () => {
+  test('never recurses into the manifest or negotiates direct companions', async () => {
     const { run, assetRequests } = create(manifest('response'));
     await run(request(EDGE_MANIFEST_PATHNAME, { accept: 'text/markdown' }));
     await run(request('/guide.md', { accept: 'text/markdown' }));
-    expect(assetRequests).toEqual([]);
+    expect(assetRequests).toEqual([EDGE_MANIFEST_PATHNAME]);
   });
 });
 
 describe('shared negotiator responses', () => {
+  test('direct known companions get explicit policy without Accept negotiation', async () => {
+    const site = host({ ...manifest('response'), cacheControl: 'private, max-age=17' });
+    const run = createEdgeNegotiator({ fetchAsset: (pathname) => site.asset(pathname) });
+    const response = new Response(MARKDOWN, { headers: { vary: 'Cookie', 'cache-control': 'inherited' } });
+    const direct = await run(request('/guide.md'), async () => response);
+    expect(direct.headers.get('cache-control')).toBe('private, max-age=17');
+    expect(direct.headers.get('vary')).toBe('Cookie');
+    expect(await direct.text()).toBe(MARKDOWN);
+    const unknown = new Response('external', { headers: { 'cache-control': 'inherited' } });
+    expect(await run(request('/unlisted.md'), async () => unknown)).toBe(unknown);
+  });
+  test('manifest cache policy overrides the asset policy, including revalidation', async () => {
+    const site = host({ ...manifest('response'), cacheControl: 'private, max-age=17' });
+    const run = createEdgeNegotiator({ fetchAsset: (pathname) => site.asset(pathname) });
+    for (const conditional of [false, true]) {
+      const response = await run(request('/guide/', { accept: 'text/markdown', ...(conditional ? { 'if-none-match': ETAG } : {}) }), site.origin);
+      expect(response.headers.get('cache-control')).toBe('private, max-age=17');
+      expect(response.status).toBe(conditional ? 304 : 200);
+    }
+    expect(readEdgeManifest({ ...manifest('response'), cacheControl: 'no-store\r\nInjected: yes' })).toBeNull();
+  });
   const create = () => {
     const site = host(manifest('response'));
     const negotiate = createEdgeNegotiator({ fetchAsset: (pathname) => site.asset(pathname) });
@@ -261,4 +282,25 @@ describe('shared negotiator responses', () => {
     const response = await createCloudflareHandler().fetch(request('/guide/'), {});
     expect(response.status).toBe(500);
   });
+});
+
+test.each([404, 503, 'throw'])('Vercel preflight %s falls back before rewriting or redirecting', async (outcome) => {
+  for (const mode of ['response', 'redirect']) {
+    let rewrites = 0;
+    const fetch = async (url, init) => {
+      if (new URL(url).pathname.endsWith('.json')) return new Response(JSON.stringify(manifest(mode)));
+      expect(init.method).toBe('HEAD');
+      expect(init.redirect).toBe('manual');
+      expect(init.credentials).toBe('omit');
+      expect(init.headers).toBeUndefined();
+      if (outcome === 'throw') throw new Error('private network detail');
+      return new Response(null, { status: outcome });
+    };
+    const handler = createVercelHandler({ fetch, next: (init) => new Response(null, { headers: init?.headers }),
+      rewrite: () => { rewrites++; return new Response(null); } });
+    const response = await handler(request('/guide/', { accept: 'text/markdown', authorization: 'secret', cookie: 'secret' }));
+    expect(response.status).toBe(200);
+    expect(response.headers.get('vary')).toBe('Accept');
+    expect(rewrites).toBe(0);
+  }
 });

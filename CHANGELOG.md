@@ -12,6 +12,9 @@ In preparation. Release notes will be folded in from changesets before the 1.6.0
   when evidence is mismatched, malformed or unsafe.
 - Repair both root and nested Render Markdown MIME rules in one backed-up transaction,
   preserving YAML formatting and refusing ambiguous rules before writing.
+- Apply explicit Markdown Cache-Control to generated representations and known static
+  companions, with inherited behavior when omitted. Vercel checks companion availability
+  before negotiating. Request-time semantic enrichment uses the internal node-free plugin.
 
 ## 1.5.3
 

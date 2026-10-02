@@ -551,6 +551,19 @@ function graphEntities(input) {
   return [input];
 }
 
+/** Exact JSON pointers for the shapes accepted by graphEntities.
+ * @param {any} input @param {string} [pointer]
+ * @returns {{ entity: any; pointer: string }[]}
+ */
+function locatedGraphEntities(input, pointer = '') {
+  if (!input || typeof input !== 'object') return [];
+  if (Array.isArray(input)) return input.flatMap((value, index) => locatedGraphEntities(value, `${pointer}/${index}`));
+  if (Array.isArray(input.entries)) return /** @type {any[]} */ (input.entries).flatMap((entry, index) => entry?.entity
+    ? [{ entity: entry.entity, pointer: `${pointer}/entries/${index}/entity` }] : []);
+  if (Array.isArray(input['@graph'])) return /** @type {any[]} */ (input['@graph']).map((entity, index) => ({ entity, pointer: `${pointer}/@graph/${index}` }));
+  return [{ entity: input.entity ?? input, pointer: input.entity ? `${pointer}/entity` : pointer }];
+}
+
 /**
  * Preserve public graph roles and provenance while assigning authored-head
  * provenance to raw entities supplied directly through AeoHead.
@@ -718,8 +731,8 @@ function inspectAuthoredJsonLd(html, pathname, options) {
   );
   for (const script of scripts) {
     try {
-      const entities = graphEntities(JSON.parse(script.content));
-      for (const entity of entities) {
+      const entities = locatedGraphEntities(JSON.parse(script.content));
+      for (const { entity, pointer } of entities) {
         try {
           if (!entity || typeof entity !== 'object' || Array.isArray(entity)) throw new TypeError('Invalid JSON-LD entity');
           const withoutContext = Object.fromEntries(
@@ -727,7 +740,7 @@ function inspectAuthoredJsonLd(html, pathname, options) {
           );
           const result = validateGraph([{
             entity: /** @type {any} */ (withoutContext),
-            provenance: { source: 'authored-jsonld', pathname },
+            provenance: { source: 'authored-jsonld', pathname, pointer },
           }], {
             documentCanonical: options.canonicalUrl,
             siteUrl: options.siteUrl,

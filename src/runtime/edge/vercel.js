@@ -26,7 +26,8 @@ export function createVercelHandler(options) {
   let cached = null;
 
   return async function middleware(request) {
-    if ((request.method !== 'GET' && request.method !== 'HEAD') || isEdgeSubrequest(request)) return options.next();
+    const direct = new URL(request.url).pathname.endsWith('.md');
+    if ((request.method !== 'GET' && request.method !== 'HEAD') || (!direct && isEdgeSubrequest(request))) return options.next();
     if (!cached) {
       try {
         const response = await (options.fetch ?? globalThis.fetch)(new URL(manifestPathname, request.url));
@@ -35,14 +36,31 @@ export function createVercelHandler(options) {
         cached = null;
       }
     }
+    if (direct) {
+      return cached?.cacheControl !== undefined && [...cached.routes.values()].includes(new URL(request.url).pathname)
+        ? options.next({ headers: { 'cache-control': cached.cacheControl } }) : options.next();
+    }
     const decision = decideEdgeRepresentation(request, cached);
     if (decision.kind === 'pass') return options.next();
     if (decision.kind === 'html') return options.next({ headers: { vary: 'Accept' } });
+    // Verify the companion before a rewrite or redirect. Fetch is injected by
+    // the host and this anonymous HEAD never carries caller credentials.
+    const companion = decision.kind === 'markdown' ? decision.pathname : new URL(decision.location, request.url).pathname;
+    try {
+      const response = await (options.fetch ?? globalThis.fetch)(new URL(companion, request.url), {
+        method: 'HEAD', redirect: 'manual', credentials: 'omit', signal: AbortSignal.timeout(2000),
+      });
+      void response.body?.cancel().catch(() => {});
+      if (response.status !== 200) return options.next({ headers: { vary: 'Accept' } });
+    } catch {
+      return options.next({ headers: { vary: 'Accept' } });
+    }
     if (decision.kind === 'redirect') {
       return new Response(null, { status: 303, headers: { location: decision.location, vary: 'Accept' } });
     }
     return options.rewrite(new URL(decision.pathname, request.url), {
-      headers: { vary: 'Accept', 'content-type': 'text/markdown; charset=utf-8' },
+      headers: { vary: 'Accept', 'content-type': 'text/markdown; charset=utf-8',
+        ...(cached?.cacheControl === undefined ? {} : { 'cache-control': cached.cacheControl }) },
     });
   };
 }

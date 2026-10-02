@@ -411,7 +411,7 @@ export function validateGraph(input, options = {}) {
   for (const conflict of graph.conflicts) {
     if (conflict.resolution === 'unresolved') {
       findings.push(
-        finding('schema.scalar-conflict', 'error', 'Conflicting scalar graph values require an explicit policy', {
+        finding('schema.scalar-conflict', 'error', 'Conflicting scalar graph values must be reconciled by their producer', {
           entityId: conflict.entityId,
           pointer: conflict.pointer,
         }),

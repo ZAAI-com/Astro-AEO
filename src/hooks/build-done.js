@@ -745,7 +745,7 @@ async function onBuildDoneLocked(config, options, env, session) {
       representation: { body: '', contentType: 'application/json; charset=utf-8' },
       onConflict: 'overwrite',
       // The body lists only companions that survived ownership arbitration.
-      produce: (emitted) => serializeEdgeManifest({ pages, provider, mode, base: env.base, emitted }),
+      produce: (emitted) => serializeEdgeManifest({ pages, provider, mode, base: env.base, emitted, cacheControl: config.markdown.cacheControl }),
     });
   }
 

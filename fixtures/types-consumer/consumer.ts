@@ -974,6 +974,7 @@ export const edgeManifest: StaticEdgeManifestV1 = {
   provider: 'cloudflare',
   mode: 'response',
   base: '/',
+  cacheControl: 'public, max-age=60',
   routes: [{ html: '/', markdown: '/index.md' }],
 };
 export const edgeDecision: EdgeDecision = decideEdgeRepresentation(
