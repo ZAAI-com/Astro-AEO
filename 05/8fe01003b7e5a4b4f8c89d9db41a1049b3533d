@@ -1,0 +1,32 @@
+src/runtime/serve.test.js
+  s_923fecc9e5a133::t_d08bb8d57139f3 10,643,646
+src/runtime/middleware.js
+  s_923fecc9e5a133::t_d08bb8d57139f3 45,308,310,320,362,365-366,374
+README.md
+  s_923fecc9e5a133::t_13c370566ee0be 749-753
+.changeset/complete-runtime-corpus.md
+  s_923fecc9e5a133::t_05efab70ee3050 1-5
+src/runtime/serve.js
+  s_923fecc9e5a133::t_d08bb8d57139f3 16,79-132,568-569,750-751
+src/runtime/middleware-corpus-failure.test.js
+  s_923fecc9e5a133::t_05efab70ee3050 1-6,8-35,37-42,44-137,139-140,143,147-164
+  s_923fecc9e5a133::t_74e516d370e77a 7,36,43,138,141-142,144-146
+src/runtime/middleware-corpus-auth.test.js
+  s_923fecc9e5a133::t_d08bb8d57139f3 490-492
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "058fe01003b7e5a4b4f8c89d9db41a1049b3533d",
+  "prompts": {},
+  "sessions": {
+    "s_923fecc9e5a133": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fd4f-7966-7552-9bed-766ed9b00461",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
