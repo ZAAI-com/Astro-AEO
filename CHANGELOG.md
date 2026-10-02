@@ -6,6 +6,13 @@ All notable changes to this project are documented here. This project follows [S
 
 In preparation. Release notes will be folded in from changesets before the 1.6.0 tag is created.
 
+- Keep local doctor results unverified, add bounded provider and package-overlap evidence,
+  and offer read-only `--print` advice without executing consumer configuration.
+- Compare deployment ownership digests and emitted artifact etags, withholding conclusions
+  when evidence is mismatched, malformed or unsafe.
+- Repair both root and nested Render Markdown MIME rules in one backed-up transaction,
+  preserving YAML formatting and refusing ambiguous rules before writing.
+
 ## 1.5.3
 
 Add opt-in editorial audit advice, eight typed JSON-LD components, extended Article publishing

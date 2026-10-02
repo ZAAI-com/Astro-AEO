@@ -50,6 +50,7 @@ Options for "doctor":
   --url <page>      Also probe one deployed page. Without it, local files prove nothing deployed
   --dist <dir>      Build output directory (default: dist)
   --public-dir <d>  Public directory (default: public)
+  --print           Print evidence-based manual advice without executing or writing config
   --json            Print a machine-readable report
 
 Options for "fix":
