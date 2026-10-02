@@ -1,0 +1,27 @@
+components/SpeakableJsonLd.astro
+  s_ed94aa4c360a84::t_86f98d8c26f6ae 4
+components/HowToJsonLd.astro
+  s_ed94aa4c360a84::t_86f98d8c26f6ae 4
+components/OrganizationJsonLd.astro
+  s_ed94aa4c360a84::t_86f98d8c26f6ae 4
+components/FaqJsonLd.astro
+  s_ed94aa4c360a84::t_86f98d8c26f6ae 5
+components/BreadcrumbJsonLd.astro
+  s_ed94aa4c360a84::t_86f98d8c26f6ae 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "27a0b1382214c628d4ace0e6c4d52fd9c9a3580b",
+  "prompts": {},
+  "sessions": {
+    "s_ed94aa4c360a84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b931bb54-31c4-4ab7-9b9f-94c4fc1edacf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
