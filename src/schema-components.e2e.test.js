@@ -1,12 +1,16 @@
 import { beforeAll, describe, expect, test } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { verifySchemaComponents } from '../test/contracts/schema-components.js';
+
+const astroPackage = JSON.parse(readFileSync('node_modules/astro/package.json', 'utf8'));
+const astroBin = join('node_modules/astro', typeof astroPackage.bin === 'string' ? astroPackage.bin : astroPackage.bin.astro);
 
 let html;
 let output;
 beforeAll(() => {
-  const build = spawnSync(process.execPath, ['node_modules/astro/bin/astro.mjs', 'build', '--root', 'fixtures/schema-tools/static'], { encoding: 'utf8' });
+  const build = spawnSync(process.execPath, [astroBin, 'build', '--root', 'fixtures/schema-tools/static'], { encoding: 'utf8' });
   output = build.stdout + build.stderr;
   expect(build.status, output).toBe(0);
   html = readFileSync('fixtures/schema-tools/static/dist/index.html', 'utf8');
