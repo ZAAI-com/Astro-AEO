@@ -1,9 +1,9 @@
 ---
 import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
 import { warnGoogleSchema } from '../src/core/schema-google.js';
+import { createHowTo } from '../src/schema.js';
 
 type Props = import('./index.js').HowToJsonLdProps;
-import { createHowTo } from '../src/schema.js';
 
 /**
  * HowTo JSON-LD. Provide a name and ordered steps.

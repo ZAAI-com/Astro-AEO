@@ -2,9 +2,9 @@
 import { resolveEntityId } from '../src/lib/entity-id.js';
 import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
 import { warnGoogleSchema } from '../src/core/schema-google.js';
+import { createFAQPage } from '../src/schema.js';
 
 type Props = import('./index.js').FaqJsonLdProps;
-import { createFAQPage } from '../src/schema.js';
 
 /**
  * FAQPage JSON-LD. Pass a list of question/answer pairs.

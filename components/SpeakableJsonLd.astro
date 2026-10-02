@@ -1,9 +1,9 @@
 ---
 import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
 import { warnGoogleSchema } from '../src/core/schema-google.js';
+import { createWebPage } from '../src/schema.js';
 
 type Props = import('./index.js').SpeakableJsonLdProps;
-import { createWebPage } from '../src/schema.js';
 
 /**
  * Speakable JSON-LD for voice assistants. Drop-in with no props; defaults to

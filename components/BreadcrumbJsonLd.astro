@@ -1,9 +1,9 @@
 ---
 import { serializeJsonLd } from '../src/lib/serialize-jsonld.js';
 import { warnGoogleSchema } from '../src/core/schema-google.js';
+import { createBreadcrumbList } from '../src/schema.js';
 
 type Props = import('./index.js').BreadcrumbJsonLdProps;
-import { createBreadcrumbList } from '../src/schema.js';
 
 /**
  * BreadcrumbList JSON-LD.
