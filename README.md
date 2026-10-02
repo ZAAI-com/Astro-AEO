@@ -746,6 +746,11 @@ from the development server's own bound address after an in-process rewrite has 
 and which is never present in a production or adapter bundle. `corpus.runtime.maxPages` defaults to 50. A larger
 corpus returns `503` with `Cache-Control: no-store`, without partial output. Raise the
 limit or select `'unlimited'` only when the deployment can safely absorb that work.
+Temporary source failures also return a sanitized, non-cacheable `503`, never a successful
+shorter text or schema corpus. This includes rendering, transport and body-read failures,
+server errors, rate limits, and partial or unusably encoded HTML. GET and HEAD share the
+failure status. Anonymous authorization denials, redirects, missing routes, non-HTML routes
+and explicit page opt-outs remain valid exclusions; plugin and semantic errors retain `500`.
 Astro 5 and Astro 6.0-6.2 receive `503` for request-time corpora because those
 versions do not expose a disposable request state. Their closure-held client address,
 cookies, and session cannot be replaced securely for an anonymous corpus render. The

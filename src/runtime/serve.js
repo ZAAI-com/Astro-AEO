@@ -13,7 +13,7 @@ import { isOwnedArtifactPath } from '../core/owned-artifacts.js';
 import { inspectRootPathname, normalizeCatalogPathname } from '../core/match.js';
 import { matchesExactPathname } from '../core/artifact-path.js';
 import { pageCatalogIdentity } from '../core/page-identity.js';
-import { cancelResponseBody, isIdentityEncoded, isNullBodyStatus } from './respond.js';
+import { cancelResponseBody, isHtmlResponse, isIdentityEncoded, isNullBodyStatus, isUtf8HtmlResponse } from './respond.js';
 import { enrichHtmlHead, stripAeoHeadMarkers } from '../core/head.js';
 import { renderSchemaCorpus } from '../core/schema-corpus.js';
 import { isLocalDevelopmentHostname, siteScopeUrl, stableCanonical } from '../core/canonical.js';
@@ -74,6 +74,60 @@ export class RuntimeCorpusLimitError extends Error {
     this.pages = pages;
     this.limit = limit;
   }
+}
+
+/** A known corpus member could not be collected, so no aggregate is complete. */
+export class RuntimeCorpusUnavailableError extends Error {
+  constructor() {
+    super('astro-aeo: a runtime corpus page is temporarily unavailable.');
+    this.name = 'RuntimeCorpusUnavailableError';
+  }
+}
+
+/**
+ * Intentional anonymous exclusions are not collection failures. A missing load,
+ * unsuccessful render, or unusable HTML representation is different: serving
+ * the remaining pages would misrepresent an incomplete inventory as complete.
+ * Keep failure details out of this production-safe outcome.
+ *
+ * @param {string} pathname
+ * @param {Runtime} runtime
+ * @param {HtmlFetcher} fetchHtml
+ * @returns {Promise<{ html: string; response: Response } | null>}
+ */
+async function loadCorpusHtml(pathname, runtime, fetchHtml) {
+  let loaded;
+  try {
+    loaded = await fetchHtml(pathname);
+  } catch (error) {
+    // Development construction failures deliberately retain Astro's diagnostic.
+    if (runtime.command === 'dev') throw error;
+    throw new RuntimeCorpusUnavailableError();
+  }
+  if (loaded === null) throw new RuntimeCorpusUnavailableError();
+  const { response } = loaded;
+  const { status } = response;
+  if (
+    status === 401 || status === 403 || status === 404 || status === 410 ||
+    status === 204 || status === 205 ||
+    (status >= 300 && status < 400 && status !== 304)
+  ) {
+    cancelResponseBody(response);
+    return null;
+  }
+  if (!response.ok || status === 206 || response.headers.has('content-range')) {
+    cancelResponseBody(response);
+    throw new RuntimeCorpusUnavailableError();
+  }
+  if (!isHtmlResponse(response)) {
+    cancelResponseBody(response);
+    return null;
+  }
+  if (!isIdentityEncoded(response) || !isUtf8HtmlResponse(response) || loaded.html === null) {
+    cancelResponseBody(response);
+    throw new RuntimeCorpusUnavailableError();
+  }
+  return { response, html: loaded.html };
 }
 
 /** @type {WeakMap<Runtime, Promise<import('turndown')>>} */
@@ -511,17 +565,8 @@ export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {
     paths,
     Math.min(Math.max(opts.concurrency ?? 1, 1), 4),
     async (target) => {
-      const loaded = await fetchHtml(target.publicPathname);
-      if (
-        loaded === null ||
-        loaded.html === null ||
-        !loaded.response.ok ||
-        loaded.response.status === 206 ||
-        !isIdentityEncoded(loaded.response)
-      ) {
-        cancelResponseBody(loaded?.response);
-        return null;
-      }
+      const loaded = await loadCorpusHtml(target.publicPathname, runtime, fetchHtml);
+      if (loaded === null) return null;
       let page;
       try {
         page = await pageFromHtml(target.pathname, loaded.html, runtime, {
@@ -702,14 +747,8 @@ export async function serveSchemaCorpus(kind, runtime, fetchHtml, opts = {}) {
   });
 
   const records = await collectConcurrently(targets, 1, async (target) => {
-    const loaded = await fetchHtml(target.publicPathname);
-    if (
-      loaded === null || loaded.html === null || !loaded.response.ok ||
-      loaded.response.status === 206 || !isIdentityEncoded(loaded.response)
-    ) {
-      cancelResponseBody(loaded?.response);
-      return null;
-    }
+    const loaded = await loadCorpusHtml(target.publicPathname, runtime, fetchHtml);
+    if (loaded === null) return null;
     let page;
     try {
       page = await pageFromHtml(target.pathname, loaded.html, runtime, {

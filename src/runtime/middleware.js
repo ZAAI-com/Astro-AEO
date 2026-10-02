@@ -42,6 +42,7 @@ import {
   RuntimeCorpusPlanError,
   runtimeCatalogPagesFor,
   RuntimeCorpusLimitError,
+  RuntimeCorpusUnavailableError,
   RuntimePageLifecycleError,
   serveCorpusArtifact,
   serveMarkdown,
@@ -304,7 +305,9 @@ export const onRequest = async (context, next) => {
       return textResponse({ body, contentType, request: context.request, requestHeadersAvailable });
     } catch (error) {
       const limited = error instanceof RuntimeCorpusLimitError;
+      const unavailable = error instanceof RuntimeCorpusUnavailableError;
       const discovery = error instanceof RuntimeDynamicRouteDiscoveryError;
+      if (unavailable) warnDevCorpusRewriteFailure(fetchFailures, RUNTIME.command);
       return textResponse({
         body: discovery
           ? `${error.message}\n`
@@ -314,7 +317,7 @@ export const onRequest = async (context, next) => {
         contentType: 'text/plain; charset=utf-8',
         request: context.request,
         requestHeadersAvailable,
-        status: limited ? 503 : 500,
+        status: limited || unavailable ? 503 : 500,
         headers: { 'cache-control': 'no-store' },
       });
     }
@@ -356,9 +359,11 @@ export const onRequest = async (context, next) => {
       });
     } catch (error) {
       const limited = error instanceof RuntimeCorpusLimitError;
+      const unavailable = error instanceof RuntimeCorpusUnavailableError;
       const invalid = error instanceof RuntimeCorpusPlanError;
       const discovery = error instanceof RuntimeDynamicRouteDiscoveryError;
-      if (!limited && !invalid && !discovery) throw error;
+      if (!limited && !unavailable && !invalid && !discovery) throw error;
+      if (unavailable) warnDevCorpusRewriteFailure(fetchFailures, RUNTIME.command);
       return textResponse({
         body: limited || discovery
           ? `${error.message}\n`
@@ -366,7 +371,7 @@ export const onRequest = async (context, next) => {
         contentType: 'text/plain; charset=utf-8',
         request: context.request,
         requestHeadersAvailable,
-        status: limited ? 503 : 500,
+        status: limited || unavailable ? 503 : 500,
         headers: { 'cache-control': 'no-store' },
       });
     }

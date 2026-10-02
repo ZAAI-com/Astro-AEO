@@ -7,6 +7,7 @@ import {
   pageFromHtml,
   renderStandaloneArtifact,
   RuntimeCorpusLimitError,
+  RuntimeCorpusUnavailableError,
   RuntimeCorpusPlanError,
   runtimeArtifactOrigin,
   runtimeCatalogPagesFor,
@@ -639,12 +640,11 @@ describe('request-time corpus limits', () => {
       },
     });
     const cancel = vi.spyOn(source.body, 'cancel').mockResolvedValue();
-    const body = await serveLlmsIndex('llms-full', runtime(['/encoded']), async () => ({
+    await expect(serveLlmsIndex('llms-full', runtime(['/encoded']), async () => ({
       html: null,
       response: source,
-    }));
+    }))).rejects.toBeInstanceOf(RuntimeCorpusUnavailableError);
 
-    expect(body).not.toContain('encoded bytes');
     expect(cancel).toHaveBeenCalledOnce();
   });
 
