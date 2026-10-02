@@ -1,0 +1,21 @@
+src/schema-components.ssr.test.js
+  s_ed94aa4c360a84::t_1a84f1e9ba434a 4,20-22,29,36-47
+fixtures/adapters/shared/Page.astro
+  s_ed94aa4c360a84::t_618e938a299717 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "05f043e42214e9f852ae25d4e508edcb7fb65f86",
+  "prompts": {},
+  "sessions": {
+    "s_ed94aa4c360a84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b931bb54-31c4-4ab7-9b9f-94c4fc1edacf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
