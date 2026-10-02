@@ -1138,7 +1138,13 @@ headers:
   - path: /*.md
     name: Content-Type
     value: text/markdown; charset=utf-8
+  - path: /**/*.md
+    name: Content-Type
+    value: text/markdown; charset=utf-8
 ```
+
+Render matches root and nested files separately. Both rules are needed, as described
+in its [header matching documentation](https://render.com/docs/static-site-headers).
 
 **Netlify / Cloudflare Pages** (`public/_headers`):
 
@@ -1442,6 +1448,7 @@ See [content optimization](docs/CONTENT_OPTIMIZATION.md) for examples and false 
 ```bash
 npx astro-aeo doctor                       # what this project is set up to deploy
 npx astro-aeo doctor --url https://example.com/   # and what the deployment really does
+npx astro-aeo doctor --print               # read-only evidence-based manual advice
 npx astro-aeo fix                          # dry run: shows the change
 npx astro-aeo fix --write                  # applies it, after a backup
 ```
@@ -1453,7 +1460,7 @@ Static hosts often serve `.md` files as `text/plain` or as a download. `fix` mak
 |---|---|---|
 | Cloudflare Pages, Netlify | `public/_headers` | one block between `# astro-aeo:start markdown-mime` and `# astro-aeo:end markdown-mime`; every byte outside it, and CRLF line endings, are kept |
 | Vercel | `vercel.json` | one `headers` rule; unknown fields, key order and indentation are kept |
-| Render | `render.yaml` | one header on the static site service; comments, anchors and key order are kept |
+| Render | `render.yaml` | root (`/*.md`) and nested (`/**/*.md`) headers on one static site service; comments, anchors and key order are kept |
 
 It is a dry run unless you pass `--write`. Before writing, the original is copied with its file mode to
 `.astro/aeo-backups/<UTC timestamp>/`. A second `--write` finds nothing to do and makes no backup. `fix`
@@ -1466,7 +1473,7 @@ and Deno it prints a snippet and edits nothing: `astro-aeo fix --provider nginx`
 
 | Status | Meaning |
 |---|---|
-| `configured` | verified against the deployment (only `--url` can say this), or nothing is needed |
+| `configured` | verified against the deployment (only `--url` can say this) |
 | `unverified` | the local files look right, which proves nothing about what is deployed |
 | `missing` | nothing provides it; the hint says what to run |
 | `conflicting` | something contradicts it, locally or in the deployment |
@@ -1476,6 +1483,13 @@ content type, every case of the Accept contract the middleware and edge handlers
 `Vary: Accept`, `HEAD`, and `If-None-Match`. What the deployment does replaces what the local files
 suggest. Exit codes: `0` when nothing is missing or conflicting, `1` otherwise, `2` for a bad invocation
 or an unreachable URL. `--json` prints the checks.
+
+Local Node, Deno, nginx and Apache files provide evidence of intent, not verified serving
+behavior. Doctor also compares the selected output, deployment ownership digest and emitted
+artifact etags. Mismatched evidence withholds artifact conclusions. Declared overlapping packages
+and quoted config references are advisory, with explicit confidence; consumer configuration is
+never executed. `--print` adds manual advice, or an `advice` array with `--json`, without writing
+configuration. See [deployment evidence and advice](docs/DOCTOR.md) for scope and limitations.
 
 ## GitHub Action
 

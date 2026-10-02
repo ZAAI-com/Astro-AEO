@@ -2,9 +2,10 @@
 import { FixRefusal, MARKDOWN_MIME } from './shared.js';
 
 export const RENDER_PATH = '/*.md';
+export const RENDER_PATHS = Object.freeze([RENDER_PATH, '/**/*.md']);
 
 /**
- * Add one header rule to a static site service in `render.yaml`. The `yaml`
+ * Cover root and nested Markdown in a static service in `render.yaml`. The `yaml`
  * Document API edits the tree in place, so comments, anchors and key order
  * survive. It is loaded on demand: this command is its only user, and it must
  * never reach a runtime bundle.
@@ -40,18 +41,22 @@ export async function fixRenderYaml(text, options = {}) {
   const headers = service.get('headers');
   if (headers !== undefined && !isSeq(headers)) throw new FixRefusal('the service "headers" value is not a list');
 
-  const existing = (isSeq(headers) ? headers.items : []).filter((item) =>
-    isMap(item) && item.get('path') === RENDER_PATH && String(item.get('name')).toLowerCase() === 'content-type');
-  if (existing.length > 1) throw new FixRefusal(`render.yaml sets Content-Type for ${RENDER_PATH} more than once; merge them by hand`);
-  if (existing.length === 1) {
-    const entry = /** @type {import('yaml').YAMLMap} */ (existing[0]);
-    if (entry.get('value') === MARKDOWN_MIME) return { status: 'unchanged', text };
-    entry.set('value', MARKDOWN_MIME);
-  } else {
-    const rule = document.createNode({ path: RENDER_PATH, name: 'Content-Type', value: MARKDOWN_MIME });
-    if (isSeq(headers)) headers.add(rule);
-    else service.set('headers', document.createNode([{ path: RENDER_PATH, name: 'Content-Type', value: MARKDOWN_MIME }]));
+  // Validate every path before editing: ambiguity in either rule refuses the
+  // whole file, including when the other rule would be safe to repair.
+  const rules = RENDER_PATHS.map((path) => {
+    const existing = (isSeq(headers) ? headers.items : []).filter((item) =>
+      isMap(item) && item.get('path') === path && String(item.get('name')).toLowerCase() === 'content-type');
+    if (existing.length > 1) throw new FixRefusal(`render.yaml sets Content-Type for ${path} more than once; merge them by hand`);
+    return { path, entry: /** @type {import('yaml').YAMLMap | undefined} */ (existing[0]) };
+  });
+  if (rules.every(({ entry }) => entry?.get('value') === MARKDOWN_MIME)) return { status: 'unchanged', text };
+  const additions = [];
+  for (const { path, entry } of rules) {
+    if (entry) entry.set('value', MARKDOWN_MIME);
+    else additions.push({ path, name: 'Content-Type', value: MARKDOWN_MIME });
   }
+  if (isSeq(headers)) for (const rule of additions) headers.add(document.createNode(rule));
+  else service.set('headers', document.createNode(additions));
   const newline = text.includes('\r\n') ? '\r\n' : '\n';
   const serialized = document.toString({ lineWidth: 0 });
   return { status: 'changed', text: newline === '\n' ? serialized : serialized.replace(/\r?\n/g, newline) };
