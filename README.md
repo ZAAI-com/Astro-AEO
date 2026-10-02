@@ -794,7 +794,15 @@ browsers, curl, and crawlers that send `*/*` are unaffected. Media parameters mu
 match the emitted `text/markdown; charset=utf-8` representation. The legacy
 `text/x-markdown` type is distinct and does not opt a client into `text/markdown`.
 
-Negotiated responses preserve the page's cache policy, merge `Vary: Accept`, use a
+Negotiated responses inherit the page's cache policy unless `markdown.cacheControl`
+explicitly overrides it. The override also applies to generated direct companions and
+known static companions served through the edge helpers; application HTML, redirects and
+unlisted assets keep their own policy. Omission preserves inherited behavior. Vercel's
+helper performs an anonymous, bounded companion HEAD before a rewrite or negotiation
+redirect and falls back to HTML if the asset is missing or unavailable. These helpers
+are tested locally, not as deployed-provider verification.
+
+Negotiated responses merge `Vary: Accept`, use a
 full SHA-256 ETag, and support `HEAD` and `If-None-Match`. A `304` avoids response
 bytes but currently still calculates the Markdown representation. A source `304` is
 re-evaluated with a sanitized GET only when Markdown is strictly preferred; otherwise

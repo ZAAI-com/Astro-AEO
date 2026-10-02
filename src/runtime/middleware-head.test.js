@@ -61,6 +61,19 @@ beforeEach(() => {
   RUNTIME.config = resolveConfig({ markdown: { alternateLink: 'never' } });
 });
 
+test.each([undefined, 'private, max-age=17'])('direct Markdown applies policy %s without negotiation', async (cacheControl) => {
+  RUNTIME.config = resolveConfig({ markdown: { alternateLink: 'never', negotiation: 'off', cacheControl } });
+  const context = contextFor('/page.md');
+  context.rewrite.mockImplementation(async () => new Response(html(), {
+    headers: { 'content-type': 'text/html', 'cache-control': 'public, max-age=5', vary: 'Cookie', 'set-cookie': 'session=retained' },
+  }));
+  const response = await onRequest(context, async () => { throw new Error('must not fall through'); });
+  expect(response.headers.get('content-type')).toBe('text/markdown; charset=utf-8');
+  expect(response.headers.get('cache-control')).toBe(cacheControl ?? 'public, max-age=5');
+  expect(response.headers.get('vary')).toBe('Cookie');
+  expect(response.headers.get('set-cookie')).toBe('session=retained');
+});
+
 describe('runtime semantic head enrichment', () => {
   test('injects the default managed graph while preserving status and non-byte headers', async () => {
     const source = html();

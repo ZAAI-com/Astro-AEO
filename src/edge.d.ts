@@ -5,6 +5,8 @@ export interface StaticEdgeManifestV1 {
   /** `markdown.negotiation` at build time. */
   mode: 'response' | 'redirect';
   base: string;
+  /** Explicit Markdown cache policy; omission inherits the companion policy. */
+  cacheControl?: string;
   /** Sorted by `html`. Only pages whose companion the build really emitted. */
   routes: { html: string; markdown: string }[];
 }
@@ -17,6 +19,7 @@ export type EdgeDecision =
 
 export interface EdgeManifestIndex {
   mode: 'response' | 'redirect';
+  cacheControl?: string;
   routes: Map<string, string>;
 }
 

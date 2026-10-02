@@ -1366,6 +1366,9 @@ function canonicalLink(pagePath, context) {
  */
 function representationHeaders(source, pagePath, context, negotiated) {
   const headers = inheritedRepresentationHeaders(source ?? undefined);
+  if (RUNTIME.config.markdown.cacheControl !== undefined) {
+    headers.set('cache-control', RUNTIME.config.markdown.cacheControl);
+  }
   stripInternalHeaders(headers);
   const generatedLink = canonicalLink(pagePath, context).link;
   const existingLink = source?.headers.get('link');

@@ -33,6 +33,7 @@ import { discoverRuntimeDynamicPaths } from './dynamic-routes.js';
 import { parseDocument } from '../core/html-document.js';
 import { readMarker } from '../core/extract/marker.js';
 import { routePatternFor } from '../core/route-facts.js';
+import { createSemanticPlugin } from '../core/semantic-plugin.js';
 import {
   astroRouteLocale,
   normalizeOrigin,
@@ -377,14 +378,21 @@ export async function enrichRuntimePageGraph(html, page, runtime, opts = {}) {
     runtime,
     opts.origin,
   );
-  const internal = enrichHtmlHead({
+  const input = {
     html,
     page,
-    config: runtime.config,
     site: runtime.site,
     allowGlobal: opts.allowGlobal ?? true,
     breadcrumbTrail: catalogBreadcrumbTrail(page.pathname, catalogDescriptors, runtime.site),
-  });
+  };
+  const internalPlugins = await loadRuntimePlugins(internalSemanticLoaders(runtime.config), runtime.command);
+  const internalResult = await internalPlugins.run('graph:build', input, { pathname: page.pathname, validate: isGraphEnvelope });
+  if (internalResult.isolated) throw new Error('astro-aeo: internal semantic enrichment failed.');
+  // These diagnostics originate in our trusted internal module, not a user
+  // hook. Preserve their locations/messages rather than the external-plugin
+  // redaction envelope, so inspect-only findings can be deduplicated correctly.
+  const internal = /** @type {ReturnType<typeof enrichHtmlHead>} */ ({ .../** @type {any} */ (internalResult.value),
+    diagnostics: /** @type {any} */ (internalResult.value).semanticDiagnostics });
   const loaders = opts.pluginLoaders ?? [];
   if (loaders.length === 0) return { ...internal, isolated: false };
 
@@ -475,6 +483,20 @@ export async function enrichRuntimePageGraph(html, page, runtime, opts = {}) {
     ]),
     isolated: false,
   };
+}
+
+/** @type {WeakMap<object, RuntimePluginLoader[]>} */
+const internalSemanticModules = new WeakMap();
+
+/** @param {import('../index.js').ResolvedAstroAeoConfig} config */
+function internalSemanticLoaders(config) {
+  let loaders = internalSemanticModules.get(config);
+  if (!loaders) {
+    loaders = [{ name: 'astro-aeo:semantic', module: 'astro-aeo:semantic', stages: ['graph:build'],
+      hookManifest: [{ stage: 'graph:build', ordinal: 0 }], claims: [], load: async () => createSemanticPlugin(config) }];
+    internalSemanticModules.set(config, loaders);
+  }
+  return loaders;
 }
 
 /**
