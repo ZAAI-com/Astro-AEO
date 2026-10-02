@@ -1,6 +1,7 @@
 import { beforeAll, afterAll, expect, test } from 'vitest';
 import { execFileSync, spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifySchemaComponents } from '../test/contracts/schema-components.js';
@@ -16,23 +17,34 @@ let origin;
 let logs = '';
 beforeAll(async () => {
   execFileSync(process.execPath, [astroBin, 'build', '--root', FIXTURE], { cwd: REPO, stdio: 'pipe' });
-  const env = { ...process.env, HOST: '127.0.0.1', PORT: '0' };
+  const port = await freePort();
+  origin = `http://127.0.0.1:${port}`;
+  const env = { ...process.env, HOST: '127.0.0.1', PORT: String(port) };
   for (const key of Object.keys(env)) if (/^(VITEST|__VITEST|TINYPOOL)/.test(key)) delete env[key];
   delete env.NODE_OPTIONS;
   server = spawn(process.execPath, [join(FIXTURE, 'dist/server/entry.mjs')], { cwd: REPO, env, stdio: 'pipe' });
   server.stdout.on('data', (chunk) => { logs += chunk.toString(); });
   server.stderr.on('data', (chunk) => { logs += chunk.toString(); });
   for (let attempt = 0; attempt < 100; attempt++) {
-    origin = logs.match(/http:\/\/127\.0\.0\.1:\d+/)?.[0];
-    if (origin) {
-      try { if ((await fetch(origin)).status === 200) return; } catch { /* Wait for the socket to accept connections. */ }
-    }
+    try { if ((await fetch(origin)).status === 200) return; } catch { /* Wait for the socket to accept connections. */ }
     if (server.exitCode !== null) throw new Error(logs);
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new Error(`Server did not start: ${logs}`);
 });
 afterAll(() => server?.kill());
+
+/** Ask the OS for an unused port, so readiness never depends on the adapter's log format. */
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const probe = createServer();
+    probe.once('error', reject);
+    probe.listen(0, '127.0.0.1', () => {
+      const { port } = /** @type {import('node:net').AddressInfo} */ (probe.address());
+      probe.close(() => resolve(port));
+    });
+  });
+}
 test('renders every component on demand with advisory-only Google checks', async () => {
   const response = await fetch(origin);
   expect(response.status).toBe(200);
