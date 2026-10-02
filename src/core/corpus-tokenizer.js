@@ -181,7 +181,7 @@ export async function probeCorpusTokenizer(tokenizer, options) {
  * @param {unknown} rawOptions
  * @param {(context: { tokenizer: { name: string; version: string; approximate: boolean }; count: (text: string) => Promise<number> }) => Promise<T>} plan
  * @param {{ skipProbe?: boolean; cachedCount?: CachedTokenCount }} [runOptions]
- * @returns {Promise<{ result: T; tokenizer: { name: string; version: string; approximate: boolean }; fallback?: { name?: string; message: string } }>}
+ * @returns {Promise<{ result: T; tokenizer: { name: string; version: string; approximate: boolean }; fallback?: { name?: string; message: string; reason: 'preflight'|'count' } }>}
  */
 export async function runCorpusPlanWithTokenizer(customModule, rawOptions, plan, runOptions = {}) {
   const options = corpusTokenizerOptions(rawOptions);
@@ -196,7 +196,7 @@ export async function runCorpusPlanWithTokenizer(customModule, rawOptions, plan,
       return {
         result,
         tokenizer: BUILTIN_TOKENIZER_IDENTITY,
-        fallback: { ...(custom ? { name: custom.name } : {}), message: error.message },
+        fallback: { ...(custom ? { name: custom.name } : {}), message: error.message, reason: 'preflight' },
       };
     }
   }
@@ -214,7 +214,7 @@ export async function runCorpusPlanWithTokenizer(customModule, rawOptions, plan,
     return {
       result,
       tokenizer: BUILTIN_TOKENIZER_IDENTITY,
-      fallback: { name: custom.name, message: error.message },
+      fallback: { name: custom.name, message: error.message, reason: 'count' },
     };
   }
 }

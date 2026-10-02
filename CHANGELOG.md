@@ -20,6 +20,10 @@ In preparation. Release notes will be folded in from changesets before the 1.6.0
   and restore missing owned output without rewriting identical bytes. Private snapshots and
   traces share content-derived digests and omit raw content and diagnostic values.
 
+- Keep heading sections intact where budgets permit, disclose tokenizer fallback reasons,
+  enforce explicit locale policies and x-default agreement, and inherit per-origin profiles.
+  Version observable crawler identities without changing default robots output.
+
 ## 1.5.3
 
 Add opt-in editorial audit advice, eight typed JSON-LD components, extended Article publishing

@@ -101,6 +101,36 @@ describe('allocateSmallCorpus', () => {
 });
 
 describe('planSectionChunks', () => {
+  test('does not count a duplicate page wrapper when a heading section stays in the current chunk', async () => {
+    const item = page('/guide', 'Intro.\n\n## Section\n\nFirst.\n\nSecond.');
+    const full = renderChunkFragments([{ page: item,
+      blocks: ['Intro.', '## Section\n\nFirst.', 'Second.'], includeDescription: true }]);
+    const result = await planSectionChunks({ pages: [item], maxTokens: full.length, count: countCharacters });
+    expect(result.chunks).toHaveLength(1);
+    expect(result.chunks[0].text).toBe(full);
+  });
+
+  test('moves a fitting complete heading section to the next chunk', async () => {
+    const item = page('/guide', 'Intro.\n\n## Section\n\nFirst.\n\nSecond.');
+    const fresh = renderChunkFragments([{ page: item,
+      blocks: ['## Section\n\nFirst.', 'Second.'], includeDescription: false }]);
+    const result = await planSectionChunks({ pages: [item], maxTokens: fresh.length,
+      count: countCharacters });
+    expect(result.chunks).toHaveLength(2);
+    expect(result.chunks[0].text).toContain('Intro.');
+    expect(result.chunks[0].text).not.toContain('## Section');
+    expect(result.chunks[1].text).toContain('## Section\n\nFirst.\n\nSecond.');
+  });
+
+  test('emits oversized heading and content together with a diagnostic', async () => {
+    const markdown = `## Large\n\n${'content '.repeat(50)}`;
+    const result = await planSectionChunks({ pages: [page('/large', markdown)],
+      maxTokens: 100, count: countCharacters });
+    expect(result.chunks).toHaveLength(1);
+    expect(result.chunks[0].text).toContain(markdown);
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: 'corpus-chunk-over-budget' }));
+  });
+
   test('splits at paragraph boundaries and omits descriptions on continuations', async () => {
     const item = page('/guide', 'First block.\n\nSecond block.');
     const first = renderChunkFragments([{ page: item, blocks: ['First block.'], includeDescription: true }]);

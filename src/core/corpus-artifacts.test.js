@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { resolveConfig } from '../config.js';
 import { createLocaleSnapshot } from './locale.js';
 import { planCorpusArtifacts } from './corpus-artifacts.js';
+import { BUILTIN_CORPUS_TOKENIZER } from './corpus-tokenizer.js';
 import { renderLlmsFullTxt, renderLlmsTxt } from './render/llms-txt.js';
 
 const siteMeta = { name: 'Example', description: 'Corpus fixture' };
@@ -33,6 +34,30 @@ function page(pathname, language, locale = language, origin = 'https://example.t
 }
 
 describe('logical corpus artifact planner', () => {
+  test('discloses sanitized preflight and count fallback identically for build and runtime plans', async () => {
+    const config = resolveConfig({ corpus: { manifest: { enabled: true },
+      tokenizer: { module: './private-tokenizer.js', options: { secret: 'never publish' } } } });
+    const input = { config, pages: [page('/guide', 'en')], siteMeta,
+      origin: 'https://example.test', base: '' };
+    const build = await planCorpusArtifacts(input);
+    const runtime = await planCorpusArtifacts({ ...input, requestTime: true,
+      tokenizer: BUILTIN_CORPUS_TOKENIZER, tokenizerFallback: 'preflight', tokenizerProbed: true });
+    expect(build.manifest.tokenizerFallback).toEqual({ reason: 'preflight' });
+    expect(runtime.manifest.tokenizerFallback).toEqual(build.manifest.tokenizerFallback);
+    expect(runtime.manifest).toEqual(build.manifest);
+    expect(runtime.artifacts).toEqual(build.artifacts);
+    const failed = await planCorpusArtifacts({ ...input, tokenizerProbed: true,
+      tokenizer: { apiVersion: 1, name: 'custom', version: '1', approximate: false,
+        count() { throw new Error('private diagnostic'); } } });
+    expect(failed.manifest.tokenizerFallback).toEqual({ reason: 'count' });
+    expect(failed.manifest.tokenizer).toEqual(build.manifest.tokenizer);
+    expect(failed.manifestText).toBe(build.manifestText.replace('"preflight"', '"count"'));
+    expect(failed.manifestText).not.toMatch(/private|secret|never publish/);
+    const normal = await planCorpusArtifacts({ ...input,
+      config: resolveConfig({ corpus: { manifest: { enabled: true } } }) });
+    expect(normal.manifest).not.toHaveProperty('tokenizerFallback');
+  });
+
   test('preserves the legacy root bytes for one implicit locale', async () => {
     const config = resolveConfig();
     const pages = [{ ...page('/guide', undefined, null), language: undefined, locale: null }];

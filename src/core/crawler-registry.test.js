@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { CRAWLER_REGISTRY, crawlerRegistryEntry } from './crawler-registry.js';
+import { ANALYTICS_CRAWLER_REGISTRY, CRAWLER_REGISTRY_VERSION, CRAWLER_REGISTRY, crawlerRegistryEntry } from './crawler-registry.js';
 
 describe('crawler registry', () => {
   test('is a frozen, release-dated first-party snapshot', () => {
@@ -22,4 +22,14 @@ describe('crawler registry', () => {
     expect(crawlerRegistryEntry('gptbot')?.token).toBe('GPTBot');
     expect(crawlerRegistryEntry('UNKNOWN')).toBeUndefined();
   });
+});
+
+ test('versions claimed observable identities separately from robots policy controls', () => {
+  expect(CRAWLER_REGISTRY_VERSION).toBe('2');
+  expect(Object.isFrozen(ANALYTICS_CRAWLER_REGISTRY)).toBe(true);
+  expect(ANALYTICS_CRAWLER_REGISTRY.some((entry) => entry.kind === 'control-token')).toBe(false);
+  expect(ANALYTICS_CRAWLER_REGISTRY.map((entry) => entry.token)).toEqual(expect.arrayContaining([
+    'Applebot', 'Amzn-SearchBot', 'Amzn-User', 'GPTBot',
+  ]));
+  expect(CRAWLER_REGISTRY.some((entry) => entry.token === 'Amzn-User')).toBe(false);
 });

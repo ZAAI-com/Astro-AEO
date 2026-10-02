@@ -405,7 +405,9 @@ export const validationOpts: ValidationOptions = { onBuild: 'recommended', failO
 // runtime accepts the combination and only errors when the two values disagree.
 export const mixedEras: AstroAeoConfig = {
   domainProfile: { enabled: true },
-  site: { profile: { name: 'Example', entityType: 'Organization' } },
+  site: { profile: { name: 'Example', entityType: 'Organization',
+    origins: { 'https://fr.example.test': { name: 'Exemple', entityType: 'Organization', sameAs: [] } },
+  } },
   exclude: ['/private/**'],
   pages: { respectNoindex: true },
   dotmd: { includeLastModified: true },
@@ -646,6 +648,7 @@ export const diagnosticsManifest: DiagnosticManifestV1 = {
   diagnostics: [diagnostic],
 };
 export const corpusManifest: CorpusManifestV1 = {
+  tokenizerFallback: { reason: 'count' },
   version: 1,
   origin: 'https://example.com',
   base: '/',
@@ -1029,3 +1032,6 @@ export const privateTrace: AeoProcessingTraceV1 = {
     graphProvenance: {}, htmlTransforms: [], diagnostics: {} }],
   artifacts: [], diagnostics: {}, cacheReasons: {},
 };
+
+// @ts-expect-error Profile override enablement is shared, never per-origin.
+export const badOriginProfile: AstroAeoConfig = { site: { profile: { origins: { 'https://example.test': { enabled: true } } } } };

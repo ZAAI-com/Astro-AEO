@@ -70,6 +70,7 @@ export function chunkTopology(mode, localeCount) {
  *   tokenizer?: unknown;
  *   tokenizerOptions?: unknown;
  *   tokenizerProbed?: boolean;
+ *   tokenizerFallback?: 'preflight';
  *   cachedCount?: import('./corpus-tokenizer.js').CachedTokenCount;
  *   cachedText?: (identity: unknown, produce: () => string) => Promise<string>;
  *   cachedChunks?: (identity: unknown, produce: () => ReturnType<typeof planSectionChunks>) => ReturnType<typeof planSectionChunks>;
@@ -427,7 +428,9 @@ export async function planCorpusArtifacts(input) {
     { skipProbe: input.tokenizerProbed === true, cachedCount: input.cachedCount },
   );
 
-  if (planned.fallback) {
+  const tokenizerFallback = planned.fallback?.reason ?? input.tokenizerFallback ??
+    (input.config.corpus.tokenizer && input.tokenizer === undefined ? 'preflight' : undefined);
+  if (tokenizerFallback) {
     diagnostics.push(finding(
       'corpus-tokenizer-fallback',
       'warning',
@@ -526,6 +529,7 @@ export async function planCorpusArtifacts(input) {
           origin,
           base: input.base || '/',
           tokenizer: planned.tokenizer,
+          ...(tokenizerFallback ? { tokenizerFallback: { reason: tokenizerFallback } } : {}),
           locales: localeRecords,
           pages: pageRecords,
           artifacts: planned.result.artifacts.map((artifact) => ({

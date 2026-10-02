@@ -3,6 +3,20 @@ import { resolveConfig, resolveSiteMeta } from './config.js';
 import { AeoConfigError } from './lib/errors.js';
 
 describe('resolveConfig', () => {
+  test('normalizes strict per-origin domain-profile overrides', () => {
+    const origins = { 'https://FR.example.test/': { name: 'Français', sameAs: ['https://example.test/about'] } };
+    const c = resolveConfig({ site: { profile: { origins } } });
+    expect(c.site.profile.origins).toEqual({ 'https://fr.example.test': origins['https://FR.example.test/'] });
+    expect(c.site.profile.origins['https://fr.example.test'].sameAs).not.toBe(origins['https://FR.example.test/'].sameAs);
+    for (const invalid of [
+      [], { 'https://example.test/path': {} }, { 'https://user:secret@example.test': {} },
+      { 'https://example.test?q=secret': {} }, { 'https://example.test': { enabled: true } },
+      { 'https://example.test': { sameAs: [1] } }, { 'https://example.test': { name: 42 } },
+      { 'https://example.test': { entityType: 'Spaceship' } },
+      { 'https://example.test': {}, 'https://EXAMPLE.test/': {} },
+    ]) expect(() => resolveConfig({ site: { profile: { origins: invalid } } })).toThrow(/site.profile.origins/);
+  });
+
   test('zero-config produces sensible defaults', () => {
     const c = resolveConfig();
     expect(c.pages.include).toEqual(['**']);

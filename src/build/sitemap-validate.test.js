@@ -24,6 +24,23 @@ function fixture({ canonicals = true } = {}) {
 }
 
 describe('validateLocalSitemap', () => {
+  test('checks x-default agreement without fetching external default targets', () => {
+    const root = fixture();
+    const render = (frDefault) => `<urlset xmlns="${NS}" xmlns:xhtml="${XHTML}">` +
+      '<url><loc>https://example.test/en/</loc><xhtml:link rel="alternate" hreflang="fr" href="https://example.test/fr/"/>' +
+      '<xhtml:link rel="alternate" hreflang="x-default" href="https://choose.test/"/></url>' +
+      '<url><loc>https://example.test/fr/</loc><xhtml:link rel="alternate" hreflang="en" href="https://example.test/en/"/>' +
+      `<xhtml:link rel="alternate" hreflang="x-default" href="${frDefault}"/></url></urlset>`;
+    const check = (target) => {
+      writeFileSync(join(root, 'sitemap.xml'), render(target));
+      return validateLocalSitemap({ distDir: root, entryPath: '/sitemap.xml', siteUrl: 'https://example.test' });
+    };
+    expect(check('https://other-choice.test/').findings).toContainEqual(expect.objectContaining({
+      code: 'sitemap-hreflang-x-default-conflict', sourcePath: '/sitemap.xml',
+    }));
+    expect(check('https://choose.test/').valid).toBe(true);
+  });
+
   test('follows confined shards and validates reciprocal alternates', () => {
     const root = fixture();
     writeFileSync(

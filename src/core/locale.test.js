@@ -29,6 +29,31 @@ function servedAt(context, alternates = [], rendered = '') {
 }
 
 describe('hreflang normalization', () => {
+  test('checks x-default agreement within known reciprocal alternate clusters', () => {
+    const records = [
+      page('/en/', [{ language: 'fr', url: 'https://example.test/fr/' },
+        { language: 'x-default', url: 'https://example.test/' }]),
+      page('/fr/', [{ language: 'en', url: 'https://example.test/en/' },
+        { language: 'x-default', url: 'https://example.test/choose/' }]),
+    ];
+    expect(normalizePageAlternates(records).diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'hreflang-x-default-conflict', severity: 'error' }));
+    records[1].alternates[1].url = 'https://example.test/';
+    expect(normalizePageAlternates(records).diagnostics).toEqual([]);
+  });
+
+  test('enforces explicit unresolved policies even without an Astro locale configuration', () => {
+    const snapshot = createLocaleSnapshot(undefined, 'https://example.test', '');
+    for (const unresolvedLanguage of ['error', 'exclude']) {
+      const result = resolvePageLocale(page('/unknown/'), snapshot, { unresolvedLanguage });
+      expect(result.excluded).toBe(true);
+      expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: 'page-language-unresolved',
+        severity: unresolvedLanguage === 'error' ? 'error' : 'warning' }));
+    }
+    expect(resolvePageLocale({ ...page('/'), language: 'x-default' }, snapshot,
+      { unresolvedLanguage: 'default' }).diagnostics[0].code).toBe('page-language-invalid');
+  });
+
   test('keeps a structured language target when unmanaged markup conflicts', () => {
     const result = normalizePageAlternates([
       page('/en/', [{ language: 'fr_fr', url: 'https://example.test/fr/' }],

@@ -754,17 +754,53 @@ Severity: error. Raised by: offline.
 
 Severity: error. Raised by: offline.
 
+### hreflang-canonical-conflict
+
+Severity: error. Raised by: build, offline, live.
+
+### hreflang-duplicate-language
+
+Severity: error. Raised by: build, offline, live.
+
+### hreflang-invalid
+
+Severity: error. Raised by: build, offline, live.
+
+### hreflang-not-reciprocal
+
+Severity: error. Raised by: build, offline, live.
+
 ### hreflang-return-missing
 
 Severity: warning. Raised by: offline, live.
+
+### hreflang-structured-precedence
+
+Severity: error. Raised by: build, offline, live.
 
 ### hreflang-target-missing
 
 Severity: error. Raised by: offline, live.
 
+### hreflang-x-default-conflict
+
+Severity: error. Raised by: build, offline, live.
+
 ### html-lang-missing
 
 Severity: warning. Raised by: offline, live.
+
+### page-language-invalid
+
+Severity: error. Raised by: build, offline, live.
+
+### page-language-unresolved
+
+Severity: error. Raised by: build, offline, live.
+
+### site-default-locale-invalid
+
+Severity: error. Raised by: build, offline, live.
 
 ### sitemap-hreflang-canonical-mismatch
 
@@ -787,6 +823,10 @@ Severity: error. Raised by: offline.
 Severity: error. Raised by: offline.
 
 ### sitemap-hreflang-url-invalid
+
+Severity: error. Raised by: offline.
+
+### sitemap-hreflang-x-default-conflict
 
 Severity: error. Raised by: offline.
 

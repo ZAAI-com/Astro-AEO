@@ -710,6 +710,8 @@ export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {
     tokenizer: loadedTokenizer.implementation,
     tokenizerOptions: 'options' in loadedTokenizer ? loadedTokenizer.options : undefined,
     tokenizerProbed: true,
+    tokenizerFallback: 'fallback' in loadedTokenizer ? loadedTokenizer.fallback :
+      (runtime.config.corpus.tokenizer && !opts.tokenizerLoader ? 'preflight' : undefined),
     // Every page here is collected on demand, but the middleware serves each
     // one's `.md` companion, so the manifest must list it.
     requestTime: true,
