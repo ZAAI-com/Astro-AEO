@@ -1,0 +1,45 @@
+src/runtime/middleware.dev.test.js
+  s_f8660d98b07a77::t_75be7aa01a9a97 6,184-191
+src/core/extract/index.test.js
+  s_f8660d98b07a77::t_75be7aa01a9a97 334-407
+src/index.e2e.test.js
+  s_f8660d98b07a77::t_75be7aa01a9a97 6,33-36
+src/core/extract/index.js
+  s_f8660d98b07a77::t_75be7aa01a9a97 241-247
+src/core/page-model.test.js
+  s_f8660d98b07a77::t_75be7aa01a9a97 62-77
+fixtures/demo/src/pages/tab-panels.astro
+  s_4d3e2ebae71f6c::t_b029fad5344589 1-7
+fixtures/extract-real/semantic-tabs.html
+  s_4d3e2ebae71f6c::t_c39216c575bc26 1-22
+fixtures/extract-real/semantic-tabs.md
+  s_4d3e2ebae71f6c::t_954885353dbcdb 1-25
+fixtures/shared/TabPanels.astro
+  s_4d3e2ebae71f6c::t_765006d1fc459e 1-29
+test/contracts/tab-panels.js
+  s_4d3e2ebae71f6c::t_c71ff0fcea4d39 1-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "dd0e28d15932521f25bd613bbc77b9926e2bda65",
+  "prompts": {},
+  "sessions": {
+    "s_4d3e2ebae71f6c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fd4f-2e6b-7ad0-9fb6-3439f559f336",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_f8660d98b07a77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84f6ceda-7cc9-4745-81e0-a88873876321",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
