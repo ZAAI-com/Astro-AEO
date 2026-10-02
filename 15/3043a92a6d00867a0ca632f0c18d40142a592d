@@ -1,0 +1,21 @@
+src/audit/editorial.js
+  s_ed94aa4c360a84::t_8691278a13e365 15-45,48,50-51
+src/audit/editorial.test.js
+  s_ed94aa4c360a84::t_5f1b86c5248307 33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "153043a92a6d00867a0ca632f0c18d40142a592d",
+  "prompts": {},
+  "sessions": {
+    "s_ed94aa4c360a84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b931bb54-31c4-4ab7-9b9f-94c4fc1edacf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
