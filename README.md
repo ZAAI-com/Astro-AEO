@@ -988,16 +988,23 @@ compression.
 
 ### Incremental processing cache
 
-Only page extraction results are cached: the Markdown and page record of each page, under
-`.astro/aeo-cache/processing-v1`. An entry is keyed by the page's rendered HTML, its authored
-source, the `pages` and `markdown` options, the default locale, the renderers, and the extractor
-version (astro-aeo, `turndown`, and `linkedom`). When the extractor changes (an upgrade, a
-downgrade, or a dependency refresh), the cache resets once and the build logs the reset, so a
-build never reuses Markdown produced by another version. The key names versions, not source: if
-you run astro-aeo from a git checkout or a linked copy and change its code without changing its
-version, delete `.astro/aeo-cache/processing-v1` before the next build. Git modification dates are
-merged after extraction and are never frozen by a cache hit. A complete build prunes the entries
-it did not use; an incomplete inventory keeps them.
+Build processing uses independent versioned extraction, page normalization, pure plugin
+transformation, graph, tokenization, and artifact entries under `.astro/aeo-cache/processing-v1`.
+Each stage keys its relevant content, configuration, producer, and declared extension versions.
+HTTP cache policy does not invalidate extraction. Tokenization keys the tokenizer identity,
+options, and normalized text; locale text and section chunks depend on their own participating
+pages, while global corpora depend on the full participating inventory.
+
+Only pure/versioned hook stages and non-inline pure/versioned renderers are reused. Undeclared
+hooks, inline renderers, and function-dependent stages run again without disabling unrelated
+caches. A declining unsafe renderer can still reuse unchanged rendered-HTML fallback conversion.
+Thrown or malformed hook failures never become reusable successful plugin results. Parser and
+converter dependency refreshes invalidate affected stages, not unrelated tokenization/artifacts.
+Package upgrades and downgrades reset all entries. If you edit a git checkout or linked copy
+without changing its package or declared extension version, clear `processing-v1` before building.
+Git modification dates are merged after extraction. Incomplete inventories retain unseen cache
+entries and withhold stale output deletion. Identical output bytes retain their mtimes; missing
+owned artifacts are restored through the ordinary ownership transaction.
 
 An exclusive same-host process lock protects reusable state. A locked or invalid state makes the
 build run cold and read-only, with no stale deletion authority: stale files are kept, recorded for a
@@ -1008,6 +1015,16 @@ win. A stale file is deleted only when the prior ledger names Astro-AEO, the pat
 file is regular and not a symlink, and its bytes still match the prior emitted hash. To clear the
 cache by hand, delete only `.astro/aeo-cache/processing-v1`: deleting all of `.astro/aeo-cache` also
 discards the artifact ownership and IndexNow ledgers. Set `cache.enabled: false` to stop reuse.
+
+Builds also write private `pages-v1.json` and `trace-v1.json` under `.astro/aeo-cache`, both mode
+`0600`. Snapshots contain component hashes and ownership etags, not page content. Trace records
+cache outcomes/reasons, skips, plugin actions, source strategy/renderer identity, graph provenance
+counts, HTML transform names, and generated/restored/removed/preserved artifact decisions.
+Both carry the same content-derived `buildDigest`; timestamps, timings, and warm/cold outcomes
+are excluded from that identity. Evidence omits source bodies, source locations, absolute paths,
+credential-bearing URLs, and diagnostic messages. These files are not public artifacts and must
+not be copied into a deployed output directory. The exported `AeoPageSnapshotV1` and
+`AeoProcessingTraceV1` types describe their versioned contracts.
 
 ### The universal robots.txt group
 

@@ -146,6 +146,14 @@ export async function createPluginDispatcher({ plugins = [], internalPlugins = [
     hasUserHooks(stage) {
       return userHookStages.has(stage);
     },
+    /** @param {import('../index.js').AstroAeoPluginStage} stage */
+    cacheIdentity(stage) {
+      const registrations = hooks.get(stage) ?? [];
+      if (registrations.some((entry) => !entry.cache)) return null;
+      return registrations.map(({ plugin, ordinal, cache, recoverable }) => ({
+        plugin, ordinal, version: cache?.version, recoverable: recoverable === true,
+      }));
+    },
     /**
      * @template T
      * @param {import('../index.js').AstroAeoPluginStage} stage

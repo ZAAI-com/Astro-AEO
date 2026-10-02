@@ -13,7 +13,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { isSafeOutputPath } from './ownership.js';
 
 /**
- * @typedef {{ kind: 'write'; path: string; contents?: string | Buffer; copyFrom?: string; mode?: number; confineTo?: string } | { kind: 'delete'; path: string; confineTo?: string }} FileOperation
+ * @typedef {{ kind: 'write'; path: string; contents?: string | Buffer; copyFrom?: string; mode?: number; confineTo?: string; skipIdentical?: boolean } | { kind: 'delete'; path: string; confineTo?: string }} FileOperation
  */
 
 /**
@@ -57,12 +57,15 @@ export function commitFileTransaction(operations, options = {}) {
   if (!/^[A-Za-z0-9][A-Za-z0-9-]{0,127}$/.test(id)) {
     throw new Error('astro-aeo: transaction id must be a safe filename token');
   }
-  /** @type {{ operation: FileOperation; temp?: string; backup: string; existed: boolean; mode?: number; backedUp: boolean; installed: boolean }[]} */
+  /** @type {{ operation: FileOperation; temp?: string; backup: string; existed: boolean; mode?: number; backedUp: boolean; installed: boolean; unchanged?: boolean }[]} */
   const entries = normalizedOperations.map((operation) => {
     const stat = entryStat(operation.path);
     const existed = stat !== null;
     let mode;
     if (stat) {
+      if (stat.isSymbolicLink() && operation.kind === 'write' && operation.skipIdentical) {
+        throw new Error('astro-aeo: unchanged output must not be a symbolic link');
+      }
       if (stat.isDirectory()) {
         throw new Error(`astro-aeo: artifact destination is a directory: ${operation.path}`);
       }
@@ -102,6 +105,12 @@ export function commitFileTransaction(operations, options = {}) {
       const contents = operation.copyFrom
         ? readFileSync(operation.copyFrom)
         : operation.contents ?? '';
+      if (operation.skipIdentical && entry.existed &&
+          (operation.mode === undefined || operation.mode === entry.mode) &&
+          readFileSync(operation.path).equals(Buffer.isBuffer(contents) ? contents : Buffer.from(contents))) {
+        entry.unchanged = true;
+        continue;
+      }
       writeFileSync(/** @type {string} */ (entry.temp), contents, {
         flag: 'wx',
         mode: operation.mode ?? entry.mode ?? 0o644,
@@ -112,6 +121,19 @@ export function commitFileTransaction(operations, options = {}) {
       const entry = entries[index];
       options.beforeApply?.(entry.operation, index);
       assertSafeAncestry(entry.operation);
+      if (entry.unchanged) {
+        // Recheck after caller hooks: skipped writes must not hide a raced edit.
+        const current = entryStat(entry.operation.path);
+        if (!current?.isFile() || (entry.operation.kind === 'write' && entry.operation.mode !== undefined &&
+            (current.mode & 0o777) !== entry.operation.mode) ||
+            !readFileSync(entry.operation.path).equals(
+              entry.operation.kind === 'write' && entry.operation.copyFrom
+                ? readFileSync(entry.operation.copyFrom)
+                : Buffer.from(entry.operation.kind === 'write' ? entry.operation.contents ?? '' : ''))) {
+          throw new Error('astro-aeo: unchanged transaction destination changed during commit');
+        }
+        continue;
+      }
       if (entry.existed) {
         if (entryExists(entry.backup)) {
           throw new Error(`astro-aeo: transaction backup already exists: ${entry.backup}`);

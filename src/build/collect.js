@@ -10,6 +10,7 @@ import { createDistHtmlSource } from '../sources/dist-html.js';
 import { getGitLastModified } from '../lib/git-mtime.js';
 import { normalizePath } from '../core/match.js';
 import { stripMarkersFromHtml } from '../core/extract/marker.js';
+import { hasFunction } from './stage-cache.js';
 
 /**
  * @typedef {import('../core/page-model.js').BuildPage} BuildPage
@@ -30,7 +31,8 @@ import { stripMarkersFromHtml } from '../core/extract/marker.js';
  * @property {{ warn: (m: string) => void }} logger
  * @property {import('../index.js').Diagnostic[]} [diagnostics]  Build diagnostics, for reporting skipped pages.
  * @property {import('../core/markdown-renderers.js').MarkdownRendererEntry[]} [renderers]
- * @property {{ key: (stage: string, inputs: unknown) => string; get: (key: string) => unknown; put: (key: string, value: unknown) => void }} [cache]
+ * @property {import('./stage-cache.js').StageCache} [cache]
+ * @property {(pathname: string, stage: string, outcome: string) => void} [observe]
  */
 
 /**
@@ -65,6 +67,7 @@ export async function collectPages(rawPages, config, ctx) {
         message: `The built HTML for ${pathname} could not be read, so the page was skipped.`,
         pathname,
       });
+      ctx.observe?.(pathname, 'skip', 'unreadable');
       continue;
     }
 
@@ -77,28 +80,32 @@ export async function collectPages(rawPages, config, ctx) {
       inline: renderer.inline,
     }));
     const cache = ctx.cache;
+    const { hash: _claimedHash, ...authoredInputs } = authored ?? {};
+    const inputs = {
+      pathname, html, authored: authored ? authoredInputs : undefined, rendering: raw.rendering ?? 'prerendered',
+      routePattern: raw.routePattern, site, pages: {
+        include: config.pages.include, exclude: config.pages.exclude,
+        respectNoindex: config.pages.respectNoindex, stripTitleSuffix: config.pages.stripTitleSuffix,
+      },
+      extraction: config.markdown.extraction,
+      defaultLocale: config.site.defaultLocale, renderers: rendererIdentities,
+    };
     const cacheable = Boolean(
-      cache &&
+      cache && !hasFunction(inputs) &&
       (ctx.renderers ?? []).every((renderer) =>
         !renderer.inline && renderer.cache?.pure === true && typeof renderer.cache.version === 'string'),
     );
     const cacheKey = cacheable
-      ? cache?.key('extraction-v1', {
-          pathname,
-          html,
-          authored,
-          rendering: raw.rendering ?? 'prerendered',
-          routePattern: raw.routePattern,
-          site,
-          pages: config.pages,
-          markdown: config.markdown,
-          defaultLocale: config.site.defaultLocale,
-          renderers: rendererIdentities,
-        })
+      ? cache?.key('normalization-v2', inputs)
       : undefined;
     const cached = cacheKey ? cache?.get(cacheKey) : undefined;
     const reusable = validCachedPageResult(cached);
-    const result = reusable
+    ctx.observe?.(pathname, 'normalization', reusable ? 'hit' : cacheKey ? 'miss' : 'bypass');
+    const finishCapture = !reusable && cacheKey ? cache?.capture?.() : undefined;
+    let result;
+    /** @type {string[] | undefined} */
+    let dependencies;
+    try { result = reusable
       ? 'skip' in cached
         ? { skip: cached.skip }
         : {
@@ -121,8 +128,11 @@ export async function collectPages(rawPages, config, ctx) {
           renderers: ctx.renderers,
           rendering: raw.rendering ?? 'prerendered',
           routePattern: raw.routePattern,
-        });
+          extractionCache: hasFunction(config.markdown.extraction) ? undefined : cache,
+        }); }
+    finally { dependencies = finishCapture?.(); }
     if ('skip' in result) {
+      ctx.observe?.(pathname, 'skip', String(result.skip));
       // Put whenever the entry was not reusable, so an invalid cached value is
       // overwritten instead of being rebuilt on every build.
       if (cacheKey && !reusable) ctx.cache?.put(cacheKey, { skip: result.skip });
@@ -132,7 +142,7 @@ export async function collectPages(rawPages, config, ctx) {
     // Cache the extraction result before the lastModified merge below. The raw
     // descriptor and git dates are not cache-key inputs, so a cached copy of
     // them would freeze a page's modified date at its first extraction.
-    if (cacheKey && !reusable) {
+    if (cacheKey && !reusable && result.page.diagnostics.length === 0) {
       const { html: _html, ...cachedRepresentations } = result.page.representations;
       // `origin` is descriptor passthrough, not an extraction result. Keep it out
       // of the payload, like htmlPath/mdPath, so it is not part of the cache key.
@@ -142,7 +152,7 @@ export async function collectPages(rawPages, config, ctx) {
           ...cachedPage,
           representations: cachedRepresentations,
         },
-      });
+      }, dependencies);
     }
 
     const lastModified =

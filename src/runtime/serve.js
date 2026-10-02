@@ -500,7 +500,8 @@ function internalSemanticLoaders(config) {
   let loaders = internalSemanticModules.get(config);
   if (!loaders) {
     loaders = [{ name: 'astro-aeo:semantic', module: 'astro-aeo:semantic', stages: ['graph:build'],
-      hookManifest: [{ stage: 'graph:build', ordinal: 0 }], claims: [], load: async () => createSemanticPlugin(config) }];
+      hookManifest: [{ stage: 'graph:build', ordinal: 0, cache: { pure: true, version: '2' } }],
+      claims: [], load: async () => createSemanticPlugin(config) }];
     internalSemanticModules.set(config, loaders);
   }
   return loaders;

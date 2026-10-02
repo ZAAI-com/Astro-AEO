@@ -43,6 +43,25 @@ describe('commitFileTransaction', () => {
     expect(existsSync(join(root, 'missing.txt'))).toBe(false);
   });
 
+  test('identical writes retain mtimes but explicit permission changes are applied', () => {
+    const path = join(root, 'same.txt');
+    writeFileSync(path, 'Same', { mode: 0o644 });
+    const before = statSync(path).mtimeMs;
+    commitFileTransaction([{ kind: 'write', path, contents: 'Same', skipIdentical: true }]);
+    expect(statSync(path).mtimeMs).toBe(before);
+    commitFileTransaction([{ kind: 'write', path, contents: 'Same', mode: 0o600, skipIdentical: true }]);
+    expect(statSync(path).mode & 0o777).toBe(0o600);
+  });
+
+  test('rechecks identical output after caller hooks and refuses raced byte or permission changes', () => {
+    for (const mutation of [(path) => writeFileSync(path, 'Raced'), (path) => chmodSync(path, 0o644)]) {
+      const path = join(root, 'same.txt'); writeFileSync(path, 'Same'); chmodSync(path, 0o600);
+      expect(() => commitFileTransaction([{ kind: 'write', path, contents: 'Same', mode: 0o600, skipIdentical: true }], {
+        beforeApply() { mutation(path); },
+      })).toThrow(/changed during commit/);
+    }
+  });
+
   test('rolls a stale deletion back when a later operation fails', () => {
     const stale = join(root, 'stale.txt');
     const output = join(root, 'output.txt');

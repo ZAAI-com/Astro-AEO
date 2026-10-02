@@ -133,9 +133,10 @@ export function basePrefix(base) {
  * @param {string} [input.publicPathname] URL-encoded pathname used for emitted links.
  * @param {string} [input.routePattern]
  * @param {(title: string) => string} [input.strip]  Reused instance; derived from config when absent.
+ * @param {{ key: (stage: string, inputs: unknown) => string; get: (key: string) => unknown; put: (key: string, value: unknown) => void }} [input.extractionCache]
  * @returns {Promise<{ page: AeoPage } | { skip: SkipReason }>}
  */
-export async function buildPage({ pathname: rawPathname, html, config, site, td, getTurndown, authored, renderers = [], allowMarker = true, rendering = 'on-demand', publicPathname, routePattern, strip }) {
+export async function buildPage({ pathname: rawPathname, html, config, site, td, getTurndown, authored, renderers = [], allowMarker = true, rendering = 'on-demand', publicPathname, routePattern, strip, extractionCache }) {
   const pathname = normalizePath(rawPathname || '/');
   const emittedPathname = normalizePath(publicPathname ?? pathname);
 
@@ -179,6 +180,8 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
   /** @type {import('../index.js').Diagnostic[]} */
   const rendererDiagnostics = [];
   let rendererWins = false;
+  /** @type {string | undefined} */
+  let extractedPlainText;
   if (sourceMarkdown !== undefined) {
     markdown = sourceMarkdown;
   } else {
@@ -217,12 +220,23 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
       }
     }
     if (!rendererWins) {
-      const extracted = extractMarkdown(
-        document,
-        config.markdown.extraction,
-        td ?? (await (getTurndown ?? createTurndown)()),
-        { baseUrl: url },
-      );
+      // The fallback extraction identity is independent of renderer purity and
+      // output policies. An unsafe renderer still runs on every build, but its
+      // decline does not force an identical HTML conversion again.
+      const key = extractionCache?.key('extraction-v2', {
+        html: document.toString(), extraction: config.markdown.extraction, baseUrl: url,
+      });
+      const cached = key ? extractionCache?.get(key) : undefined;
+      const reusable = cached && typeof cached === 'object' &&
+        typeof /** @type {any} */ (cached).markdown === 'string' &&
+        typeof /** @type {any} */ (cached).plainText === 'string' &&
+        typeof /** @type {any} */ (cached).diagnostics?.strategy === 'string';
+      const extracted = reusable
+        ? /** @type {ReturnType<typeof extractMarkdown>} */ (cached)
+        : extractMarkdown(document, config.markdown.extraction,
+            td ?? (await (getTurndown ?? createTurndown)()), { baseUrl: url });
+      extractedPlainText = reusable ? /** @type {any} */ (cached).plainText : documentPlainText(document);
+      if (key && !reusable) extractionCache?.put(key, { ...extracted, plainText: extractedPlainText });
       markdown = extracted.markdown;
       extraction = extracted.diagnostics;
     }
@@ -296,7 +310,7 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
       representations: {
         html: cleanHtml,
         markdown,
-        plainText: documentPlainText(document),
+        plainText: extractedPlainText ?? documentPlainText(document),
       },
       ...(published || modified
         ? { dates: { ...(published ? { published } : {}), ...(modified ? { modified } : {}) } }

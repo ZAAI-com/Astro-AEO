@@ -14,7 +14,7 @@ export const PROCESSING_CACHE_VERSION = 1;
 export const PROCESSING_CACHE_DIRECTORY = 'processing-v1';
 
 /**
- * @typedef {{ blob: string }} CacheEntry
+ * @typedef {{ blob: string; dependencies?: string[] }} CacheEntry
  * @typedef {import('./package-version.js').ExtractionProducer} CacheProducer
  * @typedef {{ version: 1; producer?: unknown; entries: Record<string, CacheEntry> }} CacheState
  * @typedef {{ from: CacheProducer | undefined; to: CacheProducer; dropped: number }} CacheReset
@@ -24,11 +24,11 @@ export const PROCESSING_CACHE_DIRECTORY = 'processing-v1';
  * Open the versioned processing cache and acquire its safety lock. A corrupt
  * state or unverifiable lock intentionally produces a cold read-only session.
  *
- * The producer (astro-aeo plus the turndown and linkedom versions) is part of
- * every key, so no other version's results are ever reused, in either
- * direction. `state.json` records it only to explain a reset: when the stored
- * producer is missing, malformed, or different, the session drops the old
- * entries, stays writable, and reports the reset in `stats.reset`.
+ * Every key names astro-aeo; parser/converter stages additionally name their
+ * relevant dependencies. A package version change drops all entries. A parser
+ * or converter refresh drops only affected stages, preserving unrelated
+ * tokenization and artifact payloads. Invalid legacy producers reset cold but
+ * writable; corrupt states remain read-only.
  *
  * @param {string} projectRoot
  * @param {{ enabled: boolean; producer?: CacheProducer; diagnostics?: import('../index.js').Diagnostic[]; logger?: { warn: (message: string) => void } }} options
@@ -50,6 +50,8 @@ export function openProcessingCache(projectRoot, options) {
   const pendingBlobs = new Map();
   /** @type {Set<string>} */
   const touchedKeys = new Set();
+  /** @type {Set<string>[]} */
+  const captures = [];
   const stats = {
     hits: 0,
     misses: 0,
@@ -71,6 +73,21 @@ export function openProcessingCache(projectRoot, options) {
     options.logger?.warn(`astro-aeo: ${message}`);
   }
 
+  /** Retain dependency blobs when a parent stage skips their execution.
+   * @param {string} key */
+  function retain(key) {
+    const pending = [key];
+    while (pending.length) {
+      const next = /** @type {string} */ (pending.pop());
+      if (touchedKeys.has(next) || !state.entries[next]) continue;
+      touchedKeys.add(next);
+      pending.push(...(state.entries[next].dependencies ?? []));
+    }
+  }
+
+  /** @param {string} key */
+  function accessed(key) { for (const capture of captures) capture.add(key); }
+
   const api = {
     root,
     statePath,
@@ -82,13 +99,27 @@ export function openProcessingCache(projectRoot, options) {
       return readOnly;
     },
     stats,
+    capture() {
+      const dependencies = new Set();
+      captures.push(dependencies);
+      return () => {
+        const index = captures.indexOf(dependencies);
+        if (index !== -1) captures.splice(index, 1);
+        return [...dependencies].sort();
+      };
+    },
 
     /**
      * @param {string} stage
      * @param {unknown} inputs
      */
     key(stage, inputs) {
-      return `${stage}:${sha256(canonicalStringify({ stage, producer, inputs }))}`;
+      // Only HTML extraction depends on parser/converter dependency versions.
+      const stageProducer = /^graph/.test(stage)
+        ? { name: producer.name, version: producer.version, dependencies: { linkedom: producer.dependencies.linkedom } }
+        : /^(extraction|normalization)/.test(stage) ? producer
+          : { name: producer.name, version: producer.version };
+      return `${stage}:${sha256(canonicalStringify({ stage, producer: stageProducer, inputs }))}`;
     },
 
     /**
@@ -96,6 +127,7 @@ export function openProcessingCache(projectRoot, options) {
      * @returns {unknown | undefined}
      */
     get(key) {
+      accessed(key);
       if (!options.enabled || readOnly) {
         miss(!options.enabled ? 'disabled' : 'read-only');
         return undefined;
@@ -107,12 +139,15 @@ export function openProcessingCache(projectRoot, options) {
       }
       try {
         const path = join(blobsRoot, entry.blob);
-        const stat = lstatSync(path);
-        if (!stat.isFile() || stat.isSymbolicLink()) throw new TypeError('unsafe blob');
-        const bytes = readFileSync(path);
+        let bytes = pendingBlobs.get(entry.blob);
+        if (!bytes) {
+          const stat = lstatSync(path);
+          if (!stat.isFile() || stat.isSymbolicLink()) throw new TypeError('unsafe blob');
+          bytes = readFileSync(path);
+        }
         if (sha256(bytes) !== entry.blob) throw new TypeError('corrupt blob');
         stats.hits++;
-        touchedKeys.add(key);
+        retain(key);
         return JSON.parse(bytes.toString('utf8'));
       } catch {
         miss('blob-invalid');
@@ -120,14 +155,15 @@ export function openProcessingCache(projectRoot, options) {
       }
     },
 
-    /** @param {string} key @param {unknown} value */
-    put(key, value) {
+    /** @param {string} key @param {unknown} value @param {string[]} [dependencies] */
+    put(key, value, dependencies = []) {
       if (!options.enabled || readOnly) return;
       const bytes = Buffer.from(canonicalStringify(value), 'utf8');
       const blob = sha256(bytes);
       pendingBlobs.set(blob, bytes);
-      state.entries[key] = { blob };
-      touchedKeys.add(key);
+      state.entries[key] = { blob, ...(dependencies.length ? { dependencies: dependencies.filter((dependency) => dependency !== key) } : {}) };
+      accessed(key);
+      retain(key);
       stats.writes++;
     },
 
@@ -202,19 +238,21 @@ export function openProcessingCache(projectRoot, options) {
     if (!readOnly) resetForOtherProducer();
   }
 
-  /**
-   * Drop entries written by another producer but keep writing. Their keys can
-   * never match this producer's keys, and a producer change is not corruption:
-   * going read-only here would withhold IndexNow state on every later build.
-   * An empty previous state has nothing to drop and reports nothing.
-   */
+  /** Drop only stages affected by producer changes and remain writable. */
   function resetForOtherProducer() {
-    const dropped = Object.keys(state.entries).length;
+    const keys = Object.keys(state.entries);
     const from = readProducer(state.producer);
-    if (dropped === 0 || (from && sameProducer(from, producer))) return;
+    if (keys.length === 0 || (from && sameProducer(from, producer))) return;
+    const affected = !from || from.version !== producer.version ? keys
+      : keys.filter((key) => /^(extraction|normalization)/.test(key) ||
+        (key.startsWith('graph') && from.dependencies.linkedom !== producer.dependencies.linkedom));
+    const dropped = affected.length;
     stats.invalidations['package-version'] = dropped;
     stats.reset = { from, to: producer, dropped };
-    state = { version: 1, entries: {} };
+    const removed = new Set(affected);
+    state = { version: 1, entries: Object.fromEntries(
+      Object.entries(state.entries).filter(([key]) => !removed.has(key)),
+    ) };
   }
 
   /** Acquire or safely reclaim a same-host dead-process lock. */
@@ -329,7 +367,11 @@ function validState(value) {
   return Object.entries(candidate.entries).every(([key, entry]) =>
     typeof key === 'string' && key.includes(':') &&
     entry && typeof entry === 'object' &&
-    typeof /** @type {any} */ (entry).blob === 'string' && /^[a-f\d]{64}$/.test(/** @type {any} */ (entry).blob),
+    typeof /** @type {any} */ (entry).blob === 'string' && /^[a-f\d]{64}$/.test(/** @type {any} */ (entry).blob) &&
+    (/** @type {any} */ (entry).dependencies === undefined ||
+      (Array.isArray(/** @type {any} */ (entry).dependencies) &&
+       /** @type {any} */ (entry).dependencies.every((/** @type {unknown} */ dependency) =>
+         typeof dependency === 'string' && dependency.includes(':')))),
   );
 }
 

@@ -35,6 +35,54 @@ export interface CacheDeclaration {
   version: string;
 }
 
+/** Private, content-free build evidence at .astro/aeo-cache/pages-v1.json. */
+export interface AeoPageSnapshotV1 {
+  version: 1;
+  buildDigest: string;
+  inventoryComplete: boolean;
+  pages: readonly {
+    pathname: string;
+    routePattern?: string;
+    locale: string | null;
+    version: string | null;
+    components: {
+      source: string | null;
+      html: string;
+      markdown: string;
+      metadata: string;
+      graph: string;
+      directives: string;
+    };
+  }[];
+  artifacts: readonly {
+    pathname: string;
+    status: string | null;
+    owner: string | null;
+    etag: string | null;
+    byteLength: number | null;
+  }[];
+}
+
+/** Private trace outcomes do not contribute to content-derived buildDigest. */
+export interface AeoProcessingTraceV1 {
+  version: 1;
+  buildDigest: string;
+  inventoryComplete: boolean;
+  stages: readonly { pathname: string; stage: string | null; outcome: string }[];
+  pages: readonly {
+    pathname: string;
+    source: string | null;
+    renderer: string | null;
+    graphEntities: number;
+    graphProvenance: Readonly<Record<string, number>>;
+    htmlTransforms: readonly string[];
+    diagnostics: Readonly<Record<string, number>>;
+  }[];
+  artifacts: readonly { pathname: string; action: string }[];
+  diagnostics: Readonly<Record<string, number>>;
+  cacheReasons: Readonly<Record<string, number>>;
+}
+
 export interface CorpusTokenizerModule {
   apiVersion: 1;
   name: string;

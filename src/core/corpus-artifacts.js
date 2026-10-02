@@ -70,6 +70,9 @@ export function chunkTopology(mode, localeCount) {
  *   tokenizer?: unknown;
  *   tokenizerOptions?: unknown;
  *   tokenizerProbed?: boolean;
+ *   cachedCount?: import('./corpus-tokenizer.js').CachedTokenCount;
+ *   cachedText?: (identity: unknown, produce: () => string) => Promise<string>;
+ *   cachedChunks?: (identity: unknown, produce: () => ReturnType<typeof planSectionChunks>) => ReturnType<typeof planSectionChunks>;
  *   requestTime?: boolean;
  *   note?: string;
  * }} input
@@ -122,7 +125,7 @@ export async function planCorpusArtifacts(input) {
        * @param {string|null} locale
        * @param {string|null} section
        * @param {number|null} part
-       * @param {string} contents
+       * @param {string | (() => string)} contents
        * @param {string|null} [sourcePathname]
        * @param {string[]} [pageIds]
        */
@@ -136,7 +139,35 @@ export async function planCorpusArtifacts(input) {
         sourcePathname = null,
         pageIds,
       ) => {
-        const normalized = normalizePublishedText(contents);
+        const produce = typeof contents === 'function' ? contents : () => contents;
+        let text;
+        if (typeof contents === 'function' && input.cachedText) {
+          const directory = ((mode === 'both' || (mode === 'auto' && allLocales.length > 1)) && pathname === '/llms.txt');
+          const relevantPages = directory ? [] : locale === null ? participatingPages
+            : locales.find((group) => group.locale === locale)?.pages ?? [];
+          const identity = {
+            pathname, kind, locale, section, part, origin, base: input.base,
+            siteMeta: input.siteMeta, note: input.note,
+            ...(locale === null && !directory ? { localeOrder: locales.map((group) => ({
+              locale: group.locale, language: group.language, pageIds: group.pages.map(pageId),
+            })) } : {}),
+            family: directory ? undefined : kind === 'index' ? input.config.corpus.index : { mode: input.config.corpus.full.mode },
+            markdown: kind === 'index' && !directory ? { enabled: input.config.markdown.enabled } : undefined,
+            pages: relevantPages.map((page) => ({
+              pathname: page.pathname, url: page.url, canonicalUrl: page.canonicalUrl, mdHref: page.mdHref,
+              locale: page.locale, language: page.language, title: page.title, description: page.description,
+              directives: page.directives, aeoTokens: page.aeoTokens, rendering: page.rendering,
+              ...(kind === 'index' ? {} : { markdown: page.markdown }),
+              ...((kind === 'index' && input.config.corpus.index.showLastModified)
+                ? { lastModified: page.lastModified } : {}),
+            })),
+            ...(directory
+              ? { directory: allLocales.map((group) => ({ locale: group.locale, language: group.language, origin: group.origin,
+                origins: [...new Set(group.pages.map((page) => page.origin))].sort() })) } : {}),
+          };
+          text = await input.cachedText(identity, produce);
+        } else text = produce();
+        const normalized = normalizePublishedText(text);
         artifacts.push({
           pathname,
           kind,
@@ -162,7 +193,7 @@ export async function planCorpusArtifacts(input) {
             locale?.locale ?? null,
             null,
             null,
-            renderLlmsTxt(pages, input.config, input.siteMeta, { note: input.note }),
+            () => renderLlmsTxt(pages, input.config, input.siteMeta, { note: input.note }),
           );
         }
         if (input.config.corpus.full.enabled) {
@@ -173,7 +204,7 @@ export async function planCorpusArtifacts(input) {
             locale?.locale ?? null,
             null,
             null,
-            renderLlmsFullTxt(pages, input.config, input.siteMeta, { note: input.note }),
+            () => renderLlmsFullTxt(pages, input.config, input.siteMeta, { note: input.note }),
             null,
             selected.map(pageId),
           );
@@ -182,7 +213,7 @@ export async function planCorpusArtifacts(input) {
         const grouped = locales.map((locale) => ({ language: locale.language ?? 'und', pages: locale.pages }));
         if (input.config.corpus.index.enabled) {
           await addText('/llms.txt', 'index', null, null, null,
-            renderGroupedLlmsTxt(grouped, input.config, input.siteMeta, { note: input.note }));
+            () => renderGroupedLlmsTxt(grouped, input.config, input.siteMeta, { note: input.note }));
         }
         if (input.config.corpus.full.enabled) {
           await addText(
@@ -191,7 +222,7 @@ export async function planCorpusArtifacts(input) {
             null,
             null,
             null,
-          renderGroupedLlmsFullTxt(grouped, input.config, input.siteMeta, { note: input.note }),
+          () => renderGroupedLlmsFullTxt(grouped, input.config, input.siteMeta, { note: input.note }),
             null,
             grouped.flatMap((locale) => selectFullTxtPages(locale.pages, input.config).map(pageId)),
           );
@@ -204,7 +235,7 @@ export async function planCorpusArtifacts(input) {
           const prefix = `/${encodeURIComponent(/** @type {string} */ (locale.locale))}`;
           if (input.config.corpus.index.enabled) {
             await addText(`${prefix}/llms.txt`, 'index', locale.locale, null, null,
-              renderLlmsTxt(locale.pages, input.config, input.siteMeta, { note: input.note }));
+              () => renderLlmsTxt(locale.pages, input.config, input.siteMeta, { note: input.note }));
           }
           if (input.config.corpus.full.enabled) {
             const selected = selectFullTxtPages(locale.pages, input.config);
@@ -214,7 +245,7 @@ export async function planCorpusArtifacts(input) {
               locale.locale,
               null,
               null,
-              renderLlmsFullTxt(locale.pages, input.config, input.siteMeta, { note: input.note }),
+              () => renderLlmsFullTxt(locale.pages, input.config, input.siteMeta, { note: input.note }),
               null,
               selected.map(pageId),
             );
@@ -223,7 +254,7 @@ export async function planCorpusArtifacts(input) {
       }
 
       if (((mode === 'auto' && !oneLocale) || mode === 'both') && input.config.corpus.index.enabled) {
-        await addText('/llms.txt', 'index', null, null, null, renderLanguageDirectory(
+        await addText('/llms.txt', 'index', null, null, null, () => renderLanguageDirectory(
           input.siteMeta,
           allLocales.map((locale) => ({
             language: locale.language ?? 'und',
@@ -245,7 +276,7 @@ export async function planCorpusArtifacts(input) {
           null,
           null,
           null,
-          renderGroupedLlmsFullTxt(grouped, input.config, input.siteMeta, { note: input.note }),
+          () => renderGroupedLlmsFullTxt(grouped, input.config, input.siteMeta, { note: input.note }),
           null,
           grouped.flatMap((locale) => selectFullTxtPages(locale.pages, input.config).map(pageId)),
         );
@@ -329,11 +360,16 @@ export async function planCorpusArtifacts(input) {
           const slugs = await resolveSectionSlugs(sections.map((section) => section.title));
           for (let index = 0; index < sections.length; index++) {
             const section = sections[index];
-            const result = await planSectionChunks({
+            const chunkInput = {
               pages: section.pages.map(planPage),
               maxTokens: input.config.corpus.chunks.maxTokensPerFile,
               count,
-            });
+            };
+            const produce = () => planSectionChunks(chunkInput);
+            const result = input.cachedChunks
+              ? await input.cachedChunks({ pages: chunkInput.pages, maxTokens: chunkInput.maxTokens,
+                  tokenizer, options: input.tokenizerOptions }, produce)
+              : await produce();
             addPlannerDiagnostics(diagnostics, result.diagnostics, locale.locale, section.title);
             const topology = chunkTopology(mode, allLocales.length);
             for (const chunk of result.chunks) {
@@ -388,7 +424,7 @@ export async function planCorpusArtifacts(input) {
       }
       return { artifacts, tokenizer, pageTokenCounts };
     },
-    { skipProbe: input.tokenizerProbed === true },
+    { skipProbe: input.tokenizerProbed === true, cachedCount: input.cachedCount },
   );
 
   if (planned.fallback) {
