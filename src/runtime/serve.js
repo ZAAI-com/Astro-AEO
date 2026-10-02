@@ -32,6 +32,7 @@ import { loadRuntimeCorpusTokenizer } from './corpus-tokenizer.js';
 import { discoverRuntimeDynamicPaths } from './dynamic-routes.js';
 import { parseDocument } from '../core/html-document.js';
 import { readMarker } from '../core/extract/marker.js';
+import { routePatternFor } from '../core/route-facts.js';
 import {
   astroRouteLocale,
   normalizeOrigin,
@@ -50,6 +51,7 @@ import {
  * @property {string[]} staticPaths
  * @property {string[]} [projectPaths]
  * @property {RegExp[]} [projectPatterns]
+ * @property {{ pattern: RegExp; routePattern: string }[]} [routePatterns]
  * @property {Record<string, { kind?: 'markdown'|'mdx'; body?: string; markdown?: string; path: string; hash?: string }>} standaloneSources
  */
 
@@ -300,7 +302,8 @@ export async function pageFromHtml(pathname, html, runtime, opts = {}) {
     renderers: await loadRuntimeMarkdownRenderers(opts.rendererLoaders ?? []),
     allowMarker: allowAuthored,
     publicPathname: opts.publicPathname,
-    routePattern: descriptor?.routePattern,
+    routePattern: descriptor?.routePattern ?? routePatternFor(
+      `${basePrefix(runtime.site.base)}${opts.publicPathname ?? lifecyclePathname}`, runtime.routePatterns),
   });
   if ('skip' in result) return null;
   let page = {

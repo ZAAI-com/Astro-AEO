@@ -417,7 +417,7 @@ const canonicalProperties = {
       versions: {
         ...object({
           current: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$' },
-          order: { type: 'array', items: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$' }, uniqueItems: true, default: [] },
+          order: { type: 'array', items: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$' }, uniqueItems: true, description: 'Defaults to an empty order when version partitioning is configured.' },
         }, 'Opt-in version partitions. Omission keeps page labels metadata-only.'),
         required: ['current'],
       },
@@ -705,7 +705,7 @@ function buildPublishedSchema() {
   const source = buildSchema();
   const canonicalNames = [
     'site', 'pages', 'markdown', 'corpus', 'i18n', 'cache', 'discovery', 'artifacts', 'metadata',
-    'schema', 'validation', 'plugins',
+    'schema', 'validation', 'plugins', 'analytics',
   ];
   const legacyNames = [
     'include',

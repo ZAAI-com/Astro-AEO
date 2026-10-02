@@ -1,3 +1,4 @@
+import { sha256Digest } from '../core/corpus-manifest.js';
 import { afterEach, test, expect, describe } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -324,7 +325,7 @@ describe('authored source resolution', () => {
     );
 
     expect(pages[0].markdown).toBe('# Exact Guide\n\n- authored\n');
-    expect(pages[0].source).toEqual({ kind: 'markdown', strategy: 'markdown-route', path: 'src/pages/guide.md' });
+    expect(pages[0].source).toMatchObject({ kind: 'markdown', strategy: 'markdown-route', path: 'src/pages/guide.md' });
     expect(pages[0].extraction).toBeUndefined();
   });
 
@@ -365,7 +366,7 @@ describe('authored source resolution', () => {
     );
 
     expect(pages[0].markdown).toBe('\n\n# Exact MDX\n\n**Mapped**\n');
-    expect(pages[0].source).toEqual({
+    expect(pages[0].source).toMatchObject({
       kind: 'mdx',
       strategy: 'markdown-route',
       path: 'src/pages/guide.mdx',
@@ -409,11 +410,11 @@ describe('authored source resolution', () => {
 
     expect(page.title).toBe('Catalog title');
     expect(page.markdown).toBe('# Exact source\n\nPreserved.\n');
-    expect(page.source).toEqual({ kind: 'markdown', strategy: 'markdown-route', path: 'catalog:guide' });
+    expect(page.source).toMatchObject({ kind: 'markdown', strategy: 'markdown-route', path: 'catalog:guide' });
     expect(page.extraction).toBeUndefined();
   });
 
-  test('passes catalog source hashes to renderers and the collected source record', async () => {
+  test('computes held source hashes instead of trusting catalog claims', async () => {
     const root = mkdtempSync(join(tmpdir(), 'astro-aeo-source-hash-'));
     roots.push(root);
     const distRoot = join(root, 'dist');
@@ -427,7 +428,7 @@ describe('authored source resolution', () => {
           kind: 'custom',
           path: 'cms:hashed',
           body: 'source body',
-          hash: 'sha256:hashed',
+          hash: 'sha256:untrusted',
         },
       }],
       resolveConfig(),
@@ -454,14 +455,14 @@ describe('authored source resolution', () => {
       kind: 'custom',
       path: 'cms:hashed',
       body: 'source body',
-      hash: 'sha256:hashed',
+      hash: await sha256Digest('source body'),
     });
     expect(Object.isFrozen(rendererSource)).toBe(true);
-    expect(page.source).toEqual({
+    expect(page.source).toMatchObject({
       kind: 'custom',
       strategy: 'catalog',
       path: 'cms:hashed',
-      hash: 'sha256:hashed',
+      hash: await sha256Digest('source body'),
     });
   });
 

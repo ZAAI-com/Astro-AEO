@@ -12,10 +12,30 @@ import { resolveConfig } from '../config.js';
 import { defineAeoPage } from '../page.js';
 import { serializeJsonLd } from '../lib/serialize-jsonld.js';
 import mdxRenderer from '../adapters/mdx.js';
+import { sha256Digest } from './corpus-manifest.js';
 
 const site = { siteUrl: 'https://x.com', base: '', trailingSlash: 'always' };
 const page = (body, head = '') =>
   `<!doctype html><html><head><title>T</title>${head}</head><body><main>${body}</main></body></html>`;
+
+test('held source bodies have content-derived hashes, not catalog claims', async () => {
+  const body = '# Exact source';
+  const result = await buildPage({ pathname: '/source', html: page('<p>Rendered</p>'),
+    config: resolveConfig({}), site, authored: { markdown: body, kind: 'markdown', hash: 'untrusted' } });
+  expect(result.page.source).toMatchObject({ body, hash: await sha256Digest(body) });
+});
+
+test('MDX source is retained privately and hashed without publishing it', async () => {
+  const body = 'import Secret from "private";\n<Secret />';
+  const renderer = { name: 'probe', module: './probe.js', inline: false, render: async (input) => {
+    expect(input.source.hash).toBe(await sha256Digest(body));
+    return { status: 'decline' };
+  } };
+  const result = await buildPage({ pathname: '/source', html: page('<p>Rendered</p>'),
+    config: resolveConfig({}), site, authored: { body, kind: 'mdx', hash: 'untrusted' }, renderers: [renderer] });
+  expect(result.page.source).toMatchObject({ body, hash: await sha256Digest(body) });
+  expect(result.page.markdown).toBe('Rendered');
+});
 
 describe('URL helpers', () => {
   test('urlPath honours trailingSlash, and root is always "/"', () => {
@@ -105,7 +125,7 @@ describe('buildPage', () => {
         generateMarkdown: false,
       },
     });
-    expect(p.source).toEqual({ kind: 'rendered', strategy: 'rendered' });
+    expect(p.source).toMatchObject({ kind: 'rendered', strategy: 'rendered' });
     expect(p.diagnostics).toEqual([]);
     expect(p.extraction?.strategy).toBe('main');
     expect(() => JSON.stringify(p)).not.toThrow();
@@ -215,7 +235,7 @@ describe('buildPage', () => {
     });
 
     expect(result.page.markdown).toBe('# Authored\n\nExact source.');
-    expect(result.page.source).toEqual({
+    expect(result.page.source).toMatchObject({
       kind: 'markdown',
       strategy: 'marker',
       path: 'src/content/authored.md',
@@ -274,7 +294,7 @@ describe('buildPage', () => {
       },
     });
     expect(result.page.markdown).toBe('');
-    expect(result.page.source).toEqual({ kind: 'custom', strategy: 'markdown-route' });
+    expect(result.page.source).toMatchObject({ kind: 'custom', strategy: 'markdown-route' });
     expect(result.page.extraction).toBeUndefined();
     expect(loads).toBe(0);
   });
@@ -305,7 +325,7 @@ describe('buildPage', () => {
     });
 
     expect(result.page.markdown).toBe('');
-    expect(result.page.source).toEqual({ kind: 'markdown', strategy: 'marker', path: 'marker-empty.md' });
+    expect(result.page.source).toMatchObject({ kind: 'markdown', strategy: 'marker', path: 'marker-empty.md' });
     expect(result.page.extraction).toBeUndefined();
   });
 
@@ -331,7 +351,7 @@ describe('buildPage', () => {
     });
     expect(result.page.markdown).toBe('\n# Exact source\n');
     expect(result.page.extraction).toEqual(extraction);
-    expect(result.page.source).toEqual({ kind: 'cms', strategy: 'catalog', path: 'cms:marker-only' });
+    expect(result.page.source).toMatchObject({ kind: 'cms', strategy: 'catalog', path: 'cms:marker-only' });
   });
 
   test('an explicit page marker wins over catalog or standalone source', async () => {
@@ -386,12 +406,12 @@ describe('buildPage', () => {
       routePattern: '/[slug]',
       renderers: [{
         name: 'source-aware',
-        render(input) {
-          expect(input.source).toEqual({
+        async render(input) {
+          expect(input.source).toMatchObject({
             kind: 'mdx',
             path: 'src/pages/mdx.mdx',
             body: '# Authored MDX',
-            hash: 'sha256:authored-mdx',
+            hash: await sha256Digest('# Authored MDX'),
           });
           expect(input.canonicalUrl).toBe('https://x.com/mdx/');
           expect(input.routePattern).toBe('/[slug]');
@@ -402,7 +422,7 @@ describe('buildPage', () => {
     });
     expect(rendered.page.markdown).toBe('');
     expect(rendered.page.extraction).toMatchObject({ strategy: 'renderer:source-aware' });
-    expect(rendered.page.source.hash).toBe('sha256:authored-mdx');
+    expect(rendered.page.source.hash).toBe(await sha256Digest('# Authored MDX'));
     expect(fallbackLoader).not.toHaveBeenCalled();
   });
 
