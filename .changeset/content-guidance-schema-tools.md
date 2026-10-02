@@ -14,16 +14,10 @@ Exclude hidden prose and non-citation image/code/contact links from editorial ad
 equivalent relative and absolute same-page author IDs. Default checks and component output remain
 unchanged.
 
-Benchmark regression explanation (before these review corrections): against the committed 1.4
-baseline the published package grows
-from 350,713 to about 394,824 packed bytes (about 13 percent) and from 1,358,848 to about 1,504,346
-unpacked bytes (about 11 percent; about 3 percent over 1.5.2). The growth is the eight new JSON-LD
-components, the shared Google field checker, the editorial audit rules, and their documentation.
-Only components a page imports and the checker reach a consumer bundle, and the measured package
-remains below the updated unpacked safety ceiling.
-
-After the review corrections, the package measures 397,368 packed and 1,515,305 unpacked bytes
-across 184 files. Immutable graph consolidation, subject identity and visible-prose/citation checks
-add 10,959 unpacked bytes over the pre-review state. The measured 5,305-byte overage moves only the
-unpacked ceiling by 10,000 bytes to 1,520,000; packed, runtime bundle and performance limits stay
-unchanged.
+Benchmark regression explanation: against the committed 1.4 baseline the published package grows
+from 350,713 to about 397,313 packed bytes (about 13 percent) and from 1,358,848 to about 1,515,124
+unpacked bytes (about 12 percent; about 4 percent over 1.5.2) across 184 files. The growth is the
+eight new JSON-LD components, the shared Google field checker with immutable same-ID consolidation
+and subject identity, the editorial audit rules with visible-prose and citation filtering, and their
+documentation. Only components a page imports and the checker reach a consumer bundle. The unpacked
+ceiling moves to 1,520,000 bytes; packed, runtime bundle and performance limits stay unchanged.
