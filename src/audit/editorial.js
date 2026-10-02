@@ -12,11 +12,43 @@ const HIDDEN_CONTENT = 'script,style,noscript,iframe,template,[hidden],[aria-hid
 /** @param {string} label */
 function referenceLabel(label) { return label.trim().replace(/\s+/g, ' ').toLowerCase(); }
 
-/** Share excluded HTML regions between the prose and reference scanners.
- * Fences and indented code are opaque, so example markup cannot hide later prose.
+/** Remove inline code spans that cross line breaks inside one paragraph, keeping every line in
+ * place, so example markup in a code span cannot open an excluded HTML region.
  * @param {string[]} lines
  */
-function visibleMarkdownLines(lines) {
+function withoutMultilineCode(lines) {
+  const result = [...lines];
+  let fence = '';
+  let fenceLength = 0;
+  let start = -1;
+  const flush = (/** @type {number} */ end) => {
+    if (start >= 0 && end - start > 1) {
+      const masked = result.slice(start, end).join('\n')
+        .replace(/(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)/g, (span) => span.replace(/[^\n]/g, ''));
+      result.splice(start, end - start, ...masked.split('\n'));
+    }
+    start = -1;
+  };
+  lines.forEach((line, index) => {
+    const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+    if (fence) {
+      if (marker && marker[1][0] === fence && marker[1].length >= fenceLength && /^ {0,3}(?:`+|~+)\s*$/.test(line)) fence = '';
+      return;
+    }
+    if (marker) { flush(index); fence = marker[1][0]; fenceLength = marker[1].length; return; }
+    if (!line.trim() || /^(?: {4}|\t)/.test(line)) { flush(index); return; }
+    if (start < 0) start = index;
+  });
+  flush(lines.length);
+  return result;
+}
+
+/** Share excluded HTML regions between the prose and reference scanners.
+ * Fences and indented code are opaque, so example markup cannot hide later prose.
+ * @param {string[]} source
+ */
+function visibleMarkdownLines(source) {
+  const lines = withoutMultilineCode(source);
   const excluded = new Set(['nav', 'aside', 'header', 'footer', 'script', 'style', 'noscript', 'iframe', 'template']);
   const voidTags = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
   /** @type {string[]} */

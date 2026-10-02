@@ -30,7 +30,7 @@ describe('opt-in editorial advice', () => {
     expect(codes('', '', 'en', '# Guide\n\n> Quote\n```\n42%\n```\n## Why?')).toContain('editorial-unanswered-question');
   });
   it('keeps example HTML in inline/fenced code from excluding later prose', () => {
-    for (const example of ['`<nav>`', '```html\n<nav>\n```', '<code><nav></code>']) {
+    for (const example of ['`<nav>`', 'Wrap links in `<nav>\nelements` for menus.', '```html\n<nav>\n```', '<code><nav></code>']) {
       expect(codes('', '', 'en', `# Guide\n\n${example}\n\n42% agree.`)).toContain('editorial-unsourced-number');
     }
   });
