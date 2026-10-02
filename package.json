@@ -103,6 +103,8 @@
     "astro-integration",
     "astro-component",
     "withastro",
+    "starlight",
+    "plugin",
     "aeo",
     "geo",
     "seo",
