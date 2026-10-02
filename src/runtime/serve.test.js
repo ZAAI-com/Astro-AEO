@@ -85,13 +85,13 @@ describe('request-time Markdown renderers', () => {
     expect(load).toHaveBeenCalledOnce();
   });
 
-  test('preserves catalog source hashes in renderer input and page provenance', async () => {
+  test('computes catalog source hashes in renderer input and page provenance', async () => {
     const render = vi.fn(({ source }) => {
       expect(source).toEqual({
         kind: 'cms',
         path: 'cms:guide',
         body: '# CMS body',
-        hash: 'sha256:catalog-source',
+        hash: 'sha256:31867d075b4268f5066819b48c835131cab131971a061b2765908332d807846a',
       });
       return { status: 'rendered', markdown: '# Rendered CMS' };
     });
@@ -116,7 +116,7 @@ describe('request-time Markdown renderers', () => {
     expect(result.source).toMatchObject({
       kind: 'cms',
       path: 'cms:guide',
-      hash: 'sha256:catalog-source',
+      hash: 'sha256:31867d075b4268f5066819b48c835131cab131971a061b2765908332d807846a',
     });
   });
 

@@ -93,6 +93,8 @@ export default function aeo(userConfig = {}) {
   };
   /** @type {Map<string, string>} */
   const routeEntrypoints = new Map();
+  /** @type {{ pattern: RegExp; routePattern: string }[]} */
+  const pageRoutePatterns = [];
   /** @type {Set<string>} */
   const resolvedRoutePaths = new Set();
   /** @type {{ pattern: RegExp; prerendered: boolean }[]} */
@@ -175,6 +177,7 @@ export default function aeo(userConfig = {}) {
       staticPaths: [...runtimePagePaths],
       projectPaths: [...new Set([...runtimeProjectPaths, ...runtimePublicPaths])],
       projectPatterns: runtimeProjectPatterns,
+      routePatterns: pageRoutePatterns,
       standaloneSources: {},
       pluginManifest: pluginDispatcher?.runtimeManifest ?? { version: 1, plugins: [] },
     };
@@ -428,6 +431,7 @@ export default function aeo(userConfig = {}) {
 
       'astro:routes:resolved': ({ routes }) => {
         routeEntrypoints.clear();
+        pageRoutePatterns.length = 0;
         resolvedRoutePaths.clear();
         resolvedRouteMatchers.length = 0;
         runtimeProjectPaths.clear();
@@ -472,6 +476,9 @@ export default function aeo(userConfig = {}) {
           const routePattern = /** @type {string | undefined} */ (
             typeof route.pattern === 'string' ? route.pattern : route.route
           );
+          if (projectRoute && type === 'page' && pattern instanceof RegExp && typeof routePattern === 'string') {
+            pageRoutePatterns.push({ pattern, routePattern });
+          }
           const prerendered = /** @type {boolean | undefined} */ (
             route.isPrerendered ?? route.prerender
           );
@@ -655,6 +662,7 @@ export default function aeo(userConfig = {}) {
           buildFormat,
           projectRoot,
           routeEntrypoints,
+          routePatterns: pageRoutePatterns,
           resolvedRoutePaths,
           resolvedRouteMatchers,
           publicDir,

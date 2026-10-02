@@ -9,6 +9,7 @@ import { readMarker, removeMarkers, stripMarkersFromHtml } from './extract/marke
 import { authoredCanonical, configuredCanonical, stableCanonical } from './canonical.js';
 import { resolveMarkdownWithRenderers } from './markdown-renderers.js';
 import { sourceKindFor } from './source-kind.js';
+import { sha256Digest } from './corpus-manifest.js';
 
 /**
  * @typedef {object} SiteFacts
@@ -170,6 +171,8 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
     : undefined;
   const authoredWins = !markerWins && markerBody === undefined && authoredMarkdown !== undefined;
   const sourceMarkdown = markerMarkdown ?? (markerBody === undefined ? authoredMarkdown : undefined);
+  const sourceBody = markerMarkdown ?? markerBody ?? authoredMarkdown ?? authored?.body;
+  const sourceHash = typeof sourceBody === 'string' ? await sha256Digest(sourceBody) : undefined;
   let markdown = '';
   /** @type {import('./extract/index.js').ExtractionDiagnostics | undefined} */
   let extraction = authoredWins ? authored?.extraction : undefined;
@@ -200,7 +203,7 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
                   kind: authored.kind,
                   ...(authored.path ? { path: authored.path } : {}),
                   ...(typeof authored.body === 'string' ? { body: authored.body } : {}),
-                  ...(typeof authored.hash === 'string' ? { hash: authored.hash } : {}),
+                  ...(sourceHash ? { hash: sourceHash } : {}),
                 },
               }
             : {}),
@@ -324,7 +327,7 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
               ? authored.strategy
               : 'rendered',
         ...(sourcePath ? { path: sourcePath } : {}),
-        ...(typeof authored?.hash === 'string' ? { hash: authored.hash } : {}),
+        ...(typeof sourceBody === 'string' ? { body: sourceBody, hash: sourceHash } : {}),
       },
       diagnostics: [
         ...rendererDiagnostics,

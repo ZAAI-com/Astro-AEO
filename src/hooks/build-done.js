@@ -46,6 +46,7 @@ import { catalogBreadcrumbTrail } from '../core/catalog-breadcrumbs.js';
 import { recommendedAuditDiagnostics } from '../audit/build.js';
 import { deploymentFactsPath, serializeDeploymentFacts } from '../build/deployment-facts.js';
 import { EDGE_MANIFEST_ROUTE, serializeEdgeManifest } from '../build/edge-manifest.js';
+import { routePatternFor } from '../core/route-facts.js';
 import {
   applySemanticGraphPatch,
   reconcileSemanticEnvelope,
@@ -68,6 +69,7 @@ import {
  * @property {'directory'|'file'} buildFormat
  * @property {string} projectRoot
  * @property {Map<string, string>} routeEntrypoints
+ * @property {{ pattern: RegExp; routePattern: string }[]} [routePatterns]
  * @property {Set<string>} [resolvedRoutePaths]  Concrete route pathnames, for collision checks.
  * @property {{ pattern: RegExp; prerendered: boolean }[]} [resolvedRouteMatchers]
  *   Dynamic project routes, for collision checks.
@@ -226,7 +228,10 @@ async function onBuildDoneLocked(config, options, env, session) {
     logger.info(`astro-aeo: ${catalogPages.length} page(s) contributed by catalogs`);
   }
 
-  let pageDescriptors = mergeCatalogPages(rawPages, catalogPages);
+  let pageDescriptors = mergeCatalogPages(rawPages.map((page) => ({ ...page,
+    routePattern: routePatternFor(page.pathname, env.routePatterns) ??
+      routePatternFor(`${env.base.replace(/\/$/, '')}/${page.pathname.replace(/^\//, '')}`, env.routePatterns),
+  })), catalogPages);
   // Marker removal covers every concrete page Astro reported, including a page
   // a discovered hook later isolates before collection. The marker payload is
   // private transport and must never depend on lifecycle eligibility.

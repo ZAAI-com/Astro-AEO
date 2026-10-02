@@ -1199,7 +1199,7 @@ describe('integration diagnostics and declarations', () => {
     expect(source).toContain(
       '"projectPatterns": [new RegExp("^\\\\/project\\\\/([^/]+?)\\\\.md$", "")]',
     );
-    expect(source).not.toContain('new RegExp("^\\\\/([^/]+?)\\\\/?$", "")');
+    expect(source).toContain('"routePattern": "/[slug]"');
   });
 
   test('runtime sitemap availability recognizes public files and concrete routes', async () => {
