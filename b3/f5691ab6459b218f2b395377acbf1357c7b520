@@ -1,0 +1,69 @@
+src/core/plugin-recovery.js
+  s_923fecc9e5a133::t_bf52dd3db36a80 1-18
+src/lib/config-features.test.js
+  s_923fecc9e5a133::t_ce1f31ed376b9d 1-46,48-63
+  s_923fecc9e5a133::t_9310775fa0bc9a 47
+cli/doctor.js
+  s_923fecc9e5a133::t_b7908d33ce68eb 432
+  s_923fecc9e5a133::t_ca7025b79da676 141-144,147,149-150,176,190,194-195,200,202-203,206,257,265
+  s_923fecc9e5a133::t_ed0d1e98b3fc65 199,201,204-205,207-256,258-264,266-342
+  s_923fecc9e5a133::t_f0ab15b5b0831e 2-3,7,15,26-28,37-44,62,73,76,80,83-86,100,102-103,110-116,164
+  s_f4a01be2e3bea3::t_a92307f1c7b761 343
+src/config.js
+  s_923fecc9e5a133::t_094d39f6a7e293 11,38,129,146,148-149,646,650-651,664-668
+cli/doctor.test.js
+  s_923fecc9e5a133::t_1d409527fa7c07 2,8,60,229-230,281
+  s_923fecc9e5a133::t_96617677aeac67 138
+  s_923fecc9e5a133::t_f1cce1f3cbad08 94-137,139-201
+src/virtual/serialize.js
+  s_923fecc9e5a133::t_ce1f31ed376b9d 13-15
+src/runtime/plugins.js
+  s_923fecc9e5a133::t_bf52dd3db36a80 6,14,28,43,191,213,223-228,234,302-305,326
+src/audit/rules.js
+  s_923fecc9e5a133::t_bf52dd3db36a80 57
+src/lib/config-features.js
+  s_923fecc9e5a133::t_a06bfc823750ea 1-154
+scripts/schema-definition.mjs
+  s_923fecc9e5a133::t_81dc7c79c33282 258,417-428
+  s_923fecc9e5a133::t_ce1f31ed376b9d 328-344,346-362
+src/index.d.ts
+  s_923fecc9e5a133::t_bf52dd3db36a80 1054,1068-1069,1141,1144,1146
+  s_923fecc9e5a133::t_094d39f6a7e293 744-747,780-826,923-924,1165-1166,1232,1245,1247-1248
+schema/astro-aeo.schema.json
+  s_923fecc9e5a133::t_738f1758ac875c 1
+cli/fix/fix.test.js
+  s_923fecc9e5a133::t_caa586cb3bcd14 117,121,130,134-162
+  s_f4a01be2e3bea3::t_268989d1993ddb 163
+cli/fix/render-yaml.js
+  s_923fecc9e5a133::t_d051889d4e4bcf 5,8,44-56,58-59
+.changeset/doctor-evidence.md
+  s_923fecc9e5a133::t_6008ac5784cc57 1-7
+docs/DOCTOR.md
+  s_923fecc9e5a133::t_6008ac5784cc57 1-70
+src/plugins/dispatcher.js
+  s_923fecc9e5a133::t_bf52dd3db36a80 5,13,34,51,70,77-79,86,133,154,169-172,185,287
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b3f5691ab6459b218f2b395377acbf1357c7b520",
+  "prompts": {},
+  "sessions": {
+    "s_923fecc9e5a133": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fd4f-7966-7552-9bed-766ed9b00461",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_f4a01be2e3bea3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "478c0812-996f-4bbb-b3d8-3883de3ed61a",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}

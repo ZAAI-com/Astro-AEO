@@ -1,0 +1,23 @@
+package.json
+  s_be5e74d1d8b4f1::t_7f48e190a3eac5 3
+CHANGELOG.md
+  s_be5e74d1d8b4f1::t_d8e02fa0d67222 5-8
+README.md
+  s_be5e74d1d8b4f1::t_db8340847ace0f 1448
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4899f0947863a7edf118121e13330a85908281c3",
+  "prompts": {},
+  "sessions": {
+    "s_be5e74d1d8b4f1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0db91bfeffeo6daGq1jWzIV7v",
+        "model": "unknown"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
