@@ -1,0 +1,20 @@
+package.json
+  s_9d96deddf6c41c::t_75836f3ee4856c 106
+  s_9d96deddf6c41c::t_4673fc2f602cc2 107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "50bd8082986c4c287cc105de28eb5b351f8b5334",
+  "prompts": {},
+  "sessions": {
+    "s_9d96deddf6c41c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "400b87c8-d323-448a-9d02-7f45ed5bfcd2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
