@@ -54,6 +54,11 @@ function rules(category, severity, applicability, ruleIds) {
 
 /** @type {readonly AuditRule[]} */
 const RULE_LIST = Object.freeze([
+  ...rules('internationalization', 'error', ['build', 'offline', 'live'], [
+    'page-language-invalid', 'page-language-unresolved', 'site-default-locale-invalid',
+    'hreflang-invalid', 'hreflang-duplicate-language', 'hreflang-structured-precedence',
+    'hreflang-canonical-conflict', 'hreflang-not-reciprocal', 'hreflang-x-default-conflict',
+  ]),
   ...rules('build', 'warning', ['build'], ['plugin-hook-recovered']),
   ...rules('markdown', 'info', ['offline', 'live'], [
     'editorial-long-paragraph', 'editorial-unanswered-question', 'editorial-unsourced-number',
@@ -165,7 +170,7 @@ const RULE_LIST = Object.freeze([
     'corpus-locale-canonical-missing', 'corpus-locale-canonical-order', 'corpus-locale-duplicate',
     'corpus-locale-shape', 'corpus-page-locale-missing', 'sitemap-hreflang-canonical-mismatch',
     'sitemap-hreflang-duplicate', 'sitemap-hreflang-invalid', 'sitemap-hreflang-not-reciprocal',
-    'sitemap-hreflang-target-missing', 'sitemap-hreflang-url-invalid',
+    'sitemap-hreflang-target-missing', 'sitemap-hreflang-url-invalid', 'sitemap-hreflang-x-default-conflict',
   ]),
   ...rules('internationalization', 'warning', ['build'], [
     'aeo-head-locale-invalid',

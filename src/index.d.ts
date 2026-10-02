@@ -96,6 +96,8 @@ export interface CorpusManifestV1 {
   origin: string;
   base: string;
   tokenizer: { name: string; version: string; approximate: boolean };
+  /** Sanitized reason the configured tokenizer was replaced by the built-in approximation. */
+  tokenizerFallback?: { reason: 'preflight' | 'count' };
   locales: CorpusManifestLocaleV1[];
   pages: CorpusManifestPageV1[];
   artifacts: CorpusManifestArtifactV1[];
@@ -1040,7 +1042,12 @@ export interface ProfileOptions {
   sameAs?: string[];
   /** schema.org @type. Default: 'Organization'. */
   entityType?: EntityType;
+  /** Shared profile overrides keyed by normalized HTTP(S) origin. */
+  origins?: Record<string, DomainProfileOverride>;
 }
+
+export type DomainProfileOverride = Pick<ProfileOptions,
+  'name' | 'description' | 'website' | 'email' | 'logo' | 'sameAs' | 'entityType'>;
 
 export interface SiteOptions {
   /** Site name for llms.txt headers. Falls back to the profile name, then <title>, then hostname. */

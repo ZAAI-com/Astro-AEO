@@ -370,7 +370,13 @@ const canonicalProperties = {
         description: 'Explicit Schema.org organization entity or ID reference.',
         additionalProperties: true,
       },
-      profile: object(profileProperties, 'Published site identity profile.'),
+      profile: object({ ...profileProperties, origins: {
+        type: 'object', default: {}, description: 'Shared profile overrides keyed by HTTP(S) origin.',
+        propertyNames: { format: 'uri', pattern: '^[Hh][Tt][Tt][Pp][Ss]?://[^/?#@]+/?$' },
+        additionalProperties: object(Object.fromEntries(Object.entries(profileProperties)
+          .filter(([key]) => key !== 'enabled')
+          .map(([key, { default: _default, ...property }]) => [key, property])), 'Per-origin profile values.'),
+      } }, 'Published site identity profile.'),
     },
     'Site identity and profile output.',
   ),

@@ -33,10 +33,10 @@ export function createLocaleSnapshot(i18n, siteUrl = '') {
     const codes = typeof entry === 'string' ? [entry] : Array.isArray(entry?.codes) ? entry.codes : [];
     if (typeof path !== 'string' || !path || codes.length === 0) continue;
     const language = canonicalLanguage(codes[0]);
-    if (!language) continue;
+    if (!language || language === 'x-default') continue;
     const aliases = [...new Set(codes.flatMap((/** @type {unknown} */ code) => {
       const normalized = canonicalLanguage(code);
-      return normalized ? [normalized] : [];
+      return normalized && normalized !== 'x-default' ? [normalized] : [];
     }))];
     const domainValue = domains[path] ?? domains[codes[0]];
     const origin = normalizeOrigin(domainValue);
@@ -120,7 +120,7 @@ export function resolvePageLocale(page, snapshot, options) {
     : undefined;
   const present = semanticLanguage ?? sources.declared ?? sources.rendered;
   let language = present === undefined ? null : canonicalLanguage(present);
-  if (present !== undefined && !language) {
+  if (present !== undefined && (!language || language === 'x-default')) {
     diagnostics.push(localeDiagnostic('page-language-invalid', 'error', 'The page declared an invalid language and was excluded from corpora.', page.pathname));
     return { page, excluded: true, diagnostics };
   }
@@ -142,14 +142,14 @@ export function resolvePageLocale(page, snapshot, options) {
     const siteDefault = sources.siteDefault ?? options.siteDefaultLocale;
     if (!language && siteDefault) {
       language = canonicalLanguage(siteDefault);
-      if (!language) {
+      if (!language || language === 'x-default') {
         diagnostics.push(localeDiagnostic('site-default-locale-invalid', 'error', 'site.defaultLocale is not a valid language tag.', page.pathname));
         return { page, excluded: true, diagnostics };
       }
       locale = localeForAlias(language, snapshot.locales);
     }
   }
-  if (!language && snapshot.locales.length === 0 && !options.siteDefaultLocale) {
+  if (!language && snapshot.locales.length === 0 && !options.siteDefaultLocale && options.unresolvedLanguage === 'default') {
     return {
       page: {
         ...page,
@@ -274,6 +274,11 @@ export function normalizePageAlternates(pages, options = {}) {
     for (const alternate of page.alternates) {
       const target = byLocalUrl.get(alternate.url);
       if (!target) continue;
+      const defaultUrl = page.alternates.find((/** @type {any} */ candidate) => candidate.language === 'x-default')?.url;
+      const targetDefault = target.alternates.find((/** @type {any} */ candidate) => candidate.language === 'x-default')?.url;
+      if (defaultUrl && targetDefault && defaultUrl !== targetDefault) {
+        diagnostics.push(localeDiagnostic('hreflang-x-default-conflict', 'error', 'Known alternate pages disagree on their x-default target.', page.pathname));
+      }
       if (urlOrigin(identity) !== urlOrigin(alternate.url)) continue;
       // A target that declares no canonical URL cannot be proven non-canonical.
       if (target.canonicalUrl && target.canonicalUrl !== alternate.url) {

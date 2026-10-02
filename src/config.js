@@ -9,6 +9,7 @@ import { cloneJsonValue } from './core/json-value.js';
 import { assertExactPathname } from './core/artifact-path.js';
 import { isPublicIp } from './build/public-ip.js';
 import { resolveAnalytics, resolveCacheControl, resolveCorpusRag, resolveCorpusVersions, validateScalarOptions } from './lib/config-features.js';
+import { resolveProfileOrigins } from './lib/config-profile.js';
 
 /** @type {import('./index.js').SectionRule[]} */
 export const DEFAULT_SECTIONS = [{ title: 'Home', match: '/' }];
@@ -108,6 +109,7 @@ export function resolveConfig(rawConfig = {}, logger) {
         logo: profile.logo ?? '',
         sameAs: profile.sameAs ?? [],
         entityType: profile.entityType ?? 'Organization',
+        origins: resolveProfileOrigins(profile.origins),
       },
     },
     pages: {
@@ -671,7 +673,7 @@ const CONFIG_SHAPE = {
     description: null,
     defaultLocale: null,
     organization: PASSTHROUGH,
-    profile: { enabled: null, name: null, description: null, website: null, email: null, logo: null, sameAs: null, entityType: null },
+    profile: { enabled: null, name: null, description: null, website: null, email: null, logo: null, sameAs: null, entityType: null, origins: PASSTHROUGH },
   },
   artifacts: { replace: null },
   metadata: { fillMissing: null, defaults: PASSTHROUGH },

@@ -62,6 +62,8 @@ export function validateLocalSitemap(input) {
   visit(entryFile, normalizeServedPath(input.entryPath));
 
   const knownUrls = new Map(entries.map((entry) => [entry.loc, entry]));
+  const defaults = new Map(entries.map((entry) => [entry.loc,
+    entry.alternates.find((alternate) => alternate.language === 'x-default')?.url]));
   for (const entry of entries) {
     for (const alternate of entry.alternates) {
       const target = knownUrls.get(alternate.url);
@@ -91,6 +93,11 @@ export function validateLocalSitemap(input) {
           undefined,
           entry.sourcePath,
         ));
+      }
+      if (alternate.language !== 'x-default' && defaults.get(entry.loc) && defaults.get(target.loc) &&
+          defaults.get(entry.loc) !== defaults.get(target.loc)) {
+        findings.push(finding('sitemap-hreflang-x-default-conflict', 'error',
+          'Known sitemap alternate pages disagree on their x-default target.', undefined, entry.sourcePath));
       }
     }
   }

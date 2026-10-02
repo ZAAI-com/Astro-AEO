@@ -38,7 +38,7 @@ export async function stageCorpusArtifacts(inputPages, config, env) {
       (value) => Number.isSafeInteger(value) && /** @type {number} */ (value) >= 0),
     cachedText: (identity, produce) => cachedStage(env.cache, 'artifact-text-v1',
       identity, produce, (value) => typeof value === 'string'),
-    cachedChunks: (identity, produce) => cachedStage(env.cache, 'artifact-chunks-v1',
+    cachedChunks: (identity, produce) => cachedStage(env.cache, 'artifact-chunks-v2',
       { identity, module: config.corpus.tokenizer?.module }, produce, (value) => Boolean(value && typeof value === 'object' &&
         Array.isArray(/** @type {any} */ (value).chunks) && Array.isArray(/** @type {any} */ (value).diagnostics))),
   });

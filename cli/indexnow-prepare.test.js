@@ -20,6 +20,30 @@ afterEach(() => {
 const fp = (name) => ({ url: `https://example.com/${name}`, fingerprint: sha256(name) });
 
 describe('indexnow prepare', () => {
+  test('keeps per-origin key references and withholds removals across incomplete domain inventories', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'astro-aeo-indexnow-multi-'));
+    roots.push(root);
+    const cache = join(root, '.astro', 'aeo-cache', 'indexnow');
+    const origins = ['https://example.com', 'https://example.de'];
+    const current = origins.map((origin) => ({ url: `${origin}/new`, fingerprint: sha256(origin) }));
+    writePrivateFile(join(cache, 'prepare-input-v1.json'), serializeIndexNowPrepareInput({
+      version: 1, projectRoot: root, mode: 'private', submit: 'changed', strict: false, base: '',
+      statePathname: '/.well-known/astro-aeo-indexnow-v1.json', inventoryComplete: false,
+      key: { source: 'env', name: 'PRIMARY_KEY' }, origins: [
+        { origin: origins[0] }, { origin: origins[1], key: { source: 'env', name: 'GERMAN_KEY' }, keyLocation: '/de-key.txt' },
+      ], current,
+    }));
+    writePrivateFile(join(cache, 'ack-v1.json'), JSON.stringify({ version: 1,
+      origins: origins.map((origin) => ({ origin, acknowledged: [{ url: `${origin}/old`, fingerprint: sha256('old') }] })),
+    }));
+    const result = await prepareIndexNow(join(root, 'dist'), { projectRoot: root });
+    const queue = parseIndexNowQueue(JSON.parse(readFileSync(result.queuePath, 'utf8')));
+    expect(queue.origins.map((entry) => entry.operations)).toEqual(current.map((entry) => [{ ...entry, operation: 'upsert' }]));
+    expect(queue.origins.map((entry) => entry.key.name)).toEqual(['PRIMARY_KEY', 'GERMAN_KEY']);
+    expect(queue.origins[1].keyLocation).toBe('/de-key.txt');
+    expect(queue.origins.every((entry) => entry.operations.every((operation) => new URL(operation.url).origin === entry.origin))).toBe(true);
+  });
+
   test('uses the private ledger and emits a deterministic key-free queue', async () => {
     const root = mkdtempSync(join(tmpdir(), 'astro-aeo-indexnow-'));
     roots.push(root);

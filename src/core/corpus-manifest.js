@@ -88,6 +88,7 @@ export function normalizeCorpusManifest(manifest) {
       version: manifest.tokenizer.version,
       approximate: manifest.tokenizer.approximate,
     },
+    ...(manifest.tokenizerFallback ? { tokenizerFallback: { reason: manifest.tokenizerFallback.reason } } : {}),
     locales,
     pages,
     artifacts,
@@ -109,6 +110,7 @@ export function serializeCorpusManifest(manifest) {
  *   origin: string;
  *   base: string;
  *   tokenizer: { name: string; version: string; approximate: boolean };
+ *   tokenizerFallback?: { reason: 'preflight'|'count' };
  *   locales: any[];
  *   pages: Array<any & { markdown: string | null }>;
  *   artifacts: Array<any & { contents: string | Uint8Array }>;
@@ -128,6 +130,7 @@ export async function createCorpusManifest(input) {
     origin: input.origin,
     base: input.base,
     tokenizer: input.tokenizer,
+    tokenizerFallback: input.tokenizerFallback,
     locales: input.locales,
     pages,
     artifacts,

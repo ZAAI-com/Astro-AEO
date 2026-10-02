@@ -225,6 +225,7 @@ aeo({
       logo: '',
       sameAs: [],
       entityType: 'Organization',        // Organization | Person | Blog | ...
+      origins: {},                       // origin-keyed overrides of profile fields (not enabled)
     },
   },
 
@@ -973,6 +974,17 @@ corpus: {
 
 Globs are segment-aware: `*` stays inside one path segment, `**` crosses segments and matches the base (`/blog/**` matches `/blog` and `/blog/post`). `/error` matches `/error` but not `/error-log`.
 
+### Crawler identity snapshot
+
+Crawler registry version 2 separates observable User-Agent claims from robots control tokens.
+Default robots policy keeps its existing tokens and ordering. The observable registry adds
+[Applebot](https://support.apple.com/en-us/119829) and Amazon's
+[Amzn-SearchBot and Amzn-User](https://developer.amazon.com/amazonbot), checked against first-party
+operator documentation on 2026-10-03. Google-Extended and Applebot-Extended are policy controls,
+not observable crawler identities. A User-Agent token is a claim, not operator authentication.
+Meta's existing entry retains its prior verification date because its first-party page could not
+be retrieved during this review; no new Meta identity is inferred from third-party descriptions.
+
 ### Small corpora, chunks, manifests, and gzip
 
 `corpus.small` builds a strict token-budgeted `llms-small.txt` from contiguous leading source
@@ -982,11 +994,16 @@ reported as `small-corpus-truncated` with severity `info`, since that is the bud
 whose first block does not fit (`small-corpus-first-block-omitted`) is a warning. `corpus.chunks`
 splits full-corpus content at page, heading, paragraph, and fenced-code boundaries. Fences remain
 indivisible and an oversized unit is emitted with a diagnostic rather than silently truncated.
+Consecutive headings stay with their first content block. A complete heading section moves to
+a fresh chunk when it fits there but not in the current chunk; trailing headings never form
+an orphan chunk. Small-corpus allocation uses the same indivisible units.
 
 The built-in `astro-aeo-approx@1` counter is deterministic and explicitly approximate. A custom
 local tokenizer module must default-export API version 1 with stable `name`, `version`,
 `approximate`, and `count()` fields. It is probed twice. Any load or count failure restarts the
-whole plan with the built-in tokenizer so a manifest never mixes identities.
+whole plan with the built-in tokenizer so a manifest never mixes identities. The manifest records
+`tokenizerFallback: { reason: "preflight" | "count" }` when this happens, without module paths,
+exception messages, or options. Successful and unconfigured plans omit the field.
 
 When enabled, `/llms/manifest.json` records locales, canonical artifacts, pages, and exact SHA-256
 byte hashes of published companions. Pages without a `.md` companion (Markdown disabled, `no-dotmd`,
@@ -1082,6 +1099,13 @@ pending. Remote failures warn with exit 0 unless `strict` is enabled. `IndexNowI
 always exits 2. Keys, secret-derived paths, and POST bodies are never logged or persisted.
 
 ### Profile email
+
+`site.profile.origins` maps normalized HTTP(S) origins to overrides of `name`, `description`,
+`website`, `email`, `logo`, `sameAs`, and `entityType`. Other fields inherit the shared profile;
+`enabled` remains shared. For example, `{ 'https://fr.example.com': { name: 'Exemple' } }`
+changes the French host's profile without changing another host. Credentials, paths, queries,
+fragments, duplicate normalized origins, and unknown override keys are rejected. Build and runtime
+use the same renderer, and an authored `website` still takes precedence over the active origin.
 
 `site.profile.email` is routed into the schema.org profile by value shape: an `http(s)` URL becomes a `contactPoint` (`{ '@type': 'ContactPoint', url }`), a value containing `@` becomes `email`, and anything else becomes `telephone`. The old `domainProfile.contact` key is a deprecated alias; it still works but emits a deprecation warning.
 
