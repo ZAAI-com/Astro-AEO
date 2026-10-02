@@ -238,6 +238,13 @@ export function cleanRoot(root, { removeSelectors, keepSelectors }) {
   for (const selector of keepSelectors) {
     for (const el of matchingElements(root, selector)) el.setAttribute(KEEP_ATTRIBUTE, '');
   }
+  // Inactive tabs are reading content, including nested panels and their images.
+  // Keep selector matching above sees the authored attributes; only the panels'
+  // own hiding flags are neutralized before chrome and theme-image cleanup.
+  for (const panel of matchingElements(root, '[role="tabpanel"]')) {
+    panel.removeAttribute('hidden');
+    if (panel.getAttribute('aria-hidden') === 'true') panel.removeAttribute('aria-hidden');
+  }
   removed += removeChrome(root);
   sanitizeRoot(root);
   normalizeCodeBlocks(root);

@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { verifyTabPanels } from '../../test/contracts/tab-panels.js';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const DEMO = join(REPO, 'fixtures', 'demo');
@@ -180,6 +181,14 @@ afterAll(() => {
 });
 
 describe('dev server AEO endpoints', () => {
+  test('development Markdown and full corpus preserve complete inactive tab content', async () => {
+    const markdown = await fetch(`${BASE}/tab-panels.md`);
+    const full = await fetch(`${BASE}/llms-full.txt`);
+    expect(markdown.status).toBe(200);
+    expect(full.status).toBe(200);
+    verifyTabPanels(await markdown.text(), await full.text());
+  });
+
   test('serves a .md companion converted on the fly', async () => {
     const r = await fetch(`${BASE}/about.md`);
     expect(r.status).toBe(200);

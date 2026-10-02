@@ -3,6 +3,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { verifyTabPanels } from '../test/contracts/tab-panels.js';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DEMO = join(REPO, 'fixtures', 'demo');
@@ -29,6 +30,10 @@ beforeAll(() => {
 });
 
 describe('demo build outputs', () => {
+  test('static Markdown and full corpus preserve complete inactive tab content', () => {
+    verifyTabPanels(read('tab-panels.md'), read('llms-full.txt'));
+  });
+
   test('.md companions exist for included pages only', () => {
     expect(existsSync(join(DIST, 'index.md'))).toBe(true);
     expect(existsSync(join(DIST, 'about.md'))).toBe(true);

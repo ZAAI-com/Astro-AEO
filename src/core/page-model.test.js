@@ -59,6 +59,22 @@ describe('URL helpers', () => {
 describe('buildPage', () => {
   const config = resolveConfig();
 
+  test('retained inactive panels do not expose collection markers', async () => {
+    const marker = '<script type="application/vnd.astro-aeo+json" data-astro-aeo-marker>' +
+      '{"sourcePath":"private-panel-source.md","title":"Panel title"}</script>';
+    const result = await buildPage({
+      pathname: '/tabs/',
+      html: page('<section role="tabpanel" hidden><h1>Inactive panel</h1>' + marker +
+        '<p>Panel instructions.</p></section>'),
+      config,
+      site,
+    });
+    expect(result.page.markdown).toBe('# Inactive panel\n\nPanel instructions.');
+    expect(result.page.representations.html).toContain('Panel instructions.');
+    expect(result.page.representations.html).not.toMatch(/astro-aeo-marker|private-panel-source/);
+    expect(result.page.markdown).not.toMatch(/astro-aeo-marker|private-panel-source/);
+  });
+
   test('carries a valid version from the authored input and omits the field otherwise', async () => {
     const build = (/** @type {any} */ authored) =>
       buildPage({ pathname: '/docs/', html: page('<h1>Docs</h1><p>Body.</p>'), config, site, authored });
