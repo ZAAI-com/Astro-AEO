@@ -1381,11 +1381,13 @@ astro-aeo audit dist --schema-target google --fail-on warning
 ```
 
 `--heuristics` adds deterministic English/German and language-neutral editorial advice at `info`
-severity. Advice is score-neutral and cannot fail CI. `--schema-target schema` (the default) keeps
-existing graph checks; `google` adds documented field checks on final rendered JSON-LD. Required
-Google fields produce warnings with the existing readiness deductions and `--fail-on` behavior;
-recommendations remain informational. Both flags work for build directories and live URLs, with
-all report formats. Neither flag changes the integration's on-build audit or `validate`.
+severity. Advice is score-neutral and cannot fail CI. The article review reminder compares dates
+with the day the audit runs, so the same content can gain it on a later day. `--schema-target schema`
+(the default) keeps existing graph checks; `google` adds documented field checks on final rendered
+JSON-LD. Required Google fields produce warnings with the existing readiness deductions and
+`--fail-on` behavior; recommendations remain informational. Both flags work for build directories
+and live URLs, with all report formats. Neither flag changes the integration's on-build audit or
+`validate`.
 
 Schema.org validity and Google support are distinct. `FAQPage` and `TechArticle` output remains
 available, but neither receives a current Google profile here. Explicit `eligibility="google"`
