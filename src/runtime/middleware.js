@@ -42,6 +42,7 @@ import {
   RuntimeCorpusPlanError,
   runtimeCatalogPagesFor,
   RuntimeCorpusLimitError,
+  RuntimeCorpusCollectionError,
   RuntimePageLifecycleError,
   serveCorpusArtifact,
   serveMarkdown,
@@ -300,10 +301,12 @@ export const onRequest = async (context, next) => {
           origin: context.url.origin,
         },
       );
+      if (RUNTIME.command !== 'dev' && fetchFailures.count) throw new RuntimeCorpusCollectionError();
       warnDevCorpusRewriteFailure(fetchFailures, RUNTIME.command);
       return textResponse({ body, contentType, request: context.request, requestHeadersAvailable });
     } catch (error) {
       const limited = error instanceof RuntimeCorpusLimitError;
+      const incomplete = error instanceof RuntimeCorpusCollectionError;
       const discovery = error instanceof RuntimeDynamicRouteDiscoveryError;
       return textResponse({
         body: discovery
@@ -314,7 +317,7 @@ export const onRequest = async (context, next) => {
         contentType: 'text/plain; charset=utf-8',
         request: context.request,
         requestHeadersAvailable,
-        status: limited ? 503 : 500,
+        status: limited || incomplete ? 503 : 500,
         headers: { 'cache-control': 'no-store' },
       });
     }
@@ -344,6 +347,7 @@ export const onRequest = async (context, next) => {
         tokenizerLoader: RUNTIME_CORPUS_TOKENIZER_LOADER,
         origin: activeArtifactOrigin ?? context.url.origin,
       });
+      if (RUNTIME.command !== 'dev' && fetchFailures.count) throw new RuntimeCorpusCollectionError();
       warnDevCorpusRewriteFailure(fetchFailures, RUNTIME.command);
       if (!planned) {
         return redactAeoHeadMarkers(await next(), context.request, requestHeadersAvailable);
@@ -356,9 +360,10 @@ export const onRequest = async (context, next) => {
       });
     } catch (error) {
       const limited = error instanceof RuntimeCorpusLimitError;
+      const incomplete = error instanceof RuntimeCorpusCollectionError;
       const invalid = error instanceof RuntimeCorpusPlanError;
       const discovery = error instanceof RuntimeDynamicRouteDiscoveryError;
-      if (!limited && !invalid && !discovery) throw error;
+      if (!limited && !incomplete && !invalid && !discovery) throw error;
       return textResponse({
         body: limited || discovery
           ? `${error.message}\n`
@@ -366,7 +371,7 @@ export const onRequest = async (context, next) => {
         contentType: 'text/plain; charset=utf-8',
         request: context.request,
         requestHeadersAvailable,
-        status: limited ? 503 : 500,
+        status: limited || incomplete ? 503 : 500,
         headers: { 'cache-control': 'no-store' },
       });
     }

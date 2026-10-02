@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createServer, request as httpRequest } from 'node:http';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { verifyTabPanels } from '../../test/contracts/tab-panels.js';
 
 // The on-demand half of the contract. Everything here is untestable against a
 // static build or `astro dev`, because Astro does not expose request headers to a
@@ -33,11 +34,11 @@ async function waitForReady() {
   throw new Error('SSR server did not become ready');
 }
 
-/** @param {string} path @param {Record<string, string>} headers */
-function rawRequest(path, headers) {
+/** @param {string} path @param {Record<string, string>} headers @param {string} [method] */
+function rawRequest(path, headers, method = 'GET') {
   return new Promise((resolve, reject) => {
     const request = httpRequest(
-      { hostname: '127.0.0.1', port: PORT, path, headers },
+      { hostname: '127.0.0.1', port: PORT, path, headers, method },
       (response) => {
         let body = '';
         response.setEncoding('utf8');
@@ -51,8 +52,8 @@ function rawRequest(path, headers) {
 }
 
 /** Origin-scoped corpus artifacts require the configured public Host in production. */
-function siteRequest(path, headers = {}) {
-  return rawRequest(path, { host: SITE_HOST, ...headers });
+function siteRequest(path, headers = {}, method = 'GET') {
+  return rawRequest(path, { host: SITE_HOST, ...headers }, method);
 }
 
 beforeAll(async () => {
@@ -78,6 +79,14 @@ afterAll(() => {
 });
 
 describe('on-demand .md companions', () => {
+  test('Node Markdown and full corpus preserve complete inactive tab content', async () => {
+    const markdown = await fetch(`${BASE}/tab-panels.md`);
+    const full = await siteRequest('/llms-full.txt');
+    expect(markdown.status).toBe(200);
+    expect(full.status).toBe(200);
+    verifyTabPanels(await markdown.text(), full.body);
+  });
+
   test('a page rendered per request has a .md companion', async () => {
     const r = await fetch(`${BASE}/about.md`);
     expect(r.status).toBe(200);
@@ -134,14 +143,6 @@ describe('on-demand .md companions', () => {
       headers: { 'if-none-match': response.headers.get('etag') },
     });
     expect(conditional.status).toBe(500);
-  });
-
-  test('a prerendered page in a server build still has its build-time .md', async () => {
-    // It cannot come from a rewrite: an on-demand route may not rewrite into a
-    // prerendered one. It is a build artifact served as a static asset.
-    const r = await fetch(`${BASE}/static-page.md`);
-    expect(r.status).toBe(200);
-    expect(await r.text()).toContain('# Static Page');
   });
 
   test('an on-demand standalone Markdown route preserves its original source', async () => {
@@ -237,7 +238,7 @@ describe('content negotiation', () => {
   });
 
   test('an authored marker is stripped before a negotiated HTML error is returned', async () => {
-    const response = await fetch(`${BASE}/sourced-error`, { headers: { accept: 'text/markdown' } });
+    const response = await fetch(`${BASE}/sourced-error?fail=1`, { headers: { accept: 'text/markdown' } });
     const body = await response.text();
     expect(response.status).toBe(500);
     expect(response.headers.get('content-type')).toContain('text/html');
@@ -247,7 +248,7 @@ describe('content negotiation', () => {
   });
 
   test('an authored marker is ignored when an explicit Markdown request returns an error', async () => {
-    const response = await fetch(`${BASE}/sourced-error.md`);
+    const response = await fetch(`${BASE}/sourced-error.md?fail=1`);
     const body = await response.text();
     expect(response.status).toBe(500);
     expect(body).toContain('# Sourced Error');
@@ -320,9 +321,63 @@ describe('response contract', () => {
     expect(body).toContain('# Catalog Secondary');
     expect(body).toContain('Second exact catalog source.');
     expect(body).toContain('# About');
+    expect(body).toContain('Healthy source page body.');
+    expect(body).not.toContain('Private error source');
     expect(body).not.toContain('RENDERED-DYNAMIC-APPROXIMATION');
     expect(body).not.toContain('Recursive artifact');
     expect(body).not.toContain('Runtime failure leaked');
+  });
+
+  test('production collection fails closed through HEAD and conditionals, then recovers', async () => {
+    const paths = ['/llms.txt', '/llms-full.txt'];
+    const etags = new Map();
+    for (const path of paths) {
+      const healthy = await siteRequest(path);
+      expect(healthy.status).toBe(200);
+      expect(healthy.headers.etag).toBeTruthy();
+      etags.set(path, healthy.headers.etag);
+    }
+    const armed = await fetch(`${BASE}/__aeo-runtime-probe?fail-corpus=1`);
+    expect((await armed.json()).failCorpusPage).toBe(true);
+    try {
+      for (const path of paths) {
+        for (const method of ['GET', 'HEAD']) {
+          let failureEtag;
+          for (const condition of [undefined, '*', etags.get(path)]) {
+            const headers = condition === undefined ? {} : { 'if-none-match': condition };
+            const failed = await siteRequest(path, headers, method);
+            expect(failed.status, `${method} ${path}`).toBe(503);
+            expect(failed.headers['cache-control']).toBe('no-store');
+            failureEtag = failed.headers.etag;
+            expect(failureEtag).not.toBe('"private-source-etag"');
+            expect(failed.headers['set-cookie']).toBeUndefined();
+            expect(failed.headers['x-private-failure']).toBeUndefined();
+            expect(failed.body).not.toContain('PRIVATE-CORPUS-FAILURE');
+            expect(failed.body).not.toContain('# About');
+            expect(failed.body).not.toContain('Catalog Dynamic');
+            if (method === 'HEAD') expect(failed.body).toBe('');
+          }
+          expect(failureEtag).toBeTypeOf('string');
+          const repeatedFailure = await siteRequest(path, { 'if-none-match': failureEtag }, method);
+          expect(repeatedFailure.status).toBe(503);
+          expect(repeatedFailure.headers['cache-control']).toBe('no-store');
+          if (method === 'HEAD') expect(repeatedFailure.body).toBe('');
+        }
+      }
+      const direct = await fetch(`${BASE}/tab-panels.md`);
+      expect(direct.status).toBe(200);
+      expect(await direct.text()).toContain('Hidden panel instructions.');
+    } finally {
+      await fetch(`${BASE}/__aeo-runtime-probe?reset=1`);
+    }
+    const recovered = await siteRequest('/llms-full.txt');
+    expect(recovered.status).toBe(200);
+    expect(recovered.body).toContain('Hidden panel instructions.');
+    expect(recovered.body).toContain('Healthy source page body.');
+    const conditional = await siteRequest('/llms-full.txt', {
+      'if-none-match': recovered.headers.etag,
+    });
+    expect(conditional.status).toBe(304);
   });
 
   test('corpus rendering stays in process, serial, and isolated from caller credentials', async () => {

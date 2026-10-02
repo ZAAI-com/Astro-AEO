@@ -487,11 +487,9 @@ describe('runtime corpus subrequests', () => {
     const response = await onRequest(context, vi.fn());
     const body = await response.text();
     expect(RUNTIME.command).not.toBe('dev');
-    // Production degrades to an empty corpus rather than to a status code: the
-    // artifact still renders 200, with no page inside it. Pin the whole body so a
-    // partially rendered corpus cannot satisfy the negative assertions below.
-    expect(response.status).toBe(200);
-    expect(body).toBe('# example.test\n\n---\n');
+    expect(response.status).toBe(503);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(body).toBe('astro-aeo: the corpus is temporarily unavailable.\n');
     expect(body).not.toContain('SECRET_CONSTRUCTION_FAILURE');
     expect(body).not.toContain('# /public/');
     expect(rewrites).not.toHaveBeenCalled();

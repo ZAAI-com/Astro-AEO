@@ -10,9 +10,8 @@
  * `null` for that, which drops the page from an aggregate corpus and 404s its
  * `.md` companion with nothing written to the terminal.
  *
- * Nothing here changes what a request returns in production: failures stay
- * swallowed and fail closed. The sink only remembers what was already thrown
- * so development can name it.
+ * The request-local sink remembers thrown failures for development diagnostics
+ * and production aggregate completeness checks. Direct responses are unchanged.
  */
 
 /** @typedef {{ pathname: string; error: unknown }} FetchFailure */

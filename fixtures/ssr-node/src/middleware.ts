@@ -2,6 +2,7 @@ import { defineMiddleware } from 'astro:middleware';
 
 let activeCorpusRequests = 0;
 let peakCorpusRequests = 0;
+let failCorpusPage = false;
 const corpusRequests: Array<{
   pathname: string;
   hasAuthorization: boolean;
@@ -23,8 +24,12 @@ export const onRequest = defineMiddleware(async (context, next) => {
       activeCorpusRequests = 0;
       peakCorpusRequests = 0;
       corpusRequests.length = 0;
+      failCorpusPage = false;
     }
-    return Response.json({ activeCorpusRequests, peakCorpusRequests, corpusRequests });
+    if (context.url.searchParams.has('fail-corpus')) {
+      failCorpusPage = context.url.searchParams.get('fail-corpus') === '1';
+    }
+    return Response.json({ activeCorpusRequests, peakCorpusRequests, corpusRequests, failCorpusPage });
   }
 
   const corpusRequest =
@@ -51,6 +56,19 @@ export const onRequest = defineMiddleware(async (context, next) => {
   }
 
   try {
+    // Test-only switch: fail an inventoried HTML page during anonymous fan-out,
+    // while keeping direct Markdown and ordinary project requests healthy.
+    if (corpusRequest && failCorpusPage && /^\/tab-panels\/?$/.test(context.url.pathname)) {
+      return new Response('<html><body>PRIVATE-CORPUS-FAILURE</body></html>', {
+        status: 500,
+        headers: {
+          'content-type': 'text/html',
+          'cache-control': 'private, max-age=86400',
+          etag: '"private-source-etag"',
+          'x-private-failure': 'must-not-leak',
+        },
+      });
+    }
     if (
       context.url.pathname === '/about/' &&
       context.url.searchParams.has('set-source-cookie')
