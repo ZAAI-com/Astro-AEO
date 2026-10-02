@@ -91,16 +91,14 @@ export function extractPageFacts(html, identity) {
 
 /** @param {string} pageUrl @param {string} [canonical] @param {string} [siteUrl] */
 export function documentUrlFor(pageUrl, canonical, siteUrl) {
-  try {
-    const page = new URL(pageUrl, siteUrl);
-    const url = canonical ? new URL(canonical, page) : page;
-    return /^https?:$/.test(url.protocol) ? url.href : undefined;
-  } catch {
-    try {
-      const url = new URL(canonical ?? '');
-      return /^https?:$/.test(url.protocol) ? url.href : undefined;
-    } catch { return undefined; }
-  }
+  const http = (/** @type {URL | undefined} */ url) => url && /^https?:$/.test(url.protocol) ? url.href : undefined;
+  const parse = (/** @type {string} */ value, /** @type {string | URL | undefined} */ base) => {
+    try { return new URL(value, base); } catch { return undefined; }
+  };
+  const page = parse(pageUrl, siteUrl);
+  // A non-HTTP or malformed canonical must not discard a valid page URL.
+  if (canonical) return http(parse(canonical, page)) ?? http(page);
+  return http(page);
 }
 
 /**
