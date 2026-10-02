@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## 1.5.4
+
+### Patch Changes
+
+- Preserve inactive semantic tab panels hidden with `hidden` or `aria-hidden="true"`, including nested text and images, in extracted Markdown. Explicit removals and unrelated hidden chrome remain excluded.
+- Return sanitized `503` responses with `Cache-Control: no-store` when production or preview live corpus collection fails, instead of successful partial artifacts. Apply this to all corpus variants, manifests, chunks, aliases, and schema graph/map while preserving intentional exclusions, development diagnostics, and direct authenticated Markdown responses.
+
+### Package size and benchmark rationale
+
+Benchmark regression explanation: this patch measures 401,167 packed bytes and 1,526,979
+unpacked bytes across 185 files. A clean archive of the current 1.5.3 baseline, packed with the same
+Node 24 toolchain, measures 400,227 and 1,523,723 bytes: increases of 940 and 3,256 bytes for panel
+retention, shared collection checks, HTTP failure handling, and documentation. Growth over the
+committed 1.4 baseline (350,713 packed and 1,358,848 unpacked bytes) principally carries forward
+1.5.3's schema components, Google field profiles, editorial rules, and documentation. The Node
+integration includes the new collection and panel-cleanup checks alongside inherited 1.5 runtime
+features; its gzip comparison also crossed 10 percent in the initial Node 26 verification. The
+450,000 packed and 1,530,000 unpacked ceilings, runtime limits, and benchmark baseline stay unchanged.
+
 ## 1.5.3
 
 Add opt-in editorial audit advice, eight typed JSON-LD components, extended Article publishing

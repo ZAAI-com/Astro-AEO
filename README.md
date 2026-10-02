@@ -752,6 +752,13 @@ cookies, and session cannot be replaced securely for an anonymous corpus render.
 response reports an unrecognized request state rather than an Astro version, because the
 middleware can only observe the shape it was handed.
 Build-time corpus artifacts and authenticated direct `.md` requests are unaffected.
+Production and preview also return `503` with `Cache-Control: no-store` when a known page
+cannot be collected: a failed rewrite, upstream server error, or unusable HTML response
+must not produce a successful but incomplete corpus. This covers index/full/small corpora,
+aliases, chunks, manifests, and schema graph/map. Authentication denials, redirects,
+non-content responses, `noindex`, and opted-out pages remain intentional exclusions.
+A mixed static/server site also fails closed if its adapter cannot render a known
+prerendered page during collection; its built Markdown companion remains available.
 Astro 6.3 and newer use a separate disposable request state for every serialized
 corpus render, including streams whose cancellation never settles. This requirement
 also applies when a live corpus uses automatic dynamic-route discovery. Ordinary HTML
@@ -822,6 +829,10 @@ quotes, colons) with text on both sides in the same inline run, or a box-drawing
 (such as `├──`) with text after it. A separator is padded with spaces; a tree prefix is kept
 verbatim; an arrow directly after a link stays dropped. Emoji, stars, and check marks are never
 kept, since they usually repeat visually hidden text.
+
+Inactive `role="tabpanel"` content survives `hidden` and `aria-hidden="true"`, including
+nested panels and their images. Only the panel's own hiding is ignored: unrelated hidden
+chrome and hidden descendants still follow the cleanup rules, and explicit removals win.
 
 Figures keep their shown images followed by the caption in emphasis. Alternate states of one
 subject (images hidden from assistive technology, `[hidden]`, Starlight's `light:sl-hidden`, or a
@@ -1445,7 +1456,7 @@ permissions:
 steps:
   - uses: actions/checkout@v4
   - run: npm ci && npm run build
-  - uses: ZAAI-com/Astro-AEO@1.5.3
+  - uses: ZAAI-com/Astro-AEO@1.5.4
     with:
       target: dist            # or a deployed URL
       fail-on: error          # error, warning or none
