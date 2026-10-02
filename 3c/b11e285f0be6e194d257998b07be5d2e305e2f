@@ -1,0 +1,21 @@
+benchmarks/thresholds.mjs
+  s_9e91e65fc48f7d::t_a788624ce4eb7e 45-46
+.changeset/content-guidance-schema-tools.md
+  s_9e91e65fc48f7d::t_a788624ce4eb7e 25,27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3cb11e285f0be6e194d257998b07be5d2e305e2f",
+  "prompts": {},
+  "sessions": {
+    "s_9e91e65fc48f7d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fc97-ffa3-7572-9418-aaac00ded54a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
