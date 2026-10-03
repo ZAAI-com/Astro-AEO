@@ -143,6 +143,13 @@ plain ESM with no package build step.
   against (`test/contracts/accept.js` re-exports it). `cli/fix/` is a dry run unless `--write`, edits
   exactly one file, refuses anything ambiguous, malformed, symlinked or outside the project, and
   backs the original up under `.astro/aeo-backups/<UTC timestamp>/` through `commitFileTransaction`.
+- `cli/report.js` dispatches bounded, read-only data reports under `cli/reports/`; it never
+  executes consumer configuration. `cli/validate-report.js` preserves the frozen validator
+  formatting (the old module re-exports it). Shipped data contracts validate report inputs;
+  `scripts/report-schemas.mjs` owns generated report/snapshot/trace schemas. Graph HTML uses
+  inert escaped data, local DOM controls, complete no-JS tables and exact script/style CSP
+  hashes. `cli/formats/csp.js` also protects audit HTML. RAG content exports stay separate
+  from content-free evidence; missing runtime inventory must be disclosed.
 - `action.yml` is a composite action that runs the project's installed CLI. Inputs reach the shell
   only as environment variables, and the exit status is reported after the SARIF upload.
   `recipes/` are complete projects outside the published folders; `test:recipes` builds each one

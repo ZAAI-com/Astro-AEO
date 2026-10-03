@@ -1,4 +1,5 @@
 // @ts-check
+import { cspMeta } from './csp.js';
 import { escapeXml, place } from './shared.js';
 
 const STYLE = 'body{font:15px/1.5 system-ui,sans-serif;margin:2rem;color:#1a1a1a}'
@@ -34,6 +35,7 @@ export function renderHtml(report) {
   }).join('\n');
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Astro-AEO audit</title>
+${cspMeta(STYLE)}
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>${STYLE}</style>
 </head><body>

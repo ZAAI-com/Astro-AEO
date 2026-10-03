@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zaai.com/astro-aeo/schema/page-snapshot-v1.schema.json",
+  "title": "Astro-AEO page-snapshot-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "buildDigest",
+    "inventoryComplete",
+    "pages",
+    "artifacts"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "buildDigest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "inventoryComplete": {
+      "type": "boolean"
+    },
+    "ragHash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "pages": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pathname",
+          "locale",
+          "version",
+          "components"
+        ],
+        "properties": {
+          "pathname": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^/[^?#\\u0000-\\u001f\\u007f]*$"
+          },
+          "routePattern": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^/[^?#\\u0000-\\u001f\\u007f]*$"
+          },
+          "locale": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(?!https?:|[a-zA-Z]:/)[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(?!https?:|[a-zA-Z]:/)[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+          },
+          "components": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source",
+              "html",
+              "markdown",
+              "metadata",
+              "graph",
+              "directives"
+            ],
+            "properties": {
+              "source": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "html": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "markdown": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "metadata": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "graph": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "directives": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pathname",
+          "status",
+          "owner",
+          "etag",
+          "byteLength"
+        ],
+        "properties": {
+          "pathname": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^/[^?#\\u0000-\\u001f\\u007f]*$"
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(?!https?:|[a-zA-Z]:/)[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+          },
+          "owner": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(?!https?:|[a-zA-Z]:/)[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+          },
+          "etag": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^\"[a-f0-9]{64}\"$"
+          },
+          "byteLength": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

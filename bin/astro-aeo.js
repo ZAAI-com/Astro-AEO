@@ -3,7 +3,8 @@
 import { parseArgs } from 'node:util';
 import { join, resolve } from 'node:path';
 import { validateDist } from '../cli/validate.js';
-import { formatReport, formatJson } from '../cli/report.js';
+import { formatReport, formatJson } from '../cli/validate-report.js';
+import { runReport, ReportInvocationError } from '../cli/report.js';
 import { prepareIndexNow } from '../cli/indexnow-prepare.js';
 import { submitIndexNow } from '../cli/indexnow-submit.js';
 import { IndexNowInvocationError } from '../cli/indexnow-io.js';
@@ -17,6 +18,8 @@ const HELP = `astro-aeo - Answer Engine Optimization for Astro
 Usage:
   astro-aeo validate [distDir]   Validate AEO outputs in a build directory (default: ./dist)
   astro-aeo audit [distDir|URL]  Audit a build directory (default: ./dist) or a deployed site
+  astro-aeo report traffic|changes|inspect|graph|rag [input]
+                               Read observations, build evidence, or published artifacts
   astro-aeo doctor [projectDir]  Check how this project is set up to deploy (default: .)
   astro-aeo fix [projectDir]     Make a static host serve .md as text/markdown (dry run by default)
   astro-aeo indexnow prepare [distDir] [--source cache|config] [--input <file>]
@@ -45,6 +48,16 @@ Options for "audit":
                     URL only, repeatable: another origin the crawl may follow
   --timeout <ms>    URL only: per-request timeout (default: 10000)
   --concurrency <n> URL only: parallel requests, 1 to 32 (default: 8)
+
+Options for "report":
+  --format <name>  terminal, json, markdown or html (graph defaults html; rag defaults jsonl)
+  --output <file>  Explicit private export; otherwise stdout (all inputs are read-only)
+  traffic [file|-] --from <UTC date> --to <UTC date> --bucket day|minute --weighted
+  changes [snapshot] --baseline <file|URL> --fail-on none|added|changed|removed|any
+  inspect [project] --dist <dir> --manifest <file> --page <glob> (repeatable)
+  graph [JSON-LD file] --type <type> --node <ID> --depth 0|1|2|3
+  rag [project] --dist <dir> --manifest <file> --origin <origin> --base <path>
+                --max-tokens <n> --page <glob> (repeatable)
 
 Options for "doctor":
   --url <page>      Also probe one deployed page. Without it, local files prove nothing deployed
@@ -82,6 +95,19 @@ async function main() {
 
   if (command === 'validate') {
     runValidate(argv.slice(1));
+    return;
+  }
+
+  if (command === 'report') {
+    try {
+      const result = await runReport(argv.slice(1));
+      for (const warning of result.warnings) process.stderr.write('astro-aeo report: warning: ' + warning + '\n');
+      process.stdout.write(result.output);
+      process.exitCode = result.exitCode;
+    } catch (error) {
+      process.stderr.write('astro-aeo: ' + (error instanceof ReportInvocationError ? error.message : 'Report could not be produced.') + '\n');
+      process.exitCode = 2;
+    }
     return;
   }
 

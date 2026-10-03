@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { serializeReportSchemas } from './report-schemas.mjs';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -86,6 +87,13 @@ function isPlainObject(value) {
 for (const [file, serialize] of [['rag-record-v1.schema.json',serializeRagRecordSchema],['rag-index-v1.schema.json',serializeRagIndexSchema]]) {
   if (await readFile(resolve(root,'schema',file),'utf8').catch(()=>'') !== serialize()) {
     console.error(`schema/${file} is stale. Run: node scripts/generate-schema.mjs`);
+    process.exitCode = 1;
+  }
+}
+
+for (const [name, body] of Object.entries(serializeReportSchemas())) {
+  if (await readFile(resolve(root, 'schema', name + '.schema.json'), 'utf8').catch(() => '') !== body) {
+    console.error('schema/' + name + '.schema.json is stale. Run: node scripts/generate-schema.mjs');
     process.exitCode = 1;
   }
 }

@@ -1085,3 +1085,28 @@ export function consumeRag(record: RagRecordV1, index: RagIndexV1) {
   record.metadata.nested = { source: 'private' };
   return { text, incomplete, fallback: record.tokenizerFallback?.reason };
 }
+
+// Versioned read-only report contracts are available to downstream tooling.
+import type { AnalyticsReportV1, ChangesReportV1, InspectReportV1, GraphReportV1,
+  RagReportV1, AeoDataReportV1 } from 'astro-aeo';
+declare const trafficV1: AnalyticsReportV1;
+const observedTraffic: number = trafficV1.paths[0].observed;
+const observedCoverage: 'observable-only' = trafficV1.disclosure.coverage;
+declare const changesV1: ChangesReportV1;
+const changeStatus: 'added' | 'changed' | 'removed' | 'unconfirmed-addition' | 'unconfirmed-removal' = changesV1.pages[0].status;
+declare const inspectV1: InspectReportV1;
+const inspectedHash: string = inspectV1.pages[0].snapshot.components.markdown;
+declare const graphV1: GraphReportV1;
+const graphLabel: string = graphV1.nodes[0].label;
+declare const ragExportV1: RagReportV1;
+const ragIncomplete: boolean = ragExportV1.buildTimeIncomplete;
+const exportedRecordText: string = ragExportV1.records[0].text;
+declare const snapshotV1: AeoPageSnapshotV1;
+declare const traceV1: AeoProcessingTraceV1;
+const evidenceDigests: string[] = [snapshotV1.buildDigest, traceV1.buildDigest];
+const allReportsV1: AeoDataReportV1[] = [trafficV1, changesV1, inspectV1, graphV1, ragExportV1];
+// @ts-expect-error Observations never expose visitor IP.
+trafficV1.ip;
+// @ts-expect-error Content-free snapshots do not carry source bodies.
+snapshotV1.pages[0].sourceBody;
+void [observedTraffic,observedCoverage,changeStatus,inspectedHash,graphLabel,ragIncomplete,exportedRecordText,evidenceDigests,allReportsV1];

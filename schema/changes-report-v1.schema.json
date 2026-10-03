@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zaai.com/astro-aeo/schema/changes-report-v1.schema.json",
+  "title": "Astro-AEO changes-report-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "type",
+    "warnings",
+    "baselineDigest",
+    "currentDigest",
+    "baselineComplete",
+    "currentComplete",
+    "pages",
+    "artifacts",
+    "ragChanged"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "type": {
+      "const": "changes"
+    },
+    "warnings": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "string"
+      }
+    },
+    "baselineDigest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "currentDigest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "baselineComplete": {
+      "type": "boolean"
+    },
+    "currentComplete": {
+      "type": "boolean"
+    },
+    "pages": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pathname",
+          "locale",
+          "contentVersion",
+          "status",
+          "components"
+        ],
+        "properties": {
+          "pathname": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^/[^?#\\u0000-\\u001f\\u007f]*$"
+          },
+          "locale": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(?!https?:|[a-zA-Z]:/)[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+          },
+          "contentVersion": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(?!https?:|[a-zA-Z]:/)[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+          },
+          "status": {
+            "enum": [
+              "added",
+              "changed",
+              "removed",
+              "unconfirmed-addition",
+              "unconfirmed-removal"
+            ]
+          },
+          "components": {
+            "type": "array",
+            "maxItems": 100000,
+            "items": {
+              "enum": [
+                "source",
+                "html",
+                "markdown",
+                "metadata",
+                "graph",
+                "directives",
+                "status",
+                "owner",
+                "etag",
+                "byteLength"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pathname",
+          "locale",
+          "contentVersion",
+          "status",
+          "components"
+        ],
+        "properties": {
+          "pathname": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^/[^?#\\u0000-\\u001f\\u007f]*$"
+          },
+          "locale": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(?!https?:|[a-zA-Z]:/)[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+          },
+          "contentVersion": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(?!https?:|[a-zA-Z]:/)[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+          },
+          "status": {
+            "enum": [
+              "added",
+              "changed",
+              "removed",
+              "unconfirmed-addition",
+              "unconfirmed-removal"
+            ]
+          },
+          "components": {
+            "type": "array",
+            "maxItems": 100000,
+            "items": {
+              "enum": [
+                "source",
+                "html",
+                "markdown",
+                "metadata",
+                "graph",
+                "directives",
+                "status",
+                "owner",
+                "etag",
+                "byteLength"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "ragChanged": {
+      "type": "boolean"
+    }
+  }
+}
