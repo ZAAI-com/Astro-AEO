@@ -41,6 +41,26 @@ describe('matchMarkdownAlternateLinks', () => {
 });
 
 describe('emitDotMd', () => {
+  test('invalidates only a companion whose opt-in version footer changed', () => {
+    const entries = new Map();
+    const cache = { key: (stage, input) => `${stage}:${JSON.stringify(input)}`,
+      get: (key) => entries.get(key), put: (key, value) => entries.set(key, value) };
+    const config = resolveConfig({ markdown: { alternateLink: 'never' } });
+    const writes = [];
+    const writer = { write: (artifact) => { writes.push(artifact.contents); return true; } };
+    const page = { pathname: '/guide', mdPath: '/ignored/guide.md', mdHref: '/guide.md', url: 'https://example.test/guide/',
+      title: 'Guide', description: '', markdown: '# Guide\n', rendering: 'prerendered', aeoTokens: [],
+      source: { strategy: 'marker' }, diagnostics: [], versionLinks: true };
+    const withPeer = (url) => ({ ...page, alternates: [{ kind: 'version', version: 'v1', url }] });
+    emitDotMd([withPeer('https://example.test/v1/guide/')], config, writer, { cache });
+    emitDotMd([withPeer('https://example.test/v1/guide/')], config, writer, { cache });
+    expect(entries.size).toBe(1);
+    emitDotMd([withPeer('https://example.test/old/guide/')], config, writer, { cache });
+    expect(entries.size).toBe(2);
+    expect(writes[2]).toContain('https://example.test/old/guide/');
+    expect(writes[0]).toBe(writes[1]);
+  });
+
   /** @type {string} */
   let root;
 

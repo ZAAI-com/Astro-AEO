@@ -207,7 +207,7 @@ describe('staged build plugin pipeline', () => {
     expect(existsSync(join(cacheRoot, 'blobs', legacyBlob))).toBe(false);
     const state = JSON.parse(readFileSync(join(cacheRoot, 'state.json'), 'utf8'));
     expect(state.producer).toMatchObject({ name: 'astro-aeo', version });
-    expect(Object.keys(state.entries).filter((key) => key.startsWith('normalization-v3:'))).toHaveLength(1);
+    expect(Object.keys(state.entries).filter((key) => key.startsWith('normalization-v4:'))).toHaveLength(1);
 
     // The next build on the same producer is warm and logs no reset.
     infos.length = 0;
@@ -257,7 +257,7 @@ describe('staged build plugin pipeline', () => {
     );
     const statePath = join(files.root, '.astro', 'aeo-cache', 'processing-v1', 'state.json');
     const entries = () => Object.keys(JSON.parse(readFileSync(statePath, 'utf8')).entries)
-      .filter((key) => key.startsWith('normalization-v3:')).length;
+      .filter((key) => key.startsWith('normalization-v4:')).length;
     const build = async (pages) => {
       const writer = await onBuildDone(
         config(),

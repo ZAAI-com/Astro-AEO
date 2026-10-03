@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import aeo from './index.js';
+import { declareContentRoutes } from './lib/content-routes.js';
 
 /**
  * @param {{ publicSitemap?: boolean; routes?: any[] }} [options]
@@ -56,6 +57,8 @@ async function runtimeConfigSource(options = {}) {
  *   buildOutput?: 'static'|'server';
  *   output?: 'static'|'server';
  *   adapter?: boolean;
+ *   base?: string;
+ *   declaredContentRoutes?: string[];
  *   configFirst?: boolean;
  *   repeatRoutes?: boolean;
  *   srcDir?: string;
@@ -85,6 +88,7 @@ async function runRouteLifecycle(options = {}) {
       discovery: { sitemap: { mode: 'disabled' } },
       ...(options.userConfig ?? {}),
     });
+    declareContentRoutes(integration, options.declaredContentRoutes ?? []);
     const logger = {
       warn: (message) => warnings.push(message),
       info: (message) => infos.push(message),
@@ -95,6 +99,7 @@ async function runRouteLifecycle(options = {}) {
     await integration.hooks['astro:config:setup']({
       config: {
         integrations: [],
+        base: options.base ?? '/',
         root: rootUrl,
         site: new URL('https://example.test'),
         ...(options.adapter ? { adapter: { name: 'test-adapter' } } : {}),
@@ -108,7 +113,7 @@ async function runRouteLifecycle(options = {}) {
     const finishConfig = () => integration.hooks['astro:config:done']({
       config: {
         site: new URL('https://example.test'),
-        base: '/',
+        base: options.base ?? '/',
         trailingSlash: 'ignore',
         build: { format: 'directory' },
         root: rootUrl,
@@ -1129,6 +1134,19 @@ describe('integration diagnostics and declarations', () => {
       ],
     });
     expect(result.diagnostics.some(({ code }) => code === 'dynamic-routes-unindexed')).toBe(false);
+  });
+
+  test.each([true, false])('only declared external docs page shapes transfer ownership with config-first=%s', async (configFirst) => {
+    const docs = dynamicRoute({ origin: 'external', pattern: '/docs/[...slug]', isPrerendered: false });
+    const ordinary = await runRouteLifecycle({ adapter: true, base: '/docs', buildOutput: 'server', routes: [docs] });
+    expect(ordinary.runtimeSource).toContain('"buildOwnsCorpora": true');
+    const declared = await runRouteLifecycle({ adapter: true, base: '/docs', buildOutput: 'server',
+      configFirst, declaredContentRoutes: ['/[...slug]'], routes: [docs] });
+    expect(declared.runtimeSource).toContain('"buildOwnsCorpora": false');
+    expect(declared.diagnostics.some(({ code }) => code === 'dynamic-routes-unindexed')).toBe(true);
+    const unrelated = await runRouteLifecycle({ adapter: true, base: '/docs', buildOutput: 'server',
+      declaredContentRoutes: ['/[...slug]'], routes: [dynamicRoute({ origin: 'external', pattern: '/docs/[...other]', isPrerendered: false })] });
+    expect(unrelated.runtimeSource).toContain('"buildOwnsCorpora": true');
   });
 
   test('treats a null pathname as an unresolved dynamic page', async () => {

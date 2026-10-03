@@ -310,6 +310,10 @@ export interface AeoPageRecord extends AeoPage {
   version?: string;
   versionGroup?: string;
   alternates?: PageAlternate[];
+  /** Opt-in Starlight companion/corpus footer using known version peers only. */
+  versionLinks?: boolean;
+  /** Public route metadata when Starlight is serving untranslated fallback content. */
+  localeFallback?: { requested: string; source?: string };
   metadata: {
     title: string;
     description?: string;
@@ -1166,6 +1170,8 @@ export interface RuntimePluginPageRecord {
   readonly locale?: string;
   readonly version?: string;
   readonly versionGroup?: string;
+  readonly versionLinks?: boolean;
+  readonly localeFallback?: { readonly requested: string; readonly source?: string };
   readonly routePattern?: string;
   readonly rendering?: 'prerendered' | 'on-demand';
   readonly canonicalUrl?: string;

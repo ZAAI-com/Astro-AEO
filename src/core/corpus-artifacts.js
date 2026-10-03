@@ -1,5 +1,6 @@
 // @ts-check
 import { planVersionCorpus } from './version-corpus.js';
+import { pageMarkdown } from './render/page-markdown.js';
 import { chunkTopology, corpusPathname } from './corpus-topology.js';
 export { chunkTopology, isPotentialCorpusArtifactPath } from './corpus-topology.js';
 import { allocateSmallCorpus, planSectionChunks } from './corpus-plan.js';
@@ -46,6 +47,7 @@ import {
  *   topologyLocaleCount?: number;
  *   artifactVersion?: { version: string; current: string };
  *   tokenContext?: { tokenizer: { name: string; version: string; approximate: boolean }; count: (text: string) => Promise<number> };
+ *   deferEmptyManifest?: boolean;
  *   pages: any[];
  *   config: import('../index.js').ResolvedAstroAeoConfig;
  *   siteMeta: { name: string; description: string };
@@ -143,7 +145,7 @@ export async function planCorpusArtifacts(input) {
               pathname: page.pathname, url: page.url, canonicalUrl: page.canonicalUrl, mdHref: page.mdHref,
               locale: page.locale, language: page.language, title: page.title, description: page.description,
               directives: page.directives, aeoTokens: page.aeoTokens, rendering: page.rendering,
-              ...(kind === 'index' ? {} : { markdown: page.markdown }),
+              ...(kind === 'index' ? {} : { markdown: pageMarkdown(page) }),
               ...((kind === 'index' && input.config.corpus.index.showLastModified)
                 ? { lastModified: page.lastModified } : {}),
             })),
@@ -621,7 +623,7 @@ function planPage(page) {
     title: page.title,
     canonicalUrl: page.canonicalUrl ?? page.url,
     description: page.description,
-    markdown: page.markdown,
+    markdown: pageMarkdown(page),
   };
 }
 

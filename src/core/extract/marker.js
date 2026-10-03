@@ -18,6 +18,8 @@ export const COLLECT_FLAG = 'astroAeoCollect';
  * @property {string} [version]
  * @property {string} [versionGroup]
  * @property {import('../../index.js').PageAlternate[]} [alternates]
+ * @property {boolean} [versionLinks] Opt-in footer for known version alternatives.
+ * @property {{ requested: string; source?: string }} [localeFallback] Untranslated Starlight route facts.
  * @property {string} [sourcePath]
  * @property {'markdown'|'mdx'|'astro'|'cms'|'rendered'|'custom'} [sourceKind]
  * @property {string} [published]
@@ -40,7 +42,25 @@ export function readMarker(document) {
   if (!el) return null;
   try {
     const parsed = JSON.parse(el.textContent ?? '');
-    return parsed && typeof parsed === 'object' ? parsed : null;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    // Authored content and metadata retain precedence. Ecosystem route facts
+    // still fill missing version fields; a true untranslated-route status is
+    // independent of which marker supplied the content.
+    const inferred = document.querySelector(`${MARKER_SELECTOR}[data-astro-aeo-marker="${INFERRED_MARKER}"]`);
+    if (inferred && inferred !== el) {
+      try {
+        const facts = JSON.parse(inferred.textContent ?? '');
+        if (facts && typeof facts === 'object' && !Array.isArray(facts)) return {
+          ...(['version', 'versionGroup', 'versionLinks'].reduce((result, key) => {
+            if (parsed[key] === undefined && facts[key] !== undefined) result[key] = facts[key];
+            return result;
+          }, /** @type {Record<string, any>} */ ({}))),
+          ...parsed,
+          ...(facts.localeFallback ? { localeFallback: facts.localeFallback } : {}),
+        };
+      } catch {}
+    }
+    return parsed;
   } catch {
     return null;
   }

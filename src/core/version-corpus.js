@@ -79,7 +79,9 @@ export async function planVersionCorpus(input) {
     pages: parts.flatMap((part) => part.manifest.pages),
     artifacts: parts.flatMap((part) => part.manifest.artifacts),
   }) : undefined;
-  if (!manifest && input.config.corpus.manifest.enabled && planned.result.diagnostics.length === 0) {
+  if (!manifest && input.config.corpus.manifest.enabled &&
+      !(input.deferEmptyManifest && !normalized.pages.some((page) => !page.corpusExcluded)) &&
+      planned.result.diagnostics.length === 0) {
     planned.result.diagnostics.push({ code: 'corpus-manifest-canonical-missing', severity: 'error',
       message: 'No canonical corpus artifact exists for the versioned inventory.' });
   }

@@ -1,0 +1,5 @@
+---
+title: Accueil
+---
+
+Accueil français.

@@ -96,7 +96,7 @@ export async function collectPages(rawPages, config, ctx) {
         !renderer.inline && renderer.cache?.pure === true && typeof renderer.cache.version === 'string'),
     );
     const cacheKey = cacheable
-      ? cache?.key('normalization-v3', inputs)
+      ? cache?.key('normalization-v4', inputs)
       : undefined;
     const cached = cacheKey ? cache?.get(cacheKey) : undefined;
     const reusable = validCachedPageResult(cached);

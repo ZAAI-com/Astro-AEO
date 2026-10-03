@@ -842,6 +842,10 @@ Severity: error. Raised by: offline.
 
 Severity: error. Raised by: offline.
 
+### starlight-fallback-locale-excluded
+
+Severity: info. Raised by: build, offline, live.
+
 ### version-alternate-conflict
 
 Severity: error. Raised by: build, offline, live.

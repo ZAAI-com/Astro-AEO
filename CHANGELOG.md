@@ -6,6 +6,10 @@ All notable changes to this project are documented here. This project follows [S
 
 In preparation. Release notes will be folded in from changesets before the 1.6.0 tag is created.
 
+- Interpret explicit Starlight version prefixes through public route data, populate corpus
+  current versions, and add opt-in source-view and known version links. Keep untranslated
+  fallback companions available while excluding those pages from requested locale corpora.
+
 - Keep local doctor results unverified, add bounded provider and package-overlap evidence,
   and offer read-only `--print` advice without executing consumer configuration.
 - Compare deployment ownership digests and emitted artifact etags, withholding conclusions

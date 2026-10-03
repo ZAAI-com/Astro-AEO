@@ -616,6 +616,8 @@ export const recordRendering: 'prerendered' | 'on-demand' = record.rendering;
 export const recordDate: string | undefined = record.lastModified;
 export const recordOrigin: string | undefined = record.origin;
 export const recordLocale: string | undefined = record.locale;
+export const fallbackRequestedLanguage: string | undefined = record.localeFallback?.requested;
+export const includeKnownVersionLinks: boolean | undefined = record.versionLinks;
 export const recordAlternateLanguage: string | undefined = record.alternates?.[0]?.language;
 export const extraction: ExtractionDiagnostics | undefined = record.extraction;
 export const auditCategory: AuditCategory = 'structured-data';
@@ -933,7 +935,8 @@ import type { StarlightAeoOptions, StarlightAeoPlugin } from 'astro-aeo/starligh
 
 const starlightOptions: StarlightAeoOptions = {
   aeo: { markdown: { negotiation: 'response' } },
-  links: { pagination: true, edit: false },
+  links: { pagination: true, edit: false, source: { baseUrl: 'https://example.com/blob/main/' }, versions: true },
+  versions: { current: 'v2', archived: ['v1', { version: 'v0', prefix: '0.9' }] },
   techArticle: true,
 };
 export const starlightPlugin: StarlightAeoPlugin = starlightAeo(starlightOptions);
