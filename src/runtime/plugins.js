@@ -509,6 +509,8 @@ function sanitizeRuntimePage(value) {
     ...(typeof page.locale === 'string' ? { locale: page.locale } : {}),
     ...(typeof page.version === 'string' ? { version: page.version } : {}),
     ...(typeof page.versionGroup === 'string' ? { versionGroup: page.versionGroup } : {}),
+    ...(page.versionLinks === true ? { versionLinks: true } : {}),
+    ...(page.localeFallback ? { localeFallback: page.localeFallback } : {}),
     ...(Array.isArray(page.alternates) ? { alternates: page.alternates } : {}),
     ...(page.metadata && typeof page.metadata === 'object' ? { metadata: page.metadata } : {}),
     representations: {

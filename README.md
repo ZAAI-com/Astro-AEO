@@ -1709,6 +1709,9 @@ Each docs page publishes its authored Markdown, not a conversion of the rendered
 | `aeo` | `{}` | Options for the Astro-AEO integration. |
 | `links.pagination` | `true` | Append Starlight's previous and next page links to each companion. |
 | `links.edit` | `false` | Append the "edit this page" URL when Starlight resolved one. |
+| `links.source` | unset | Append a repository source-view URL using an explicit `{ baseUrl }` ending in `/`. Independent of edit links. |
+| `links.versions` | `false` | Append known same-locale version links to companions and corpus text. |
+| `versions` | unset | Explicit `{ current, archived }` version labels and served route prefixes. |
 | `techArticle` | `true` | Add a minimal `TechArticle` entity from the page's own title, description, language and modified date. Nothing is inferred. |
 
 Three integration defaults differ under Starlight, and each yields to what you set in `aeo`:
@@ -1719,6 +1722,42 @@ Three integration defaults differ under Starlight, and each yields to what you s
 The page source travels through the same private marker as `<AeoPage>`: it is emitted only while
 Astro-AEO collects a page, never on a visitor's request, and it is removed before anything is written or
 served.
+
+Versioned documentation uses an explicit configuration, including when another plugin such as
+`starlight-versions` owns the routes:
+
+```js
+starlightAeo({
+  versions: { current: 'v2', archived: ['v1', { version: 'v0', prefix: 'release-0' }] },
+  links: {
+    source: { baseUrl: 'https://github.com/example/docs/blob/main/' },
+    versions: true,
+  },
+  aeo: { corpus: { manifest: { enabled: true } } },
+});
+```
+
+Each archive string uses the same version label and prefix. An object separates the safe
+single-segment label from its served prefix. Prefixes match public `starlightRoute.id`, not raw
+source-directory names: configure the actual served slug if the content loader normalized it.
+Only configured prefixes are interpreted, before or after the public locale prefix. Current
+pages keep their routes. The plugin populates `aeo.corpus.versions.current` and defaults archive
+order to the configured list; a conflicting explicit current value is rejected. It does not
+discover upstream versions, install a versioning plugin, or rewrite source/project routes.
+
+The public route's `isFallback` and `entryMeta` facts identify untranslated pages. Such pages
+remain available as HTML and Markdown companions but are excluded from the requested locale's
+corpus with `starlight-fallback-locale-excluded`. This also applies when an authored `<AeoPage>`
+supplies the source. Authored content and metadata still win; missing route-version facts are
+filled from the inferred marker. Source links use relative public `entry.filePath` values and
+never expose an absolute local path. Version footers are rendered from known reciprocal
+inventory, not guessed URLs. On-demand projects still need an explicit complete catalog for
+live corpus paths; a direct companion without known peers omits version links.
+
+These facts use only Starlight's [public route-data API](https://starlight.astro.build/reference/route-data/).
+Held source bodies are content-hashed privately, including MDX; raw MDX is never published.
+Configured version prefixes can mirror the upstream plugin's
+[version slugs](https://starlight-versions.vercel.app/configuration/#slug) without private imports.
 
 ## Validator CLI
 

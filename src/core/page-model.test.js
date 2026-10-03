@@ -18,6 +18,16 @@ const site = { siteUrl: 'https://x.com', base: '', trailingSlash: 'always' };
 const page = (body, head = '') =>
   `<!doctype html><html><head><title>T</title>${head}</head><body><main>${body}</main></body></html>`;
 
+test('an inferred converted source keeps its original body hash without publishing raw MDX', async () => {
+  const body = 'import Private from "private";\n<Private />';
+  const marker = { markdown: '# Converted\n', sourceBody: body, sourceKind: 'mdx' };
+  const html = page(`<script type="application/vnd.astro-aeo+json" data-astro-aeo-marker="inferred">${serializeJsonLd(marker)}</script>`);
+  const result = await buildPage({ pathname: '/source', html, config: resolveConfig({}), site });
+  expect(result.page.source).toMatchObject({ body, hash: await sha256Digest(body) });
+  expect(result.page.markdown).toBe('# Converted\n');
+  expect(result.page.representations.html).not.toContain('Private');
+});
+
 test('held source bodies have content-derived hashes, not catalog claims', async () => {
   const body = '# Exact source';
   const result = await buildPage({ pathname: '/source', html: page('<p>Rendered</p>'),

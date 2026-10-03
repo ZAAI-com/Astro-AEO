@@ -31,6 +31,7 @@ import { createSemanticPlugin } from './semantic/plugin.js';
 import { exactPathnameIdentity } from './core/artifact-path.js';
 import { absoluteUrl } from './core/page-model.js';
 import { corpusRoutePatterns } from './core/corpus-topology.js';
+import { contentRoutesFor } from './lib/content-routes.js';
 import { createLocaleSnapshot } from './core/locale.js';
 import {
   preloadCorpusTokenizer,
@@ -110,6 +111,7 @@ export default function aeo(userConfig = {}) {
   let serverOutput = false;
   let adapterFallbacks = false;
   let hasOnDemandProjectPage = false;
+  const declaredContentRoutes = new Set();
   /** @type {ReturnType<typeof edgeProviderOf>} */
   let edgeProvider = null;
   /** @type {string | null} */
@@ -263,6 +265,12 @@ export default function aeo(userConfig = {}) {
         sitemapState.expected = plan.expected;
 
         adapterFallbacks = Boolean(astroConfig.adapter);
+        declaredContentRoutes.clear();
+        const declaredBase = (astroConfig.base ?? '').replace(/\/$/, '');
+        for (const pattern of contentRoutesFor(integration)) {
+          declaredContentRoutes.add(pattern);
+          if (declaredBase) declaredContentRoutes.add(`${declaredBase}${pattern}`);
+        }
         adapterName = typeof astroConfig.adapter?.name === 'string' ? astroConfig.adapter.name : null;
         edgeProvider = edgeProviderOf(config.plugins);
         // Static edge negotiation exists for sites with no server. The gate reads the
@@ -476,7 +484,10 @@ export default function aeo(userConfig = {}) {
           const routePattern = /** @type {string | undefined} */ (
             typeof route.pattern === 'string' ? route.pattern : route.route
           );
-          if (projectRoute && type === 'page' && pattern instanceof RegExp && typeof routePattern === 'string') {
+          const relativePattern = routePattern && base && routePattern.startsWith(`${base}/`)
+            ? routePattern.slice(base.length) : routePattern;
+          const contentRoute = projectRoute || (origin === 'external' && declaredContentRoutes.has(relativePattern));
+          if (contentRoute && type === 'page' && pattern instanceof RegExp && typeof routePattern === 'string') {
             pageRoutePatterns.push({ pattern, routePattern });
           }
           const prerendered = /** @type {boolean | undefined} */ (
@@ -500,7 +511,7 @@ export default function aeo(userConfig = {}) {
             runtimeProjectPatterns.push(pattern);
           }
           if (
-            projectRoute &&
+            contentRoute &&
             type === 'page' &&
             runtimePathname &&
             runtimePathname !== '/404' &&
@@ -508,7 +519,7 @@ export default function aeo(userConfig = {}) {
           ) {
             runtimePagePaths.add(runtimePathname);
           }
-          if (projectRoute && type === 'page' && prerendered === false) {
+          if (contentRoute && type === 'page' && prerendered === false) {
             hasOnDemandProjectPage = true;
             if (edgeProvider) {
               throw new Error(
@@ -517,7 +528,7 @@ export default function aeo(userConfig = {}) {
               );
             }
           }
-          const dynamicProjectPage = projectRoute && type === 'page' && pathname == null;
+          const dynamicProjectPage = contentRoute && type === 'page' && pathname == null;
           if (dynamicProjectPage) {
             hasDynamicProjectPage = true;
             if (prerendered === false) hasOnDemandDynamicProjectPage = true;

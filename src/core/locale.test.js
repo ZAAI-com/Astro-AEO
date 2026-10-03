@@ -29,6 +29,16 @@ function servedAt(context, alternates = [], rendered = '') {
 }
 
 describe('hreflang normalization', () => {
+  test('excludes untranslated Starlight routes without disabling their companions', () => {
+    const record = { ...page('/fr/guide'), localeFallback: { requested: 'fr', source: 'en' }, language: 'en',
+      directives: { generateMarkdown: true } };
+    const result = resolvePageLocale(record, createLocaleSnapshot({ locales: ['en', 'fr'], defaultLocale: 'en' }, 'https://example.test'), { unresolvedLanguage: 'error' });
+    expect(result.excluded).toBe(true);
+    expect(result.page.directives.generateMarkdown).toBe(true);
+    expect(result.page.corpusExcluded).toBe(true);
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: 'starlight-fallback-locale-excluded', severity: 'info' }));
+  });
+
   test('ignores a malformed alternate container without throwing or losing valid version links', () => {
     for (const value of [{}, 'invalid']) {
       expect(normalizePageAlternates([page('/en/', value)]).pages[0].alternates).toEqual([]);

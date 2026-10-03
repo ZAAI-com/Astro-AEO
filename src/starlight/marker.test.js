@@ -16,6 +16,28 @@ const route = (/** @type {Record<string, unknown>} */ overrides = {}) => ({
 });
 
 describe('Starlight marker', () => {
+  it('uses requested/source language facts and marks untranslated pages independently of Markdown fallback', () => {
+    const marker = starlightMarker(route({ id: 'fr/guides/install', locale: 'fr', lang: 'fr', isFallback: true, entryMeta: { lang: 'en' } }), options);
+    expect(marker).toMatchObject({ language: 'en', localeFallback: { requested: 'fr', source: 'en' } });
+    expect(marker.entities[0].inLanguage).toBe('en');
+  });
+
+  it('keeps source-view links separate from edit URLs and refuses local absolute paths', () => {
+    const enabled = { ...options, links: { pagination: false, edit: false, source: { baseUrl: 'https://example.test/blob/main/' } } };
+    expect(starlightMarker(route(), enabled).markdown).toContain('- Source: <https://example.test/blob/main/src/content/docs/guides/install.md>');
+    expect(starlightMarker(route(), enabled).markdown).not.toContain('edit/install');
+    for (const filePath of ['/private/docs.md', '../private.md', 'C:\\private.md']) {
+      expect(starlightMarker(route({ entry: { ...route().entry, filePath } }), enabled).markdown).not.toContain('- Source:');
+    }
+  });
+
+  it('carries configured versions and opt-in known-peer links without guessing arbitrary prefixes', () => {
+    const configured = { ...options, links: { ...options.links, versions: true },
+      versions: { current: 'v2', archived: [{ version: 'v1', prefix: '1.0' }] } };
+    expect(starlightMarker(route({ id: 'fr/1.0/guides/install', locale: 'fr' }), configured)).toMatchObject({ version: 'v1', versionGroup: '/guides/install', versionLinks: true });
+    expect(starlightMarker(route({ id: '1.0/fr/guides/install', locale: 'fr' }), configured)).toMatchObject({ version: 'v1', versionGroup: '/guides/install' });
+    expect(starlightMarker(route({ id: 'v1/guides/install' }), configured)).toMatchObject({ version: 'v2', versionGroup: '/v1/guides/install' });
+  });
   it('uses only what Starlight resolved', () => {
     expect(starlightMarker(route(), options)).toEqual({
       title: 'Install',
@@ -24,6 +46,7 @@ describe('Starlight marker', () => {
       lastModified: '2026-03-04T00:00:00.000Z',
       sourcePath: 'src/content/docs/guides/install.md',
       sourceKind: 'markdown',
+      sourceBody: 'Run it.\n',
       markdown: '# Install\n\nRun it.\n\n---\n\n- Previous: [Intro \\[v2\\]](/intro/)\n- Next: [Next](/guides/next%20page/)\n',
       entities: [{ '@type': 'TechArticle', headline: 'Install', description: 'How to install', inLanguage: 'en', dateModified: '2026-03-04T00:00:00.000Z' }],
     });
@@ -52,6 +75,13 @@ describe('Starlight marker', () => {
 });
 
 describe('marker precedence', () => {
+  it('preserves authored content while retaining inferred route version and fallback facts', () => {
+    const inferred = { markdown: 'Inferred', version: 'v1', versionGroup: '/guide', versionLinks: true,
+      localeFallback: { requested: 'fr', source: 'en' } };
+    const html = `<html><head><script type="application/vnd.astro-aeo+json" data-astro-aeo-marker="inferred">${JSON.stringify(inferred)}</script></head><body><script type="application/vnd.astro-aeo+json" data-astro-aeo-marker>${JSON.stringify({ markdown: 'Authored', version: 'custom' })}</script></body></html>`;
+    expect(readMarker(parseDocument(html))).toEqual({ ...inferred, markdown: 'Authored', version: 'custom' });
+  });
+
   const script = (/** @type {string} */ kind, /** @type {string} */ title) =>
     `<script type="application/vnd.astro-aeo+json" data-astro-aeo-marker${kind}>${JSON.stringify({ title })}</script>`;
 

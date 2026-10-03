@@ -114,6 +114,11 @@ export function astroRouteLocale(pathname, origin, snapshot) {
 export function resolvePageLocale(page, snapshot, options) {
   /** @type {import('../index.js').Diagnostic[]} */
   const diagnostics = [];
+  if (page.localeFallback) return {
+    page: { ...page, corpusExcluded: true }, excluded: true,
+    diagnostics: [localeDiagnostic('starlight-fallback-locale-excluded', 'info',
+      'An untranslated Starlight fallback page was excluded from the requested locale corpus.', page.pathname)],
+  };
   const sources = page.languageSources ?? {};
   const semanticLanguage = page.language !== undefined && page.language !== sources.initial
     ? page.language
@@ -370,7 +375,7 @@ function decodeSegment(value) {
   }
 }
 
-/** @param {string} code @param {'warning'|'error'} severity @param {string} message @param {string} pathname */
+/** @param {string} code @param {'warning'|'error'|'info'} severity @param {string} message @param {string} pathname */
 function localeDiagnostic(code, severity, message, pathname) {
   return { version: /** @type {const} */ (1), code, severity, message, pathname };
 }

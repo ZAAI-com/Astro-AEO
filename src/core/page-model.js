@@ -33,6 +33,8 @@ import { sha256Digest } from './corpus-manifest.js';
  * @property {string} [version]      Documentation version label.
  * @property {string} [versionGroup]
  * @property {import('../index.js').PageAlternate[]} [alternates]
+ * @property {boolean} [versionLinks]
+ * @property {{ requested: string; source?: string }} [localeFallback]
  * @property {import('../index.js').VersionPageAlternate[]} [_generatedVersionAlternates] Internal derived-link tracking.
  * @property {boolean} [corpusExcluded] Internal corpus-planning exclusion marker.
  * @property {{ initial?: string; declared?: string; rendered?: string; siteDefault?: string }} [languageSources] Internal precedence inputs.
@@ -174,7 +176,8 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
     : undefined;
   const authoredWins = !markerWins && markerBody === undefined && authoredMarkdown !== undefined;
   const sourceMarkdown = markerMarkdown ?? (markerBody === undefined ? authoredMarkdown : undefined);
-  const sourceBody = markerMarkdown ?? markerBody ?? authoredMarkdown ?? authored?.body;
+  const sourceBody = typeof marker?.sourceBody === 'string'
+    ? marker.sourceBody : markerMarkdown ?? markerBody ?? authoredMarkdown ?? authored?.body;
   const sourceHash = typeof sourceBody === 'string' ? await sha256Digest(sourceBody) : undefined;
   let markdown = '';
   /** @type {import('./extract/index.js').ExtractionDiagnostics | undefined} */
@@ -297,6 +300,8 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
       ...(language ? { language } : {}),
       ...(version ? { version } : {}),
       ...(versionGroup ? { versionGroup } : {}),
+      ...(marker?.versionLinks === true ? { versionLinks: true } : {}),
+      ...(typeof marker?.localeFallback?.requested === 'string' ? { localeFallback: marker.localeFallback } : {}),
       ...(Array.isArray(marker?.alternates ?? authored?.alternates)
         ? { alternates: marker?.alternates ?? authored?.alternates } : {}),
       languageSources: {

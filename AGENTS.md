@@ -89,6 +89,11 @@ plain ESM with no package build step.
   `readMarker` prefers an authored marker over an inferred one. `src/starlight/markdown.js` converts
   source line by line and returns a fallback, never partial output, for anything it would have to
   evaluate. Its fixtures are Astro 7 only and declare their dependencies so Vite bundles Starlight.
+  The native plugin declares the public `/[...slug]` docs route shape through
+  `src/lib/content-routes.js`, so its external page routes participate in corpus ownership without
+  opting unrelated integration routes in. Explicit versions use public route IDs and configured
+  prefixes, not private upstream state. Inferred route-version and fallback facts survive an
+  authored source marker; untranslated fallback pages keep companions but leave the locale corpus.
 
 - `src/emdash.js` is the EmDash integration: it registers `aeo()` itself with EmDash defaults and
   serves `virtual:astro-aeo/emdash`, the only module that imports `emdash`. That bridge resolves from

@@ -1,4 +1,5 @@
 // @ts-check
+import { pageMarkdown } from './page-markdown.js';
 
 /**
  * @typedef {object} MarkdownDocPage
@@ -6,6 +7,8 @@
  * @property {string} url
  * @property {string} description
  * @property {string} markdown
+ * @property {boolean} [versionLinks]
+ * @property {import('../../index.js').PageAlternate[]} [alternates]
  * @property {string | undefined} [lastModified] ISO timestamp.
  */
 
@@ -35,8 +38,9 @@ export function renderMarkdownDocument(page, config) {
     body += '---\n\n';
   }
 
-  body += page.markdown;
-  if (!page.markdown.endsWith('\n')) body += '\n';
+  const markdown = pageMarkdown(page);
+  body += markdown;
+  if (!markdown.endsWith('\n')) body += '\n';
 
   // The footer is the no-frontmatter way to carry the same fact, so it is
   // suppressed when frontmatter already states it.

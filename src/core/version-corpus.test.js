@@ -74,3 +74,11 @@ test('does not require a nonempty current inventory to publish archive manifests
   expect(plan.diagnostics.filter((record) => record.severity === 'error')).toEqual([]);
   expect(plan.manifest.pages).toHaveLength(1);
 });
+
+test('an empty build-time version inventory can defer manifests to live collection', async () => {
+  const plan = await planCorpusArtifacts(input('both', { pages: [], deferEmptyManifest: true }));
+  expect(plan.diagnostics).toEqual([]);
+  expect(plan.manifest).toBeUndefined();
+  const staticPlan = await planCorpusArtifacts(input('both', { pages: [] }));
+  expect(staticPlan.diagnostics).toContainEqual(expect.objectContaining({ code: 'corpus-manifest-canonical-missing', severity: 'error' }));
+});

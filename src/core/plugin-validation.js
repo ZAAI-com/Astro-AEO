@@ -330,6 +330,10 @@ function isRecord(value) {
 
 /** @param {Record<string, any>} page */
 function versionFields(page) {
+  if (page.versionLinks !== undefined && typeof page.versionLinks !== 'boolean') return false;
+  if (page.localeFallback !== undefined && (!isRecord(page.localeFallback) ||
+      !safeString(page.localeFallback.requested, true) || !optionalString(page.localeFallback.source) ||
+      Object.keys(page.localeFallback).some((key) => !['requested', 'source'].includes(key)))) return false;
   if (page.version !== undefined && !isPageVersion(page.version)) return false;
   if (page.versionGroup !== undefined && !isVersionGroup(page.versionGroup)) return false;
   if (page.alternates !== undefined && !Array.isArray(page.alternates)) return false;

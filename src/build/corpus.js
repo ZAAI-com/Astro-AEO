@@ -25,6 +25,7 @@ export async function stageCorpusArtifacts(inputPages, config, env) {
   const pages = inputPages.filter((page) => !page.corpusExcluded);
   const plan = await planCorpusArtifacts({
     pages,
+    deferEmptyManifest: env.runtime === true,
     config,
     siteMeta: env.siteMeta,
     origin,

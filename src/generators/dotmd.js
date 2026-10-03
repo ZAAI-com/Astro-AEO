@@ -1,6 +1,7 @@
 // @ts-check
 import { writeFileSync, readFileSync } from 'node:fs';
 import { renderMarkdownDocument } from '../core/render/markdown-doc.js';
+import { pageMarkdown } from '../core/render/page-markdown.js';
 import { hasMarkdownCompanion } from '../core/render/llms-txt.js';
 import { mdPathnameFor } from '../core/page-model.js';
 import { normalizeOrigin } from '../core/locale.js';
@@ -51,7 +52,7 @@ export function emitDotMd(pages, config, writer, options = {}) {
     }
 
     const key = options.cache?.key('artifact-markdown-v1', {
-      title: page.title, url: page.url, description: page.description, markdown: page.markdown,
+      title: page.title, url: page.url, description: page.description, markdown: pageMarkdown(page),
       frontmatter: config.markdown.frontmatter, includeLastModified: config.markdown.includeLastModified,
       ...(config.markdown.includeLastModified ? { lastModified: page.lastModified } : {}),
     });
