@@ -1869,6 +1869,26 @@ Held source bodies are content-hashed privately, including MDX; raw MDX is never
 Configured version prefixes can mirror the upstream plugin's
 [version slugs](https://starlight-versions.vercel.app/configuration/#slug) without private imports.
 
+## Read-only data reports
+
+Use `astro-aeo report traffic|changes|inspect|graph|rag` to inspect existing observations,
+private build evidence and published artifacts without executing consumer configuration.
+Traffic discloses observed counts, sampling and coverage; changes defaults to no failure gate.
+Inspection warns on evidence mismatches. Graph HTML is offline, escaped and hash-CSP protected,
+with filters and a no-JavaScript table. RAG exports private records or available companions
+without requiring prior RAG enablement, and discloses build-time incompleteness.
+
+```sh
+astro-aeo report traffic observations.jsonl --from 2026-10-01 --to 2026-11-01 --format json
+astro-aeo report changes --baseline previous-pages-v1.json
+astro-aeo report inspect . --page '/guide/**' --format json
+astro-aeo report graph dist/schema/graph.jsonld --output graph.html
+astro-aeo report rag . --output private/rag.jsonl
+```
+
+Inputs are bounded and project evidence refuses symlinks. Outputs are stdout unless explicitly
+exported with `--output` (atomic, mode `0600`). See [report options, limits and contracts](docs/reports.md).
+
 ## Validator CLI
 
 ```bash

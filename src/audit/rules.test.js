@@ -17,7 +17,8 @@ const EMITTERS = [
 ];
 
 // Ternaries between two literals that are not finding codes.
-const NOT_CODES = new Set(['markdown-route', 'on-demand', 'read-only', 'not-modified']);
+const NOT_CODES = new Set(['markdown-route', 'on-demand', 'read-only', 'not-modified',
+  'unconfirmed-addition', 'unconfirmed-removal']);
 
 /** @param {string} directory @returns {string[]} */
 function sourceFiles(directory) {

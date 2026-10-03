@@ -4,6 +4,8 @@ All notable changes to this project are documented here. This project follows [S
 
 ## 1.6.0
 
+- Add read-only traffic, changes, inspect, graph and RAG reports, versioned report/evidence schemas, and hash-pinned offline HTML CSP while retaining frozen validator formatting.
+
 In preparation. Release notes will be folded in from changesets before the 1.6.0 tag is created.
 
 - Generate private locale/version RAG page and chunk records with stable IDs, actual tokenizer

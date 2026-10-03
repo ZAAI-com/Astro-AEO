@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { serializeReportSchemas } from './report-schemas.mjs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -25,4 +26,8 @@ console.log(`Wrote ${analyticsDestination}`);
 for (const [file, serialize] of [['rag-record-v1.schema.json',serializeRagRecordSchema],['rag-index-v1.schema.json',serializeRagIndexSchema]]) {
   await writeFile(resolve(root, 'schema', file), serialize(), 'utf8');
   console.log(`Wrote schema/${file}`);
+}
+
+for (const [name, body] of Object.entries(serializeReportSchemas())) {
+  await writeFile(resolve(root, 'schema', name + '.schema.json'), body, 'utf8');
 }

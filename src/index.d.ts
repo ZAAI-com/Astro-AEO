@@ -96,6 +96,50 @@ export interface AeoProcessingTraceV1 {
   cacheReasons: Readonly<Record<string, number>>;
 }
 
+export interface AnalyticsReportV1 {
+  version: 1; type: 'traffic'; warnings: string[]; observed: number; estimated?: number;
+  filters: { from: string | null; to: string | null };
+  disclosure: {
+    coverage: 'observable-only'; classification: 'claimed'; sampleRates: number[];
+    scopes: ('agents' | 'all')[]; surfaces: string[]; registryVersions: string[];
+    weighted: boolean; estimateBasis: 'inverse-probability-not-verified-traffic';
+  };
+  buckets: TrafficBucketV1[]; paths: TrafficBucketV1[]; crawlers: TrafficBucketV1[];
+  representations: TrafficBucketV1[]; statuses: TrafficBucketV1[];
+}
+export interface TrafficBucketV1 { key: string; observed: number; estimated?: number }
+export interface AeoChangeV1 {
+  pathname: string; locale: string | null; contentVersion: string | null;
+  status: 'added' | 'changed' | 'removed' | 'unconfirmed-addition' | 'unconfirmed-removal';
+  components: ('source' | 'html' | 'markdown' | 'metadata' | 'graph' | 'directives' |
+    'status' | 'owner' | 'etag' | 'byteLength')[];
+}
+export interface ChangesReportV1 {
+  version: 1; type: 'changes'; warnings: string[];
+  baselineDigest: string; currentDigest: string; baselineComplete: boolean; currentComplete: boolean;
+  pages: AeoChangeV1[]; artifacts: AeoChangeV1[]; ragChanged: boolean;
+}
+export interface InspectReportV1 {
+  version: 1; type: 'inspect'; warnings: string[]; buildDigest: string; inventoryComplete: boolean;
+  pages: {
+    snapshot: AeoPageSnapshotV1['pages'][number]; trace: AeoProcessingTraceV1['pages'][number] | null;
+    stages: AeoProcessingTraceV1['stages'];
+    companions: { pathname: string; hash: string | null; tokenCount: number | null }[];
+  }[];
+  artifacts: AeoPageSnapshotV1['artifacts'];
+}
+export interface GraphReportV1 {
+  version: 1; type: 'graph'; warnings: string[];
+  nodes: { id: string; label: string; types: string[] }[];
+  edges: { from: string; to: string; property: string }[];
+}
+export interface RagReportV1 {
+  version: 1; type: 'rag'; warnings: string[]; source: 'private' | 'companions';
+  buildDigest: string | null; inventoryComplete: boolean; buildTimeIncomplete: boolean;
+  records: RagRecordV1[];
+}
+export type AeoDataReportV1 = AnalyticsReportV1 | ChangesReportV1 | InspectReportV1 | GraphReportV1 | RagReportV1;
+
 export interface CorpusTokenizerModule {
   apiVersion: 1;
   name: string;

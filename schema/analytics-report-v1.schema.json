@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zaai.com/astro-aeo/schema/analytics-report-v1.schema.json",
+  "title": "Astro-AEO analytics-report-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "type",
+    "warnings",
+    "observed",
+    "filters",
+    "disclosure",
+    "buckets",
+    "paths",
+    "crawlers",
+    "representations",
+    "statuses"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "type": {
+      "const": "traffic"
+    },
+    "warnings": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "string"
+      }
+    },
+    "observed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "estimated": {
+      "type": "number",
+      "minimum": 0
+    },
+    "filters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "to"
+      ],
+      "properties": {
+        "from": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "to": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "disclosure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coverage",
+        "classification",
+        "sampleRates",
+        "scopes",
+        "surfaces",
+        "registryVersions",
+        "weighted",
+        "estimateBasis"
+      ],
+      "properties": {
+        "coverage": {
+          "const": "observable-only"
+        },
+        "classification": {
+          "const": "claimed"
+        },
+        "sampleRates": {
+          "type": "array",
+          "maxItems": 100000,
+          "items": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1
+          }
+        },
+        "scopes": {
+          "type": "array",
+          "maxItems": 100000,
+          "items": {
+            "enum": [
+              "agents",
+              "all"
+            ]
+          }
+        },
+        "surfaces": {
+          "type": "array",
+          "maxItems": 100000,
+          "items": {
+            "type": "string"
+          }
+        },
+        "registryVersions": {
+          "type": "array",
+          "maxItems": 100000,
+          "items": {
+            "type": "string"
+          }
+        },
+        "weighted": {
+          "type": "boolean"
+        },
+        "estimateBasis": {
+          "const": "inverse-probability-not-verified-traffic"
+        }
+      }
+    },
+    "buckets": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "observed"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "observed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "estimated": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "paths": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "observed"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "observed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "estimated": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "crawlers": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "observed"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "observed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "estimated": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "representations": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "observed"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "observed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "estimated": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "statuses": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "observed"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "observed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "estimated": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

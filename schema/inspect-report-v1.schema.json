@@ -1,0 +1,321 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zaai.com/astro-aeo/schema/inspect-report-v1.schema.json",
+  "title": "Astro-AEO inspect-report-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "type",
+    "warnings",
+    "buildDigest",
+    "inventoryComplete",
+    "pages",
+    "artifacts"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "type": {
+      "const": "inspect"
+    },
+    "warnings": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "string"
+      }
+    },
+    "buildDigest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "inventoryComplete": {
+      "type": "boolean"
+    },
+    "pages": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "snapshot",
+          "trace",
+          "stages",
+          "companions"
+        ],
+        "properties": {
+          "snapshot": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "pathname",
+              "locale",
+              "version",
+              "components"
+            ],
+            "properties": {
+              "pathname": {
+                "type": "string",
+                "maxLength": 2048,
+                "pattern": "^/[^?#\\u0000-\\u001f\\u007f]*$"
+              },
+              "routePattern": {
+                "type": "string",
+                "maxLength": 2048,
+                "pattern": "^/[^?#\\u0000-\\u001f\\u007f]*$"
+              },
+              "locale": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^(?!https?:|[a-zA-Z]:/)[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+              },
+              "version": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^(?!https?:|[a-zA-Z]:/)[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+              },
+              "components": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "source",
+                  "html",
+                  "markdown",
+                  "metadata",
+                  "graph",
+                  "directives"
+                ],
+                "properties": {
+                  "source": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  },
+                  "html": {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  },
+                  "markdown": {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  },
+                  "metadata": {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  },
+                  "graph": {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  },
+                  "directives": {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  }
+                }
+              }
+            }
+          },
+          "trace": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "pathname",
+                  "source",
+                  "renderer",
+                  "graphEntities",
+                  "graphProvenance",
+                  "htmlTransforms",
+                  "diagnostics"
+                ],
+                "properties": {
+                  "pathname": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "pattern": "^/[^?#\\u0000-\\u001f\\u007f]*$"
+                  },
+                  "source": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^(?!https?:|[a-zA-Z]:/)[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+                  },
+                  "renderer": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^(?!https?:|[a-zA-Z]:/)[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+                  },
+                  "graphEntities": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "graphProvenance": {
+                    "type": "object",
+                    "propertyNames": {
+                      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+                    },
+                    "additionalProperties": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "htmlTransforms": {
+                    "type": "array",
+                    "maxItems": 100000,
+                    "items": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "pattern": "^(?!https?:|[a-zA-Z]:/)[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+                    }
+                  },
+                  "diagnostics": {
+                    "type": "object",
+                    "propertyNames": {
+                      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+                    },
+                    "additionalProperties": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stages": {
+            "type": "array",
+            "maxItems": 100000,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "pathname",
+                "stage",
+                "outcome"
+              ],
+              "properties": {
+                "pathname": {
+                  "type": "string",
+                  "maxLength": 2048,
+                  "pattern": "^/[^?#\\u0000-\\u001f\\u007f]*$"
+                },
+                "stage": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^(?!https?:|[a-zA-Z]:/)[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+                },
+                "outcome": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "companions": {
+            "type": "array",
+            "maxItems": 100000,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "pathname",
+                "hash",
+                "tokenCount"
+              ],
+              "properties": {
+                "pathname": {
+                  "type": "string",
+                  "maxLength": 2048,
+                  "pattern": "^/[^?#\\u0000-\\u001f\\u007f]*$"
+                },
+                "hash": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "tokenCount": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pathname",
+          "status",
+          "owner",
+          "etag",
+          "byteLength"
+        ],
+        "properties": {
+          "pathname": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^/[^?#\\u0000-\\u001f\\u007f]*$"
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(?!https?:|[a-zA-Z]:/)[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+          },
+          "owner": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(?!https?:|[a-zA-Z]:/)[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+          },
+          "etag": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^\"[a-f0-9]{64}\"$"
+          },
+          "byteLength": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

@@ -48,6 +48,15 @@ export function fileEtag(path) {
   }
 }
 
+/** Astro supplies directory URLs with a trailing separator, while CLIs resolve
+ * directory arguments without one. Accept only those two spellings of the
+ * same absolute output directory; do not change existing writer identities.
+ * @param {unknown} identity @param {string} outputRoot */
+export function matchesOutputRootId(identity, outputRoot) {
+  const root = resolve(outputRoot);
+  return identity === outputRootId(root) || identity === outputRootId(root.endsWith(sep) ? root : root + sep);
+}
+
 /**
  * Load only the narrow, versioned shape needed for stale-output arbitration.
  * A malformed or future manifest never grants overwrite/delete authority.

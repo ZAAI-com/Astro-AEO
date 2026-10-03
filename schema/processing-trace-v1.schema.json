@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zaai.com/astro-aeo/schema/processing-trace-v1.schema.json",
+  "title": "Astro-AEO processing-trace-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "buildDigest",
+    "inventoryComplete",
+    "stages",
+    "pages",
+    "artifacts",
+    "diagnostics",
+    "cacheReasons"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "buildDigest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "inventoryComplete": {
+      "type": "boolean"
+    },
+    "stages": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pathname",
+          "stage",
+          "outcome"
+        ],
+        "properties": {
+          "pathname": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^/[^?#\\u0000-\\u001f\\u007f]*$"
+          },
+          "stage": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(?!https?:|[a-zA-Z]:/)[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+          },
+          "outcome": {
+            "enum": [
+              "hit",
+              "miss",
+              "bypass",
+              "excluded",
+              "redirect",
+              "noindex",
+              "skip-token",
+              "unreadable",
+              "isolated",
+              "dropped",
+              "kept",
+              "replaced"
+            ]
+          }
+        }
+      }
+    },
+    "pages": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pathname",
+          "source",
+          "renderer",
+          "graphEntities",
+          "graphProvenance",
+          "htmlTransforms",
+          "diagnostics"
+        ],
+        "properties": {
+          "pathname": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^/[^?#\\u0000-\\u001f\\u007f]*$"
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(?!https?:|[a-zA-Z]:/)[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+          },
+          "renderer": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(?!https?:|[a-zA-Z]:/)[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+          },
+          "graphEntities": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "graphProvenance": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+            },
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "htmlTransforms": {
+            "type": "array",
+            "maxItems": 100000,
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^(?!https?:|[a-zA-Z]:/)[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+            }
+          },
+          "diagnostics": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+            },
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pathname",
+          "action"
+        ],
+        "properties": {
+          "pathname": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^/[^?#\\u0000-\\u001f\\u007f]*$"
+          },
+          "action": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(?!https?:|[a-zA-Z]:/)[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+          }
+        }
+      }
+    },
+    "diagnostics": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "cacheReasons": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    }
+  }
+}

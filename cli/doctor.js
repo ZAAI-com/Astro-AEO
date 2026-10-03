@@ -4,7 +4,7 @@ import { existsSync, lstatSync, readFileSync, readdirSync, statSync } from 'node
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { deploymentFactsPath } from '../src/build/deployment-facts.js';
-import { fileEtag, isSafeOutputPath, isUnlinkedDirectory, outputRootId, ownershipManifestPath, readOwnershipManifest, resolveRecordedOutputPath } from '../src/build/ownership.js';
+import { fileEtag, isSafeOutputPath, isUnlinkedDirectory, matchesOutputRootId, ownershipManifestPath, readOwnershipManifest, resolveRecordedOutputPath } from '../src/build/ownership.js';
 import { extractPageFacts } from '../src/audit/facts.js';
 import { EDGE_MANIFEST_PATHNAME, readEdgeManifest } from '../src/runtime/edge/handler.js';
 import { ACCEPT_CONTRACT } from './accept-contract.js';
@@ -266,7 +266,7 @@ function ownershipChecks(projectDir, distDir, facts) {
   const ownership = readOwnershipManifest(projectDir);
   if (!ownership) return [{ id: 'build-evidence', status: 'conflicting', message: 'the private ownership ledger is invalid', hint: 'rebuild before using this evidence' }];
   const digest = `sha256:${createHash('sha256').update(ownership.artifacts.map((/** @type {any} */ entry) => `${entry.status} ${entry.pathname}`).sort().join('\n')).digest('hex')}`;
-  if (ownership.outputRootId !== outputRootId(distDir) || (facts?.ownershipDigest && facts.ownershipDigest !== digest)) {
+  if (!matchesOutputRootId(ownership.outputRootId, distDir) || (facts?.ownershipDigest && facts.ownershipDigest !== digest)) {
     return [{ id: 'build-evidence', status: 'conflicting', message: 'the build output, deployment facts and ownership ledger do not identify the same build', hint: 'use the matching --dist directory, or rebuild; no artifact conclusions were drawn from mismatched evidence' }];
   }
   /** @type {DoctorCheck[]} */

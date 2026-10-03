@@ -85,7 +85,14 @@
     },
     "./analytics-event.schema.json": "./schema/analytics-event-v1.schema.json",
     "./rag-record.schema.json": "./schema/rag-record-v1.schema.json",
-    "./rag-index.schema.json": "./schema/rag-index-v1.schema.json"
+    "./rag-index.schema.json": "./schema/rag-index-v1.schema.json",
+    "./analytics-report.schema.json": "./schema/analytics-report-v1.schema.json",
+    "./changes-report.schema.json": "./schema/changes-report-v1.schema.json",
+    "./page-snapshot.schema.json": "./schema/page-snapshot-v1.schema.json",
+    "./processing-trace.schema.json": "./schema/processing-trace-v1.schema.json",
+    "./inspect-report.schema.json": "./schema/inspect-report-v1.schema.json",
+    "./graph-report.schema.json": "./schema/graph-report-v1.schema.json",
+    "./rag-report.schema.json": "./schema/rag-report-v1.schema.json"
   },
   "bin": {
     "astro-aeo": "./bin/astro-aeo.js"
