@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { join } from 'node:path';
+import { checkDenoVersion } from '../../scripts/check-deno-version.mjs';
 import {
   ASTRO_BIN,
   buildAdapter,
@@ -139,6 +140,7 @@ for (const runtime of runtimes) {
       if (!runtime.available) {
         throw new Error(`${runtime.name} was explicitly selected but its local runtime is unavailable`);
       }
+      if (runtime.name === 'deno') checkDenoVersion();
       buildAdapter(runtime.name);
       server = runtime.start();
       await waitForReady(runtime.base, server);

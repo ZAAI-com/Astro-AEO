@@ -2,13 +2,14 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { RELEASE_THRESHOLDS } from '../benchmarks/thresholds.mjs';
 
 const PACKED_LIMIT = RELEASE_THRESHOLDS.packagePackedBytes;
 const UNPACKED_LIMIT = RELEASE_THRESHOLDS.packageUnpackedBytes;
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const gitInstall = process.argv.includes('--git');
 const inspectOnly = process.argv.includes('--inspect-only');
 const allowSizeOverage = process.argv.includes('--allow-size-overage');
 const keepTemporary = process.env.AEO_KEEP_PACKAGE_SMOKE === '1';
@@ -120,6 +121,9 @@ try {
     const consumer = resolve(temporary, 'consumer');
     await mkdir(resolve(consumer, 'src/pages'), { recursive: true });
     const tarball = resolve(packDirectory, metadata.filename);
+    const revision = run('git', ['rev-parse', 'HEAD'], { capture: true }).trim();
+    const dependency = gitInstall ? `git+${pathToFileURL(root).href}#${revision}` : `file:${tarball}`;
+    console.log(`Installing ${gitInstall ? `Git HEAD ${revision} (committed files only)` : 'the working-tree tarball'}.`);
     const installedAstro = JSON.parse(
       await readFile(resolve(root, 'node_modules/astro/package.json'), 'utf8'),
     ).version;
@@ -130,7 +134,7 @@ try {
           name: 'astro-aeo-packed-smoke',
           private: true,
           type: 'module',
-          dependencies: { astro: installedAstro, 'astro-aeo': `file:${tarball}` },
+          dependencies: { astro: installedAstro, 'astro-aeo': dependency },
         },
         null,
         2,
@@ -154,7 +158,10 @@ try {
     // while allowing pnpm to fill a missing optional tarball. This also avoids
     // npm independently re-resolving Astro's fast-moving prerelease graph.
     run('pnpm', ['install', '--prefer-offline'], { cwd: consumer });
-    const importTargets = ['astro-aeo', 'astro-aeo/page', 'astro-aeo/extract', 'astro-aeo/schema'];
+    const importTargets = ['astro-aeo', 'astro-aeo/page', 'astro-aeo/extract', 'astro-aeo/schema',
+      'astro-aeo/content', 'astro-aeo/starlight', 'astro-aeo/emdash', 'astro-aeo/emdash/catalog',
+      'astro-aeo/analytics', 'astro-aeo/edge', 'astro-aeo/edge/cloudflare',
+      'astro-aeo/edge/netlify', 'astro-aeo/edge/vercel'];
     run(
       'node',
       [
@@ -165,7 +172,11 @@ await Promise.all(imports.map((specifier) => import(specifier)));
 for (const specifier of ['astro-aeo/components', 'astro-aeo/middleware']) import.meta.resolve(specifier);
 const schema = (await import('astro-aeo/schema.json', { with: { type: 'json' } })).default;
 const pkg = (await import('astro-aeo/package.json', { with: { type: 'json' } })).default;
-if (schema.title !== 'Astro-AEO configuration' || pkg.name !== 'astro-aeo') process.exit(1);`,
+if (schema.title !== 'Astro-AEO configuration' || pkg.name !== 'astro-aeo') process.exit(1);
+for (const specifier of Object.keys(pkg.exports).filter(key => key.endsWith('schema.json'))) {
+  const contract = (await import('astro-aeo' + specifier.slice(1), { with: { type: 'json' } })).default;
+  if (!contract || typeof contract !== 'object' || typeof contract.$schema !== 'string') process.exit(1);
+}`,
       ],
       { cwd: consumer },
     );
@@ -243,7 +254,16 @@ if (defuddleResult.status !== 'rendered' || !defuddleResult.markdown.includes('P
       ],
       { cwd: consumer },
     );
-    console.log('Packed tarball imports and Astro fixture build passed.');
+    for (const fixture of ['types-consumer', 'js-consumer']) {
+      const directory = resolve(consumer, 'fixtures', fixture);
+      await mkdir(directory, { recursive: true });
+      for (const file of ['tsconfig.json', fixture === 'types-consumer' ? 'consumer.ts' : 'consumer.js']) {
+        await writeFile(resolve(directory, file), await readFile(resolve(root, 'fixtures', fixture, file)));
+      }
+      run('node', [resolve(root, 'node_modules/typescript-floor/bin/tsc'), '--noEmit',
+        '-p', resolve(directory, 'tsconfig.json')], { cwd: consumer });
+    }
+    console.log(`${gitInstall ? 'Git dependency' : 'Packed tarball'} imports, Astro build, TypeScript and JSDoc consumers passed.`);
   }
 } finally {
   if (keepTemporary) console.log(`Kept package smoke directory: ${temporary}`);

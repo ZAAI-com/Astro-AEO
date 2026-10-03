@@ -3,7 +3,8 @@ import Layout from '../layouts/Layout.astro';
 import { defineAeoPage } from 'astro-aeo/page';
 import { AeoPage } from 'astro-aeo/components';
 
-const fail = Astro.url.searchParams.get('fail') === '1';
+// Keep both fixture query spellings used by the main and release regressions.
+const fail = Astro.url.searchParams.get('fail') === '1' || Astro.url.searchParams.has('error');
 if (fail) Astro.response.status = 500;
 const aeoPage = defineAeoPage({
   markdown: '# Private error source\n\nThis must stay inside the representation pipeline.',

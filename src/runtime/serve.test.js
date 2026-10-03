@@ -1617,3 +1617,14 @@ describe('request-origin standalone rendering', () => {
     expect(JSON.parse(profile.body).url).toBe('https://request.example');
   });
 });
+
+test('semantic plugin preserves encoded reserved route segments without allowing traversal', async () => {
+  const rt = runtime(['/archive/why%3Fnow%23yes']);
+  rt.config = resolveConfig({ schema: { corpus: { enabled: true } } });
+  const body = html('Archive why?now#yes');
+  const page = await pageFromHtml('/archive/why%3Fnow%23yes', body, rt);
+  const result = await enrichRuntimePageGraph(body, page, rt);
+  expect(result.isolated).toBe(false);
+  expect(result.page.pathname).toBe('/archive/why%3Fnow%23yes');
+  expect(result.page.markdownUrl).toBe('https://example.com/archive/why%3Fnow%23yes.md');
+});

@@ -27,10 +27,10 @@ const args = parseArgs(process.argv.slice(2));
 const enforce = Boolean(args.enforce);
 const requireComplete = Boolean(args['require-complete']);
 const iterations = positiveInteger(args.iterations, 20);
-const outputPath = resolve(root, String(args.output ?? '.astro/aeo-benchmarks/1.4.json'));
+const outputPath = resolve(root, String(args.output ?? '.astro/aeo-benchmarks/1.6.json'));
 const baselinePath = args.baseline === 'none'
   ? null
-  : resolve(root, String(args.baseline ?? 'benchmarks/baseline-1.4.json'));
+  : resolve(root, String(args.baseline ?? 'benchmarks/baseline-postfix-29729bb.json'));
 const thresholds = RELEASE_THRESHOLDS;
 const os = await import('node:os');
 

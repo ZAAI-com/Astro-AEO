@@ -111,6 +111,17 @@ describe('commitFileTransaction', () => {
     expect(readFileSync(path, 'utf8')).toBe('original');
   });
 
+  test.each([false, true])('rejects overlaps in a 10,000-file transaction in either insertion order (%s)', (parentFirst) => {
+    const parent = { kind: 'delete', path: join(root, 'name') };
+    const siblings = Array.from({ length: 10000 }, (_, index) => ({
+      kind: 'write', path: join(root, 'name-other', `file-${index}`), contents: 'Unchanged',
+    }));
+    const child = { kind: 'write', path: join(root, 'name', 'child'), contents: 'Child' };
+    const operations = parentFirst ? [parent, ...siblings, child] : [child, ...siblings, parent];
+    expect(() => commitFileTransaction(operations)).toThrow(/overlapping destinations/);
+    expect(readdirSync(root)).toEqual([]);
+  });
+
   test('rejects ancestor and descendant destinations before staging', () => {
     const parent = join(root, 'nested');
     const child = join(parent, 'child.txt');

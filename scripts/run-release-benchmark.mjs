@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnProcessTree, stopProcessTree } from './process-tree.mjs';
@@ -9,7 +9,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const nodePort = 4581;
 const cloudflarePort = 4582;
 const origin = `http://127.0.0.1:${nodePort}`;
-const astroBin = resolve(root, 'node_modules/astro/bin/astro.mjs');
+const astroPackage = JSON.parse(readFileSync(resolve(root, 'node_modules/astro/package.json'), 'utf8'));
+const astroBin = resolve(root, 'node_modules/astro', typeof astroPackage.bin === 'string' ? astroPackage.bin : astroPackage.bin.astro);
 const wranglerBin = resolve(root, 'node_modules/wrangler/bin/wrangler.js');
 
 for (const adapter of ['node', 'cloudflare']) rebuildAdapter(adapter);
@@ -26,7 +27,7 @@ server.stderr.on('data', (chunk) => (output += chunk));
 const cloudflare = spawnProcessTree(
   process.execPath,
   [
-    resolve(root, 'node_modules/astro/bin/astro.mjs'),
+    astroBin,
     'preview',
     '--ignore-lock',
     '--root',

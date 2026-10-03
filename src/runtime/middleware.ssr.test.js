@@ -314,7 +314,7 @@ describe('response contract', () => {
 
   test('runtime catalogs contribute exact source and cannot recurse through owned artifacts', async () => {
     const response = await siteRequest('/llms-full.txt');
-    expect(response.status).toBe(200);
+    expect(response.status, response.body).toBe(200);
     const body = response.body;
     expect(body).toContain('# Catalog Dynamic');
     expect(body).toContain('Exact catalog source.');
@@ -532,4 +532,16 @@ describe('response contract', () => {
   test('a POST is never intercepted', async () => {
     expect((await fetch(`${BASE}/about.md`, { method: 'POST' })).status).not.toBe(200);
   });
+});
+
+test('a transient eligible corpus page failure returns 503, not a partial success', async () => {
+  await fetch(`${BASE}/__aeo-runtime-probe?fail-corpus=1`);
+  try {
+    const response = await siteRequest('/llms-full.txt');
+    expect(response.status).toBe(503);
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(response.body).not.toContain('SECRET_TRANSIENT_SOURCE');
+    expect(response.body).not.toContain('Catalog Secondary');
+  } finally { await fetch(`${BASE}/__aeo-runtime-probe?fail-corpus=0`); }
+  expect((await siteRequest('/llms-full.txt')).status).toBe(200);
 });

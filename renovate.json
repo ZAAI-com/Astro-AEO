@@ -1,0 +1,35 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "enabledManagers": [
+    "npm",
+    "github-actions",
+    "asdf"
+  ],
+  "rangeStrategy": "bump",
+  "packageRules": [
+    {
+      "matchManagers": [
+        "asdf"
+      ],
+      "matchPackageNames": [
+        "deno"
+      ],
+      "groupName": "Deno local runtime pin"
+    },
+    {
+      "matchPackageNames": [
+        "astro",
+        "@astrojs/node",
+        "@astrojs/cloudflare",
+        "@astrojs/netlify",
+        "@astrojs/vercel",
+        "@deno/astro-adapter"
+      ],
+      "groupName": "Astro and adapter compatibility review"
+    }
+  ],
+  "automerge": false
+}

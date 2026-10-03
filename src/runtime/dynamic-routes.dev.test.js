@@ -229,7 +229,7 @@ describe.sequential('development dynamic-route discovery', () => {
     let running = await startServer(root);
 
     let llms = await responseText(running.base, '/llms.txt');
-    expect(llms.response.status).toBe(200);
+    expect(llms.response.status, llms.body + running.output()).toBe(200);
     expect(llms.body).toContain('/products/one.md');
     expect(llms.body).toContain('/archive/first.md');
     expect(llms.body).toContain('/archive/why%3Fnow%23yes.md');
@@ -259,7 +259,7 @@ describe.sequential('development dynamic-route discovery', () => {
     write(root, 'src/pages/new/[slug].astro', addedRouteSource);
     await new Promise((resolve) => setTimeout(resolve, 1000));
     llms = await responseText(running.base, '/llms.txt');
-    expect(llms.response.status).toBe(200);
+    expect(llms.response.status, llms.body + running.output()).toBe(200);
     expect(llms.body).not.toContain('/new/added.md');
     expect(running.output()).not.toContain('dynamic page routes require');
 
@@ -300,7 +300,7 @@ describe.sequential('development dynamic-route discovery', () => {
     const routeFile = join(root, 'src/pages/new/[slug].astro');
 
     const initial = await responseText(running.base, '/llms.txt');
-    expect(initial.response.status).toBe(200);
+    expect(initial.response.status, initial.body + running.output()).toBe(200);
     expect(initial.body).not.toContain('/new/added.md');
     write(root, 'src/pages/new/[slug].astro', addedRouteSource);
     let lastAdditionResponse = initial;

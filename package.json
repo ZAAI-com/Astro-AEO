@@ -222,6 +222,8 @@
     "release:check": "node scripts/release-check.mjs",
     "demo:dev": "cd fixtures/demo && astro dev",
     "demo:build": "astro build --root fixtures/demo",
-    "demo:validate": "node bin/astro-aeo.js validate fixtures/demo/dist"
+    "demo:validate": "node bin/astro-aeo.js validate fixtures/demo/dist",
+    "test:types:js": "node node_modules/typescript-floor/bin/tsc --noEmit -p fixtures/js-consumer/tsconfig.json",
+    "benchmark:projects": "node benchmarks/projects.mjs --prepare-baseline --enforce"
   }
 }

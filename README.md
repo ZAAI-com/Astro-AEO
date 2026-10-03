@@ -875,6 +875,10 @@ from the development server's own bound address after an in-process rewrite has 
 and which is never present in a production or adapter bundle. `corpus.runtime.maxPages` defaults to 50. A larger
 corpus returns `503` with `Cache-Control: no-store`, without partial output. Raise the
 limit or select `'unlimited'` only when the deployment can safely absorb that work.
+A hybrid inventory containing a prerendered page that Astro cannot rewrite also returns `503`,
+rather than silently dropping that known page. Its build-time `.md` companion remains available.
+No production loopback fallback bypasses this restriction.
+
 Temporary source failures also return a sanitized, non-cacheable `503`, never a successful
 shorter text or schema corpus. This includes rendering, transport and body-read failures,
 server errors and partial or unusably encoded HTML. GET and HEAD share the
@@ -2035,3 +2039,11 @@ Working on this repo with an AI agent? See [`AGENTS.md`](AGENTS.md) for the arch
 ## License
 
 MIT (c) 2026 ZAAI. Built and maintained by [ZAAI](https://zaai.com). Sibling project: [Jekyll-AEO](https://github.com/ZAAI-com/Jekyll-AEO).
+
+### Compatibility and measurement evidence
+
+See [standards and supported surfaces](docs/STANDARDS_AND_COMPATIBILITY.md),
+[benchmark methodology](benchmarks/README.md), and the
+[1.6.0 decision ledger](docs/release-evidence/1.6.0-decisions.md).
+Release checks include tarball and commit-pinned Git installs plus TypeScript and JS/JSDoc consumers.
+Local provider contracts do not certify deployed behavior.

@@ -36,11 +36,11 @@ export function isPageDescriptor(value) {
 export function isPageRecord(value) {
   if (!isRecord(value)) return false;
   const page = /** @type {Record<string, any>} */ (value);
-  if (!versionFields(page) || !safeString(page.id, true) || !isPipelinePathname(page.pathname)) return false;
+  if (!versionFields(page) || !safeString(page.id, true) || !isPipelinePathname(page.pathname, true)) return false;
   const validPageUrl = isAbsolutePageUrl(page.url) ||
     (page.canonicalUrl === undefined && isRootRelativePageUrl(page.url));
   if (!validPageUrl || !safeString(page.mdHref, true) ||
-      !inspectRootPathname(page.mdHref)?.decoded.endsWith('.md') || typeof page.markdown !== 'string') return false;
+      !inspectRootPathname(page.mdHref, { allowEncodedReserved: true })?.decoded.endsWith('.md') || typeof page.markdown !== 'string') return false;
   if (!optionalString(page.routePattern) || !RENDERING.has(page.rendering)) return false;
   if (page.canonicalUrl !== undefined && !stableCanonical(page.canonicalUrl)) return false;
   if (page.markdownUrl !== undefined && !stableCanonical(page.markdownUrl)) return false;
@@ -262,14 +262,16 @@ function isIsoFullDate(value) {
  * Catalog inputs retain canonical URL spelling, while Astro request records are
  * already decoded and may contain Unicode or a literal percent character.
  * @param {unknown} value
+ * @param {boolean} [allowEncodedReserved]
  */
-function isPipelinePathname(value) {
+function isPipelinePathname(value, allowEncodedReserved = false) {
   if (typeof value !== 'string' || !value.startsWith('/')) return false;
   if (value !== '/' && value.endsWith('/')) return false;
   if (value.startsWith('//') || value.includes('//') || /[\\?#\u0000-\u001f\u007f]/.test(value)) {
     return false;
   }
   if (value.split('/').some((segment) => segment === '.' || segment === '..')) return false;
+  if (allowEncodedReserved && inspectRootPathname(value, { allowEncodedReserved: true })) return true;
   if (normalizeCatalogPathname(value) === value) return true;
   if (!value.includes('%')) return true;
   try {
@@ -313,7 +315,7 @@ function isAbsolutePageUrl(value) {
 
 /** @param {unknown} value */
 function isRootRelativePageUrl(value) {
-  return typeof value === 'string' && inspectRootPathname(value) !== null;
+  return typeof value === 'string' && inspectRootPathname(value, { allowEncodedReserved: true }) !== null;
 }
 
 /** @param {string} value */

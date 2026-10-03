@@ -1,0 +1,298 @@
+{
+  "version": 1,
+  "generatedAt": "2026-10-03T22:56:33.092Z",
+  "environment": {
+    "node": "v24.15.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "cpus": 10,
+    "ci": false,
+    "runnerClass": null
+  },
+  "thresholds": {
+    "packagePackedBytes": 450000,
+    "packageUnpackedBytes": 1530000,
+    "parse100KbP95Ms": 50,
+    "convert100KbP95Ms": 150,
+    "convertRich100KbP95Ms": 300,
+    "requestP95OverheadMs": 10,
+    "retainedHeapBytes": 10485760,
+    "corpusConcurrency": 1,
+    "cloudflareRawBytes": 53687091,
+    "cloudflareGzipBytes": 2516582,
+    "cloudflareStartupMs": 800
+  },
+  "package": {
+    "packedBytes": 489712,
+    "unpackedBytes": 1876024,
+    "files": 233
+  },
+  "extraction": {
+    "10000": {
+      "bytes": 10208,
+      "parse": {
+        "samples": 50,
+        "medianMs": 0.754,
+        "p95Ms": 2.479,
+        "minMs": 0.406,
+        "maxMs": 2.927
+      },
+      "convert": {
+        "samples": 50,
+        "medianMs": 3.898,
+        "p95Ms": 5.836,
+        "minMs": 3.215,
+        "maxMs": 6.556
+      }
+    },
+    "100000": {
+      "bytes": 100088,
+      "parse": {
+        "samples": 100,
+        "medianMs": 5.032,
+        "p95Ms": 25.342,
+        "minMs": 3.934,
+        "maxMs": 40.388
+      },
+      "convert": {
+        "samples": 100,
+        "medianMs": 40.873,
+        "p95Ms": 69.416,
+        "minMs": 32.953,
+        "maxMs": 75.264
+      }
+    },
+    "1000000": {
+      "bytes": 1000148,
+      "parse": {
+        "samples": 20,
+        "medianMs": 77.814,
+        "p95Ms": 114.749,
+        "minMs": 51.86,
+        "maxMs": 154.287
+      },
+      "convert": {
+        "samples": 20,
+        "medianMs": 787.999,
+        "p95Ms": 1380.598,
+        "minMs": 743.971,
+        "maxMs": 1714.024
+      }
+    },
+    "100000-rich": {
+      "bytes": 101504,
+      "parse": {
+        "samples": 100,
+        "medianMs": 7.189,
+        "p95Ms": 50.133,
+        "minMs": 6.544,
+        "maxMs": 56.67
+      },
+      "convert": {
+        "samples": 100,
+        "medianMs": 89.141,
+        "p95Ms": 101.389,
+        "minMs": 71.084,
+        "maxMs": 113.822
+      }
+    }
+  },
+  "memory": {
+    "conversions": 100,
+    "retainedBytes": 0,
+    "rssDeltaBytes": -114688,
+    "beforeHeapBytes": 77064672,
+    "afterHeapBytes": 76798184
+  },
+  "corpus": {
+    "1": {
+      "durationMs": 55.255,
+      "fetches": 1,
+      "peakConcurrency": 1,
+      "outputBytes": 47
+    },
+    "10": {
+      "durationMs": 30.18,
+      "fetches": 10,
+      "peakConcurrency": 1,
+      "outputBytes": 508
+    },
+    "50": {
+      "durationMs": 118.983,
+      "fetches": 50,
+      "peakConcurrency": 1,
+      "outputBytes": 2588
+    },
+    "51": {
+      "durationMs": 0.427,
+      "fetches": 0,
+      "refused": true
+    }
+  },
+  "requests": {
+    "firstResponseMs": 21.808,
+    "html": {
+      "samples": 400,
+      "medianMs": 1.895,
+      "p95Ms": 2.634,
+      "minMs": 1.321,
+      "maxMs": 7.106
+    },
+    "directMarkdown": {
+      "samples": 200,
+      "medianMs": 1.513,
+      "p95Ms": 2.18,
+      "minMs": 1.003,
+      "maxMs": 3.93
+    },
+    "negotiatedMarkdown": {
+      "samples": 200,
+      "medianMs": 1.524,
+      "p95Ms": 2.394,
+      "minMs": 1.05,
+      "maxMs": 4.409
+    },
+    "overhead": {
+      "directMarkdown": {
+        "samples": 200,
+        "medianMs": -0.382,
+        "p95Ms": -0.021,
+        "minMs": -2.215,
+        "maxMs": 2.453
+      },
+      "negotiatedMarkdown": {
+        "samples": 200,
+        "medianMs": -0.326,
+        "p95Ms": 0.171,
+        "minMs": -4.517,
+        "maxMs": 2.68
+      }
+    },
+    "p95OverheadMs": 0.171,
+    "conditionalStatus": 304,
+    "note": "A 304 avoids response bytes but the current runtime still calculates the representation."
+  },
+  "bundles": {
+    "node": {
+      "path": "fixtures/adapters/node/dist/server",
+      "files": 32,
+      "rawBytes": 1900335,
+      "gzipBytes": 445632,
+      "baseline": {
+        "path": "fixtures/benchmarks/node-baseline/dist/server",
+        "files": 29,
+        "rawBytes": 1368370,
+        "gzipBytes": 315410
+      },
+      "deltaRawBytes": 531965,
+      "deltaGzipBytes": 130222
+    },
+    "cloudflare": {
+      "path": "fixtures/adapters/cloudflare/dist/server",
+      "files": 35,
+      "rawBytes": 2044796,
+      "gzipBytes": 493833,
+      "baseline": {
+        "path": "fixtures/benchmarks/cloudflare-baseline/dist/server",
+        "files": 31,
+        "rawBytes": 740406,
+        "gzipBytes": 187621
+      },
+      "deltaRawBytes": 1304390,
+      "deltaGzipBytes": 306212
+    }
+  },
+  "cloudflareStartupMs": 36.6,
+  "comparison": {
+    "comparable": true,
+    "reason": "Portable size metrics were compared. Environment-sensitive metrics were skipped: node differs (v26.10.0 versus v24.15.0)",
+    "regressions": [
+      {
+        "metric": "packed package bytes",
+        "portability": "portable",
+        "baseline": 401398,
+        "current": 489712,
+        "changePercent": 22.002
+      },
+      {
+        "metric": "unpacked package bytes",
+        "portability": "portable",
+        "baseline": 1530283,
+        "current": 1876024,
+        "changePercent": 22.593
+      },
+      {
+        "metric": "Node integration delta raw bytes",
+        "portability": "portable",
+        "baseline": 475232,
+        "current": 531965,
+        "changePercent": 11.938
+      },
+      {
+        "metric": "Node integration delta gzip bytes",
+        "portability": "portable",
+        "baseline": 116603,
+        "current": 130222,
+        "changePercent": 11.68
+      }
+    ],
+    "explainedBy": [
+      "CHANGELOG.md#1.6.0"
+    ],
+    "portable": {
+      "comparable": true,
+      "reason": "Package and bundle byte counts are portable across release runners.",
+      "metricsCompared": 10,
+      "regressions": [
+        {
+          "metric": "packed package bytes",
+          "portability": "portable",
+          "baseline": 401398,
+          "current": 489712,
+          "changePercent": 22.002
+        },
+        {
+          "metric": "unpacked package bytes",
+          "portability": "portable",
+          "baseline": 1530283,
+          "current": 1876024,
+          "changePercent": 22.593
+        },
+        {
+          "metric": "Node integration delta raw bytes",
+          "portability": "portable",
+          "baseline": 475232,
+          "current": 531965,
+          "changePercent": 11.938
+        },
+        {
+          "metric": "Node integration delta gzip bytes",
+          "portability": "portable",
+          "baseline": 116603,
+          "current": 130222,
+          "changePercent": 11.68
+        }
+      ]
+    },
+    "environmentSensitive": {
+      "comparable": false,
+      "reason": "node differs (v26.10.0 versus v24.15.0)",
+      "metricsCompared": 0,
+      "regressions": []
+    }
+  },
+  "failures": [
+    "packed package 489712 > 450000 bytes",
+    "unpacked package 1876024 > 1530000 bytes"
+  ],
+  "candidate": {
+    "baseCommit": "bf91253",
+    "workingTree": true,
+    "status": "reviewed batch 12, not committed or release-approved",
+    "packagedContentDigest": "5f44204f0fdf48039936fe61c43e612e51d7cf15ba780dd03c349187f344dd5d"
+  },
+  "evidenceNotes": [
+    "Raw paired request samples remain in the private .context report.",
+    "This local report does not replace the reconstructed reference or certify the 5% relative timing target."
+  ]
+}

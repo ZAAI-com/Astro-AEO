@@ -141,3 +141,14 @@ describe('build plugin replacement validation', () => {
     expect(isGraphEnvelope({ ...envelope, graph: { version: 1, entries: [{ entity: {} }], conflicts: [] } }, expected)).toBe(false);
   });
 });
+
+test('page records admit encoded reserved route characters, not unsafe path forms or catalog claims', () => {
+  const page = pageRecord();
+  for (const pathname of ['/why%3Fnow%23yes', '/percent%25literal']) {
+    expect(isPageRecord({ ...page, pathname, mdHref: `${pathname}.md` })).toBe(true);
+    expect(isPageDescriptor({ pathname })).toBe(pathname === '/percent%25literal');
+  }
+  for (const pathname of ['/x%2Fy', '/%2e%2e/secret', '/%252e%252e/secret', '/why?now', '/why#now']) {
+    expect(isPageRecord({ ...page, pathname, mdHref: `${pathname}.md` })).toBe(false);
+  }
+});

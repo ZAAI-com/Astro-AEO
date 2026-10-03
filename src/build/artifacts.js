@@ -725,16 +725,37 @@ function createDeferredArtifactWriter(deps) {
     for (const [key, related] of byServed) markConflict(related, related[0].served.pathname ?? key);
     for (const [path, related] of byDestination) markConflict(related, artifactPathLabel(path));
     const destinations = [...byDestination.entries()];
-    for (let left = 0; left < destinations.length; left++) {
-      for (let right = left + 1; right < destinations.length; right++) {
-        const [leftPath, leftClaims] = destinations[left];
-        const [rightPath, rightClaims] = destinations[right];
-        if (!pathWithin(leftPath, rightPath) && !pathWithin(rightPath, leftPath)) continue;
-        markConflict(
-          [...leftClaims, ...rightClaims],
-          `${artifactPathLabel(leftPath)} and ${artifactPathLabel(rightPath)}`,
-        );
+    const comparisonKey = (/** @type {string} */ path) => process.platform === 'win32' ? path.toLowerCase() : path;
+    /** @type {Map<string, number[]>} */
+    const destinationOrder = new Map();
+    destinations.forEach(([path], index) => {
+      const key = comparisonKey(path);
+      const indices = destinationOrder.get(key) ?? [];
+      indices.push(index);
+      destinationOrder.set(key, indices);
+    });
+    /** @type {{ left: number; right: number }[]} */
+    const overlaps = [];
+    for (let index = 0; index < destinations.length; index++) {
+      const [path] = destinations[index];
+      let ancestor = dirname(path);
+      while (ancestor !== path) {
+        for (const prior of destinationOrder.get(comparisonKey(ancestor)) ?? []) {
+          overlaps.push({ left: Math.min(prior, index), right: Math.max(prior, index) });
+        }
+        const parent = dirname(ancestor);
+        if (parent === ancestor) break;
+        ancestor = parent;
       }
+    }
+    // Report actual overlaps in the same insertion-pair order as before, while
+    // ordinary sibling destinations require only path-depth work.
+    overlaps.sort((a, b) => a.left - b.left || a.right - b.right);
+    for (const { left, right } of overlaps) {
+      const [leftPath, leftClaims] = destinations[left];
+      const [rightPath, rightClaims] = destinations[right];
+      markConflict([...leftClaims, ...rightClaims],
+        `${artifactPathLabel(leftPath)} and ${artifactPathLabel(rightPath)}`);
     }
 
     for (const claim of claims) {

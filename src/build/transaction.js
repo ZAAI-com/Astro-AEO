@@ -9,7 +9,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { isSafeOutputPath } from './ownership.js';
 
 /**
@@ -36,6 +36,11 @@ export function commitFileTransaction(operations, options = {}) {
     };
   });
   const seen = new Set();
+  /** @type {Map<string, string>} */
+  const firstDescendant = new Map();
+  /** @type {Map<string, string>} */
+  const firstDestination = new Map();
+  const comparisonKey = (/** @type {string} */ path) => process.platform === 'win32' ? path.toLowerCase() : path;
   for (let index = 0; index < normalizedOperations.length; index++) {
     const operation = normalizedOperations[index];
     if (seen.has(operation.path)) {
@@ -43,14 +48,30 @@ export function commitFileTransaction(operations, options = {}) {
     }
     seen.add(operation.path);
     assertSafeAncestry(operation);
-    for (let prior = 0; prior < index; prior++) {
-      const previous = normalizedOperations[prior];
-      if (isDescendantPath(previous.path, operation.path) || isDescendantPath(operation.path, previous.path)) {
-        throw new Error(
-          `astro-aeo: transaction contains overlapping destinations ${previous.path} and ${operation.path}`,
-        );
-      }
+    // Index ancestors once instead of comparing every pair of destinations.
+    // This preserves insertion-order diagnostics and handles path boundaries,
+    // including siblings such as /name-other versus /name/child.
+    let ancestor = dirname(operation.path);
+    const ancestors = [];
+    let previous = firstDescendant.get(comparisonKey(operation.path));
+    while (ancestor !== operation.path) {
+      ancestors.push(ancestor);
+      previous = firstDestination.get(comparisonKey(ancestor)) ?? previous;
+      const parent = dirname(ancestor);
+      if (parent === ancestor) break;
+      ancestor = parent;
     }
+    if (previous) {
+      throw new Error(
+        `astro-aeo: transaction contains overlapping destinations ${previous} and ${operation.path}`,
+      );
+    }
+    for (const parent of ancestors) {
+      const key = comparisonKey(parent);
+      if (!firstDescendant.has(key)) firstDescendant.set(key, operation.path);
+    }
+    const key = comparisonKey(operation.path);
+    if (!firstDestination.has(key)) firstDestination.set(key, operation.path);
   }
 
   const id = options.transactionId ?? randomUUID();
@@ -196,12 +217,6 @@ function assertSafeAncestry(operation) {
   if (operation.confineTo && !isSafeOutputPath(operation.confineTo, operation.path)) {
     throw new Error(`astro-aeo: transaction destination ancestry is unsafe: ${operation.path}`);
   }
-}
-
-/** @param {string} parent @param {string} candidate */
-function isDescendantPath(parent, candidate) {
-  const value = relative(parent, candidate);
-  return Boolean(value) && !isAbsolute(value) && value !== '..' && !value.startsWith(`..${sep}`);
 }
 
 /** @param {string} path @returns {import('node:fs').Stats | null} */
