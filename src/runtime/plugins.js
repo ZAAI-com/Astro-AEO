@@ -79,7 +79,7 @@ export function runtimePluginArtifactFor(pathname, loaders, options = {}) {
  * already enumerated and cannot supply a pathname, request, headers, cookies,
  * credentials, or rewrite target of its own.
  *
- * @template {{ id?: string; pathname: string; origin?: string; locale?: string; alternates?: readonly { language: string; url: string }[] }} T
+ * @template {{ id?: string; pathname: string; origin?: string; locale?: string; version?: string; versionGroup?: string; alternates?: readonly import('../index.js').PageAlternate[] }} T
  * @param {readonly T[]} pages
  * @param {(page: T) => Promise<unknown>} readPage
  * @returns {readonly RuntimePluginPageHandle[]}
@@ -96,6 +96,8 @@ export function createRuntimePluginPageHandles(pages, readPage) {
       pathname: page.pathname,
       ...(typeof page.origin === 'string' ? { origin: page.origin } : {}),
       ...(typeof page.locale === 'string' ? { locale: page.locale } : {}),
+      ...(typeof page.version === 'string' ? { version: page.version } : {}),
+      ...(typeof page.versionGroup === 'string' ? { versionGroup: page.versionGroup } : {}),
       // Alternates metadata crosses the plugin boundary frozen: a runtime
       // hook must not rewrite or append entries later hooks then observe.
       ...(Array.isArray(page.alternates)
@@ -506,6 +508,7 @@ function sanitizeRuntimePage(value) {
     ...(typeof page.origin === 'string' ? { origin: page.origin } : {}),
     ...(typeof page.locale === 'string' ? { locale: page.locale } : {}),
     ...(typeof page.version === 'string' ? { version: page.version } : {}),
+    ...(typeof page.versionGroup === 'string' ? { versionGroup: page.versionGroup } : {}),
     ...(Array.isArray(page.alternates) ? { alternates: page.alternates } : {}),
     ...(page.metadata && typeof page.metadata === 'object' ? { metadata: page.metadata } : {}),
     representations: {

@@ -24,6 +24,10 @@ In preparation. Release notes will be folded in from changesets before the 1.6.0
   enforce explicit locale policies and x-default agreement, and inherit per-origin profiles.
   Version observable crawler identities without changing default robots output.
 
+- Partition opt-in versioned corpora beneath existing base/locale paths, retain current paths,
+  and emit reciprocal same-locale version alternatives with authored logical identity overrides.
+  Use one topology for manifests, ownership, fallback routes, aliases, gzip, and runtime matching.
+
 ## 1.5.5
 
 ### Patch Changes

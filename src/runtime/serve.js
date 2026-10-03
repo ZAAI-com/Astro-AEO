@@ -1,5 +1,6 @@
 // @ts-check
-import { buildPage, basePrefix, pagePathForMdPath } from '../core/page-model.js';
+import { normalizeVersionPages } from '../core/version-pages.js';
+import { buildPage, absoluteUrl, basePrefix, pagePathForMdPath } from '../core/page-model.js';
 import { createTurndown } from '../core/html-to-md.js';
 import { renderMarkdownDocument } from '../core/render/markdown-doc.js';
 import {
@@ -155,6 +156,7 @@ export function artifactFor(pathname, config) {
   }
   if (pathname === '/llms.txt' && isPotentialCorpusArtifactPath(pathname, config)) return 'llms';
   if (pathname === '/llms-full.txt' && isPotentialCorpusArtifactPath(pathname, config)) return 'llms-full';
+  if (pathname.endsWith('.gz')) return null;
   if (isPotentialCorpusArtifactPath(pathname, config)) return 'corpus';
   if (config.schema.corpus.enabled && matchesExactPathname(pathname, config.schema.corpus.graphPath)) {
     return 'schema-graph';
@@ -198,7 +200,7 @@ export function renderStandaloneArtifact(kind, runtime, opts = {}) {
  * @param {string} pathname
  * @param {string} html
  * @param {Runtime} runtime
- * @param {{ descriptor?: import('../page.js').PageDescriptor; allowAuthored?: boolean; origin?: string; publicPathname?: string; rendererLoaders?: RuntimeMarkdownRendererLoader[]; pluginLoaders?: RuntimePluginLoader[]; failOnPluginIsolation?: boolean }} [opts]
+ * @param {{ descriptor?: import('../page.js').PageDescriptor; allowAuthored?: boolean; origin?: string; publicPathname?: string; rendererLoaders?: RuntimeMarkdownRendererLoader[]; pluginLoaders?: RuntimePluginLoader[]; failOnPluginIsolation?: boolean; deferPageHooks?: boolean }} [opts]
  * @returns {Promise<import('../core/page-model.js').AeoPage | null>}
  */
 export async function pageFromHtml(pathname, html, runtime, opts = {}) {
@@ -263,6 +265,8 @@ export async function pageFromHtml(pathname, html, runtime, opts = {}) {
         ...(descriptor?.image !== undefined ? { image: descriptor.image } : {}),
         ...(descriptor?.language !== undefined ? { language: descriptor.language } : {}),
         ...(descriptor?.version !== undefined ? { version: descriptor.version } : {}),
+        ...(descriptor?.versionGroup !== undefined ? { versionGroup: descriptor.versionGroup } : {}),
+        ...(descriptor?.alternates !== undefined ? { alternates: descriptor.alternates } : {}),
         ...(descriptor?.dates?.published !== undefined ? { published: descriptor.dates.published } : {}),
         ...(descriptor?.dates?.modified !== undefined || descriptor?.lastModified !== undefined
           ? { lastModified: descriptor?.dates?.modified ?? descriptor?.lastModified }
@@ -302,6 +306,8 @@ export async function pageFromHtml(pathname, html, runtime, opts = {}) {
   if ('skip' in result) return null;
   let page = {
     ...result.page,
+    ...(Array.isArray(/** @type {any} */ (descriptor)?._generatedVersionAlternates)
+      ? { _generatedVersionAlternates: /** @type {any} */ (descriptor)._generatedVersionAlternates } : {}),
     ...(descriptor?.origin ? { origin: descriptor.origin } : {}),
     ...(descriptor?.locale ? { locale: descriptor.locale } : {}),
     // A truthy non-array must not throw here; alternate normalization is the
@@ -310,8 +316,20 @@ export async function pageFromHtml(pathname, html, runtime, opts = {}) {
       ? { alternates: descriptor.alternates.map((alternate) => ({ ...alternate })) }
       : {}),
   };
+  if (runtime.config.corpus.versions && page.version === undefined) page = { ...page, version: runtime.config.corpus.versions.current };
   if (!plugins) return page;
+  if (opts.deferPageHooks) return { ...page, diagnostics: [...page.diagnostics, ...lifecycleDiagnostics] };
+  return runRuntimePageHooks(page, plugins, lifecycleDiagnostics, lifecyclePathname, opts);
+}
 
+/** The corpus can defer these hooks until all private markers are collected.
+ * @param {import('../core/page-model.js').AeoPage} page
+ * @param {NonNullable<Awaited<ReturnType<typeof loadRuntimePlugins>>>} plugins
+ * @param {import('../index.js').Diagnostic[]} lifecycleDiagnostics
+ * @param {string} lifecyclePathname
+ * @param {{ failOnPluginIsolation?: boolean }} opts
+ */
+async function runRuntimePageHooks(page, plugins, lifecycleDiagnostics, lifecyclePathname, opts) {
   const extracted = await plugins.run('page:extract', {
     representations: page.representations,
     extraction: page.extraction ?? null,
@@ -331,7 +349,8 @@ export async function pageFromHtml(pathname, html, runtime, opts = {}) {
     markdown: extraction.representations.markdown ?? '',
   };
 
-  const transformed = await plugins.run('page:transform', page, {
+  const { _generatedVersionAlternates: _generated, ...publicPage } = page;
+  const transformed = await plugins.run('page:transform', publicPage, {
     pathname: lifecyclePathname,
     validate: (value) => isPageRecord(value) && value.id === page.id && value.pathname === page.pathname,
   });
@@ -373,6 +392,7 @@ export async function pageFromHtml(pathname, html, runtime, opts = {}) {
  * @param {{ pluginLoaders?: RuntimePluginLoader[]; catalogLoaders?: RuntimeCatalogLoader[]; catalogDescriptors?: readonly import('../page.js').PageDescriptor[]; origin?: string; allowGlobal?: boolean }} [opts]
  */
 export async function enrichRuntimePageGraph(html, page, runtime, opts = {}) {
+  const { _generatedVersionAlternates: _generated, ...publicPage } = page;
   const catalogDescriptors = opts.catalogDescriptors ?? await runtimeCatalogPagesFor(
     opts.catalogLoaders ?? [],
     runtime,
@@ -380,7 +400,7 @@ export async function enrichRuntimePageGraph(html, page, runtime, opts = {}) {
   );
   const input = {
     html,
-    page,
+    page: publicPage,
     site: runtime.site,
     allowGlobal: opts.allowGlobal ?? true,
     breadcrumbTrail: catalogBreadcrumbTrail(page.pathname, catalogDescriptors, runtime.site),
@@ -398,7 +418,7 @@ export async function enrichRuntimePageGraph(html, page, runtime, opts = {}) {
 
   const inspected = enrichHtmlHead({
     html,
-    page,
+    page: publicPage,
     config: runtime.config,
     site: runtime.site,
     allowGlobal: opts.allowGlobal ?? true,
@@ -580,6 +600,7 @@ export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {
     origin: activeOrigin,
   });
 
+  const deferPageHooks = Boolean(runtime.config.corpus.versions && opts.pluginLoaders?.length);
   const pages = await collectConcurrently(
     paths,
     Math.min(Math.max(opts.concurrency ?? 1, 1), 4),
@@ -595,6 +616,7 @@ export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {
           rendererLoaders: opts.rendererLoaders,
           pluginLoaders: opts.pluginLoaders,
           failOnPluginIsolation: true,
+          deferPageHooks,
         });
       } catch (error) {
         if (error instanceof RuntimePageLifecycleError) {
@@ -603,6 +625,8 @@ export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {
         throw error;
       }
       if (!page) return null;
+      if (deferPageHooks) return { page, loadedHtml: loaded.html, target,
+        languageDeclaration: runtimeLanguageDeclaration(loaded.html, target.descriptor) };
       const enriched = await enrichRuntimePageGraph(loaded.html, page, runtime, {
         pluginLoaders: opts.pluginLoaders,
         catalogDescriptors: descriptors,
@@ -619,7 +643,7 @@ export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {
         ...(target.descriptor?.origin ? { origin: target.descriptor.origin } : {}),
         ...(target.descriptor?.locale ? { locale: target.descriptor.locale } : {}),
         ...(headAlternates.present
-          ? { alternates: headAlternates.value }
+          ? { alternates: [...headAlternates.value, ...(page.alternates ?? []).filter((alternate) => alternate.kind === 'version')] }
           : Array.isArray(target.descriptor?.alternates)
             ? { alternates: target.descriptor.alternates }
             : {}),
@@ -642,6 +666,38 @@ export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {
   );
 
   const snapshot = runtime.site.i18n ?? emptyLocaleSnapshot(activeOrigin);
+  if (deferPageHooks) {
+    const initial = normalizeVersionPages(pages.map((collected) => resolvePageLocale(collected.page, snapshot, {
+      unresolvedLanguage: runtime.config.i18n.unresolvedLanguage, siteDefaultLocale: runtime.config.site.defaultLocale,
+    }).page), runtime.config.corpus.versions, { base: runtime.site.base, i18n: snapshot });
+    if (initial.diagnostics.length) throw new RuntimeCorpusPlanError('Runtime version inventory failed validation.');
+    const plugins = await loadRuntimePlugins(opts.pluginLoaders ?? [], runtime.command);
+    for (let index = 0; index < pages.length; index++) {
+      const collected = pages[index];
+      if (!('loadedHtml' in collected) || collected.loadedHtml === undefined) continue;
+      let page;
+      try {
+        page = await runRuntimePageHooks(initial.pages[index], plugins, [], initial.pages[index].pathname,
+          { failOnPluginIsolation: true });
+      } catch (error) {
+        if (error instanceof RuntimePageLifecycleError) throw new RuntimeCorpusPlanError('A runtime page plugin isolated a collected page.');
+        throw error;
+      }
+      if (!page) throw new RuntimeCorpusPlanError('A runtime page plugin isolated a collected page.');
+      const enriched = await enrichRuntimePageGraph(collected.loadedHtml, page, runtime, {
+        pluginLoaders: opts.pluginLoaders, catalogDescriptors: descriptors, origin: activeOrigin, allowGlobal: true,
+      });
+      if (enriched.isolated) throw new RuntimeCorpusPlanError('A runtime graph plugin isolated a collected page.');
+      const headAlternates = runtimeHeadAlternates(collected.loadedHtml);
+      collected.page = { ...page, ...(enriched.page ?? {}),
+        ...(headAlternates.present ? { alternates: [...headAlternates.value,
+          ...(page.alternates ?? []).filter((alternate) => alternate.kind === 'version')] } : {}),
+        representations: { ...page.representations, ...(enriched.page?.representations ?? {}), html: enriched.html },
+        diagnostics: uniqueDiagnostics([...page.diagnostics, ...(enriched.page?.diagnostics ?? []), ...enriched.diagnostics]),
+      };
+    }
+  }
+
   const localized = [];
   for (const collected of pages) {
     const page = collected.page;
@@ -686,7 +742,9 @@ export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {
   if (alternates.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
     throw new RuntimeCorpusPlanError('Runtime hreflang alternates failed validation.');
   }
-  const home = alternates.pages.find((page) => page.pathname === '/');
+  const versioned = normalizeVersionPages(alternates.pages, runtime.config.corpus.versions, { base: runtime.site.base, i18n: snapshot });
+  if (versioned.diagnostics.length) throw new RuntimeCorpusPlanError('Runtime version alternates failed validation.');
+  const home = versioned.pages.find((page) => page.pathname === '/');
   const siteMeta = resolveSiteMeta(
     runtime.config,
     activeOrigin,
@@ -694,7 +752,7 @@ export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {
   );
   const loadedTokenizer = await loadRuntimeCorpusTokenizer(opts.tokenizerLoader);
   const plan = await planCorpusArtifacts({
-    pages: alternates.pages,
+    pages: versioned.pages,
     config: runtime.config,
     siteMeta,
     origin: activeOrigin,
@@ -713,6 +771,8 @@ export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {
   if (plan.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
     throw new RuntimeCorpusPlanError('The runtime corpus plan failed validation.');
   }
+  const archiveManifest = plan.manifests?.find((manifest) => matchesExactPathname(pathname, manifest.pathname));
+  if (archiveManifest) return { body: archiveManifest.contents, contentType: 'application/json; charset=utf-8' };
   const requested = plan.artifacts.find((artifact) =>
     matchesExactPathname(pathname, artifact.pathname));
   if (requested) return { body: requested.contents, contentType: 'text/plain; charset=utf-8' };
@@ -1107,7 +1167,16 @@ async function mergeRuntimeCatalogListings(listings, runtime, siteUrl) {
       descriptors.push({ ...value, pathname, ...(descriptorOrigin ? { origin: descriptorOrigin } : {}) });
     }
   }
-  return descriptors;
+  if (!runtime.config.corpus.versions) return descriptors;
+  const normalized = normalizeVersionPages(descriptors.map((descriptor) => {
+    const locale = descriptor.locale ?? (runtime.site.i18n
+      ? astroRouteLocale(descriptor.pathname, descriptor.origin ?? siteUrl, runtime.site.i18n)?.locale : undefined)
+      ?? descriptor.language;
+    return { ...descriptor, url: absoluteUrl(siteUrl, runtime.site.base, descriptor.pathname, runtime.site.trailingSlash),
+      ...(locale ? { locale } : {}) };
+  }), runtime.config.corpus.versions, { base: runtime.site.base, i18n: runtime.site.i18n });
+  if (normalized.diagnostics.length) console.warn('astro-aeo: versioned catalog relationships could not be normalized; corpus validation will fail closed.');
+  return normalized.pages;
 }
 
 /** @param {Runtime} runtime @param {string} [origin] @returns {string} */

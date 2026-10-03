@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { resolveConfig } from '../config.js';
 import { createLocaleSnapshot } from '../core/locale.js';
+import { planCorpusArtifacts } from '../core/corpus-artifacts.js';
 import { stageCorpusArtifacts } from './corpus.js';
 import { canonicalStringify } from './processing-cache.js';
 
@@ -72,6 +73,37 @@ function environment(overrides = {}) {
 const twoDomains = () => [page('/en/guide', 'en'), page('/fr/guide', 'fr', FR_SITE)];
 
 describe('stageCorpusArtifacts', () => {
+  test('build and runtime archive manifests share the same logical contract', async () => {
+    const pages = [page('/en/guide', 'en'), { ...page('/en/v1/guide', 'en'), version: 'v1' }];
+    const config = resolveConfig({ corpus: { versions: { current: 'v2' }, manifest: { enabled: true } } });
+    const env = environment();
+    await stageCorpusArtifacts(pages, config, env);
+    const runtime = await planCorpusArtifacts({ pages, config, i18n: env.i18n, origin: SITE,
+      base: '', siteMeta, requestTime: true });
+    const scoped = env.writer.writes.find((record) => record.route === '/v1/llms/manifest.json');
+    expect(scoped.contents).toBe(runtime.manifests[0].contents);
+  });
+
+  test('keeps archive gzip and aliases deterministic and withholds manifests after canonical ownership loss', async () => {
+    const pages = [page('/en/guide', 'en'), { ...page('/en/v1/guide', 'en'), version: 'v1' }];
+    const config = resolveConfig({ i18n: { indexes: 'both' }, corpus: { versions: { current: 'v2' },
+      compression: { gzip: true }, manifest: { enabled: true } } });
+    const env = environment();
+    const first = await stageCorpusArtifacts(pages, config, env);
+    const secondEnv = environment();
+    await stageCorpusArtifacts(pages, config, secondEnv);
+    expect(secondEnv.writer.writes).toEqual(env.writer.writes);
+    const scoped = env.writer.writes.find((record) => record.route === '/v1/llms/manifest.json');
+    expect(JSON.parse(scoped.contents).artifacts.every((record) => record.version === 'v1')).toBe(true);
+    expect(first.manifest.artifacts).toContainEqual(expect.objectContaining({
+      pathname: '/en/v1/llms-full.txt.gz', sourcePathname: '/en/v1/llms-full.txt', version: 'v1',
+    }));
+    const conflictEnv = environment({ writer: fakeWriter(new Map([['/en/v1/llms.txt', 'preserved']])) });
+    const conflict = await stageCorpusArtifacts(pages, config, conflictEnv);
+    expect(conflict.manifest).toBeUndefined();
+    expect(conflictEnv.writer.writes.some((record) => record.route.endsWith('/manifest.json'))).toBe(false);
+  });
+
   test('a locale edit invalidates its full family, not other locales or unchanged index text', async () => {
     const entries = new Map();
     const misses = [];

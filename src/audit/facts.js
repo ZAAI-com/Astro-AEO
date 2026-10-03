@@ -15,6 +15,9 @@ import { extractEditorialFacts } from './editorial.js';
  * @property {string} [description]
  * @property {string} [canonical]
  * @property {string} [documentUrl]       Absolute base for same-page structured-data references.
+ * @property {string} [version]
+ * @property {string} [locale]
+ * @property {import('../index.js').VersionPageAlternate[]} [versionAlternates]
  * @property {string} [language]
  * @property {boolean} noindex
  * @property {{ language: string; href: string }[]} alternates
@@ -116,8 +119,12 @@ export function factsFromPageRecord(page) {
     ...(page.description ? { description: page.description } : {}),
     ...(page.canonicalUrl ? { canonical: page.canonicalUrl } : {}),
     ...(page.language ? { language: page.language } : {}),
+    ...(page.version ? { version: page.version } : {}),
+    ...(page.locale ? { locale: page.locale } : {}),
+    ...(page.alternates?.some((alternate) => alternate.kind === 'version')
+      ? { versionAlternates: /** @type {import('../index.js').VersionPageAlternate[]} */ (page.alternates.filter((alternate) => alternate.kind === 'version')) } : {}),
     noindex: page.directives?.index === false,
-    alternates: (page.alternates ?? []).map((alternate) => ({ language: alternate.language, href: alternate.url })),
+    alternates: (page.alternates ?? []).filter((alternate) => alternate.kind !== 'version').map((alternate) => ({ language: /** @type {import('../index.js').LanguagePageAlternate} */ (alternate).language, href: alternate.url })),
     markdownAlternates: [],
     links: [],
     anchors: new Set(),

@@ -754,6 +754,10 @@ Severity: error. Raised by: offline.
 
 Severity: error. Raised by: offline.
 
+### corpus-version-current-required
+
+Severity: error. Raised by: build, offline, live.
+
 ### hreflang-canonical-conflict
 
 Severity: error. Raised by: build, offline, live.
@@ -798,6 +802,14 @@ Severity: error. Raised by: build, offline, live.
 
 Severity: error. Raised by: build, offline, live.
 
+### page-version-group-invalid
+
+Severity: error. Raised by: build, offline, live.
+
+### page-version-invalid
+
+Severity: error. Raised by: build, offline, live.
+
 ### site-default-locale-invalid
 
 Severity: error. Raised by: build, offline, live.
@@ -829,6 +841,22 @@ Severity: error. Raised by: offline.
 ### sitemap-hreflang-x-default-conflict
 
 Severity: error. Raised by: offline.
+
+### version-alternate-conflict
+
+Severity: error. Raised by: build, offline, live.
+
+### version-alternate-identity-conflict
+
+Severity: error. Raised by: build, offline, live.
+
+### version-alternate-not-reciprocal
+
+Severity: error. Raised by: build, offline, live.
+
+### version-group-ambiguous
+
+Severity: error. Raised by: build, offline, live.
 
 ## Category: links
 

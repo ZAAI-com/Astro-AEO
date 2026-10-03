@@ -25,7 +25,18 @@ export type { ExtractedDocument } from './extract.js';
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
-export interface PageAlternate {
+export type PageAlternate = LanguagePageAlternate | VersionPageAlternate;
+
+export interface VersionPageAlternate {
+  kind: 'version';
+  language?: never;
+  version: string;
+  url: string;
+}
+
+export interface LanguagePageAlternate {
+  kind?: 'language';
+  version?: never;
   language: string | 'x-default';
   url: string;
 }
@@ -98,6 +109,7 @@ export interface CorpusManifestV1 {
   tokenizer: { name: string; version: string; approximate: boolean };
   /** Sanitized reason the configured tokenizer was replaced by the built-in approximation. */
   tokenizerFallback?: { reason: 'preflight' | 'count' };
+  versions?: ResolvedCorpusVersions;
   locales: CorpusManifestLocaleV1[];
   pages: CorpusManifestPageV1[];
   artifacts: CorpusManifestArtifactV1[];
@@ -108,6 +120,7 @@ export interface CorpusManifestLocaleV1 {
   locale: string | null;
   language: string | null;
   canonicalArtifact: string;
+  version?: string;
 }
 
 export interface CorpusManifestPageV1 {
@@ -127,10 +140,13 @@ export interface CorpusManifestPageV1 {
   modified?: string;
   /** Documentation version label. Absent for unversioned pages. */
   version?: string;
+  versionGroup?: string;
+  versionAlternates?: VersionPageAlternate[];
   chunks: string[];
 }
 
 export interface CorpusManifestArtifactV1 {
+  version?: string;
   origin: string;
   pathname: string;
   kind: 'index' | 'full' | 'small' | 'chunk' | 'alias';
@@ -292,6 +308,7 @@ export interface AeoPageRecord extends AeoPage {
   language?: string;
   /** Documentation version label. Absent for unversioned pages. */
   version?: string;
+  versionGroup?: string;
   alternates?: PageAlternate[];
   metadata: {
     title: string;
@@ -1148,6 +1165,7 @@ export interface RuntimePluginPageRecord {
   readonly origin?: string;
   readonly locale?: string;
   readonly version?: string;
+  readonly versionGroup?: string;
   readonly routePattern?: string;
   readonly rendering?: 'prerendered' | 'on-demand';
   readonly canonicalUrl?: string;
@@ -1167,6 +1185,8 @@ export interface RuntimePluginPageRecord {
 }
 
 export interface RuntimePluginPageHandle {
+  readonly version?: string;
+  readonly versionGroup?: string;
   readonly id: string;
   readonly pathname: string;
   readonly origin?: string;

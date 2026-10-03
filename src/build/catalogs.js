@@ -1,7 +1,7 @@
 // @ts-check
 import { extname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { isPageVersion } from '../core/page-version.js';
+import { isPageVersion, isVersionGroup } from '../core/page-version.js';
 import { normalizeCatalogPathname, normalizePath } from '../core/match.js';
 import { pageCatalogIdentity } from '../core/page-identity.js';
 import { toIsoTimestamp } from '../core/page-model.js';
@@ -240,6 +240,7 @@ export async function loadCatalogPages(catalogs, load, logger, context, diagnost
             ...(typeof entry.image === 'string' ? { image: entry.image } : {}),
             ...(typeof entry.language === 'string' ? { language: entry.language } : {}),
             ...(isPageVersion(entry.version) ? { version: entry.version } : {}),
+            ...(isVersionGroup(entry.versionGroup) ? { versionGroup: entry.versionGroup } : {}),
             ...(typeof entry.markdown === 'string' ? { markdown: entry.markdown } : {}),
             ...(entry.dates && typeof entry.dates === 'object' && !Array.isArray(entry.dates)
               ? {

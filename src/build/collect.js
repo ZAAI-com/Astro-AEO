@@ -96,7 +96,7 @@ export async function collectPages(rawPages, config, ctx) {
         !renderer.inline && renderer.cache?.pure === true && typeof renderer.cache.version === 'string'),
     );
     const cacheKey = cacheable
-      ? cache?.key('normalization-v2', inputs)
+      ? cache?.key('normalization-v3', inputs)
       : undefined;
     const cached = cacheKey ? cache?.get(cacheKey) : undefined;
     const reusable = validCachedPageResult(cached);
@@ -206,7 +206,7 @@ function validCachedPageResult(value) {
  * @param {import('../page.js').PageDescriptor} descriptor
  * @param {string} pathname
  * @param {CollectContext} ctx
- * @returns {{ markdown?: string; body?: string; title?: string; description?: string; image?: string; language?: string; version?: string; published?: string; lastModified?: string; authors?: unknown[]; entities?: unknown[]; directives?: Partial<Record<'index'|'includeInLlms'|'includeInLlmsFull'|'generateMarkdown', boolean>>; kind?: 'markdown'|'mdx'|'astro'|'cms'|'rendered'|'custom'; path?: string; hash?: string; strategy?: 'markdown-route'|'catalog'; extraction?: import('../core/extract/index.js').ExtractionDiagnostics } | undefined}
+ * @returns {{ markdown?: string; body?: string; title?: string; description?: string; image?: string; language?: string; version?: string; versionGroup?: string; alternates?: import('../index.js').PageAlternate[]; published?: string; lastModified?: string; authors?: unknown[]; entities?: unknown[]; directives?: Partial<Record<'index'|'includeInLlms'|'includeInLlmsFull'|'generateMarkdown', boolean>>; kind?: 'markdown'|'mdx'|'astro'|'cms'|'rendered'|'custom'; path?: string; hash?: string; strategy?: 'markdown-route'|'catalog'; extraction?: import('../core/extract/index.js').ExtractionDiagnostics } | undefined}
  */
 function authoredSource(descriptor, pathname, ctx) {
   const catalogMarkdown =
@@ -248,7 +248,7 @@ function authoredSource(descriptor, pathname, ctx) {
     descriptor.description !== undefined ||
     descriptor.image !== undefined ||
     descriptor.language !== undefined ||
-    descriptor.version !== undefined ||
+    descriptor.version !== undefined || descriptor.versionGroup !== undefined || descriptor.alternates !== undefined ||
     descriptor.dates !== undefined ||
     descriptor.authors !== undefined ||
     descriptor.entities !== undefined ||
@@ -283,6 +283,8 @@ function authoredSource(descriptor, pathname, ctx) {
     ...(descriptor.image !== undefined ? { image: descriptor.image } : {}),
     ...(descriptor.language !== undefined ? { language: descriptor.language } : {}),
     ...(descriptor.version !== undefined ? { version: descriptor.version } : {}),
+    ...(descriptor.versionGroup !== undefined ? { versionGroup: descriptor.versionGroup } : {}),
+    ...(descriptor.alternates !== undefined ? { alternates: descriptor.alternates } : {}),
     ...(descriptor.dates?.published !== undefined ? { published: descriptor.dates.published } : {}),
     ...(descriptor.dates?.modified !== undefined || descriptor.lastModified !== undefined
       ? { lastModified: descriptor.dates?.modified ?? descriptor.lastModified }

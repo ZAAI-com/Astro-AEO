@@ -1,4 +1,7 @@
 // @ts-check
+import { planVersionCorpus } from './version-corpus.js';
+import { chunkTopology, corpusPathname } from './corpus-topology.js';
+export { chunkTopology, isPotentialCorpusArtifactPath } from './corpus-topology.js';
 import { allocateSmallCorpus, planSectionChunks } from './corpus-plan.js';
 import { chunkPathname, resolveSectionSlugs } from './corpus-blocks.js';
 import { createCorpusManifest, serializeCorpusManifest } from './corpus-manifest.js';
@@ -24,6 +27,7 @@ import {
  * @typedef {object} CorpusTextArtifact
  * @property {string} pathname
  * @property {'index'|'full'|'small'|'chunk'|'alias'} kind
+ * @property {string} [version]
  * @property {string|null} locale
  * @property {string|null} section
  * @property {number|null} part
@@ -34,33 +38,14 @@ import {
  */
 
 /**
- * Where chunk files live for a given indexes mode and locale count.
- * Pass `undefined` localeCount for ownership preflight: `auto` and `global`
- * stay permissive for both spellings because the count is not yet known, while
- * `locale`/`both` only accept locale-prefixed chunks.
- *
- * @param {'auto'|'global'|'locale'|'both'} mode
- * @param {number} [localeCount]
- * @returns {{ root: boolean; locale: boolean }}
- */
-export function chunkTopology(mode, localeCount) {
-  if (localeCount === undefined) {
-    if (mode === 'locale' || mode === 'both') return { root: false, locale: true };
-    return { root: true, locale: true };
-  }
-  const oneLocale = localeCount <= 1;
-  if (mode === 'auto' || mode === 'global') {
-    return { root: oneLocale, locale: !oneLocale };
-  }
-  return { root: false, locale: true };
-}
-
-/**
  * Plan every logical (uncompressed) corpus artifact with no filesystem or Node
  * dependencies. Build output may add gzip siblings after this step; middleware
  * serves these exact strings and relies on transport compression.
  *
  * @param {{
+ *   topologyLocaleCount?: number;
+ *   artifactVersion?: { version: string; current: string };
+ *   tokenContext?: { tokenizer: { name: string; version: string; approximate: boolean }; count: (text: string) => Promise<number> };
  *   pages: any[];
  *   config: import('../index.js').ResolvedAstroAeoConfig;
  *   siteMeta: { name: string; description: string };
@@ -77,13 +62,15 @@ export function chunkTopology(mode, localeCount) {
  *   requestTime?: boolean;
  *   note?: string;
  * }} input
- * @returns {Promise<{ artifacts: CorpusTextArtifact[]; manifest?: any; manifestText?: string; diagnostics: Array<{ code: string; severity: 'info'|'warning'|'error'; message: string; pathname?: string; details?: unknown }>; tokenizer?: { name: string; version: string; approximate: boolean } }>}
+ * @returns {Promise<{ artifacts: CorpusTextArtifact[]; manifest?: any; manifestText?: string; manifests?: Array<{ pathname: string; manifest: any; contents: string }>; diagnostics: Array<{ code: string; severity: 'info'|'warning'|'error'; message: string; pathname?: string; details?: unknown }>; tokenizer?: { name: string; version: string; approximate: boolean } }>}
  */
 export async function planCorpusArtifacts(input) {
+  if (input.config.corpus.versions) return planVersionCorpus(input);
   const origin = normalizeOrigin(input.origin) ?? '';
   const mode = input.config.i18n.indexes;
   const allParticipatingPages = input.pages.filter((page) => !page.corpusExcluded);
   const allLocales = localeGroups(allParticipatingPages, input.i18n, input.config);
+  const topologyLocaleCount = input.topologyLocaleCount ?? allLocales.length;
   const participatingPages = allParticipatingPages.filter((page) =>
     !origin || !page.origin || normalizeOrigin(page.origin) === origin);
   const locales = localeGroups(participatingPages, input.i18n, input.config);
@@ -104,7 +91,7 @@ export async function planCorpusArtifacts(input) {
   // unresolved, which spells `null` into a public `/null/` directory.
   const unresolvedLocaleGroup = allLocales.some((locale) => locale.locale === null);
   const requiresConcreteLocale = mode === 'locale' || mode === 'both' ||
-    (mode === 'auto' && allLocales.length > 1);
+    (mode === 'auto' && topologyLocaleCount > 1);
   if (requiresConcreteLocale && unresolvedLocaleGroup) {
     diagnostics.push(finding(
       'corpus-locale-required',
@@ -114,10 +101,8 @@ export async function planCorpusArtifacts(input) {
     return { artifacts: [], manifest: undefined, diagnostics, tokenizer: undefined };
   }
 
-  const planned = await runCorpusPlanWithTokenizer(
-    input.tokenizer,
-    input.tokenizerOptions,
-    async ({ tokenizer, count }) => {
+  /** @param {NonNullable<typeof input.tokenContext>} context */
+  const producePlan = async ({ tokenizer, count }) => {
       /** @type {CorpusTextArtifact[]} */
       const artifacts = [];
       /**
@@ -143,12 +128,12 @@ export async function planCorpusArtifacts(input) {
         const produce = typeof contents === 'function' ? contents : () => contents;
         let text;
         if (typeof contents === 'function' && input.cachedText) {
-          const directory = ((mode === 'both' || (mode === 'auto' && allLocales.length > 1)) && pathname === '/llms.txt');
+          const directory = ((mode === 'both' || (mode === 'auto' && topologyLocaleCount > 1)) && pathname === '/llms.txt');
           const relevantPages = directory ? [] : locale === null ? participatingPages
             : locales.find((group) => group.locale === locale)?.pages ?? [];
           const identity = {
             pathname, kind, locale, section, part, origin, base: input.base,
-            siteMeta: input.siteMeta, note: input.note,
+            siteMeta: input.siteMeta, note: input.note, artifactVersion: input.artifactVersion,
             ...(locale === null && !directory ? { localeOrder: locales.map((group) => ({
               locale: group.locale, language: group.language, pageIds: group.pages.map(pageId),
             })) } : {}),
@@ -182,7 +167,7 @@ export async function planCorpusArtifacts(input) {
         });
       };
 
-      const oneLocale = allLocales.length <= 1;
+      const oneLocale = topologyLocaleCount <= 1;
       const legacyRoot = oneLocale && (mode === 'auto' || mode === 'global');
       if (legacyRoot) {
         const locale = locales[0];
@@ -263,7 +248,8 @@ export async function planCorpusArtifacts(input) {
               locale,
               origin,
               input.base,
-              `/${encodeURIComponent(/** @type {string} */ (locale.locale))}/llms.txt`,
+              corpusPathname(`/${encodeURIComponent(/** @type {string} */ (locale.locale))}/llms.txt`,
+                { locale: locale.locale, ...input.artifactVersion }),
             ),
           })),
           { note: input.note },
@@ -372,7 +358,7 @@ export async function planCorpusArtifacts(input) {
                   tokenizer, options: input.tokenizerOptions }, produce)
               : await produce();
             addPlannerDiagnostics(diagnostics, result.diagnostics, locale.locale, section.title);
-            const topology = chunkTopology(mode, allLocales.length);
+            const topology = chunkTopology(mode, topologyLocaleCount);
             for (const chunk of result.chunks) {
               await addText(
                 chunkPathname({
@@ -424,9 +410,11 @@ export async function planCorpusArtifacts(input) {
         pageTokenCounts.set(`${corpusPageIdentity(page)}\0${page.locale ?? ''}`, await count(published));
       }
       return { artifacts, tokenizer, pageTokenCounts };
-    },
-    { skipProbe: input.tokenizerProbed === true, cachedCount: input.cachedCount },
-  );
+    };
+  const planned = input.tokenContext
+    ? { result: await producePlan(input.tokenContext), tokenizer: input.tokenContext.tokenizer }
+    : await runCorpusPlanWithTokenizer(input.tokenizer, input.tokenizerOptions, producePlan,
+      { skipProbe: input.tokenizerProbed === true, cachedCount: input.cachedCount });
 
   const tokenizerFallback = planned.fallback?.reason ?? input.tokenizerFallback ??
     (input.config.corpus.tokenizer && input.tokenizer === undefined ? 'preflight' : undefined);
@@ -461,7 +449,7 @@ export async function planCorpusArtifacts(input) {
           locale.locale,
           planned.result.artifacts,
           mode,
-          allLocales.length,
+          topologyLocaleCount,
         );
         return canonical
           ? [{
@@ -519,6 +507,9 @@ export async function planCorpusArtifacts(input) {
                 sourceStrategy: page.source?.strategy ?? 'rendered',
                 ...(page.lastModified ? { modified: page.lastModified } : {}),
                 ...(page.version ? { version: page.version } : {}),
+                ...(page.versionGroup ? { versionGroup: page.versionGroup } : {}),
+                ...(page.alternates?.some((/** @type {any} */ alternate) => alternate.kind === 'version')
+                  ? { versionAlternates: page.alternates.filter((/** @type {any} */ alternate) => alternate.kind === 'version') } : {}),
                 chunks: chunksByPage.get(chunkIdentity) ?? [],
                 markdown: published,
               });
@@ -559,48 +550,8 @@ export async function planCorpusArtifacts(input) {
   };
 }
 
-/**
- * Match only paths that can be owned by enabled corpus topology. This is a
- * cheap preflight; the complete plan remains authoritative for derived locale
- * and chunk names.
- * @param {string} pathname
- * @param {import('../index.js').ResolvedAstroAeoConfig} config
- */
-export function isPotentialCorpusArtifactPath(pathname, config) {
-  const mode = config.i18n.indexes;
-  if (pathname === '/llms.txt') return config.corpus.index.enabled && mode !== 'locale';
-  if (pathname === '/llms-full.txt') return config.corpus.full.enabled && mode !== 'locale';
-  if (pathname === '/llms-small.txt') return config.corpus.small.enabled && mode !== 'locale';
-  if (pathname === '/llms/manifest.json') return config.corpus.manifest.enabled;
-  const topology = chunkTopology(mode);
-  if (
-    config.corpus.chunks.enabled &&
-    topology.root &&
-    /^\/llms\/[^/]+-\d{4,}\.txt$/u.test(pathname)
-  ) return true;
-  if (
-    (mode === 'locale' || mode === 'both' || mode === 'auto') &&
-    /^\/[^/]+\/llms(?:-full|-small)?\.txt$/u.test(pathname)
-  ) {
-    if (pathname.endsWith('/llms.txt')) return config.corpus.index.enabled;
-    if (pathname.endsWith('/llms-full.txt')) return config.corpus.full.enabled;
-    return config.corpus.small.enabled;
-  }
-  if (
-    config.corpus.chunks.enabled &&
-    topology.locale &&
-    /^\/[^/]+\/llms\/[^/]+-\d{4,}\.txt$/u.test(pathname)
-  ) return true;
-  if (mode === 'both' && /^\/llms(?:-full|-small)?-[^/]+\.txt$/u.test(pathname)) {
-    if (pathname.startsWith('/llms-full-')) return config.corpus.full.enabled;
-    if (pathname.startsWith('/llms-small-')) return config.corpus.small.enabled;
-    return config.corpus.index.enabled;
-  }
-  return false;
-}
-
 /** @param {any[]} pages @param {import('./locale.js').LocaleSnapshot | undefined} i18n @param {import('../index.js').ResolvedAstroAeoConfig} config */
-function localeGroups(pages, i18n, config) {
+export function localeGroups(pages, i18n, config) {
   /** @type {Map<string, { locale: string|null; language: string|null; origin?: string; pages: any[] }>} */
   const groups = new Map();
   for (const page of pages) {

@@ -175,6 +175,29 @@ const dynamicRoute = (overrides = {}) => ({
 });
 
 describe('integration diagnostics and declarations', () => {
+  test('injects version topology without duplicate dynamic route shapes', async () => {
+    const injected = [];
+    const integration = aeo({ i18n: { indexes: 'both' }, corpus: {
+      versions: { current: 'v2', order: ['v1'] }, small: { enabled: true },
+      chunks: { enabled: true }, manifest: { enabled: true },
+    } });
+    await integration.hooks['astro:config:setup']({ config: {
+      adapter: { name: 'test-adapter' }, integrations: [],
+      root: new URL('file:///tmp/astro-aeo-version-routes/'), site: new URL('https://example.test'),
+    }, command: 'build', injectRoute: (route) => injected.push(route), addMiddleware() {}, updateConfig() {},
+      logger: { warn() {}, info() {}, error() {}, debug() {} },
+    });
+    const patterns = injected.map((route) => route.pattern);
+    expect(patterns).toEqual(expect.arrayContaining([
+      '/[astroAeoLocale]/[astroAeoVersion]/llms.txt',
+      '/[astroAeoLocale]/[astroAeoVersion]/llms/[astroAeoChunk].txt',
+      '/[astroAeoVersion]/llms-[astroAeoAlias].txt', '/[astroAeoVersion]/llms/manifest.json',
+    ]));
+    const shapes = patterns.map((pattern) => pattern.replace(/\[[^\]]+\]/g, '[param]'));
+    expect(new Set(shapes).size).toBe(shapes.length);
+    expect(injected.every((route) => route.prerender === false)).toBe(true);
+  });
+
   test('injects adapter-visible fallbacks for Markdown and exact enabled artifact paths', async () => {
     const root = new URL('file:///tmp/astro-aeo-injected-routes/');
     const injected = [];

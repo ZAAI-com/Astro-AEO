@@ -595,6 +595,8 @@ async function runtimePluginPageHandles(context, next, dynamicRouteSource) {
       descriptor: target.descriptor,
       ...(target.descriptor?.origin ? { origin: target.descriptor.origin } : {}),
       ...(target.descriptor?.locale ? { locale: target.descriptor.locale } : {}),
+      ...(target.descriptor?.version ? { version: target.descriptor.version } : {}),
+      ...(target.descriptor?.versionGroup ? { versionGroup: target.descriptor.versionGroup } : {}),
       // Catalog metadata is user supplied, so a truthy non-array here would throw out of
       // onRequest rather than degrading the one artifact that asked for it.
       ...(Array.isArray(target.descriptor?.alternates)
