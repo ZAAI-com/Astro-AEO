@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { buildSchema, serializeSchema } from './schema-definition.mjs';
+import { serializeRagRecordSchema, serializeRagIndexSchema } from './rag-schema.mjs';
 import { serializeAnalyticsEventSchema } from './analytics-schema.mjs';
 import { serializeAuditReportSchema } from './audit-report-schema.mjs';
 import { resolveConfig } from '../src/config.js';
@@ -80,4 +81,11 @@ function getPath(value, path) {
 
 function isPlainObject(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+for (const [file, serialize] of [['rag-record-v1.schema.json',serializeRagRecordSchema],['rag-index-v1.schema.json',serializeRagIndexSchema]]) {
+  if (await readFile(resolve(root,'schema',file),'utf8').catch(()=>'') !== serialize()) {
+    console.error(`schema/${file} is stale. Run: node scripts/generate-schema.mjs`);
+    process.exitCode = 1;
+  }
 }

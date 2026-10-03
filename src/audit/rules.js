@@ -132,7 +132,7 @@ const RULE_LIST = Object.freeze([
     'corpus-page-shape', 'corpus-page-tokens', 'corpus-tokenizer-identity',
   ]),
   ...rules('corpus', 'warning', ['build'], [
-    'corpus-chunk-over-budget', 'corpus-manifest-skipped', 'corpus-tokenizer-fallback',
+    'corpus-chunk-over-budget', 'rag-chunk-over-budget', 'corpus-manifest-skipped', 'corpus-tokenizer-fallback',
     'corpus-tokenizer-load-failed', 'small-corpus-preamble-over-budget',
     'small-corpus-wrapper-omitted',
   ]),

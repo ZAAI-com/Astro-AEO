@@ -1,4 +1,5 @@
 // @ts-check
+import { validateRagReplacement } from '../core/rag.js';
 import { normalizeVersionPages } from '../core/version-pages.js';
 import { buildPage, absoluteUrl, basePrefix, pagePathForMdPath } from '../core/page-model.js';
 import { createTurndown } from '../core/html-to-md.js';
@@ -758,8 +759,16 @@ export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {
     home?.title ?? '',
   );
   const loadedTokenizer = await loadRuntimeCorpusTokenizer(opts.tokenizerLoader);
+  const ragPlugins = runtime.config.corpus.rag.enabled && opts.pluginLoaders?.length
+    ? await loadRuntimePlugins(opts.pluginLoaders, runtime.command) : undefined;
   const plan = await planCorpusArtifacts({
     pages: versioned.pages,
+    ragHook: ragPlugins ? async (record) => {
+      const result = await ragPlugins.run('rag:record', record, {
+        pathname: record.metadata.pathname, validate: (value) => validateRagReplacement(value, record),
+      });
+      return { ...result, value: /** @type {import('../index.js').RagRecordV1} */ (/** @type {unknown} */ (result.value)) };
+    } : undefined,
     config: runtime.config,
     siteMeta,
     origin: activeOrigin,
@@ -782,7 +791,8 @@ export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {
   if (archiveManifest) return { body: archiveManifest.contents, contentType: 'application/json; charset=utf-8' };
   const requested = plan.artifacts.find((artifact) =>
     matchesExactPathname(pathname, artifact.pathname));
-  if (requested) return { body: requested.contents, contentType: 'text/plain; charset=utf-8' };
+  if (requested) return { body: requested.contents, contentType: requested.kind === 'rag'
+    ? 'application/x-ndjson; charset=utf-8' : 'text/plain; charset=utf-8' };
   if (
     (pathname === '/llms/manifest.json' || matchesExactPathname(pathname, '/llms/manifest.json')) &&
     plan.manifestText

@@ -274,6 +274,7 @@ aeo({
     chunks: { enabled: false, maxTokensPerFile: 100_000, by: 'section' },
     manifest: { enabled: false },    // /llms/manifest.json
     versions: undefined,             // { current: 'v2', order: ['v1'] }; opt-in partitions
+    rag: { enabled: false, maxTokens: 512, publish: false }, // private locale/version JSONL
     tokenizer: undefined,            // { module, options? }; local importable module only
     compression: { gzip: false },    // deterministic static .gz siblings
 
@@ -1087,6 +1088,40 @@ operator documentation on 2026-10-03. Google-Extended and Applebot-Extended are 
 not observable crawler identities. A User-Agent token is a claim, not operator authentication.
 Meta's existing entry retains its prior verification date because its first-party page could not
 be retrieved during this review; no new Meta identity is inferred from third-party descriptions.
+
+### Private RAG records
+
+Enable `corpus.rag: { enabled: true, maxTokens: 512, publish: false }` to write private
+page and heading-aware chunk records under `.astro/aeo-cache/rag-v1/`. The index identifies
+locale/version files, their hashes, the shared snapshot/trace build digest, and build-time
+incompleteness. Every file uses mode `0600`. Unlike sanitized evidence, these exports contain
+published Markdown text. Held MDX bodies and rendered HTML never enter the records.
+
+Set `publish: true` explicitly to generate ownership-managed `/llms/rag.jsonl` artifacts.
+Global, locale, combined and automatic layouts follow the corpus topology, including archive
+prefixes below locale prefixes and the Astro base. Enabled static gzip adds deterministic siblings;
+runtime uses transport compression. Public JSONL uses `application/x-ndjson; charset=utf-8`.
+On-demand inventories generate complete public exports at request time, subject to the same
+live-corpus compatibility and completeness limits. Their private build index declares
+`buildTimeIncomplete: true`, even when it contains no records.
+
+Records expose stable page/chunk IDs, published text, actual tokenizer counts, approximation and
+fallback identity, content/page hashes, headings, oversized status and flat metadata. The chunk
+budget counts complete candidate text, including non-additive custom counters. Indivisible blocks,
+fences and headings attached to their first block remain whole, with `rag-chunk-over-budget`
+when necessary. Page records are complete and not subject to the chunk budget. RAG respects
+indexing, corpus and locale-fallback exclusions, but does not inherit `full.mode` truncation.
+
+`rag:record` hooks may drop one record or replace it to enrich flat metadata. Identity, URL/locale/
+version topology, text, headings, and measurements stay immutable. Use `page:transform` for text
+changes before tokenization. Invalid replacements and isolation withhold the export; only explicitly
+recoverable thrown exceptions keep the last valid record. Hooks receive a complete tokenizer plan. A custom counter failure on replacement metadata
+restarts every family/version with the fallback counter and revalidates hooks.
+Exported schemas are `astro-aeo/rag-record.schema.json` and `astro-aeo/rag-index.schema.json`;
+root declarations expose `RagRecordV1` and `RagIndexV1`.
+
+See [RAG ingestion examples](docs/rag.md) for LangChain and LlamaIndex mappings without adding
+framework dependencies to Astro-AEO.
 
 ### Small corpora, chunks, manifests, and gzip
 

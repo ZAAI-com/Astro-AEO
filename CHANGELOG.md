@@ -6,6 +6,12 @@ All notable changes to this project are documented here. This project follows [S
 
 In preparation. Release notes will be folded in from changesets before the 1.6.0 tag is created.
 
+- Generate private locale/version RAG page and chunk records with stable IDs, actual tokenizer
+  counts, content hashes and immutable measurement fields. Publish ownership-managed JSONL and
+  deterministic static gzip only with explicit opt-in, and disclose incomplete build-time exports.
+- Validate `rag:record` metadata replacement/drop hooks in build and runtime, preserving fail-closed
+  isolation and explicitly authorized exception recovery. Export versioned record/index schemas.
+
 - Add opt-in privacy-first request analytics with claimed crawler classifications, bounded
   paths, sampling, private Node JSONL, runtime-secret webhooks, optional OpenTelemetry and
   module sinks. Keep disabled bundles analytics-free and preserve response identity.

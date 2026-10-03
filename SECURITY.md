@@ -140,3 +140,14 @@ the [1.2 semantic validation record](docs/release-evidence/1.2.0-semantic-valida
   that carries credentials is refused. Local configuration is never reported as a verified deployment.
 - The GitHub Action passes its inputs to the shell as environment variables, never by interpolation
   into the script, and runs the CLI the project itself installed.
+
+### RAG content exports
+
+RAG is disabled by default and private when enabled. Its mode `0600` JSONL files intentionally
+contain published Markdown, unlike content-free page snapshots and trace evidence. They never
+copy held source/MDX or rendered HTML. Public export requires explicit `corpus.rag.publish: true`
+and participates in route/public-file ownership arbitration, symlink refusal and safe restoration.
+Runtime fan-out retains the existing anonymous completeness and Astro-version restrictions.
+Trusted record hooks can enrich flat metadata or drop records, but cannot forge protected
+identity, text or measurements. Text transformation belongs before record planning. Do not add
+secrets to trusted plugin metadata: opt-in public exports include that metadata as authored.

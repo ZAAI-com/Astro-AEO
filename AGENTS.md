@@ -125,6 +125,13 @@ plain ESM with no package build step.
   `produce` callback the deferred writer runs after ownership resolution and before anything hashes
   it. That callback is core only: plugin envelopes keep a string body. `test/contracts/accept.js` is
   the single Accept table for the middleware, the handlers and the workerd suite (`test:edge`).
+- `src/core/rag.js` shares the indivisible Markdown planner and corpus tokenizer. RAG records
+  use published Markdown, stable canonical/locale/version IDs, measured tokens and content hashes.
+  The corpus planner completes fallback across versions before `rag:record` hooks run.
+  Custom count failure on replacement metadata restarts all families/versions and revalidates hooks.
+  Replacements enrich flat metadata only; text changes precede chunk planning in `page:transform`.
+  `src/build/rag.js` stages opt-in private content separately from sanitized snapshot/trace evidence,
+  with `0600` files and the shared build digest. Public RAG and gzip use the ordinary output writer.
 - `src/build/deployment-facts.js` stages the private `.astro/aeo-cache/deployment-v1.json` (mode
   `0o600`): output mode, adapter name, base, build format, trailing slash, negotiation mode, edge
   provider and an ownership digest. Names and modes only, never a path or an environment value.

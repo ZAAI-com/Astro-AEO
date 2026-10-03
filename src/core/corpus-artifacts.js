@@ -1,4 +1,6 @@
 // @ts-check
+import { isRagEligible, planRagRecords, serializeRagRecords } from './rag.js';
+import { finishRagPlan } from './rag-plan.js';
 import { planVersionCorpus } from './version-corpus.js';
 import { pageMarkdown } from './render/page-markdown.js';
 import { chunkTopology, corpusPathname } from './corpus-topology.js';
@@ -7,7 +9,7 @@ import { allocateSmallCorpus, planSectionChunks } from './corpus-plan.js';
 import { chunkPathname, resolveSectionSlugs } from './corpus-blocks.js';
 import { createCorpusManifest, serializeCorpusManifest } from './corpus-manifest.js';
 import { corpusPageIdentity } from './page-identity.js';
-import { normalizePublishedText, runCorpusPlanWithTokenizer } from './corpus-tokenizer.js';
+import { CorpusTokenizerError, normalizePublishedText, runCorpusPlanWithTokenizer } from './corpus-tokenizer.js';
 import { normalizeOrigin } from './locale.js';
 import { renderMarkdownDocument } from './render/markdown-doc.js';
 import {
@@ -27,7 +29,7 @@ import {
 /**
  * @typedef {object} CorpusTextArtifact
  * @property {string} pathname
- * @property {'index'|'full'|'small'|'chunk'|'alias'} kind
+ * @property {'index'|'full'|'small'|'chunk'|'alias'|'rag'} kind
  * @property {string} [version]
  * @property {string|null} locale
  * @property {string|null} section
@@ -44,6 +46,8 @@ import {
  * serves these exact strings and relies on transport compression.
  *
  * @param {{
+ *   ragHook?: import('./rag-plan.js').RagHook;
+ *   deferRagHooks?: boolean;
  *   topologyLocaleCount?: number;
  *   artifactVersion?: { version: string; current: string };
  *   tokenContext?: { tokenizer: { name: string; version: string; approximate: boolean }; count: (text: string) => Promise<number> };
@@ -57,17 +61,36 @@ import {
  *   tokenizer?: unknown;
  *   tokenizerOptions?: unknown;
  *   tokenizerProbed?: boolean;
- *   tokenizerFallback?: 'preflight';
+ *   tokenizerFallback?: 'preflight'|'count';
  *   cachedCount?: import('./corpus-tokenizer.js').CachedTokenCount;
+ *   cachedRag?: (identity: unknown, produce: () => ReturnType<typeof planRagRecords>) => ReturnType<typeof planRagRecords>;
  *   cachedText?: (identity: unknown, produce: () => string) => Promise<string>;
  *   cachedChunks?: (identity: unknown, produce: () => ReturnType<typeof planSectionChunks>) => ReturnType<typeof planSectionChunks>;
  *   requestTime?: boolean;
  *   note?: string;
  * }} input
- * @returns {Promise<{ artifacts: CorpusTextArtifact[]; manifest?: any; manifestText?: string; manifests?: Array<{ pathname: string; manifest: any; contents: string }>; diagnostics: Array<{ code: string; severity: 'info'|'warning'|'error'; message: string; pathname?: string; details?: unknown }>; tokenizer?: { name: string; version: string; approximate: boolean } }>}
+ * @returns {Promise<{ artifacts: CorpusTextArtifact[]; ragRecords?: import('../index.js').RagRecordV1[]; manifest?: any; manifestText?: string; manifests?: Array<{ pathname: string; manifest: any; contents: string }>; diagnostics: Array<{ code: string; severity: 'info'|'warning'|'error'; message: string; pathname?: string; details?: unknown }>; tokenizer?: { name: string; version: string; approximate: boolean } }>}
  */
 export async function planCorpusArtifacts(input) {
-  if (input.config.corpus.versions) return planVersionCorpus(input);
+  const plan = input.config.corpus.versions ? await planVersionCorpus(input) : await planUnversionedCorpus(input);
+  if (input.deferRagHooks) return plan;
+  try { return await finishRagPlan(plan, input); }
+  catch (error) {
+    if (!(error instanceof CorpusTokenizerError) || input.tokenizer === undefined) throw error;
+    // A metadata replacement can make serialized JSONL fail a custom counter
+    // after the raw record transaction. Restart every family/version, not just
+    // the JSONL counts, so no manifest can mix tokenizer identities.
+    const fallbackInput = { ...input, tokenizer: undefined, tokenContext: undefined,
+      tokenizerFallback: /** @type {const} */ ('count') };
+    const fallback = input.config.corpus.versions
+      ? await planVersionCorpus(fallbackInput) : await planUnversionedCorpus(fallbackInput);
+    return finishRagPlan(fallback, fallbackInput);
+  }
+}
+
+/** @param {Parameters<typeof planCorpusArtifacts>[0]} input
+ * @returns {ReturnType<typeof planCorpusArtifacts>} */
+async function planUnversionedCorpus(input) {
   const origin = normalizeOrigin(input.origin) ?? '';
   const mode = input.config.i18n.indexes;
   const allParticipatingPages = input.pages.filter((page) => !page.corpusExcluded);
@@ -105,6 +128,7 @@ export async function planCorpusArtifacts(input) {
 
   /** @param {NonNullable<typeof input.tokenContext>} context */
   const producePlan = async ({ tokenizer, count }) => {
+      diagnostics.length = 0; // A failed tokenizer transaction must not retain partial-plan warnings.
       /** @type {CorpusTextArtifact[]} */
       const artifacts = [];
       /**
@@ -411,7 +435,31 @@ export async function planCorpusArtifacts(input) {
         // origin and each owns its companion token count.
         pageTokenCounts.set(`${corpusPageIdentity(page)}\0${page.locale ?? ''}`, await count(published));
       }
-      return { artifacts, tokenizer, pageTokenCounts };
+      /** @type {any[]} */
+      const ragPages = input.config.corpus.rag.enabled ? groupSections(participatingPages.filter(isRagEligible),
+        input.config.corpus.index.sections, input.config.corpus.index.defaultSection).flatMap((section) =>
+          section.pages.map((page) => ({ ...page, section: section.title }))) : [];
+      const produceRag = () => planRagRecords(ragPages, { maxTokens: input.config.corpus.rag.maxTokens, tokenizer, count });
+      const rag = !input.config.corpus.rag.enabled ? undefined : input.cachedRag
+        ? await input.cachedRag({ maxTokens: input.config.corpus.rag.maxTokens, tokenizer, options: input.tokenizerOptions,
+            pages: ragPages.map((page) => ({ pathname: page.pathname, canonicalUrl: page.canonicalUrl ?? page.url,
+              locale: page.locale, language: page.language, version: page.version, versionGroup: page.versionGroup,
+              title: page.title, section: page.section, markdown: pageMarkdown(page) })) }, produceRag)
+        : await produceRag();
+      if (rag) {
+        diagnostics.push(...rag.diagnostics);
+        if (input.config.corpus.rag.publish) {
+          const addRag = async (/** @type {string} */ pathname, /** @type {string|null} */ locale,
+            /** @type {import('../index.js').RagRecordV1[]} */ records) =>
+            addText(pathname, 'rag', locale, null, null, serializeRagRecords(records));
+          if (mode === 'global' || mode === 'both' || mode === 'auto' && topologyLocaleCount <= 1)
+            await addRag('/llms/rag.jsonl', topologyLocaleCount <= 1 ? locales[0]?.locale ?? null : null, rag.records);
+          if (mode === 'locale' || mode === 'both' || mode === 'auto' && topologyLocaleCount > 1)
+            for (const locale of locales) await addRag(`/${encodeURIComponent(/** @type {string} */ (locale.locale))}/llms/rag.jsonl`,
+              locale.locale, rag.records.filter((record) => record.metadata.locale === locale.locale));
+        }
+      }
+      return { artifacts, tokenizer, pageTokenCounts, ragRecords: rag?.records.map((record) => ({ ...record })) };
     };
   const planned = input.tokenContext
     ? { result: await producePlan(input.tokenContext), tokenizer: input.tokenContext.tokenizer }
@@ -427,6 +475,8 @@ export async function planCorpusArtifacts(input) {
       'The configured tokenizer failed; the complete corpus plan was restarted with astro-aeo-approx@1.',
     ));
   }
+
+  if (tokenizerFallback) for (const record of planned.result.ragRecords ?? []) record.tokenizerFallback = { reason: tokenizerFallback };
 
   let manifest;
   if (input.config.corpus.manifest.enabled) {
@@ -546,6 +596,7 @@ export async function planCorpusArtifacts(input) {
 
   return {
     artifacts: planned.result.artifacts,
+    ...(planned.result.ragRecords ? { ragRecords: planned.result.ragRecords } : {}),
     ...(manifest ? { manifest, manifestText: serializeCorpusManifest(manifest) } : {}),
     diagnostics,
     tokenizer: planned.tokenizer,
@@ -585,6 +636,7 @@ export function localeGroups(pages, i18n, config) {
 
 /** @param {any} page @param {import('../index.js').ResolvedAstroAeoConfig} config */
 function participatesInCorpus(page, config) {
+  if (config.corpus.rag.enabled && isRagEligible(page)) return true;
   if (config.corpus.index.enabled && isLlmsEligible(page, config)) return true;
   return (config.corpus.full.enabled || config.corpus.small.enabled || config.corpus.chunks.enabled) &&
     selectFullTxtPages([page], config).length > 0;
@@ -675,7 +727,7 @@ const PLANNER_INFO_CODES = new Set(['small-corpus-truncated']);
 
 /** @param {CorpusTextArtifact['kind']} kind */
 function kindOrder(kind) {
-  return ({ index: 0, full: 1, small: 2, chunk: 3, alias: 4 })[kind];
+  return ({ index: 0, full: 1, small: 2, chunk: 3, alias: 4, rag: 5 })[kind];
 }
 
 /** @param {Array<{ code: string; severity: 'info'|'warning'|'error'; message: string; pathname?: string; details?: unknown }>} target @param {any[]} source @param {string|null} [locale] @param {string} [section] */

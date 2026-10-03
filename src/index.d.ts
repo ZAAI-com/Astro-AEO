@@ -48,6 +48,8 @@ export interface CacheDeclaration {
 
 /** Private, content-free build evidence at .astro/aeo-cache/pages-v1.json. */
 export interface AeoPageSnapshotV1 {
+  /** Hash of private RAG records when enabled, never their content. */
+  ragHash?: string;
   version: 1;
   buildDigest: string;
   inventoryComplete: boolean;
@@ -149,7 +151,7 @@ export interface CorpusManifestArtifactV1 {
   version?: string;
   origin: string;
   pathname: string;
-  kind: 'index' | 'full' | 'small' | 'chunk' | 'alias';
+  kind: 'index' | 'full' | 'small' | 'chunk' | 'alias' | 'rag';
   locale: string | null;
   section: string | null;
   part: number | null;
@@ -816,6 +818,42 @@ export interface CorpusRuntimeOptions {
   maxPages?: number | 'unlimited';
 }
 
+/** Versioned page/chunk data containing published Markdown, not raw source. */
+export interface RagRecordV1 {
+  version: 1;
+  tokenizerFallback?: { reason: 'preflight' | 'count' };
+  kind: 'page' | 'chunk';
+  id: string;
+  pageId: string;
+  chunkIndex: number | null;
+  text: string;
+  tokenCount: number;
+  tokenizer: { name: string; version: string; approximate: boolean };
+  hash: string;
+  pageHash: string;
+  headings: string[];
+  oversized: boolean;
+  metadata: {
+    url: string;
+    pathname: string;
+    title: string;
+    locale: string | null;
+    language: string | null;
+    contentVersion: string | null;
+    versionGroup: string | null;
+    section: string | null;
+    [key: string]: string | number | boolean | null;
+  };
+}
+
+export interface RagIndexV1 {
+  version: 1;
+  buildDigest: string;
+  inventoryComplete: boolean;
+  buildTimeIncomplete: boolean;
+  files: Array<{ file: string; locale: string | null; contentVersion: string | null; records: number; hash: string }>;
+}
+
 export interface CorpusOptions {
   /** Opt in to version-partitioned corpora. Omit to keep version labels metadata-only. */
   versions?: CorpusVersionsOptions;
@@ -1223,6 +1261,8 @@ export interface AstroAeoPluginApi {
   readonly command: 'dev' | 'build' | 'preview';
   /** Present only in an importable runtime module, after strict JSON validation. */
   readonly options?: JsonValue;
+  /** RAG replacements may enrich flat metadata; protected fields must stay unchanged. */
+  on(stage: 'rag:record', hook: AstroAeoPluginHook<RagRecordV1>, options?: { cache?: CacheDeclaration; recoverable?: boolean }): void;
   on<T>(stage: AstroAeoPluginStage, hook: AstroAeoPluginHook<T>): void;
   on<T>(stage: AstroAeoPluginStage, hook: AstroAeoPluginHook<T>, options: { recoverable?: boolean }): void;
   on<T>(
