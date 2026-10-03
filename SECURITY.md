@@ -48,6 +48,20 @@ or guarantee placement in any answer engine. The experimental schema corpus is a
 not a standardized discovery protocol. Dated manual external checks for the release are tracked in
 the [1.2 semantic validation record](docs/release-evidence/1.2.0-semantic-validation.md).
 
+### Opt-in analytics
+
+- Observation reads only method, public pathname, User-Agent and response representation
+  metadata. Events omit IP, query, referrer, cookies, authorization, raw headers and bodies.
+  Crawler identities are bounded claims, not authentication. Unknown paths become `(unlisted)`.
+- Disabled integration analytics adds no observation imports to server bundles. Node JSONL
+  delivery enters only supported generated modules, with private permissions and symlink
+  refusal. Development console delivery is mandatory.
+- Webhooks resolve header secrets at runtime, require HTTPS, reject redirects and time out
+  after two seconds. Delivery and runtime setup failures are sanitized and cannot change a
+  visitor response or consume its body. Optional telemetry counters have no path attributes.
+- User-module sinks receive only sanitized events; they are trusted configured extensions.
+  Analytics is observable-surface traffic, not host-log ingestion or verified visitor tracking.
+
 ### Plugins and optional renderers
 
 - Plugin hook inputs are immutable. Runtime plugins receive strict JSON options and safe page

@@ -693,6 +693,81 @@ warns, records `catalog-load-failed`, and contributes nothing.
 EmDash sites use `emdashAeo()` instead of `aeo()`, with a catalog that lists every published entry.
 See [EmDash CMS](#emdash-cms).
 
+### Privacy-first request analytics
+
+Analytics is disabled by default. On an observable on-demand Astro middleware surface:
+
+```js
+aeo({ analytics: { enabled: true, scope: 'agents', sampleRate: 1,
+  adapter: { type: 'console' }, strict: false } })
+```
+
+Only public in-base GET/HEAD requests are observed. Collection, prerendering, anonymous
+corpus fan-out and development loopback requests are excluded. `agents` includes AEO
+artifact requests and claimed crawler HTML requests; `all` explicitly includes ordinary
+traffic. Events use minute-rounded UTC, configured inclusion rates and the versioned
+crawler registry. User-Agent classifications are **claims, not verified identities**.
+Known paths take priority over declared route patterns, then `(unlisted)`; route parameter
+values and arbitrary requested paths are never logged. IP, query, referrer, cookies,
+authorization, raw request headers and response bodies are not collected. Cache outcomes
+are `not-modified` for HTTP 304 or `unknown`, never an inferred provider hit/miss.
+
+The `astro-aeo/analytics` export includes `AnalyticsEventV1` (and `astro-aeo/analytics-event.schema.json`), `AnalyticsAdapterModule`,
+`createAnalytics`, `createConsoleSink`, `createWebhookSink` and `createOpenTelemetrySink`.
+Console events start with `astro-aeo:analytics-v1 `. Development always uses console,
+including when another sink is configured. Disabled and omitted analytics have identical
+analytics-free server bundles. No browser script is installed.
+
+Delivery options:
+
+| Adapter | Configuration and constraints |
+| --- | --- |
+| `console` | Default; marked one-event JSON lines. |
+| `jsonl` | Node adapter, Node-based development or preview only (not workerd/Deno); default `.astro/aeo-analytics/events-v1.jsonl`, mode `0600`, serialized appends, no symlinks or paths escaping the project. |
+| `webhook` | `{ type: 'webhook', url: 'https://events.example.test', headers: { Authorization: { env: 'EVENT_TOKEN', prefix: 'Bearer ' } } }`; secrets resolved at request time, one-event envelopes, redirects rejected, two-second timeout. |
+| `opentelemetry` | An HTTPS `endpoint` for OTLP/HTTP JSON, or separately installed optional `@opentelemetry/api` peer. Counters have bounded attributes, never path attributes. Edge helpers can inject a meter-backed sink. |
+| `module` | `{ type: 'module', module: './analytics.mjs', options: { ... } }`; strict JSON options and a default export `{ apiVersion: 1, createSink(options) }` returning a function `(event) => void | Promise<void>`. Setup is preflighted. |
+
+Strict preflight failures reject configuration; non-strict failures disable delivery with
+sanitized advice. Runtime failures are caught and reported once (strict: error; otherwise:
+warning), never propagated into HTTP. Supported provider request-lifetime callbacks retain
+pending delivery. Without a callback, delivery is caught fire-and-forget and is best effort.
+Runtime module loading/setup failures disable delivery without preventing HTTP responses.
+Module sinks receive only sanitized events and are responsible for their own runtime portability.
+
+A static deployment must explicitly declare an edge plugin and inject the observer into its
+handler. Integration configuration **does not install deployment middleware**. For example,
+with the Cloudflare edge plugin already configured:
+
+```js
+import { createCloudflareHandler } from 'astro-aeo/edge/cloudflare';
+import { createAnalytics, createWebhookSink } from 'astro-aeo/analytics';
+
+const handlers = new WeakMap();
+export default {
+  fetch(request, env, context) {
+    if (!handlers.has(env)) {
+      const analytics = createAnalytics({ enabled: true, base: '/docs',
+        inventory: ['/docs/guide'], artifacts: ['/docs/guide.md', '/docs/llms.txt'],
+        sink: createWebhookSink({ url: 'https://events.example.test',
+          headers: { Authorization: { env: 'EVENT_TOKEN', prefix: 'Bearer ' } },
+          secret: (name) => env[name] }),
+      });
+      handlers.set(env, createCloudflareHandler({ base: '/docs', analytics }));
+    }
+    return handlers.get(env).fetch(request, env, context);
+  },
+};
+```
+
+Cloudflare Pages/Workers and Netlify use supplied context lifetimes; Vercel accepts
+`waitUntil` alongside its `next`/`rewrite` helpers. These observers report only traffic
+reaching their declared surface, not whole-host logs or verified visitors. Vercel observations
+are routing-middleware responses, not the final origin status. Prerendered HTML served directly
+by an asset layer does not pass through Astro middleware. Provider checks are local contracts,
+not deployed verification. Analytics with no observable on-demand route and no declared edge
+surface is rejected.
+
 ### Page versions
 
 Version labels remain metadata-only unless `corpus.versions` is explicitly configured.

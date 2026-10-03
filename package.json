@@ -78,7 +78,12 @@
     },
     "./schema.json": "./schema/astro-aeo.schema.json",
     "./audit-report.schema.json": "./schema/audit-report-v1.schema.json",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./analytics": {
+      "types": "./src/analytics.d.ts",
+      "default": "./src/analytics.js"
+    },
+    "./analytics-event.schema.json": "./schema/analytics-event-v1.schema.json"
   },
   "bin": {
     "astro-aeo": "./bin/astro-aeo.js"
@@ -122,7 +127,8 @@
     "@mdx-js/mdx": "^3.1.1",
     "astro": ">=5.0.0",
     "defuddle": "^0.19.2",
-    "emdash": ">=1.0.1"
+    "emdash": ">=1.0.1",
+    "@opentelemetry/api": "^1.9.0"
   },
   "peerDependenciesMeta": {
     "@astrojs/starlight": {
@@ -135,6 +141,9 @@
       "optional": true
     },
     "defuddle": {
+      "optional": true
+    },
+    "@opentelemetry/api": {
       "optional": true
     }
   },

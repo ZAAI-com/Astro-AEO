@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { serializeSchema } from './schema-definition.mjs';
+import { serializeAnalyticsEventSchema } from './analytics-schema.mjs';
 import { serializeAuditReportSchema } from './audit-report-schema.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -15,3 +16,7 @@ console.log(`Wrote ${destination}`);
 const auditDestination = resolve(root, 'schema/audit-report-v1.schema.json');
 await writeFile(auditDestination, serializeAuditReportSchema(), 'utf8');
 console.log(`Wrote ${auditDestination}`);
+
+const analyticsDestination = resolve(root, 'schema/analytics-event-v1.schema.json');
+await writeFile(analyticsDestination, serializeAnalyticsEventSchema(), 'utf8');
+console.log(`Wrote ${analyticsDestination}`);

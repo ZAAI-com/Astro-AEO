@@ -36,6 +36,8 @@ export declare function createEdgeNegotiator<C = undefined>(host: {
 }): (request: Request, next: () => Promise<Response>, context?: C) => Promise<Response>;
 
 export interface EdgeHandlerOptions {
+  /** Explicit opt-in: integration configuration never installs this observer. */
+  analytics?: import('./analytics.js').AnalyticsObserver;
   /** The Astro `base`, when the site is not served from the root. */
   base?: string;
 }

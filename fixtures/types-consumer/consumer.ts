@@ -1049,3 +1049,21 @@ export const languageAlternate: import('astro-aeo').LanguagePageAlternate = { la
 // @ts-expect-error Version alternatives cannot carry hreflang language identities.
 export const mixedVersionAlternate: import('astro-aeo').PageAlternate = { kind: 'version', version: 'v1', language: 'en', url: 'https://example.com/v1/' };
 export const contentVersionGroup: string | undefined = contentDescriptor({ body: '# Doc', data: { versionGroup: 'doc' } }, { pathname: '/doc' }).versionGroup;
+
+import { createAnalytics, createWebhookSink, createOpenTelemetrySink } from 'astro-aeo/analytics';
+import type { AnalyticsEventV1, AnalyticsAdapterModule } from 'astro-aeo/analytics';
+export const analyticsObserver = createAnalytics({ enabled: true, base: '/docs', inventory: ['/docs/guide'],
+  patterns: [{ pattern: /^\/docs\/users\/[^/]+$/, routePattern: '/docs/users/[id]' }],
+  sink(event: Readonly<AnalyticsEventV1>) { const method: 'GET' | 'HEAD' = event.method; void method; },
+});
+export const runtimeWebhook = createWebhookSink({ url: 'https://events.example.test',
+  headers: { Authorization: { env: 'EVENT_TOKEN', prefix: 'Bearer ' } }, secret: (name) => name === 'EVENT_TOKEN' ? 'runtime-only' : undefined });
+export const otlpCounter = createOpenTelemetrySink({ endpoint: 'https://otel.example.test/v1/metrics' });
+export const eventModule: AnalyticsAdapterModule = { apiVersion: 1, createSink(options) { void options; return (event) => { void event.pathKind; }; } };
+// @ts-expect-error Observations cannot override privacy to collect IP addresses.
+export const identifyingObserver = createAnalytics({ enabled: true, privacy: { ip: 'collect' } });
+// @ts-expect-error Request methods remain bounded to observable public reads.
+export const invalidEventMethod: AnalyticsEventV1['method'] = 'POST';
+export const observedCloudflare = createCloudflareHandler({ analytics: analyticsObserver });
+export const observedNetlify = createNetlifyHandler({ analytics: analyticsObserver });
+export const observedVercel = createVercelHandler({ analytics: analyticsObserver, next: () => new Response(), rewrite: () => new Response(), waitUntil(work) { void work; } });

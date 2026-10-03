@@ -1,4 +1,5 @@
 // @ts-check
+import { AeoConfigError } from './lib/errors.js';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { isAbsolute, relative, resolve } from 'node:path';
@@ -45,6 +46,7 @@ import {
   normalizeIndexNowOrigin,
 } from './build/indexnow.js';
 import { parseIndexNowPrepareInput } from './build/indexnow-state.js';
+import { analyticsMiddlewarePlugin, analyticsSurface, preloadAnalytics, validateAnalyticsSurface } from './build/analytics.js';
 import { edgeProviderOf } from './edge/plugin.js';
 
 const FALLBACK_ENTRYPOINT = fileURLToPath(new URL('./runtime/fallback.js', import.meta.url));
@@ -111,9 +113,14 @@ export default function aeo(userConfig = {}) {
   let serverOutput = false;
   let adapterFallbacks = false;
   let hasOnDemandProjectPage = false;
+  let hasObservableRuntimeRoute = false;
   const declaredContentRoutes = new Set();
   /** @type {ReturnType<typeof edgeProviderOf>} */
   let edgeProvider = null;
+  /** @type {{ specifier?: string; failed?: boolean }} */
+  let analyticsModule = {};
+  /** @type {import('./analytics.js').AnalyticsSurface} */
+  let observationSurface = 'astro';
   /** @type {string | null} */
   let adapterName = null;
   let hasDynamicProjectPage = false;
@@ -273,6 +280,8 @@ export default function aeo(userConfig = {}) {
         }
         adapterName = typeof astroConfig.adapter?.name === 'string' ? astroConfig.adapter.name : null;
         edgeProvider = edgeProviderOf(config.plugins);
+        observationSurface = analyticsSurface(adapterName, command);
+        validateAnalyticsSurface(config.analytics, observationSurface, adapterName);
         // Static edge negotiation exists for sites with no server. The gate reads the
         // adapter the project configured, never `serverOutput`, which Astro-AEO's own
         // fallback routes turn on for any adapter.
@@ -352,6 +361,7 @@ export default function aeo(userConfig = {}) {
                 dynamicRouteModuleConfig,
                 devLoopbackConfig,
               ),
+              ...(config.analytics.enabled && (!edgeProvider || command === 'dev') ? [analyticsMiddlewarePlugin(() => ({ config: config.analytics, surface: observationSurface, adapterName, ...analyticsModule }))] : []),
             ],
           },
         });
@@ -403,6 +413,7 @@ export default function aeo(userConfig = {}) {
           logger,
           rendererDiagnostics,
         );
+        analyticsModule = await preloadAnalytics(config.analytics, projectRoot, logger);
         corpusTokenizer = await preloadCorpusTokenizer(
           config.corpus.tokenizer,
           projectRoot,
@@ -446,6 +457,7 @@ export default function aeo(userConfig = {}) {
         runtimeProjectPatterns.length = 0;
         runtimePagePaths.clear();
         hasOnDemandProjectPage = false;
+        hasObservableRuntimeRoute = false;
         hasDynamicProjectPage = false;
         hasOnDemandDynamicProjectPage = false;
         hasPrerenderedCustom404 = false;
@@ -493,6 +505,7 @@ export default function aeo(userConfig = {}) {
           const prerendered = /** @type {boolean | undefined} */ (
             route.isPrerendered ?? route.prerender
           );
+          if (ownedRoute && (type === 'page' || type === 'endpoint') && prerendered === false) hasObservableRuntimeRoute = true;
           const ownsExtensionPath =
             ownedRoute &&
             !normalizedPathname &&
@@ -556,6 +569,9 @@ export default function aeo(userConfig = {}) {
           if (projectRoute && normalizedPathname === '/404' && prerendered === true) {
             hasPrerenderedCustom404 = true;
           }
+        }
+        if (config.analytics.enabled && command !== 'dev' && !hasObservableRuntimeRoute && !edgeProvider) {
+          throw new AeoConfigError('astro-aeo: enabled analytics requires an observable on-demand route middleware or an explicitly declared static edge surface. Integration configuration does not install deployment handlers.');
         }
         assertInlineMarkdownRenderersSupported(config.markdown.renderers ?? [], {
           command,

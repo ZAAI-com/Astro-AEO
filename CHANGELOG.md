@@ -6,6 +6,10 @@ All notable changes to this project are documented here. This project follows [S
 
 In preparation. Release notes will be folded in from changesets before the 1.6.0 tag is created.
 
+- Add opt-in privacy-first request analytics with claimed crawler classifications, bounded
+  paths, sampling, private Node JSONL, runtime-secret webhooks, optional OpenTelemetry and
+  module sinks. Keep disabled bundles analytics-free and preserve response identity.
+
 - Interpret explicit Starlight version prefixes through public route data, populate corpus
   current versions, and add opt-in source-view and known version links. Keep untranslated
   fallback companions available while excluding those pages from requested locale corpora.
