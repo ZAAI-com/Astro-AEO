@@ -98,6 +98,7 @@ export async function stageCorpusArtifacts(inputPages, config, env) {
         origin,
         pathname: withBase(artifact.pathname, env.base),
         kind: artifact.kind,
+        ...(artifact.version ? { version: artifact.version } : {}),
         locale: artifact.locale,
         section: artifact.section,
         part: artifact.part,
@@ -151,6 +152,17 @@ export async function stageCorpusArtifacts(inputPages, config, env) {
       contentType: 'application/json; charset=utf-8',
       ...(env.runtime ? { runtime: true } : {}),
     });
+  }
+  if (manifest) for (const archive of plan.manifests ?? []) {
+    const version = archive.manifest.locales[0]?.version;
+    const scoped = normalizeCorpusManifest({ ...archive.manifest,
+      locales: manifest.locales.filter((/** @type {any} */ entry) => entry.version === version),
+      pages: manifest.pages.filter((/** @type {any} */ entry) => entry.version === version),
+      artifacts: manifest.artifacts.filter((/** @type {any} */ entry) => entry.version === version),
+    });
+    env.writer.write({ route: archive.pathname, owner: { kind: 'core', name: 'corpusManifest' },
+      contents: serializeCorpusManifest(scoped), contentType: 'application/json; charset=utf-8',
+      ...(env.runtime ? { runtime: true } : {}) });
   }
   return { artifacts, manifest, tokenizer: plan.tokenizer };
 }

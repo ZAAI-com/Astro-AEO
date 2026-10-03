@@ -30,7 +30,7 @@ import { runtimePluginModules } from './plugins/runtime-modules.js';
 import { createSemanticPlugin } from './semantic/plugin.js';
 import { exactPathnameIdentity } from './core/artifact-path.js';
 import { absoluteUrl } from './core/page-model.js';
-import { chunkTopology } from './core/corpus-artifacts.js';
+import { corpusRoutePatterns } from './core/corpus-topology.js';
 import { createLocaleSnapshot } from './core/locale.js';
 import {
   preloadCorpusTokenizer,
@@ -878,15 +878,12 @@ function injectRuntimeFallbackRoutes(
     });
   }
 
-  const mode = config.i18n.indexes;
-  const topology = chunkTopology(mode);
   const artifacts = new Set();
   if (config.discovery.robots.enabled) artifacts.add('/robots.txt');
   if (config.site.profile.enabled) artifacts.add('/.well-known/domain-profile.json');
-  if (config.corpus.index.enabled && mode !== 'locale') artifacts.add('/llms.txt');
-  if (config.corpus.full.enabled && mode !== 'locale') artifacts.add('/llms-full.txt');
-  if (config.corpus.small.enabled && mode !== 'locale') artifacts.add('/llms-small.txt');
-  if (config.corpus.manifest.enabled) artifacts.add('/llms/manifest.json');
+  const corpusPatterns = corpusRoutePatterns(config);
+  for (const pattern of corpusPatterns) if (!pattern.includes('[')) artifacts.add(pattern);
+
   if (config.schema?.corpus.enabled) {
     artifacts.add(config.schema.corpus.graphPath);
     artifacts.add(config.schema.corpus.mapPath);
@@ -915,21 +912,7 @@ function injectRuntimeFallbackRoutes(
     );
   }
 
-  if (mode === 'locale' || mode === 'both' || mode === 'auto') {
-    if (config.corpus.index.enabled) patterns.push('/[astroAeoLocale]/llms.txt');
-    if (config.corpus.full.enabled) patterns.push('/[astroAeoLocale]/llms-full.txt');
-    if (config.corpus.small.enabled) patterns.push('/[astroAeoLocale]/llms-small.txt');
-  }
-  if (config.corpus.chunks.enabled) {
-    if (topology.root) patterns.push('/llms/[astroAeoChunk].txt');
-    if (topology.locale) patterns.push('/[astroAeoLocale]/llms/[astroAeoChunk].txt');
-  }
-  if (mode === 'both') {
-    if (config.corpus.index.enabled) patterns.push('/llms-[astroAeoAlias].txt');
-    if (config.corpus.full.enabled) patterns.push('/llms-full-[astroAeoAlias].txt');
-    if (config.corpus.small.enabled) patterns.push('/llms-small-[astroAeoAlias].txt');
-  }
-
+  patterns.push(...corpusPatterns.filter((pattern) => pattern.includes('[')));
   for (const pattern of patterns) {
     injectRoute({
       pattern,

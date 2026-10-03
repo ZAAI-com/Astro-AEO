@@ -1,5 +1,5 @@
 // @ts-check
-import { isPageVersion } from './page-version.js';
+import { isPageVersion, isVersionGroup } from './page-version.js';
 import { createTurndown } from './html-to-md.js';
 import { extractMarkdown } from './extract/index.js';
 import { extractMetaContent, extractPageMeta, makeTitleStripper } from './page-meta.js';
@@ -31,7 +31,9 @@ import { sha256Digest } from './corpus-manifest.js';
  * @property {string} [locale]
  * @property {string} [language]
  * @property {string} [version]      Documentation version label.
- * @property {{ language: string; url: string }[]} [alternates]
+ * @property {string} [versionGroup]
+ * @property {import('../index.js').PageAlternate[]} [alternates]
+ * @property {import('../index.js').VersionPageAlternate[]} [_generatedVersionAlternates] Internal derived-link tracking.
  * @property {boolean} [corpusExcluded] Internal corpus-planning exclusion marker.
  * @property {{ initial?: string; declared?: string; rendered?: string; siteDefault?: string }} [languageSources] Internal precedence inputs.
  * @property {{ title: string; description?: string; image?: string; canonicalSource?: 'authored'|'inferred' }} metadata
@@ -126,7 +128,7 @@ export function basePrefix(base) {
  * @param {SiteFacts} input.site
  * @param {import('turndown')} [input.td]
  * @param {() => Promise<import('turndown')>} [input.getTurndown]
- * @param {{ markdown?: string; body?: string; title?: string; description?: string; image?: string; language?: string; version?: string; published?: string; lastModified?: string; authors?: unknown[]; entities?: unknown[]; directives?: Partial<Record<'index'|'includeInLlms'|'includeInLlmsFull'|'generateMarkdown', boolean>>; kind?: 'markdown'|'mdx'|'astro'|'cms'|'rendered'|'custom'; path?: string; hash?: string; strategy?: 'markdown-route'|'catalog'; extraction?: import('./extract/index.js').ExtractionDiagnostics }} [input.authored]
+ * @param {{ markdown?: string; body?: string; title?: string; description?: string; image?: string; language?: string; version?: string; versionGroup?: string; alternates?: import('../index.js').PageAlternate[]; published?: string; lastModified?: string; authors?: unknown[]; entities?: unknown[]; directives?: Partial<Record<'index'|'includeInLlms'|'includeInLlmsFull'|'generateMarkdown', boolean>>; kind?: 'markdown'|'mdx'|'astro'|'cms'|'rendered'|'custom'; path?: string; hash?: string; strategy?: 'markdown-route'|'catalog'; extraction?: import('./extract/index.js').ExtractionDiagnostics }} [input.authored]
  * @param {import('./markdown-renderers.js').MarkdownRendererEntry[]} [input.renderers]
  * @param {boolean} [input.allowMarker]
  * @param {'prerendered'|'on-demand'} [input.rendering]
@@ -247,6 +249,7 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
   const image = marker?.image || authored?.image || extractMetaContent(cleanHtml, { property: 'og:image' });
   const declaredLanguage = marker?.language || authored?.language || undefined;
   const version = [marker?.version, authored?.version].find(isPageVersion);
+  const versionGroup = [marker?.versionGroup, authored?.versionGroup].find(isVersionGroup);
   const renderedLanguage = document.documentElement?.getAttribute('lang') || undefined;
   const language = declaredLanguage || renderedLanguage || config.site.defaultLocale;
   const published = toIsoTimestamp(marker?.published) ?? toIsoTimestamp(authored?.published);
@@ -293,6 +296,9 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
       ...(markdownUrl ? { markdownUrl } : {}),
       ...(language ? { language } : {}),
       ...(version ? { version } : {}),
+      ...(versionGroup ? { versionGroup } : {}),
+      ...(Array.isArray(marker?.alternates ?? authored?.alternates)
+        ? { alternates: marker?.alternates ?? authored?.alternates } : {}),
       languageSources: {
         ...(language ? { initial: language } : {}),
         ...(declaredLanguage ? { declared: declaredLanguage } : {}),

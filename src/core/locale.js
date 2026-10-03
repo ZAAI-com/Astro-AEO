@@ -202,6 +202,7 @@ export function normalizePageAlternates(pages, options = {}) {
     const blockedStructured = new Set();
     const structuredLanguages = new Set();
     for (const alternate of Array.isArray(page.alternates) ? page.alternates : []) {
+      if (alternate?.kind === 'version') continue;
       const language = canonicalLanguage(alternate?.language ?? alternate?.lang);
       const url = alternateUrl(alternate?.url ?? alternate?.href, page.canonicalUrl ?? page.url, localHttp);
       if (!language || !url) {
@@ -254,7 +255,8 @@ export function normalizePageAlternates(pages, options = {}) {
       ...page,
       alternates: [...byLanguage]
         .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
-        .map(([language, url]) => ({ language, url })),
+        .map(([language, url]) => ({ language, url })).concat(
+          (Array.isArray(page.alternates) ? page.alternates : []).filter((/** @type {any} */ alternate) => alternate?.kind === 'version')),
     };
   });
   // Index normalized pages by every URL a local hreflang target can name. The
@@ -272,6 +274,7 @@ export function normalizePageAlternates(pages, options = {}) {
   for (const page of normalizedPages) {
     const identity = page.canonicalUrl ?? page.url;
     for (const alternate of page.alternates) {
+      if (alternate.kind === 'version') continue;
       const target = byLocalUrl.get(alternate.url);
       if (!target) continue;
       const defaultUrl = page.alternates.find((/** @type {any} */ candidate) => candidate.language === 'x-default')?.url;

@@ -84,6 +84,11 @@ describe('buildPage', () => {
       buildPage({ pathname: '/docs/', html: page('<h1>Docs</h1><p>Body.</p>'), config, site, authored });
     const versioned = await build({ version: 'v2' });
     expect('page' in versioned && versioned.page.version).toBe('v2');
+    const grouped = await build({ versionGroup: 'logical-doc',
+      alternates: [{ kind: 'version', version: 'v1', url: 'https://example.com/v1/doc/' }] });
+    expect(grouped.page.versionGroup).toBe('logical-doc');
+    expect(grouped.page.alternates[0].kind).toBe('version');
+    expect((await build({ versionGroup: '\u0000invalid' })).page.versionGroup).toBeUndefined();
     for (const authored of [undefined, {}, { version: '../v2' }, { version: 2 }]) {
       const result = await build(authored);
       expect('page' in result && 'version' in result.page).toBe(false);

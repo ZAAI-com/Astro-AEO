@@ -1,4 +1,5 @@
 // @ts-check
+import { normalizeVersionPages } from '../core/version-pages.js';
 import { cachedStage, runCachedPluginStage } from '../build/stage-cache.js';
 import { stageBuildEvidence } from '../build/evidence.js';
 import { collectPages } from '../build/collect.js';
@@ -39,7 +40,7 @@ import {
   serializeIndexNowQueue,
   serializeIndexNowStateManifest,
 } from '../build/indexnow-state.js';
-import { normalizeOrigin, normalizePageAlternates, resolvePageLocale } from '../core/locale.js';
+import { createLocaleSnapshot, normalizeOrigin, normalizePageAlternates, resolvePageLocale } from '../core/locale.js';
 import { isOwnedArtifactPath } from '../core/owned-artifacts.js';
 import { renderSchemaCorpus, validateCollectedSchemaGraphs } from '../core/schema-corpus.js';
 import { siteScopeUrl, stableCanonical } from '../core/canonical.js';
@@ -284,6 +285,17 @@ async function onBuildDoneLocked(config, options, env, session) {
     observe,
   });
 
+  if (config.corpus.versions) {
+    const initialVersions = normalizeVersionPages(pages.map((page) => {
+      const localized = resolvePageLocale(page, env.i18n ?? createLocaleSnapshot(undefined, env.siteUrl), {
+        unresolvedLanguage: config.i18n.unresolvedLanguage, siteDefaultLocale: config.site.defaultLocale,
+      }).page;
+      return localized;
+    }), config.corpus.versions, { base: env.base, i18n: env.i18n });
+    buildDiagnostics.push(...initialVersions.diagnostics);
+    pages = initialVersions.pages;
+  }
+
   if (env.pluginDispatcher) {
     const processed = [];
     for (const original of pages) {
@@ -305,7 +317,7 @@ async function onBuildDoneLocked(config, options, env, session) {
         ...('source' in extracted.value ? { source: extracted.value.source ?? undefined } : {}),
       };
       page.markdown = page.representations.markdown ?? '';
-      const { htmlPath: _htmlPath, mdPath: _mdPath, ...publicPage } = page;
+      const { htmlPath: _htmlPath, mdPath: _mdPath, _generatedVersionAlternates: _generated, ...publicPage } = /** @type {typeof page & { _generatedVersionAlternates?: unknown }} */ (page);
       const transformed = await runStage('page:transform', publicPage, {
         pathname: page.pathname,
         mode: 'build',
@@ -393,7 +405,7 @@ async function onBuildDoneLocked(config, options, env, session) {
   if (env.pluginDispatcher) {
     for (let index = 0; index < pages.length; index++) {
       const page = pages[index];
-      const { htmlPath: _htmlPath, mdPath: _mdPath, ...publicPage } = page;
+      const { htmlPath: _htmlPath, mdPath: _mdPath, _generatedVersionAlternates: _generated, ...publicPage } = /** @type {typeof page & { _generatedVersionAlternates?: unknown }} */ (page);
       // Astro exposes prerendered status pages as ordinary build pages. They
       // remain eligible for an explicit AeoHead decision, but must never gain
       // the default graph merely because they contain successful HTML bytes.
@@ -650,7 +662,9 @@ async function onBuildDoneLocked(config, options, env, session) {
   }
   const alternates = normalizePageAlternates(localizedPages);
   buildDiagnostics.push(...alternates.diagnostics);
-  pages = alternates.pages;
+  const versioned = normalizeVersionPages(alternates.pages, config.corpus.versions, { base: env.base, i18n: env.i18n });
+  buildDiagnostics.push(...versioned.diagnostics);
+  pages = versioned.pages;
   if (
     (config.i18n?.indexes === 'locale' || config.i18n?.indexes === 'both') &&
     pages.some((page) => !page.corpusExcluded && page.locale == null)

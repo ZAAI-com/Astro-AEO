@@ -29,6 +29,14 @@ function servedAt(context, alternates = [], rendered = '') {
 }
 
 describe('hreflang normalization', () => {
+  test('ignores a malformed alternate container without throwing or losing valid version links', () => {
+    for (const value of [{}, 'invalid']) {
+      expect(normalizePageAlternates([page('/en/', value)]).pages[0].alternates).toEqual([]);
+    }
+    const version = { kind: 'version', version: 'v1', url: 'https://example.test/en/v1/' };
+    expect(normalizePageAlternates([page('/en/', [version])]).pages[0].alternates).toEqual([version]);
+  });
+
   test('checks x-default agreement within known reciprocal alternate clusters', () => {
     const records = [
       page('/en/', [{ language: 'fr', url: 'https://example.test/fr/' },

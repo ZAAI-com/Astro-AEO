@@ -55,6 +55,8 @@ function rules(category, severity, applicability, ruleIds) {
 /** @type {readonly AuditRule[]} */
 const RULE_LIST = Object.freeze([
   ...rules('internationalization', 'error', ['build', 'offline', 'live'], [
+    'corpus-version-current-required', 'page-version-invalid', 'page-version-group-invalid', 'version-group-ambiguous', 'version-alternate-conflict',
+    'version-alternate-identity-conflict', 'version-alternate-not-reciprocal',
     'page-language-invalid', 'page-language-unresolved', 'site-default-locale-invalid',
     'hreflang-invalid', 'hreflang-duplicate-language', 'hreflang-structured-precedence',
     'hreflang-canonical-conflict', 'hreflang-not-reciprocal', 'hreflang-x-default-conflict',

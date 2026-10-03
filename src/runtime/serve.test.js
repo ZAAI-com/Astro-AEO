@@ -38,6 +38,58 @@ const loaded = (body = html()) => ({
   response: new Response(body, { headers: { 'content-type': 'text/html' } }),
 });
 
+test('serves versioned live corpora and archive manifests from the complete known inventory', async () => {
+  const rt = runtime(['/guide', '/v1/guide']);
+  rt.config = resolveConfig({ site: { defaultLocale: 'en' }, corpus: { versions: { current: 'v2', order: ['v1'] },
+    manifest: { enabled: true }, chunks: { enabled: true } } });
+  const descriptors = [{ pathname: '/guide', versionGroup: 'guide', markdown: '# Current' },
+    { pathname: '/v1/guide', version: 'v1', versionGroup: 'guide', markdown: '# Archive' }];
+  const opts = { catalogLoaders: [catalogLoader({ listPages: () => descriptors })] };
+  const fetch = async (pathname) => loaded(html(pathname));
+  const current = await serveCorpusArtifact('/llms-full.txt', rt, fetch, opts);
+  expect(current.body).toContain('# Current');
+  expect(current.body).not.toContain('# Archive');
+  const archive = await serveCorpusArtifact('/v1/llms-full.txt', rt, fetch, opts);
+  expect(archive.body).toContain('# Archive');
+  expect(archive.body).not.toContain('# Current');
+  const aggregate = JSON.parse((await serveCorpusArtifact('/llms/manifest.json', rt, fetch, opts)).body);
+  const scoped = JSON.parse((await serveCorpusArtifact('/v1/llms/manifest.json', rt, fetch, opts)).body);
+  expect(aggregate.pages).toHaveLength(2);
+  expect(scoped.pages.every((page) => page.version === 'v1')).toBe(true);
+  expect(aggregate.pages.every((page) => page.versionAlternates.length === 1)).toBe(true);
+});
+
+test('collects private marker versions before running each runtime page and graph hook once', async () => {
+  const rt = runtime(['/guide', '/v1/guide']);
+  rt.config = resolveConfig({ site: { defaultLocale: 'en' }, corpus: { versions: { current: 'v2' }, manifest: { enabled: true } } });
+  const observed = [];
+  const pluginLoaders = [{ name: 'version-markers', module: './version-markers.js',
+    stages: ['page:transform', 'graph:build'], claims: [], load: async () => ({ name: 'version-markers', apiVersion: 1,
+      setup(api) {
+        api.on('page:transform', ({ value }) => {
+          observed.push(['transform', value.version, value.alternates]);
+          expect('_generatedVersionAlternates' in value).toBe(false);
+        });
+        api.on('graph:build', ({ value }) => {
+          observed.push(['graph', value.page.version, value.page.alternates]);
+          expect('_generatedVersionAlternates' in value.page).toBe(false);
+        });
+      },
+    }),
+  }];
+  const fetch = async (pathname) => {
+    const version = pathname.startsWith('/v1/') ? 'v1' : 'v2';
+    const marker = { version, versionGroup: 'guide', markdown: `# ${version}` };
+    return loaded(html(version).replace('</head>', `<script data-astro-aeo-marker type="application/vnd.astro-aeo+json">${JSON.stringify(marker)}</script></head>`));
+  };
+  const result = await serveCorpusArtifact('/llms/manifest.json', rt, fetch, { pluginLoaders });
+  expect(JSON.parse(result.body).pages).toHaveLength(2);
+  expect(observed.map((entry) => entry.slice(0, 2))).toEqual([
+    ['transform', 'v2'], ['graph', 'v2'], ['transform', 'v1'], ['graph', 'v1'],
+  ]);
+  expect(observed.every((entry) => entry[2].length === 1 && entry[2][0].kind === 'version')).toBe(true);
+});
+
 /** Let a background catalog refresh settle and merge. */
 const settle = () => new Promise((resolve) => setTimeout(resolve));
 const catalogLoader = (catalog, module = './catalog.js') => ({

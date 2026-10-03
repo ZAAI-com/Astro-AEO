@@ -16,6 +16,8 @@ export const COLLECT_FLAG = 'astroAeoCollect';
  * @property {string} [image]
  * @property {string} [language]
  * @property {string} [version]
+ * @property {string} [versionGroup]
+ * @property {import('../../index.js').PageAlternate[]} [alternates]
  * @property {string} [sourcePath]
  * @property {'markdown'|'mdx'|'astro'|'cms'|'rendered'|'custom'} [sourceKind]
  * @property {string} [published]

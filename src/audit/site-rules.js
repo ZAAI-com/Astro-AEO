@@ -54,6 +54,7 @@ export function auditPages(pages, options = {}) {
     }
   }
   auditDuplicates(pages, findings);
+  auditVersionAlternates(pages, findings, options.siteUrl);
   if (options.links) {
     auditLinks(pages, options.links, findings);
     auditAlternates(pages, options.links, findings);
@@ -258,4 +259,26 @@ function stripFences(markdown) {
 /** @param {string | undefined} value */
 function absolute(value) {
   return value && /^https?:\/\//i.test(value) ? value : undefined;
+}
+
+/** Audit known records only; an unobserved external target is not evidence of a defect.
+ * @param {readonly PageFacts[]} pages @param {Finding[]} findings @param {string} [siteUrl]
+ */
+function auditVersionAlternates(pages, findings, siteUrl) {
+  /** @type {Map<string, PageFacts>} */
+  const urls = new Map();
+  const identity = (/** @type {PageFacts} */ page) => documentUrlFor(page.url, page.canonical, siteUrl);
+  for (const page of pages) { const url = identity(page); if (url) urls.set(url, page); }
+  for (const page of pages) for (const alternate of page.versionAlternates ?? []) {
+    const target = urls.get(alternate.url);
+    if (!target) continue;
+    const locale = page.locale ?? page.language;
+    const targetLocale = target.locale ?? target.language;
+    if (locale !== targetLocale || target.version !== alternate.version) {
+      findings.push(at(page, 'version-alternate-identity-conflict', 'error', 'A known version alternate has a different locale or version identity.'));
+    }
+    if (!(target.versionAlternates ?? []).some((candidate) => candidate.url === identity(page) && candidate.version === page.version)) {
+      findings.push(at(page, 'version-alternate-not-reciprocal', 'error', 'A known version alternate does not link back to the source version.'));
+    }
+  }
 }

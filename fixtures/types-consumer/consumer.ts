@@ -521,6 +521,9 @@ export const defuddleModule: MarkdownRendererModule = defuddleRenderer;
 // The source marker: `defineAeoPage` produces exactly the component's props.
 export const markerInput: AeoPageInput = {
   markdown: '# X',
+  version: 'v2',
+  versionGroup: 'logical-x',
+  alternates: [{ kind: 'version', version: 'v1', url: 'https://example.com/v1/x/' }],
   title: 'X',
   description: 'Page X.',
   image: '/x.jpg',
@@ -537,6 +540,8 @@ export const markerProps: AeoPageProps = defineAeoPage(markerInput);
 export const source: PageSource = { kind: 'mdx', path: 'src/pages/blog/hello.mdx', body: '# Hello', hash: 'sha256:value' };
 export const descriptor: PageDescriptor = {
   pathname: '/blog/hello',
+  version: 'v2',
+  versionGroup: 'blog-hello',
   origin: 'https://example.com',
   locale: 'en',
   routePattern: '/blog/[slug]',
@@ -1035,3 +1040,9 @@ export const privateTrace: AeoProcessingTraceV1 = {
 
 // @ts-expect-error Profile override enablement is shared, never per-origin.
 export const badOriginProfile: AstroAeoConfig = { site: { profile: { origins: { 'https://example.test': { enabled: true } } } } };
+
+export const versionAlternate: import('astro-aeo').VersionPageAlternate = { kind: 'version', version: 'v1', url: 'https://example.com/v1/guide/' };
+export const languageAlternate: import('astro-aeo').LanguagePageAlternate = { language: 'fr', url: 'https://example.com/fr/guide/' };
+// @ts-expect-error Version alternatives cannot carry hreflang language identities.
+export const mixedVersionAlternate: import('astro-aeo').PageAlternate = { kind: 'version', version: 'v1', language: 'en', url: 'https://example.com/v1/' };
+export const contentVersionGroup: string | undefined = contentDescriptor({ body: '# Doc', data: { versionGroup: 'doc' } }, { pathname: '/doc' }).versionGroup;

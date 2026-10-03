@@ -1,4 +1,5 @@
 // @ts-check
+import { isPageVersion, isVersionGroup } from './page-version.js';
 import { createId, validateGraph } from '../schema.js';
 import { stableCanonical } from './canonical.js';
 import { inspectRootPathname, normalizeCatalogPathname } from './match.js';
@@ -13,7 +14,7 @@ const DIRECTIVE_KEYS = ['index', 'includeInLlms', 'includeInLlmsFull', 'generate
 export function isPageDescriptor(value) {
   if (!isRecord(value)) return false;
   const descriptor = /** @type {Record<string, any>} */ (value);
-  if (!isPipelinePathname(descriptor.pathname)) return false;
+  if (!isPipelinePathname(descriptor.pathname) || !versionFields(descriptor)) return false;
   if (!optionalString(descriptor.routePattern) ||
       !optionalEnum(descriptor.rendering, RENDERING) ||
       !optionalString(descriptor.title) ||
@@ -35,7 +36,7 @@ export function isPageDescriptor(value) {
 export function isPageRecord(value) {
   if (!isRecord(value)) return false;
   const page = /** @type {Record<string, any>} */ (value);
-  if (!safeString(page.id, true) || !isPipelinePathname(page.pathname)) return false;
+  if (!versionFields(page) || !safeString(page.id, true) || !isPipelinePathname(page.pathname)) return false;
   const validPageUrl = isAbsolutePageUrl(page.url) ||
     (page.canonicalUrl === undefined && isRootRelativePageUrl(page.url));
   if (!validPageUrl || !safeString(page.mdHref, true) ||
@@ -325,4 +326,14 @@ function isRecord(value) {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);
   return prototype === Object.prototype || prototype === null;
+}
+
+/** @param {Record<string, any>} page */
+function versionFields(page) {
+  if (page.version !== undefined && !isPageVersion(page.version)) return false;
+  if (page.versionGroup !== undefined && !isVersionGroup(page.versionGroup)) return false;
+  if (page.alternates !== undefined && !Array.isArray(page.alternates)) return false;
+  return !Array.isArray(page.alternates) || page.alternates.every((alternate) => alternate?.kind !== 'version' ||
+    isRecord(alternate) && isPageVersion(alternate.version) && isAbsolutePageUrl(alternate.url) &&
+      Object.keys(alternate).every((key) => ['kind', 'version', 'url'].includes(key)));
 }

@@ -273,6 +273,7 @@ aeo({
     small: { enabled: false, maxTokens: 20_000 },
     chunks: { enabled: false, maxTokensPerFile: 100_000, by: 'section' },
     manifest: { enabled: false },    // /llms/manifest.json
+    versions: undefined,             // { current: 'v2', order: ['v1'] }; opt-in partitions
     tokenizer: undefined,            // { module, options? }; local importable module only
     compression: { gzip: false },    // deterministic static .gz siblings
 
@@ -711,8 +712,46 @@ A page may carry a documentation version label: `version: 'v2'` on a catalog des
 `defineAeoPage`, or as `data.version` on a content entry. A label is one path segment of letters,
 digits, `.`, `_` or `-` (at most 64 characters); anything else is ignored, and a catalog reports
 `catalog-invalid-version`. The label appears on `AeoPageRecord`, on plugin page records, and on the
-page's corpus manifest entry. It is metadata only: it changes no generated artifact, and a site without
-versions produces exactly the bytes it did before.
+page's corpus manifest entry. Without `corpus.versions`, labels remain metadata-only and change
+no generated artifact; an unversioned site keeps its existing bytes.
+
+With version partitioning enabled, current-version corpus paths stay unchanged. Archives insert
+one version segment beneath the existing base and locale topology:
+
+| Family | Current | Archived `v1` |
+| --- | --- | --- |
+| Locale index | `/docs/fr/llms.txt` | `/docs/fr/v1/llms.txt` |
+| Locale full corpus | `/docs/fr/llms-full.txt` | `/docs/fr/v1/llms-full.txt` |
+| Locale chunk | `/docs/fr/llms/guide-0001.txt` | `/docs/fr/v1/llms/guide-0001.txt` |
+| Compatibility alias (`both`) | `/docs/llms-fr.txt` | `/docs/v1/llms-fr.txt` |
+
+A global or single-locale root family uses `/docs/v1/llms.txt` for the archive. Static gzip
+siblings append `.gz` to these same paths. This partitions corpus artifacts, not project routes
+or companion URLs. Locale topology is selected from the complete inventory, not independently
+per version. Configured `order` sorts observed archives; other observed versions follow in
+code-unit order. A configured archive with no inventory does not invent pages.
+
+`/llms/manifest.json` joins all versions with `versions`, scoped locale/artifact records, and page
+`versionAlternates`. Each observed archive also has `/v1/llms/manifest.json`, restricted to its
+own records. Both include only artifacts that win ownership arbitration. An incomplete live
+inventory still fails closed, and runtime manifests omit static gzip siblings.
+
+Cross-version page matching removes only the configured base, configured locale prefix and
+matching version prefix, each at most once. It matches within a locale, never between languages.
+When routes have different names, supply `versionGroup` on `defineAeoPage`, a catalog descriptor,
+or content-entry data:
+
+```js
+defineAeoPage({ source: entry, version: 'v1', versionGroup: 'installation' });
+```
+
+Generated alternatives use `{ kind: 'version', version: 'v1', url: 'https://example.com/v1/install/' }`.
+Existing `{ language: 'fr', url: '...' }` hreflang alternatives are unchanged and never treated as
+version links. Version metadata crosses immutable plugin page boundaries; build hooks and live
+corpus hooks see reciprocal alternatives after collection. Ambiguous logical identities and
+conflicting declared version alternatives are errors, not guessed links. Audits check reciprocity
+and locale/version identity among known records. Authored canonicals and graph identities remain
+authoritative.
 
 A catalog that cannot resolve, import, evaluate, or run `listPages()` warns and
 contributes nothing rather than failing the build or server startup. Catalogs run in

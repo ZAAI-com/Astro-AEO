@@ -4,6 +4,19 @@ import { auditPages } from './site-rules.js';
 
 const prose = `# Example\n\n${'ordinary words '.repeat(80)}`;
 
+test('audits known version reciprocity and locale identity without adding audit categories', () => {
+  const facts = (url, version) => ({ ...extractPageFacts('<html lang="en"></html>', { url }),
+    version, locale: 'en', versionAlternates: [] });
+  const current = facts('https://example.test/guide/', 'v2');
+  const archived = facts('https://example.test/v1/guide/', 'v1');
+  current.versionAlternates.push({ kind: 'version', version: 'v1', url: archived.url });
+  expect(auditPages([current, archived]).map((finding) => finding.ruleId)).toContain('version-alternate-not-reciprocal');
+  archived.versionAlternates.push({ kind: 'version', version: 'v2', url: current.url });
+  expect(auditPages([current, archived]).filter((finding) => finding.ruleId.startsWith('version-'))).toEqual([]);
+  archived.locale = 'fr';
+  expect(auditPages([current, archived]).map((finding) => finding.ruleId)).toContain('version-alternate-identity-conflict');
+});
+
 function rawHtmlFindings(markdown) {
   const page = extractPageFacts('<html lang="en"><head><title>Example</title><meta name="description" content="Example"></head><body></body></html>', {
     url: 'https://example.test/', markdown,
