@@ -95,6 +95,15 @@ plain ESM with no package build step.
   prefixes, not private upstream state. Inferred route-version and fallback facts survive an
   authored source marker; untranslated fallback pages keep companions but leave the locale corpus.
 
+- `src/analytics.js` is the node-free public observation/delivery API. Enabled analytics
+  generates a separate middleware entry through `src/build/analytics.js`; the ordinary runtime
+  projection excludes its configuration and imports. `src/runtime/analytics/` observes only
+  public GET/HEAD responses and reads only User-Agent among request headers. Internal rewrite,
+  collection and loopback state stays owned by the original middleware. Delivery never reads
+  a visitor response body or changes its identity. `src/server/analytics-node.js` enters only
+  generated Node/development/preview modules, never core/runtime import closures. Provider
+  handlers accept observers explicitly, not through integration-installed deployment handlers.
+
 - `src/emdash.js` is the EmDash integration: it registers `aeo()` itself with EmDash defaults and
   serves `virtual:astro-aeo/emdash`, the only module that imports `emdash`. That bridge resolves from
   the project root, so the peer stays optional. `src/emdash/catalog.js` (the `astro-aeo/emdash/catalog`
@@ -180,8 +189,8 @@ plain ESM with no package build step.
 - Use plain ESM JavaScript with `// @ts-check` and JSDoc. The published folders are `src`,
   `components`, `bin`, `cli`, and `schema`, so every shipped source file must run as published and
   remain installable from a git dependency.
-- Public declarations are hand-written in fourteen files: `src/index.d.ts`,
-  `components/index.d.ts`, `src/page.d.ts`, `src/extract.d.ts`,
+- Public declarations are hand-written in fifteen files: `src/index.d.ts`,
+  `components/index.d.ts`, `src/page.d.ts`, `src/extract.d.ts`, `src/analytics.d.ts`,
   `src/runtime/middleware.d.ts`, `src/schema.d.ts`, `src/adapters.d.ts`, `src/content.d.ts`,
   `src/starlight.d.ts`, `src/emdash.d.ts`, `src/edge.d.ts`, and the three provider-specific declarations under
   `src/edge/`. Provider subpaths must declare only the runtime exports they actually provide. Update declarations

@@ -983,6 +983,13 @@ export function runtimeCatalogPagesFor(loaders, runtime, origin, now = Date.now)
   return pages;
 }
 
+/** Read only the last existing inventory, never trigger discovery for analytics.
+ * @param {Runtime} runtime
+ */
+export function cachedRuntimeCatalogPages(runtime) {
+  return runtimeCatalogPages.get(runtime)?.pages;
+}
+
 /** @param {RuntimeCatalogLoader | undefined} loader @returns {loader is RuntimeCatalogLoader & { revalidate: number }} */
 function isRevalidating(loader) {
   return typeof loader?.revalidate === 'number' && Number.isFinite(loader.revalidate) && loader.revalidate >= 0;

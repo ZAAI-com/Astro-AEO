@@ -6,9 +6,9 @@ export declare function cloudflareEdge(): AstroAeoPlugin;
 
 export interface CloudflareEdgeHandler {
   /** Pages Functions middleware: `export const onRequest = handler.onRequest`. */
-  onRequest(context: { request: Request; env: unknown; next(): Promise<Response> }): Promise<Response>;
+  onRequest(context: { request: Request; env: unknown; next(): Promise<Response>; waitUntil?(work: Promise<void>): void }): Promise<Response>;
   /** Worker with a static assets binding: `export default { fetch: handler.fetch }`. */
-  fetch(request: Request, env: unknown): Promise<Response>;
+  fetch(request: Request, env: unknown, context?: { waitUntil?(work: Promise<void>): void }): Promise<Response>;
 }
 
 export declare function createCloudflareHandler(

@@ -89,6 +89,14 @@ const ASTRO_FETCH_STATE = Symbol.for('astro.fetchState');
 const ASTRO_5_PIPELINE = Symbol.for('context.routes');
 const ASTRO_6_LEGACY_PIPELINE = Symbol.for('astro.pipeline');
 
+/** Collection exclusions shared only with the enabled generated wrapper.
+ * @param {import('astro').APIContext} context
+ */
+export function isInternalAeoRequest(context) {
+  return INTERNAL_REWRITES.has(context.locals) || context.locals[COLLECT_FLAG] === true ||
+    (RUNTIME.command === 'dev' && LOOPBACK_COLLECT_PATHS.has(decodePathname(context.url.pathname) ?? ''));
+}
+
 /**
  * @param {import('astro').APIContext} context
  * @param {import('astro').MiddlewareNext} next

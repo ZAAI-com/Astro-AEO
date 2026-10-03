@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { buildSchema, serializeSchema } from './schema-definition.mjs';
+import { serializeAnalyticsEventSchema } from './analytics-schema.mjs';
 import { serializeAuditReportSchema } from './audit-report-schema.mjs';
 import { resolveConfig } from '../src/config.js';
 
@@ -14,6 +15,11 @@ const expected = serializeSchema();
 const auditDestination = resolve(root, 'schema/audit-report-v1.schema.json');
 if (await readFile(auditDestination, 'utf8').catch(() => '') !== serializeAuditReportSchema()) {
   console.error('schema/audit-report-v1.schema.json is stale. Run: node scripts/generate-schema.mjs');
+  process.exitCode = 1;
+}
+
+if (await readFile(resolve(root, 'schema/analytics-event-v1.schema.json'), 'utf8').catch(() => '') !== serializeAnalyticsEventSchema()) {
+  console.error('schema/analytics-event-v1.schema.json is stale. Run: node scripts/generate-schema.mjs');
   process.exitCode = 1;
 }
 
