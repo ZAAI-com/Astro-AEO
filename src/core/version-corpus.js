@@ -30,14 +30,17 @@ export async function planVersionCorpus(input) {
     const manifests = [];
     /** @type {Awaited<ReturnType<typeof planCorpusArtifacts>>['diagnostics']} */
     const diagnostics = [];
+    /** @type {import('../index.js').RagRecordV1[]} */
+    const ragRecords = [];
     for (const version of labels) {
       const pages = byVersion.get(version) ?? [];
       if (pages.length === 0 && version !== versions.current) continue;
-      const part = await planCorpusArtifacts({ ...input, pages, topologyLocaleCount, tokenContext,
+      const part = await planCorpusArtifacts({ ...input, pages, topologyLocaleCount, tokenContext, deferRagHooks: true,
         artifactVersion: { version, current: versions.current },
         config: { ...input.config, corpus: { ...input.config.corpus, versions: undefined,
           manifest: { enabled: input.config.corpus.manifest.enabled && pages.some((page) => !page.corpusExcluded) } } },
       });
+      ragRecords.push(...part.ragRecords ?? []);
       diagnostics.push(...part.diagnostics.filter((diagnostic) => diagnostic.code !== 'corpus-tokenizer-fallback'));
       const map = (/** @type {string} */ pathname, /** @type {string|null|undefined} */ locale) =>
         corpusPathname(pathname, { locale, version, current: versions.current });
@@ -62,12 +65,13 @@ export async function planVersionCorpus(input) {
         manifests.push({ pathname: map('/llms/manifest.json', null), manifest, contents: '' });
       }
     }
-    return { artifacts, manifests, diagnostics };
+    return { artifacts, manifests, diagnostics, ragRecords };
   }, { skipProbe: input.tokenizerProbed === true, cachedCount: input.cachedCount });
   const fallback = planned.fallback?.reason ?? input.tokenizerFallback ??
     (input.config.corpus.tokenizer && input.tokenizer === undefined ? 'preflight' : undefined);
   if (fallback) planned.result.diagnostics.push({ code: 'corpus-tokenizer-fallback', severity: 'warning',
     message: 'The configured tokenizer failed; every version was planned with astro-aeo-approx@1.' });
+  if (fallback) for (const record of planned.result.ragRecords) record.tokenizerFallback = { reason: fallback };
   const parts = planned.result.manifests;
   for (const part of parts) {
     part.manifest = { ...part.manifest, ...(fallback ? { tokenizerFallback: { reason: fallback } } : {}) };
@@ -85,7 +89,7 @@ export async function planVersionCorpus(input) {
     planned.result.diagnostics.push({ code: 'corpus-manifest-canonical-missing', severity: 'error',
       message: 'No canonical corpus artifact exists for the versioned inventory.' });
   }
-  return { artifacts: planned.result.artifacts, diagnostics: planned.result.diagnostics, tokenizer: planned.tokenizer,
+  return { artifacts: planned.result.artifacts, ...(input.config.corpus.rag.enabled ? { ragRecords: planned.result.ragRecords } : {}), diagnostics: planned.result.diagnostics, tokenizer: planned.tokenizer,
     ...(manifest ? { manifest, manifestText: serializeCorpusManifest(manifest) } : {}),
     manifests: parts.filter((part) => part.pathname !== '/llms/manifest.json'),
   };

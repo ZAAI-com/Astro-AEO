@@ -1,7 +1,7 @@
 import { afterAll, expect, test } from 'vitest';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
@@ -27,7 +27,7 @@ export default defineConfig({
   integrations: [aeo({
     markdown: { includeLastModified: false }, i18n: { indexes: 'both' },
     corpus: { versions: { current: 'v2', order: ['v1'] }, manifest: { enabled: true },
-      chunks: { enabled: true }, compression: { gzip: true } },
+      rag: { enabled: true, publish: true, maxTokens: 8 }, chunks: { enabled: true }, compression: { gzip: true } },
     discovery: { sitemap: { mode: 'disabled' } },
   })],
 });
@@ -76,6 +76,17 @@ import { AeoPage } from 'astro-aeo/components';
   expect(read('v1/llms-fr.txt')).toBe(read('fr/v1/llms.txt'));
   expect(gunzipSync(readFileSync(join(root, 'dist/fr/v1/llms-full.txt.gz'))).toString()).toBe(read('fr/v1/llms-full.txt'));
   expect(aggregate.artifacts).toContainEqual(expect.objectContaining({ pathname: '/docs/fr/v1/llms-full.txt', version: 'v1' }));
+  const rag = read('fr/v1/llms/rag.jsonl');
+  expect(gunzipSync(readFileSync(join(root, 'dist/fr/v1/llms/rag.jsonl.gz'))).toString()).toBe(rag);
+  expect(rag.trim().split('\n').map((line) => JSON.parse(line)).every((record) => record.metadata.locale === 'fr' && record.metadata.contentVersion === 'v1')).toBe(true);
+  expect(aggregate.artifacts).toContainEqual(expect.objectContaining({ pathname: '/docs/fr/v1/llms/rag.jsonl', kind: 'rag', version: 'v1' }));
+  const cache = join(root, '.astro', 'aeo-cache');
+  const index = JSON.parse(readFileSync(join(cache, 'rag-v1', 'index-v1.json'), 'utf8'));
+  const snapshot = JSON.parse(readFileSync(join(cache, 'pages-v1.json'), 'utf8'));
+  expect(index.buildDigest).toBe(snapshot.buildDigest);
+  expect(index).toMatchObject({inventoryComplete:true,buildTimeIncomplete:false});
+  expect(index.files).toHaveLength(4);
+  for (const entry of index.files) expect(lstatSync(join(cache,'rag-v1',entry.file)).mode & 0o777).toBe(0o600);
   expect(read('fr/v1/guide.md')).toContain('# v1 fr');
   expect(read('fr/v1/guide/index.html')).not.toMatch(/data-astro-aeo-marker|astro-aeo\+json|type="module"/);
 });

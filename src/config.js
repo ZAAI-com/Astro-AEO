@@ -67,6 +67,7 @@ export function resolveConfig(rawConfig = {}, logger) {
   const corpusCompression = validateCorpusCompressionOptions(userConfig.corpus?.compression);
   const corpusUrlMap = userConfig.corpus?.urlMap ?? {};
   const corpusRuntime = userConfig.corpus?.runtime ?? {};
+  const corpusRag = resolveCorpusRag(userConfig.corpus?.rag);
   const robots = validateRobotsOptions(userConfig.discovery?.robots);
   const indexNow = validateIndexNowOptions(userConfig.discovery?.indexNow, logger);
   const sitemap = userConfig.discovery?.sitemap ?? {};
@@ -87,10 +88,11 @@ export function resolveConfig(rawConfig = {}, logger) {
     !indexEnabled &&
     !fullEnabled &&
     !corpusSmall.enabled &&
-    !corpusChunks.enabled
+    !corpusChunks.enabled &&
+    !(corpusRag.enabled && corpusRag.publish)
   ) {
     throw new AeoConfigError(
-      'astro-aeo: corpus.manifest.enabled requires at least one enabled corpus index, full, small, or chunks artifact.',
+      'astro-aeo: corpus.manifest.enabled requires at least one enabled corpus index, full, small, chunks, or public RAG artifact.',
     );
   }
 
@@ -148,7 +150,7 @@ export function resolveConfig(rawConfig = {}, logger) {
     analytics: resolveAnalytics(userConfig.analytics),
     corpus: {
       versions: resolveCorpusVersions(userConfig.corpus?.versions),
-      rag: resolveCorpusRag(userConfig.corpus?.rag),
+      rag: corpusRag,
       index: {
         enabled: indexEnabled,
         sections: corpusIndex.sections ?? DEFAULT_SECTIONS,

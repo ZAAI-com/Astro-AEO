@@ -1067,3 +1067,21 @@ export const invalidEventMethod: AnalyticsEventV1['method'] = 'POST';
 export const observedCloudflare = createCloudflareHandler({ analytics: analyticsObserver });
 export const observedNetlify = createNetlifyHandler({ analytics: analyticsObserver });
 export const observedVercel = createVercelHandler({ analytics: analyticsObserver, next: () => new Response(), rewrite: () => new Response(), waitUntil(work) { void work; } });
+
+// RAG hook values infer the versioned contract without a generic annotation.
+import type { RagRecordV1, RagIndexV1 } from 'astro-aeo';
+export const ragPlugin: AstroAeoPlugin = { name: 'rag-labels', apiVersion: 1, setup(api) {
+  api.on('rag:record', ({ value }) => {
+    const tokens: number = value.tokenCount;
+    const approximate: boolean = value.tokenizer.approximate;
+    return { action: 'replace', value: { ...value, headings: [...value.headings],
+      tokenizer: { ...value.tokenizer }, metadata: { ...value.metadata, measured: tokens, approximate } } };
+  }, { cache: { pure: true, version: '1' }, recoverable: true });
+} };
+export function consumeRag(record: RagRecordV1, index: RagIndexV1) {
+  const text: string = record.text;
+  const incomplete: boolean = index.buildTimeIncomplete;
+  // @ts-expect-error Nested metadata is not a flat RAG value.
+  record.metadata.nested = { source: 'private' };
+  return { text, incomplete, fallback: record.tokenizerFallback?.reason };
+}

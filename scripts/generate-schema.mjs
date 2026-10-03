@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { serializeSchema } from './schema-definition.mjs';
+import { serializeRagRecordSchema, serializeRagIndexSchema } from './rag-schema.mjs';
 import { serializeAnalyticsEventSchema } from './analytics-schema.mjs';
 import { serializeAuditReportSchema } from './audit-report-schema.mjs';
 
@@ -20,3 +21,8 @@ console.log(`Wrote ${auditDestination}`);
 const analyticsDestination = resolve(root, 'schema/analytics-event-v1.schema.json');
 await writeFile(analyticsDestination, serializeAnalyticsEventSchema(), 'utf8');
 console.log(`Wrote ${analyticsDestination}`);
+
+for (const [file, serialize] of [['rag-record-v1.schema.json',serializeRagRecordSchema],['rag-index-v1.schema.json',serializeRagIndexSchema]]) {
+  await writeFile(resolve(root, 'schema', file), serialize(), 'utf8');
+  console.log(`Wrote schema/${file}`);
+}

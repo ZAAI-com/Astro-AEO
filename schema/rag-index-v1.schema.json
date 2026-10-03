@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zaai.com/astro-aeo/schema/rag-index-v1.schema.json",
+  "title": "Astro-AEO private RAG index v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "buildDigest",
+    "inventoryComplete",
+    "buildTimeIncomplete",
+    "files"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "buildDigest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "inventoryComplete": {
+      "type": "boolean"
+    },
+    "buildTimeIncomplete": {
+      "type": "boolean"
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "file",
+          "locale",
+          "contentVersion",
+          "records",
+          "hash"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "pattern": "^[a-f0-9]+\\.jsonl$"
+          },
+          "locale": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contentVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "records": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "hash": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          }
+        }
+      }
+    }
+  }
+}

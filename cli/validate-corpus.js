@@ -10,7 +10,7 @@ import { normalizeCorpusManifest } from '../src/core/corpus-manifest.js';
 import { canonicalLanguage } from '../src/core/locale.js';
 
 const HASH = /^sha256:[a-f\d]{64}$/;
-const ARTIFACT_KINDS = new Set(['index', 'full', 'small', 'chunk', 'alias']);
+const ARTIFACT_KINDS = new Set(['index', 'full', 'small', 'chunk', 'alias', 'rag']);
 const decoder = new TextDecoder('utf-8', { fatal: true });
 
 /**
@@ -612,7 +612,7 @@ function artifactKey(pathname, encoding) {
 /** @param {any} left @param {any} right */
 function compareCandidateArtifacts(left, right) {
   /** @type {Record<string, number>} */
-  const rank = { index: 0, full: 1, small: 2, chunk: 3, alias: 4 };
+  const rank = { index: 0, full: 1, small: 2, chunk: 3, alias: 4, rag: 5 };
   return rank[left.kind] - rank[right.kind] || compare(left.pathname, right.pathname);
 }
 

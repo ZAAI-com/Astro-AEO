@@ -1,4 +1,6 @@
 // @ts-check
+import { stagePrivateRag } from '../build/rag.js';
+import { validateRagReplacement } from '../core/rag.js';
 import { normalizeVersionPages } from '../core/version-pages.js';
 import { cachedStage, runCachedPluginStage } from '../build/stage-cache.js';
 import { stageBuildEvidence } from '../build/evidence.js';
@@ -793,6 +795,16 @@ async function onBuildDoneLocked(config, options, env, session) {
     siteMeta: { name: siteName, description: siteDescription },
     writer,
     runtime: Boolean(env.runtimeCorpora),
+    ragHook: env.pluginDispatcher ? (record) => {
+      const context = { pathname: record.metadata.pathname, validate: (/** @type {unknown} */ value) => validateRagReplacement(value, record) };
+      return runCachedPluginStage(/** @type {NonNullable<typeof env.pluginDispatcher>} */ (env.pluginDispatcher), processingCache, 'rag:record', record, context,
+        undefined, (outcome) => processingTrace.push({ pathname: record.metadata.pathname, stage: 'rag:record', outcome })).then((result) => {
+          processingTrace.push({ pathname: record.metadata.pathname, stage: 'rag:record',
+            outcome: result.isolated ? 'isolated' : result.dropped ? 'dropped' :
+              JSON.stringify(record.metadata) === JSON.stringify(result.value.metadata) ? 'kept' : 'replaced' });
+          return result;
+        });
+    } : undefined,
     tokenizer: env.corpusTokenizer,
     i18n: env.i18n,
     diagnostics: buildDiagnostics,
@@ -866,14 +878,19 @@ async function onBuildDoneLocked(config, options, env, session) {
     await runBuildComplete(env.pluginDispatcher, pages, env.diagnostics ?? []);
   }
 
-  stageBuildEvidence({
+  const evidence = stageBuildEvidence({
     projectRoot: env.projectRoot, pages, semanticPages, writer,
-    inventoryComplete, trace: processingTrace, diagnostics: buildDiagnostics,
+    inventoryComplete, trace: processingTrace, diagnostics: buildDiagnostics, ragRecords: corpus.ragRecords,
     cacheReasons: processingCache.stats.invalidations,
   });
 
   // An incomplete inventory did not see every page, so keep the entries it
   // could not touch instead of sweeping them and extracting them again later.
+  if (config.corpus.rag.enabled && corpus.ragRecords) stagePrivateRag({
+    projectRoot: env.projectRoot, writer, records: corpus.ragRecords,
+    buildDigest: () => evidence().buildDigest, inventoryComplete,
+    buildTimeIncomplete: Boolean(env.runtimeCorpora),
+  });
   processingCache.stage(/** @type {any} */ (writer), { sweep: inventoryComplete });
   // Keep diagnostics observable for integrations and test harnesses that call
   // only the primary build hook. The late finalizer writes the same sanitized

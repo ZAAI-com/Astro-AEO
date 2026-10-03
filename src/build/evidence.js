@@ -12,10 +12,10 @@ export function evidenceHash(value) {
 }
 
 /** Explicit projection: no source bodies, source locations, URLs, or messages.
- * @param {any[]} pages @param {any[]} ownership @param {boolean} inventoryComplete
+ * @param {any[]} pages @param {any[]} ownership @param {boolean} inventoryComplete @param {import('../index.js').RagRecordV1[]} [ragRecords]
  * @returns {import('../index.js').AeoPageSnapshotV1}
  */
-export function createPageSnapshot(pages, ownership, inventoryComplete) {
+export function createPageSnapshot(pages, ownership, inventoryComplete, ragRecords) {
   const records = pages.flatMap((page) => {
     if (!safePath(page.pathname)) return [];
     return [{
@@ -41,7 +41,8 @@ export function createPageSnapshot(pages, ownership, inventoryComplete) {
       ? entry.representation.etag : null,
     byteLength: Number.isSafeInteger(entry.representation?.byteLength) ? entry.representation.byteLength : null,
   }] : []).sort(compare);
-  const snapshot = { version: /** @type {const} */ (1), inventoryComplete, pages: records, artifacts };
+  const snapshot = { version: /** @type {const} */ (1), inventoryComplete, pages: records, artifacts,
+    ...(ragRecords ? { ragHash: evidenceHash([...ragRecords].sort((a, b) => compareText(a.id, b.id))) } : {}) };
   return { ...snapshot, buildDigest: evidenceHash(snapshot) };
 }
 
@@ -49,13 +50,13 @@ export function createPageSnapshot(pages, ownership, inventoryComplete) {
  * @param {{ projectRoot: string; pages: any[]; semanticPages: {page: any; graph: any}[];
  * writer: any; inventoryComplete: boolean;
  * trace: {pathname: string; stage: string; outcome: string}[]; diagnostics: any[];
- * cacheReasons?: Record<string, number> }} input
+ * cacheReasons?: Record<string, number>; ragRecords?: import('../index.js').RagRecordV1[] }} input
  */
 export function stageBuildEvidence(input) {
   /** @type {ReturnType<typeof createPageSnapshot> | undefined} */
   let snapshot;
   const getSnapshot = () => snapshot ??= createPageSnapshot(input.pages,
-    input.writer.resolve().manifestEntries, input.inventoryComplete);
+    input.writer.resolve().manifestEntries, input.inventoryComplete, input.ragRecords);
   const directory = join(input.projectRoot, '.astro', 'aeo-cache');
   input.writer.stagePrivateWrite(join(directory, 'pages-v1.json'),
     () => `${canonicalStringify(getSnapshot())}\n`, { mode: 0o600, confineTo: input.projectRoot });
@@ -83,6 +84,7 @@ export function stageBuildEvidence(input) {
         .filter(([reason]) => ['disabled', 'read-only', 'key-missing', 'blob-invalid', 'package-version'].includes(reason))),
     })}\n`;
   }, { mode: 0o600, confineTo: input.projectRoot });
+  return getSnapshot;
 }
 
 /** @param {unknown} value */

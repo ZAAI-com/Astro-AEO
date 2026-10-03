@@ -602,6 +602,10 @@ Severity: error. Raised by: offline.
 
 Severity: warning. Raised by: build.
 
+### rag-chunk-over-budget
+
+Severity: warning. Raised by: build.
+
 ### small-corpus-first-block-omitted
 
 Severity: warning. Raised by: build.

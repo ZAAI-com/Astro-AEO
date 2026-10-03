@@ -94,3 +94,13 @@ test('linked private evidence aborts the whole output transaction without follow
   expect(readFileSync(target, 'utf8')).toBe('Keep');
   expect(() => lstatSync(join(root, 'dist', 'page.md'))).toThrow();
 });
+
+
+test('RAG evidence hashes are order-independent, content-derived and content-free', () => {
+  const a = {id:'a',text:'PRIVATE RAG CONTENT',metadata:{category:'a'}};
+  const b = {id:'b',text:'PRIVATE RAG CONTENT',metadata:{category:'b'}};
+  const snapshot = createPageSnapshot([page()],[],true,[a,b]);
+  expect(snapshot).toEqual(createPageSnapshot([page()],[],true,[b,a]));
+  expect(createPageSnapshot([page()],[],true,[{...a,metadata:{category:'edited'}},b]).buildDigest).not.toBe(snapshot.buildDigest);
+  expect(JSON.stringify(snapshot)).not.toContain('PRIVATE RAG CONTENT');
+});
