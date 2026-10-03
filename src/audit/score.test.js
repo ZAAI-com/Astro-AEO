@@ -8,13 +8,17 @@ const make = (ruleId, severity) => createFinding({ ruleId, severity, message: ru
 /** @param {import('../index.js').AuditScores} scores @param {string} category */
 const scoreOf = (scores, category) => scores.categories.find((entry) => entry.category === category)?.score;
 
-describe('astro-aeo-readiness-v1', () => {
-  it('scores a clean report at 100 and omits internationalization for one language', () => {
-    const { scores } = scoreFindings([], { languageCount: 1 });
-    expect(scores).toMatchObject({ rubric: 'astro-aeo-readiness-v1', overall: 100 });
-    expect(scores.categories.map((entry) => entry.category)).not.toContain('internationalization');
-    expect(scoreFindings([], { languageCount: 2 }).scores.categories.map((entry) => entry.category))
-      .toContain('internationalization');
+describe('astro-aeo-readiness-v2', () => {
+  it('does not reward unobserved or inapplicable categories', () => {
+    const unknown = scoreFindings([]).scores;
+    expect(unknown).toMatchObject({rubric:'astro-aeo-readiness-v2',overall:null,categories:[]});
+    expect(unknown.applicability?.every((entry) => entry.status === 'unknown')).toBe(true);
+    const assessed = scoreFindings([],{applicability:[
+      {category:'metadata',status:'applicable',reason:'Observed'},
+      {category:'links',status:'not-applicable',reason:'No links'},
+    ]}).scores;
+    expect(assessed.overall).toBe(100);
+    expect(assessed.categories.map((entry) => entry.category)).toEqual(['metadata']);
   });
 
   it('weighs error 15, warning 5 and info 0', () => {
@@ -45,7 +49,7 @@ describe('astro-aeo-readiness-v1', () => {
 
   it('rounds the overall mean to two decimals', () => {
     // Seven applicable categories, one at 85: (6 * 100 + 85) / 7 = 97.857...
-    expect(scoreFindings([make('no-llms', 'error')]).scores.overall).toBe(97.86);
+    expect(scoreFindings([make('no-llms', 'error')],{applicability:['discovery','metadata','markdown','corpus','structured-data','links','build'].map((category) => ({category:/** @type {import('../index.js').AuditCategory} */ (category),status:'applicable',reason:'Observed'}))}).scores.overall).toBe(97.86);
   });
 
   it('is independent of input order', () => {

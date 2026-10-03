@@ -1939,6 +1939,9 @@ attributes are checked both offline and live, except on noindex pages.
 | `--format <name>` | `terminal` (default), `json`, `sarif`, `html`, `markdown`, `github`, or `junit`. All seven render the same report. |
 | `--output <file>` | Write the report to a file (temporary file, then rename) and print nothing to standard output. |
 | `--fail-on <level>` | `error` (default), `warning`, or `none`. A `junit` report fails exactly these findings' cases; the others pass with their message in `<system-out>`. |
+| `--github-output <file>` / `--summary-output <file>` | Export annotations and Markdown from the same audit, without another crawl. |
+| `--discovery` | URL only. Opt in to bounded discovery, sitemap, and manifest/content checks. |
+| `--discovery-base <path>` | URL only, requires `--discovery`. Deployment base (default `/`). |
 | `--no-score` | Omit scores and per-finding deductions. |
 | `--base <path>` | Base path of a build directory. |
 | `--max-pages <n>` | URL only. Page cap, default `500`, or `unlimited`. |
@@ -1959,11 +1962,33 @@ The JSON format is `AuditReportV1` (exported from `astro-aeo`, with a JSON Schem
 `astro-aeo/audit-report.schema.json`). It has no timestamp and no absolute path, so two audits of the
 same input are byte-identical.
 
-Scores use the `astro-aeo-readiness-v1` rubric and are advisory. Each category starts at 100. An error
-removes 15 points and a warning 5, one rule can remove at most 30 points from its category (errors
-count first), and a category never goes below 0. The internationalization category is left out when the
-site has one language or none. The overall score is the mean of the scored categories, rounded to two
-decimals.
+Scores use advisory `astro-aeo-readiness-v2`. Each **applicable, observed** category starts at
+100. An error removes 15 points and a warning 5, with a 30-point cap per rule (errors first).
+Unknown and not-applicable categories are disclosed but excluded from the overall mean. With no
+applicable category, `overall` is `null`, displayed as `unknown`. Editorial hints do not change
+applicability or scores. The eight categories remain unchanged. The report schema also accepts
+existing readiness-v1 reports; severity, not readiness, controls failure.
+
+Audit source regions refer to the **audited rendered HTML or companion Markdown**, never guessed
+Astro/MDX source lines. Columns are one-based UTF-16, with exclusive end columns. Ambiguous locations
+are omitted. SARIF file regions use paths relative to the audited build root. URL-only findings keep
+URL evidence and receive Action annotations/summary entries without a fictitious repository file.
+The composite Action creates SARIF, annotations, and its summary from one audit.
+
+Cross-page JSON-LD references use definitions in all observed pages; unvisited live targets stay
+unknown. Exact duplicate visible main content is warned only for substantial, indexable pages within
+the same locale/version, excluding shared chrome and shared-canonical aliases. Source bodies are not
+included in duplicate findings.
+
+`--discovery` anonymously checks robots, corpus discovery text, optional domain profile/manifest,
+advertised sitemaps, identity-encoded manifest artifacts, and available companions. It never loads a
+consumer tokenizer. Built-in token counts, identity artifact bytes, and normalized companion hashes are checked; custom counts,
+compressed wire bytes, runtime-owned build omissions, and exhausted budgets are disclosed. Artifact
+requests stay within the selected origin/base, reject credentialed/query/fragment advertisements, and
+share the crawl's redirect, timeout and 5 MiB response limit. Discovery is capped at 100 resources
+and 16 MiB of inspected text. Missing optional profile/manifest files are not errors. These checks
+are live HTTP evidence, not deployed-provider certification. Without this flag, discovery/corpus
+coverage remains unknown unless findings establish an observed check.
 
 ## How It Works
 

@@ -73,7 +73,7 @@ plain ESM with no package build step.
   unconditional pass independent of generators at build time. Collected responses are also
   stripped before conversion or forwarding, including errors and opted-out pages.
 - `components/` holds `AeoPage` and the six JSON-LD components. `cli/validate.js` and
-  `cli/report.js`, entered through `bin/astro-aeo.js`, implement the validator.
+  `cli/validate-report.js`, entered through `bin/astro-aeo.js`, implement the validator.
 - `src/audit/` is the 1.4 audit engine (Node allowed, never imported by `src/core/` or
   `src/runtime/`). `rules.js` is the immutable registry: a `ruleId` is an existing `code` verbatim,
   and its completeness test fails when any emitter gains a code the registry lacks. `site-rules.js`
@@ -150,6 +150,9 @@ plain ESM with no package build step.
   inert escaped data, local DOM controls, complete no-JS tables and exact script/style CSP
   hashes. `cli/formats/csp.js` also protects audit HTML. RAG content exports stay separate
   from content-free evidence; missing runtime inventory must be disclosed.
+- Audit regions identify audited rendered HTML or companions, never inferred author source. Readiness-v2
+  excludes unknown/inapplicable checks. Live discovery is explicit and bounded; unvisited page targets
+  remain unknown. Action exports share one audit observation.
 - `action.yml` is a composite action that runs the project's installed CLI. Inputs reach the shell
   only as environment variables, and the exit status is reported after the SARIF upload.
   `recipes/` are complete projects outside the published folders; `test:recipes` builds each one

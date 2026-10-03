@@ -43,6 +43,10 @@ Options for "audit":
   --fail-on <level> Exit 1 on findings at this level: error (default), warning, or none
   --no-score        Omit the advisory readiness scores and deductions
   --base <path>     Site base path, for a build directory
+  --discovery      URL only: inspect advertised discovery/corpus artifacts
+  --discovery-base <path> URL only: deployment base for --discovery
+  --github-output <file> Write annotations from the same audit
+  --summary-output <file> Write Markdown summary from the same audit
   --max-pages <n>   URL only: page cap, or "unlimited" (default: 500)
   --allow-origin <origin>
                     URL only, repeatable: another origin the crawl may follow

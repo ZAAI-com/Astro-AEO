@@ -25,6 +25,9 @@ export function compareFindings(left, right) {
     || compareCodeUnits(left.file ?? '', right.file ?? '')
     || (left.location?.line ?? 0) - (right.location?.line ?? 0)
     || (left.location?.column ?? 0) - (right.location?.column ?? 0)
+    || (left.location?.endLine ?? 0) - (right.location?.endLine ?? 0)
+    || (left.location?.endColumn ?? 0) - (right.location?.endColumn ?? 0)
+    || compareCodeUnits(left.locationSource ?? '',right.locationSource ?? '')
     || compareCodeUnits(left.message, right.message)
     || compareCodeUnits(left.evidence ?? '', right.evidence ?? '');
 }
@@ -40,16 +43,19 @@ export function compareFindings(left, right) {
  *   findings: readonly Finding[];
  *   pagesChecked?: number;
  *   languageCount?: number;
+ *   applicability?: readonly import('../index.js').AuditApplicability[];
  *   scope?: AuditReportV1['scope'];
  *   score?: boolean;
  * }} input
  * @returns {AuditReportV1}
  */
 export function createAuditReport(input) {
-  const sorted = [...input.findings].sort(compareFindings);
+  const sorted = input.findings.map((finding) => ({...finding,message:redactCredentialUrls(finding.message),
+    ...(finding.url ? {url:redactCredentialUrls(finding.url)} : {}),
+    ...(finding.evidence ? {evidence:redactCredentialUrls(finding.evidence)} : {})})).sort(compareFindings);
   const scored = input.score === false
     ? null
-    : scoreFindings(sorted, { languageCount: input.languageCount });
+    : scoreFindings(sorted, { languageCount: input.languageCount, applicability:input.applicability });
   const findings = scored
     ? scored.findings
     : sorted.map(({ deduction: _deduction, ...finding }) => finding);
@@ -74,4 +80,18 @@ export function createAuditReport(input) {
 /** Stable serialization shared by the JSON format and the determinism checks. */
 export function serializeAuditReport(/** @type {AuditReportV1} */ report) {
   return `${JSON.stringify(report, null, 2)}\n`;
+}
+
+/** Authored canonical/link evidence can contain a credentialed URL. Public
+ * audit exports omit its credentials and query without changing validator bytes.
+ * @param {string} text */
+function redactCredentialUrls(text) {
+  return text.replace(/https?:\/\/[^\s"'<>]+/gi,(candidate) => {
+    try {
+      const url = new URL(candidate);
+      if (!url.username && !url.password) return candidate;
+      url.username = ''; url.password = ''; url.search = ''; url.hash = '';
+      return url.href;
+    } catch {return 'https://[invalid URL omitted]';}
+  });
 }

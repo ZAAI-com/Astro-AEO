@@ -54,6 +54,11 @@ function rules(category, severity, applicability, ruleIds) {
 
 /** @type {readonly AuditRule[]} */
 const RULE_LIST = Object.freeze([
+  ...rules('build','warning',['offline'],['audit-evidence-mismatch']),
+  ...rules('discovery','warning',['live'],['live-discovery-invalid','live-discovery-missing','live-discovery-limit']),
+  ...rules('discovery','error',['live'],['live-sitemap-invalid']),
+  ...rules('corpus','error',['live'],['live-corpus-invalid','live-corpus-hash','live-corpus-tokens']),
+  ...rules('corpus','info',['live'],['live-corpus-tokenizer-unchecked','live-corpus-encoding-unchecked','live-corpus-incomplete']),
   ...rules('internationalization', 'info', ['build', 'offline', 'live'], ['starlight-fallback-locale-excluded']),
   ...rules('internationalization', 'error', ['build', 'offline', 'live'], [
     'corpus-version-current-required', 'page-version-invalid', 'page-version-group-invalid', 'version-group-ambiguous', 'version-alternate-conflict',
@@ -78,7 +83,7 @@ const RULE_LIST = Object.freeze([
   ...rules('links', 'error', ['offline', 'live'], ['link-internal-broken']),
   ...rules('links', 'warning', ['offline', 'live'], ['link-anchor-missing']),
   ...rules('metadata', 'warning', ['build', 'offline', 'live'], [
-    'canonical-duplicate', 'description-duplicate', 'description-missing', 'title-duplicate',
+    'content-duplicate', 'canonical-duplicate', 'description-duplicate', 'description-missing', 'title-duplicate',
   ]),
   ...rules('markdown', 'error', ['build', 'offline', 'live'], ['markdown-empty']),
   ...rules('markdown', 'warning', ['build', 'offline', 'live'], [

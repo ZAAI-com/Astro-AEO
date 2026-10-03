@@ -1110,3 +1110,15 @@ trafficV1.ip;
 // @ts-expect-error Content-free snapshots do not carry source bodies.
 snapshotV1.pages[0].sourceBody;
 void [observedTraffic,observedCoverage,changeStatus,inspectedHash,graphLabel,ragIncomplete,exportedRecordText,evidenceDigests,allReportsV1];
+
+// Readiness-v2 preserves the report envelope and makes evidence coverage explicit.
+import type { AuditScores, AuditApplicability, AuditCrawlScope } from 'astro-aeo';
+declare const readiness: AuditScores;
+const readinessOverall: number | null = readiness.overall;
+const readinessCoverage: AuditApplicability[] | undefined = readiness.applicability;
+declare const auditedFinding: Finding;
+const regionSource: 'rendered-html' | 'markdown' | undefined = auditedFinding.locationSource;
+const regionEnd: number | undefined = auditedFinding.location?.endColumn;
+declare const auditScope: AuditCrawlScope;
+const discoveryCoverage: 'complete' | 'partial' | undefined = auditScope.discovery;
+void [readinessOverall,readinessCoverage,regionSource,regionEnd,discoveryCoverage];

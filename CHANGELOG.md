@@ -4,6 +4,10 @@ All notable changes to this project are documented here. This project follows [S
 
 ## 1.6.0
 
+- Add audited-byte HTML/Markdown source regions, URL Action annotations from one audit,
+  applicability-aware readiness-v2, full-site graph references, exact duplicate-content
+  findings, and opt-in bounded live discovery/corpus verification. Preserve validator contracts.
+
 - Add read-only traffic, changes, inspect, graph and RAG reports, versioned report/evidence schemas, and hash-pinned offline HTML CSP while retaining frozen validator formatting.
 
 In preparation. Release notes will be folded in from changesets before the 1.6.0 tag is created.

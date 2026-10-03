@@ -33,7 +33,7 @@ describe('audit report', () => {
 
   it('omits scores and deductions when scoring is off', () => {
     const scored = createAuditReport({ ...base, findings });
-    expect(scored.scores?.rubric).toBe('astro-aeo-readiness-v1');
+    expect(scored.scores?.rubric).toBe('astro-aeo-readiness-v2');
     expect(scored.findings.every((finding) => typeof finding.deduction === 'number')).toBe(true);
     const plain = createAuditReport({ ...base, findings: scored.findings, score: false });
     expect(plain.scores).toBeUndefined();
@@ -56,4 +56,12 @@ describe('audit report', () => {
     }
     expect(schema.properties.findings.items.properties.category.enum).toContain('structured-data');
   });
+});
+
+it('omits credentials and associated queries from authored URL evidence without mutating inputs',() => {
+ const secret='https://user:private-password@example.test/page?token=private-token';
+ const finding=createFinding({ruleId:'canonical-duplicate',severity:'warning',message:'Shared '+secret,evidence:secret,url:secret});
+ const output=serializeAuditReport(createAuditReport({...base,findings:[finding]}));
+ expect(output).not.toContain('private-password');expect(output).not.toContain('private-token');expect(output).not.toContain('user:');
+ expect(output).toContain('https://example.test/page');expect(finding.evidence).toBe(secret);
 });

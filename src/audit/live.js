@@ -1,7 +1,10 @@
 // @ts-check
+import { createHash } from 'node:crypto';
 import { compareCodeUnits } from '../core/corpus-manifest.js';
 import { extractPageFacts } from './facts.js';
 import { createFinding } from './finding.js';
+import { auditApplicability } from './applicability.js';
+import { auditLiveDiscovery } from './live-discovery.js';
 import { auditPages } from './site-rules.js';
 
 /**
@@ -36,8 +39,10 @@ export class AuditTargetError extends Error {}
  *   heuristics?: boolean;
  *   schemaTarget?: 'schema' | 'google';
  *   now?: Date;
+ *   discovery?: boolean;
+ *   discoveryBase?: string;
  * }} [options]
- * @returns {Promise<{ findings: Finding[]; pagesChecked: number; languageCount: number; scope: AuditCrawlScope }>}
+ * @returns {Promise<{ findings: Finding[]; pagesChecked: number; languageCount: number; scope: AuditCrawlScope; applicability: import('../index.js').AuditApplicability[] }>}
  */
 export async function auditLive(startUrl, options = {}) {
   const start = parseTarget(startUrl);
@@ -148,17 +153,21 @@ export async function auditLive(startUrl, options = {}) {
     },
   }));
 
+  const discovery = options.discovery ? await auditLiveDiscovery(start.origin,options.discoveryBase ?? '/',request,pages) : undefined;
+  if (discovery) findings.push(...discovery.findings);
   const languages = new Set(pages.map((page) => page.language?.toLowerCase().split('-')[0]).filter(Boolean));
   return {
     findings,
     pagesChecked: pages.length,
     languageCount: languages.size,
+    applicability:auditApplicability(pages,{mode:'live',inventoryComplete:false,discoveryObserved:!!discovery,corpusObserved:discovery?.corpusObserved}),
     scope: {
       origins: [...origins].sort(compareCodeUnits),
       maxPages,
       pagesFetched: pages.length,
       truncated,
       skippedExternal: external.size,
+      ...(discovery ? {discovery:discovery.complete ? 'complete' : 'partial',artifactsFetched:discovery.fetched} : {}),
     },
   };
 
@@ -210,7 +219,7 @@ function createRequester(context) {
   /**
    * @param {string} url
    * @param {string} accept
-   * @returns {Promise<{ status: number; url: string; contentType: string; body: string } | { failure: Finding }>}
+   * @returns {Promise<{ status: number; url: string; contentType: string; body: string; bodyHash:string } | { failure: Finding }>}
    */
   return async function request(url, accept) {
     let current = url;
@@ -247,7 +256,7 @@ function createRequester(context) {
             failure: createFinding({ ruleId: 'live-body-too-large', severity: 'warning', message: `the response exceeds ${MAX_BODY_BYTES} bytes and was not audited: ${current}`, url }),
           };
         }
-        return { status: response.status, url: current, contentType: response.headers.get('content-type') ?? '', body };
+        return { status: response.status, url: current, contentType: response.headers.get('content-type') ?? '', body:body.text,bodyHash:body.hash };
       } catch (error) {
         const timedOut = (signal.aborted && signal.reason?.name === 'TimeoutError') ||
           (error instanceof Error && error.name === 'TimeoutError');
@@ -261,9 +270,9 @@ function createRequester(context) {
   };
 }
 
-/** @param {Response} response @returns {Promise<string | null>} */
+/** @param {Response} response @returns {Promise<{text:string;hash:string} | null>} */
 async function readCapped(response) {
-  if (!response.body) return '';
+  if (!response.body) return {text:'',hash:'sha256:' + createHash('sha256').digest('hex')};
   const reader = response.body.getReader();
   /** @type {Uint8Array[]} */
   const chunks = [];
@@ -285,7 +294,7 @@ async function readCapped(response) {
       bytes.set(chunk, offset);
       offset += chunk.byteLength;
     }
-    return new TextDecoder().decode(bytes);
+    return {text:new TextDecoder().decode(bytes),hash:'sha256:' + createHash('sha256').update(bytes).digest('hex')};
   } finally {
     reader.releaseLock();
   }
@@ -317,9 +326,9 @@ function parseTarget(value) {
   try {
     url = new URL(value);
   } catch {
-    throw new AuditTargetError(`not a valid URL: ${value}`);
+    throw new AuditTargetError('not a valid URL');
   }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new AuditTargetError(`not an http(s) URL: ${value}`);
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new AuditTargetError('not an http(s) URL');
   if (url.username || url.password) throw new AuditTargetError('URLs with credentials are not audited');
   return url;
 }
@@ -328,7 +337,7 @@ function parseTarget(value) {
 function resolveHref(from, href) {
   try {
     const url = new URL(href, from);
-    return url.protocol === 'http:' || url.protocol === 'https:' ? url : null;
+    return /^https?:$/.test(url.protocol) && !url.username && !url.password ? url : null;
   } catch {
     return null;
   }

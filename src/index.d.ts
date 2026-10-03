@@ -262,6 +262,8 @@ export interface Finding {
   /** Page pathname for a local audit, absolute URL for a live one. */
   url?: string;
   location?: SourceLocation;
+  /** Position in audited rendered output or a published companion, never inferred source. */
+  locationSource?: 'rendered-html' | 'markdown';
   evidence?: string;
   helpUrl?: string;
   /** Points this finding removed from its category. Absent when scoring is off. */
@@ -275,13 +277,23 @@ export interface AuditCategoryScore {
 }
 
 /** Advisory only: scores never decide an exit status. */
+export interface AuditApplicability {
+  category: AuditCategory;
+  status: 'applicable' | 'not-applicable' | 'unknown';
+  reason: string;
+}
 export interface AuditScores {
-  rubric: 'astro-aeo-readiness-v1';
-  overall: number;
+  rubric: 'astro-aeo-readiness-v1' | 'astro-aeo-readiness-v2';
+  /** Null when no category was meaningfully assessed. */
+  overall: number | null;
+  /** Present for readiness-v2. Unknown and inapplicable categories never inflate the mean. */
+  applicability?: AuditApplicability[];
   categories: AuditCategoryScore[];
 }
 
 export interface AuditCrawlScope {
+  discovery?: 'complete' | 'partial';
+  artifactsFetched?: number;
   origins: string[];
   maxPages: number | 'unlimited';
   pagesFetched: number;

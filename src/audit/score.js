@@ -9,7 +9,7 @@ import { AUDIT_CATEGORIES } from './rules.js';
  * @typedef {import('../index.js').AuditScores} AuditScores
  */
 
-export const SCORE_RUBRIC = 'astro-aeo-readiness-v1';
+export const SCORE_RUBRIC = 'astro-aeo-readiness-v2';
 
 const WEIGHTS = Object.freeze({ error: 15, warning: 5, info: 0 });
 const RULE_CAP = 30;
@@ -22,11 +22,19 @@ const SEVERITY_RANK = Object.freeze({ error: 0, warning: 1, info: 2 });
  * the same, so input order cannot change a score.
  *
  * @param {readonly Finding[]} findings
- * @param {{ languageCount?: number }} [options]
+ * @param {{ languageCount?: number; applicability?: readonly import('../index.js').AuditApplicability[] }} [options]
  * @returns {{ findings: Finding[]; scores: AuditScores }}
  */
 export function scoreFindings(findings, options = {}) {
-  const multilingual = (options.languageCount ?? 0) > 1;
+  const observed = new Set(findings.filter((finding) => !finding.ruleId.startsWith('editorial-')).map((finding) => finding.category));
+  const applicability = AUDIT_CATEGORIES.map((category) => {
+    const declared = options.applicability?.find((entry) => entry.category === category);
+    if (observed.has(category)) return {category,status:/** @type {const} */ ('applicable'),reason:'Findings establish an applicable check.'};
+    if (declared) return {...declared};
+    if (category === 'internationalization' && (options.languageCount ?? 0) > 1)
+      return {category,status:/** @type {const} */ ('applicable'),reason:'Multiple languages were observed.'};
+    return {category,status:/** @type {const} */ ('unknown'),reason:'No assessment evidence was supplied.'};
+  });
   /** @type {Map<string, number[]>} */
   const groups = new Map();
   findings.forEach((finding, index) => {
@@ -51,7 +59,7 @@ export function scoreFindings(findings, options = {}) {
 
   const scored = findings.map((finding, index) => ({ ...finding, deduction: deductions[index] }));
   const categories = AUDIT_CATEGORIES
-    .filter((category) => category !== 'internationalization' || multilingual)
+    .filter((category) => applicability.find((entry) => entry.category === category)?.status === 'applicable')
     .map((category) => {
       const own = scored.filter((finding) => finding.category === category);
       const deducted = own.reduce((total, finding) => total + finding.deduction, 0);
@@ -60,6 +68,6 @@ export function scoreFindings(findings, options = {}) {
   const mean = categories.reduce((total, entry) => total + entry.score, 0) / categories.length;
   return {
     findings: scored,
-    scores: { rubric: SCORE_RUBRIC, overall: Math.round(mean * 100) / 100, categories },
+    scores: { rubric: SCORE_RUBRIC, overall: categories.length ? Math.round(mean * 100) / 100 : null, categories, applicability },
   };
 }

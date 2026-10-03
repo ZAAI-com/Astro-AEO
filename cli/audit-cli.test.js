@@ -100,7 +100,7 @@ describe('audit CLI', () => {
     const scored = audit([BROKEN, '--format', 'json']);
     const plain = audit([BROKEN, '--format', 'json', '--no-score']);
     expect(scored.status).toBe(plain.status);
-    expect(JSON.parse(scored.stdout).scores.rubric).toBe('astro-aeo-readiness-v1');
+    expect(JSON.parse(scored.stdout).scores.rubric).toBe('astro-aeo-readiness-v2');
     const report = JSON.parse(plain.stdout);
     expect(report.scores).toBeUndefined();
     expect(report.findings.some((/** @type {any} */ finding) => 'deduction' in finding)).toBe(false);
@@ -219,5 +219,34 @@ describe('audit CLI', () => {
     const result = spawnSync(process.execPath, [BIN, 'validate', BROKEN, '--json'], { encoding: 'utf8' });
     expect(result.status).toBe(1);
     expect(Object.keys(JSON.parse(result.stdout))).toEqual(['ok', 'errors', 'warnings', 'pagesChecked', 'artifactsChecked', 'sitemapsChecked']);
+  });
+});
+
+describe('single-observation audit exports',() => {
+  test('exports URL SARIF, annotations and summary without repeating the crawl or publishing queries',async() => {
+    const root=realpathSync(mkdtempSync(join(tmpdir(),'astro-aeo-action-'))); roots.push(root);
+    const calls=[];
+    const fetch=/** @type {typeof globalThis.fetch} */ (async(url) => {calls.push(String(url));return new Response('<html lang="en"><head><title>Title</title></head></html>',{headers:{'content-type':'text/html'}});});
+    const result=await runAudit(['https://example.test/?secret=private','--format','sarif','--output','audit.sarif','--github-output','annotations.txt','--summary-output','summary.md'],{cwd:root,version:'1.6.0',fetch});
+    expect(calls).toEqual(['https://example.test/']);expect(result.output).toBe('');
+    const annotations=readFileSync(join(root,'annotations.txt'),'utf8');
+    expect(annotations).toContain('(https://example.test/)');expect(annotations).not.toContain('file=');
+    const summary=readFileSync(join(root,'summary.md'),'utf8');expect(summary).toContain('https://example.test/');expect(summary).not.toContain('private');
+    expect(JSON.parse(readFileSync(join(root,'audit.sarif'),'utf8')).runs[0].results[0].locations).toBeUndefined();
+  });
+  test('refuses duplicate outputs and symlinked destinations',async() => {
+    const root=realpathSync(mkdtempSync(join(tmpdir(),'astro-aeo-audit-output-')));roots.push(root);
+    await expect(runAudit([VALID,'--output','same','--github-output','same'],{cwd:root,version:'1.6.0'})).rejects.toThrow('distinct');
+    writeFileSync(join(root,'original'),'unchanged');symlinkSync(join(root,'original'),join(root,'link'));
+    await expect(runAudit([VALID,'--output','link'],{cwd:root,version:'1.6.0'})).rejects.toThrow('safely');
+    expect(readFileSync(join(root,'original'),'utf8')).toBe('unchanged');
+  });
+  test.each([
+    [VALID,'--discovery'],
+    ['https://example.test/','--discovery-base','/docs'],
+    ['https://example.test/','--discovery','--discovery-base','/../private'],
+    ['https://example.test/','--discovery','--discovery-base','/docs?secret'],
+  ])('rejects unsupported discovery invocation %j',async(...args) => {
+    await expect(runAudit(args,{version:'1.6.0',fetch:/** @type {typeof globalThis.fetch} */ (() => {throw new Error('Must not fetch');})})).rejects.toBeInstanceOf(AuditInvocationError);
   });
 });

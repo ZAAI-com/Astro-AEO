@@ -1,17 +1,18 @@
 // @ts-check
-import { existsSync, mkdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join, relative, resolve } from 'node:path';
+import { existsSync, statSync } from 'node:fs';
+import { relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { UnsafeAuditRootError, auditDist } from '../src/audit/local.js';
 import { AuditTargetError, LIVE_DEFAULTS, auditLive } from '../src/audit/live.js';
 import { createAuditReport } from '../src/audit/report.js';
 import { isAuditFormat, renderAuditReport } from './formats/index.js';
+import { writeOutput } from './reports/io.js';
 import { failsGate } from './formats/shared.js';
 
 /** A bad command line or an unreachable target: exit status 2. */
 export class AuditInvocationError extends Error {}
 
-const LIVE_ONLY = /** @type {const} */ (['max-pages', 'allow-origin', 'timeout', 'concurrency']);
+const LIVE_ONLY = /** @type {const} */ (['max-pages', 'allow-origin', 'timeout', 'concurrency','discovery','discovery-base']);
 
 /**
  * Run `astro-aeo audit`. Exit status follows severities only: `0` pass, `1`
@@ -31,6 +32,10 @@ export async function runAudit(args, context) {
       options: {
         format: { type: 'string', default: 'terminal' },
         output: { type: 'string' },
+        'github-output':{type:'string'},
+        'summary-output':{type:'string'},
+        discovery:{type:'boolean'},
+        'discovery-base':{type:'string'},
         'fail-on': { type: 'string', default: 'error' },
         'no-score': { type: 'boolean', default: false },
         base: { type: 'string' },
@@ -67,8 +72,12 @@ export async function runAudit(args, context) {
   let result;
   if (live) {
     if (values.base) throw new AuditInvocationError('--base applies to a build directory, not a URL');
+    if (values['discovery-base'] && !values.discovery) throw new AuditInvocationError('--discovery-base requires --discovery');
+    if (values['discovery-base'] && (!/^\/(?:[^?#\\]*)$/.test(values['discovery-base']) || values['discovery-base'].includes('//') || values['discovery-base'].split('/').some((part) => part === '.' || part === '..') || /%|[\u0000-\u0020]/.test(values['discovery-base']))) throw new AuditInvocationError('--discovery-base must be an absolute, decoded deployment path');
     try {
       result = await auditLive(target, {
+        discovery:values.discovery,
+        discoveryBase:values['discovery-base'],
         heuristics: values.heuristics,
         schemaTarget,
         maxPages: values['max-pages'] === 'unlimited'
@@ -101,22 +110,30 @@ export async function runAudit(args, context) {
 
   const report = createAuditReport({
     toolVersion: context.version,
-    // The target is recorded as typed, relative to the working directory, never as an absolute path.
+    // Dist targets are relative; public URL targets omit credentials, queries and fragments.
     target: live
-      ? { kind: 'url', value: target }
+      ? { kind: 'url', value: new URL(target).origin + new URL(target).pathname }
       : { kind: 'dist', value: relative(cwd, resolve(cwd, target)).split('\\').join('/') || '.' },
     findings: result.findings,
     pagesChecked: result.pagesChecked,
     languageCount: result.languageCount,
+    applicability:result.applicability,
     ...(result.scope ? { scope: result.scope } : {}),
     score: !values['no-score'],
   });
   const output = renderAuditReport(report, format, { failOn });
   const failed = report.findings.some((finding) => failsGate(finding.severity, failOn));
-  if (!values.output) return { exitCode: failed ? 1 : 0, output };
-  const destination = resolve(cwd, values.output);
-  writeAtomically(destination, output);
-  return { exitCode: failed ? 1 : 0, output: '', written: destination };
+  const exports = [
+    {file:values.output,text:output},
+    {file:values['github-output'],text:renderAuditReport(report,'github',{failOn})},
+    {file:values['summary-output'],text:renderAuditReport(report,'markdown',{failOn})},
+  ].filter((entry) => entry.file);
+  const destinations = exports.map((entry) => resolve(cwd,/** @type {string} */ (entry.file)));
+  if (new Set(destinations).size !== destinations.length) throw new AuditInvocationError('Audit output files must be distinct.');
+  // Render once from a single immutable report, never re-crawl for the Action summary.
+  try { for (let i=0;i<exports.length;i++) await writeOutput(destinations[i],exports[i].text); }
+  catch { throw new AuditInvocationError('Could not safely write audit output.'); }
+  return {exitCode:failed ? 1 : 0,output:values.output ? '' : output,...(values.output ? {written:resolve(cwd,values.output)} : {})};
 }
 
 /**
@@ -134,18 +151,4 @@ function integer(flag, value, fallback, minimum, maximum) {
     throw new AuditInvocationError(`${flag} must be a whole number ${range}${flag === '--max-pages' ? ', or "unlimited"' : ''}`);
   }
   return number;
-}
-
-/** A reader never sees a half-written report: temp file in the same directory, then rename. */
-function writeAtomically(/** @type {string} */ destination, /** @type {string} */ contents) {
-  const directory = dirname(destination);
-  const temporary = join(directory, `.${basename(destination)}.${process.pid}.tmp`);
-  try {
-    mkdirSync(directory, { recursive: true });
-    writeFileSync(temporary, contents, 'utf8');
-    renameSync(temporary, destination);
-  } catch (error) {
-    rmSync(temporary, { force: true });
-    throw new AuditInvocationError(`could not write ${destination}: ${error instanceof Error ? error.message : String(error)}`);
-  }
 }

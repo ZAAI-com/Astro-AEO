@@ -19,10 +19,12 @@ export function renderHtml(report) {
   const scoreRows = report.scores?.categories
     .map((entry) => `<tr><td>${escapeXml(entry.category)}</td><td>${entry.score}</td><td>${entry.findings}</td></tr>`)
     .join('');
+  const coverage = report.scores?.applicability?.filter((entry) => entry.status !== 'applicable')
+    .map((entry) => `<li>${escapeXml(entry.category)}: ${escapeXml(entry.status)} (${escapeXml(entry.reason)})</li>`).join('') ?? '';
   const scores = report.scores
     ? `<h2>Readiness <small>(advisory, ${escapeXml(report.scores.rubric)})</small></h2>\n`
-      + `<p class="overall">${report.scores.overall}</p>\n`
-      + `<table><thead><tr><th>Category</th><th>Score</th><th>Findings</th></tr></thead><tbody>${scoreRows}</tbody></table>`
+      + `<p class="overall">${report.scores.overall ?? 'unknown'}</p>\n`
+      + `<table><thead><tr><th>Category</th><th>Score</th><th>Findings</th></tr></thead><tbody>${scoreRows}</tbody></table>\n<ul>${coverage}</ul>`
     : '';
   const rows = report.findings.map((finding) => {
     // Only the registry's own https help links become anchors.

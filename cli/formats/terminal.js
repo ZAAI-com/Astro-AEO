@@ -20,7 +20,10 @@ export function renderTerminal(report) {
   if (lines.length > 0) lines.push('');
   if (report.scores) {
     for (const entry of report.scores.categories) lines.push(`  ${entry.category.padEnd(22)}${String(entry.score).padStart(6)}`);
-    lines.push(`  ${'overall (advisory)'.padEnd(22)}${String(report.scores.overall).padStart(6)}`, '');
+    for (const entry of report.scores.applicability ?? []) {
+      if (entry.status !== 'applicable') lines.push(printable(`  ${entry.category}: ${entry.status} (${entry.reason})`));
+    }
+    lines.push(`  ${'overall (advisory)'.padEnd(22)}${String(report.scores.overall ?? 'unknown').padStart(6)}`, '');
   }
   const { errors, warnings, infos, pagesChecked } = report.summary;
   lines.push(printable(

@@ -52,6 +52,18 @@ Severity: error. Raised by: build.
 
 Severity: warning. Raised by: live.
 
+### live-discovery-invalid
+
+Severity: warning. Raised by: live.
+
+### live-discovery-limit
+
+Severity: warning. Raised by: live.
+
+### live-discovery-missing
+
+Severity: warning. Raised by: live.
+
 ### live-external-skipped
 
 Severity: info. Raised by: live.
@@ -71,6 +83,10 @@ Severity: warning. Raised by: live.
 ### live-redirect-limit
 
 Severity: warning. Raised by: live.
+
+### live-sitemap-invalid
+
+Severity: error. Raised by: live.
 
 ### live-target-unreachable
 
@@ -261,6 +277,10 @@ Severity: warning. Raised by: build, offline, live.
 ### canonical-invalid
 
 Severity: warning. Raised by: build.
+
+### content-duplicate
+
+Severity: warning. Raised by: build, offline, live.
 
 ### description-duplicate
 
@@ -602,6 +622,30 @@ Severity: error. Raised by: offline.
 
 Severity: warning. Raised by: build.
 
+### live-corpus-encoding-unchecked
+
+Severity: info. Raised by: live.
+
+### live-corpus-hash
+
+Severity: error. Raised by: live.
+
+### live-corpus-incomplete
+
+Severity: info. Raised by: live.
+
+### live-corpus-invalid
+
+Severity: error. Raised by: live.
+
+### live-corpus-tokenizer-unchecked
+
+Severity: info. Raised by: live.
+
+### live-corpus-tokens
+
+Severity: error. Raised by: live.
+
 ### rag-chunk-over-budget
 
 Severity: warning. Raised by: build.
@@ -921,6 +965,10 @@ Severity: error. Raised by: build.
 ### artifact-redaction-failed
 
 Severity: error. Raised by: build.
+
+### audit-evidence-mismatch
+
+Severity: warning. Raised by: offline.
 
 ### catalog-foreign-origin-companion
 

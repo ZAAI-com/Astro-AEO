@@ -21,6 +21,9 @@ describe('action.yml', () => {
 
   test('runs the installed CLI, uploads, and reports the status last', () => {
     expect(steps[0].run).toContain('npx --no-install astro-aeo audit');
+    expect(steps[0].run.match(/npx --no-install astro-aeo audit/g)).toHaveLength(1);
+    expect(steps[0].run).toContain('--github-output');
+    expect(steps[0].run).toContain('--summary-output');
     expect(steps[0].run.trimEnd().endsWith('exit 0')).toBe(true);
     expect(steps[1].uses).toMatch(/^github\/codeql-action\/upload-sarif@/);
     expect(steps.at(-1).run).toContain('exit "$AEO_EXIT"');
