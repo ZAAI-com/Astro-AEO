@@ -331,6 +331,80 @@ describe('conversion fidelity', () => {
   const convert = (body) =>
     extractMarkdown(doc(page(body)), DEFAULT_EXTRACTION, td).markdown;
 
+  describe('semantic tab panels', () => {
+    test.each(['hidden', 'aria-hidden="true"', 'hidden aria-hidden="true"'])(
+      'retains visible and inactive panel content with %s', (hidden) => {
+        const md = convert('<main><div role="tabpanel"><p>Visible instructions.</p></div>' +
+          `<div role="tabpanel" ${hidden}><p>Inactive instructions.</p></div></main>`);
+        expect(md).toBe('Visible instructions.\n\nInactive instructions.');
+      },
+    );
+
+    test('retains nested inactive panels in document order', () => {
+      const md = convert('<main><section role="tabpanel" hidden><h2>Outer</h2>' +
+        '<section role="tabpanel" aria-hidden="true"><p>Inner instructions.</p></section>' +
+        '<p>Outer conclusion.</p></section></main>');
+      expect(md).toBe('## Outer\n\nInner instructions.\n\nOuter conclusion.');
+    });
+
+    test('keeps inactive panel images without mistaking them for theme alternatives', () => {
+      const md = convert('<main><figure><div role="tabpanel"><img src="/npm.png" alt="npm setup"></div>' +
+        '<div role="tabpanel" hidden><img src="/pnpm.png" alt="pnpm setup"></div>' +
+        '<div role="tabpanel" aria-hidden="true"><img src="/bun.png" alt="bun setup"></div>' +
+        '<img aria-hidden="true" src="/dark.png" alt="Dark alternative"></figure></main>');
+      expect(md).toContain('![npm setup](/npm.png)');
+      expect(md).toContain('![pnpm setup](/pnpm.png)');
+      expect(md).toContain('![bun setup](/bun.png)');
+      expect(md).not.toContain('dark.png');
+    });
+
+    test('only neutralizes hiding on panels, not hidden ancestors, descendants or controls', () => {
+      const md = convert('<main><div hidden><div role="tabpanel">Hidden ancestor.</div></div>' +
+        '<div aria-hidden="true"><div role="tabpanel">Decorative ancestor.</div></div>' +
+        '<section role="tabpanel" hidden><p>Panel content.</p><span hidden>Hidden child.</span>' +
+        '<span aria-hidden="true">Decorative child.</span><button hidden aria-controls="tab">Hidden control.</button>' +
+        '<button>Copy</button><p>Before <span aria-hidden="true">→</span> After</p></section>' +
+        '<nav hidden>Navigation.</nav><div role="tab" hidden>Tab control.</div></main>');
+      expect(md).toBe('Panel content.\n\nBefore → After');
+    });
+
+    test('removal selectors and never-content boundaries still win over panels and keeps', () => {
+      const { markdown } = extractMarkdown(doc(page('<main><p>Safe.</p>' +
+        '<section role="tabpanel" hidden class="remove">Explicit removal.</section>' +
+        '<nav><section role="tabpanel" hidden>Navigation.</section></nav>' +
+        '<script role="tabpanel" hidden>Unsafe script.</script>' +
+        '<iframe role="tabpanel" hidden>Unsafe frame.</iframe>' +
+        '<template role="tabpanel" hidden><p>Inert template.</p></template>' +
+        '<section role="tabpanel" hidden><p>Panel content.</p><script>Nested script.</script></section>' +
+        '</main>')), {
+        ...DEFAULT_EXTRACTION,
+        removeSelectors: [...DEFAULT_EXTRACTION.removeSelectors, '.remove'],
+        keepSelectors: ['[role="tabpanel"][hidden]'],
+      }, td);
+      expect(markdown).toBe('Safe.\n\n<section><p>Panel content.</p></section>');
+    });
+
+    test('matches keep selectors before neutralizing the selected root panel', () => {
+      const document = doc(page('<section role="tabpanel" hidden aria-hidden="true"><b>Root panel.</b></section>'));
+      const root = document.querySelector('[role="tabpanel"]');
+      cleanRoot(root, { removeSelectors: [], keepSelectors: ['[role="tabpanel"][hidden][aria-hidden="true"]'] });
+      expect(root.hasAttribute('hidden')).toBe(false);
+      expect(root.hasAttribute('aria-hidden')).toBe(false);
+      expect(root.hasAttribute('data-astro-aeo-keep')).toBe(true);
+      const { markdown } = extractMarkdown(document, {
+        ...DEFAULT_EXTRACTION,
+        selectors: ['[role="tabpanel"]'],
+      }, td);
+      expect(markdown).toBe('<section><b>Root panel.</b></section>');
+    });
+
+    test('does not change an explicitly visible panel aria-hidden attribute', () => {
+      const document = doc(page('<main><div role="tabpanel" aria-hidden="false"><p>Visible.</p></div></main>'));
+      expect(extractMarkdown(document, DEFAULT_EXTRACTION, td).markdown).toBe('Visible.');
+      expect(document.querySelector('[role="tabpanel"]').getAttribute('aria-hidden')).toBe('false');
+    });
+  });
+
   test('conversion preserves the source tree and cross-root accessible labels', () => {
     const d = doc(page('<article><span id="label">Account  &amp; settings</span></article>' +
       '<article><a href="/account" aria-labelledby="label"></a>' +

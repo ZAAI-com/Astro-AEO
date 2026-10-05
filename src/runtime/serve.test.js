@@ -6,6 +6,7 @@ import {
   enrichRuntimePageGraph,
   pageFromHtml,
   renderStandaloneArtifact,
+  RuntimeCorpusCollectionError,
   RuntimeCorpusLimitError,
   RuntimeCorpusPlanError,
   runtimeArtifactOrigin,
@@ -686,6 +687,108 @@ describe('request-time corpus limits', () => {
       expect(fetcher).not.toHaveBeenCalled();
     },
   );
+});
+
+describe('production corpus collection completeness', () => {
+  const collectors = [
+    ['text', (state, fetcher) => serveCorpusArtifact('/llms-full.txt', state, fetcher)],
+    ['graph', (state, fetcher) => serveSchemaCorpus('schema-graph', state, fetcher)],
+    ['map', (state, fetcher) => serveSchemaCorpus('schema-map', state, fetcher)],
+  ];
+  const unavailable = [
+    ['thrown transport', () => { throw new Error('SECRET transport failure'); }],
+    ['null transport', () => null],
+    ['HTML server error', () => ({ html: html('SECRET error'), response: new Response('SECRET', { status: 500, headers: { 'content-type': 'text/html' } }) })],
+    ['non-HTML server error', () => ({ html: null, response: new Response('SECRET', { status: 503 }) })],
+    ['not-modified source', () => ({ html: null, response: new Response(null, { status: 304 }) })],
+    ['partial HTML', () => ({ html: html('SECRET partial'), response: new Response('SECRET', { status: 206, headers: { 'content-type': 'text/html' } }) })],
+    ['encoded HTML', () => ({ html: null, response: new Response('SECRET', { headers: { 'content-type': 'text/html', 'content-encoding': 'gzip' } }) })],
+    ['unsupported charset', () => ({ html: html('SECRET legacy'), response: new Response('SECRET', { headers: { 'content-type': 'text/html; charset=windows-1252' } }) })],
+    ['malformed charset', () => ({ html: null, response: new Response('SECRET', { headers: { 'content-type': 'text/html; charset=' } }) })],
+    ['malformed duplicate charset', () => ({ html: html(), response: new Response('SECRET', { headers: { 'content-type': 'text/html; charset=utf-8; charset=' } }) })],
+    ['malformed quoted charset', () => ({ html: html(), response: new Response('SECRET', { headers: { 'content-type': 'text/html; charset="utf-8"junk' } }) })],
+    ['missing HTML', () => ({ html: null, response: new Response('SECRET', { headers: { 'content-type': 'text/html' } }) })],
+    ['empty HTML', () => ({ html: '', response: new Response(null, { headers: { 'content-type': 'text/html' } }) })],
+    ['blank HTML', () => ({ html: ' \n\t', response: new Response(' \n\t', { headers: { 'content-type': 'text/html' } }) })],
+  ];
+
+  for (const command of ['build', 'preview']) {
+    describe.each(collectors)(`${command} %s collection`, (_kind, collect) => {
+      test.each(unavailable)('rejects %s after a healthy page', async (_label, fail) => {
+        const state = { ...runtime(['/a-healthy', '/z-failing']), command };
+        const fetcher = vi.fn(async (pathname) => pathname === '/a-healthy' ? loaded(html('Healthy page')) : fail());
+        await expect(collect(state, fetcher)).rejects.toMatchObject({
+          name: 'RuntimeCorpusCollectionError',
+          message: 'astro-aeo: runtime corpus collection is incomplete.',
+        });
+        expect(fetcher.mock.calls.map(([pathname]) => pathname)).toEqual(['/a-healthy', '/z-failing']);
+      });
+
+      test.each([200, 204, 205, 206, 301, 302, 307, 308, 400, 401, 403, 404, 410, 429])(
+        'keeps intentional status %s exclusions', async (status) => {
+          const body = [204, 205].includes(status) ? null : 'Excluded page';
+          const response = new Response(body, {
+            status,
+            headers: status >= 300 && status < 400 ? { location: '/login' } : {},
+          });
+          const state = { ...runtime(['/a-healthy', '/z-excluded']), command };
+          const result = await collect(state, async (pathname) =>
+            pathname === '/a-healthy' ? loaded(html('Healthy page')) : { html: null, response });
+          expect(result.body).toContain('a-healthy');
+          expect(result.body).not.toContain('z-excluded');
+        },
+      );
+
+      test.each([
+        '<meta name="robots" content="noindex">',
+        '<meta name="aeo" content="skip">',
+      ])('preserves successful page exclusions: %s', async (marker) => {
+        const state = { ...runtime(['/a-healthy', '/z-excluded']), command };
+        const result = await collect(state, async (pathname) => loaded(
+          pathname === '/a-healthy' ? html('Healthy page') : html('Excluded page').replace('</head>', `${marker}</head>`),
+        ));
+        expect(result.body).toContain('a-healthy');
+        expect(result.body).not.toContain('z-excluded');
+      });
+    });
+  }
+
+  test('cancels unread production HTML before rejecting its collection', async () => {
+    const response = new Response('encoded source', {
+      headers: { 'content-type': 'text/html', 'content-encoding': 'gzip' },
+    });
+    const cancel = vi.spyOn(response.body, 'cancel').mockResolvedValue();
+    await expect(serveCorpusArtifact('/llms.txt', { ...runtime(['/page']), command: 'build' }, async () => ({ html: null, response })))
+      .rejects.toBeInstanceOf(RuntimeCorpusCollectionError);
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  test('retains development null-render exclusions and thrown transport errors', async () => {
+    expect((await serveCorpusArtifact('/llms-full.txt', runtime(['/page']), async () => null)).body)
+      .toBe('# example.com\n\n---\n');
+    const failure = new Error('development transport error');
+    await expect(serveCorpusArtifact('/llms-full.txt', runtime(['/page']), async () => { throw failure; }))
+      .rejects.toBe(failure);
+  });
+
+  test.each(collectors)('uses the catalog lifecycle spelling for %s configuration exclusions', async (_kind, collect) => {
+    const state = { ...runtime(['/sale 100%']), command: 'build' };
+    state.config = resolveConfig({ pages: { exclude: ['/sale%20100%25'] } });
+    const fetcher = vi.fn(async () => { throw new Error('Excluded page must not render'); });
+    const options = { catalogLoaders: [catalogLoader({
+      listPages: () => [{ pathname: '/sale%20100%25', markdown: '# Exact source' }],
+    })] };
+    if (_kind === 'text') await serveCorpusArtifact('/llms-full.txt', state, fetcher, options);
+    else await serveSchemaCorpus(_kind === 'graph' ? 'schema-graph' : 'schema-map', state, fetcher, options);
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  test.each(['build', 'preview'])('rejects an incomplete %s corpus after a healthy page', async (command) => {
+    const requestRuntime = { ...runtime(['/a-healthy', '/z-failing']), command };
+    await expect(serveCorpusArtifact('/llms-full.txt', requestRuntime, async (pathname) =>
+      pathname === '/a-healthy' ? loaded(html('Healthy page')) : null,
+    )).rejects.toMatchObject({ name: 'RuntimeCorpusCollectionError' });
+  });
 });
 
 describe('request-time corpus manifest', () => {

@@ -1,0 +1,29 @@
+<h1>Tab Content</h1>
+<div role="tablist">
+  <button role="tab">Visible tab control</button>
+  <button role="tab">Inactive tab control</button>
+</div>
+<section role="tabpanel">
+  <h2>Visible tab</h2>
+  <p>Visible panel instructions.</p>
+</section>
+<section role="tabpanel" hidden>
+  <h2>Hidden tab</h2>
+  <p>Hidden panel instructions.</p>
+  <img src="https://example.com/tab-diagram.png" alt="Inactive panel diagram" />
+  <section role="tabpanel" hidden aria-hidden="true">
+    <h3>Nested tab</h3>
+    <p>Nested panel instructions.</p>
+  </section>
+  <p hidden>UNRELATED-HIDDEN-DESCENDANT</p>
+  <button hidden>HIDDEN-PANEL-CONTROL</button>
+</section>
+<section role="tabpanel" aria-hidden="true">
+  <h2>ARIA-hidden tab</h2>
+  <p>ARIA-hidden panel instructions.</p>
+</section>
+<div hidden>
+  <section role="tabpanel" hidden>UNRELATED-HIDDEN-ANCESTOR</section>
+</div>
+<nav hidden><section role="tabpanel" hidden>HIDDEN-NAVIGATION</section></nav>
+<template><section role="tabpanel" hidden>TEMPLATE-PANEL</section></template>

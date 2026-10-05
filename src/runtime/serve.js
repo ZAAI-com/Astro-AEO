@@ -10,10 +10,10 @@ import { buildRobotsTxt, rootLlmsAvailable } from '../core/render/robots-txt.js'
 import { buildDomainProfile } from '../core/render/domain-profile.js';
 import { resolveSiteMeta } from '../core/site-meta.js';
 import { isOwnedArtifactPath } from '../core/owned-artifacts.js';
-import { inspectRootPathname, normalizeCatalogPathname } from '../core/match.js';
+import { inspectRootPathname, isIncluded, normalizeCatalogPathname } from '../core/match.js';
 import { matchesExactPathname } from '../core/artifact-path.js';
 import { pageCatalogIdentity } from '../core/page-identity.js';
-import { cancelResponseBody, isIdentityEncoded, isNullBodyStatus } from './respond.js';
+import { cancelResponseBody, isHtmlResponse, isIdentityEncoded, isNullBodyStatus, isUtf8HtmlResponse } from './respond.js';
 import { enrichHtmlHead, stripAeoHeadMarkers } from '../core/head.js';
 import { renderSchemaCorpus } from '../core/schema-corpus.js';
 import { isLocalDevelopmentHostname, siteScopeUrl, stableCanonical } from '../core/canonical.js';
@@ -74,6 +74,52 @@ export class RuntimeCorpusLimitError extends Error {
     this.pages = pages;
     this.limit = limit;
   }
+}
+
+export class RuntimeCorpusCollectionError extends Error {
+  constructor() {
+    super('astro-aeo: runtime corpus collection is incomplete.');
+    this.name = 'RuntimeCorpusCollectionError';
+  }
+}
+
+/**
+ * Keep intentional exclusions distinct from unavailable representations. Only
+ * production aggregates require completeness; development keeps its diagnostics.
+ * @param {Runtime} runtime
+ * @param {HtmlFetcher} fetchHtml
+ * @param {RuntimePageTarget} target
+ * @returns {Promise<{ html: string; response: Response } | null>}
+ */
+async function loadCorpusPage(runtime, fetchHtml, target) {
+  const strict = runtime.command !== 'dev';
+  if (strict && !isIncluded(target.descriptor?.pathname ?? target.pathname, runtime.config.pages)) return null;
+  let loaded;
+  try {
+    loaded = await fetchHtml(target.publicPathname);
+  } catch (error) {
+    if (!strict) throw error;
+    throw new RuntimeCorpusCollectionError();
+  }
+  const response = loaded?.response;
+  // Reject every malformed declaration, including a valid charset followed by
+  // an empty duplicate. Direct responses keep their existing decoding policy.
+  const malformedCharset = /;\s*charset(?=\s|=|;|$)(?!\s*=\s*(?:"\s*utf-?8\s*"|utf-?8)\s*(?:;|$))/i
+    .test(response?.headers.get('content-type') ?? '');
+  if (
+    !loaded || loaded.html === null || !loaded.response.ok ||
+    loaded.response.status === 206 || !isIdentityEncoded(loaded.response) ||
+    (strict && (!loaded.html.trim() || malformedCharset ||
+      !isUtf8HtmlResponse(loaded.response) || isNullBodyStatus(loaded.response.status)))
+  ) {
+    cancelResponseBody(response);
+    if (strict && (
+      !response || response.status >= 500 || response.status === 304 ||
+      (response.ok && !isNullBodyStatus(response.status) && isHtmlResponse(response))
+    )) throw new RuntimeCorpusCollectionError();
+    return null;
+  }
+  return { html: loaded.html, response: loaded.response };
 }
 
 /** @type {WeakMap<Runtime, Promise<import('turndown')>>} */
@@ -511,17 +557,8 @@ export async function serveCorpusArtifact(pathname, runtime, fetchHtml, opts = {
     paths,
     Math.min(Math.max(opts.concurrency ?? 1, 1), 4),
     async (target) => {
-      const loaded = await fetchHtml(target.publicPathname);
-      if (
-        loaded === null ||
-        loaded.html === null ||
-        !loaded.response.ok ||
-        loaded.response.status === 206 ||
-        !isIdentityEncoded(loaded.response)
-      ) {
-        cancelResponseBody(loaded?.response);
-        return null;
-      }
+      const loaded = await loadCorpusPage(runtime, fetchHtml, target);
+      if (!loaded) return null;
       let page;
       try {
         page = await pageFromHtml(target.pathname, loaded.html, runtime, {
@@ -702,14 +739,8 @@ export async function serveSchemaCorpus(kind, runtime, fetchHtml, opts = {}) {
   });
 
   const records = await collectConcurrently(targets, 1, async (target) => {
-    const loaded = await fetchHtml(target.publicPathname);
-    if (
-      loaded === null || loaded.html === null || !loaded.response.ok ||
-      loaded.response.status === 206 || !isIdentityEncoded(loaded.response)
-    ) {
-      cancelResponseBody(loaded?.response);
-      return null;
-    }
+    const loaded = await loadCorpusPage(runtime, fetchHtml, target);
+    if (!loaded) return null;
     let page;
     try {
       page = await pageFromHtml(target.pathname, loaded.html, runtime, {
