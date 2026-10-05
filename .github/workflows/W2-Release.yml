@@ -26,6 +26,19 @@ jobs:
           node-version: '24'
           cache: 'pnpm'
           registry-url: 'https://registry.npmjs.org'
+      - name: Verify npm supports Trusted Publishing
+        run: |
+          node <<'NODE'
+          const { execFileSync } = require('node:child_process');
+          const version = execFileSync('npm', ['--version'], { encoding: 'utf8' }).trim();
+          const [major, minor, patch] = version.split('.').map(Number);
+          if (!/^\d+\.\d+\.\d+$/.test(version) || major < 11 ||
+              (major === 11 && (minor < 5 || (minor === 5 && patch < 1)))) {
+            console.error(`::error::npm >=11.5.1 is required for Trusted Publishing; found ${version}. Upgrade npm before publishing.`);
+            process.exit(1);
+          }
+          console.log(`npm ${version} supports Trusted Publishing.`);
+          NODE
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
@@ -35,7 +48,5 @@ jobs:
         run: pnpm run release:check -- --tag "$GITHUB_REF_NAME" --require-tag --require-clean
         env:
           ASTRO_AEO_ADAPTER_RUNTIMES: node,cloudflare,deno
-      - name: Publish to npm with provenance
+      - name: Publish to npm with OIDC and provenance
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
