@@ -1,0 +1,53 @@
+.changeset/tab-content.md
+  s_923fecc9e5a133::t_11ea9e30ea1c70 1-5
+src/core/extract/index.js
+  s_923fecc9e5a133::t_2b9032aecbeabd 310-311
+  s_923fecc9e5a133::t_99b48af3bb07d2 7,242,262-263,266-309,312-339,881-889
+  s_dc00dec49de5df::t_5332095c63a050 264-265
+src/core/extract/tabs.test.js
+  s_923fecc9e5a133::t_2b9032aecbeabd 46-50
+  s_923fecc9e5a133::t_11ea9e30ea1c70 1-45,51-84,87,89,91,93,99-103,106-116,119-155
+  s_dc00dec49de5df::t_5332095c63a050 95-96,98,117-118
+README.md
+  s_923fecc9e5a133::t_e3f4411c1edf6c 886
+  s_923fecc9e5a133::t_869efe974c3019 883-885
+  s_923fecc9e5a133::t_13c370566ee0be 749-750,752-753
+  s_dc00dec49de5df::t_359359c6970ca1 751
+.changeset/complete-runtime-corpus.md
+  s_923fecc9e5a133::t_05efab70ee3050 1-5
+src/runtime/serve.js
+  s_923fecc9e5a133::t_d08bb8d57139f3 16,80,83-86,89-90,92-93,97-98,100,103,109,115-116,121-122,124-125
+  s_dc00dec49de5df::t_359359c6970ca1 112
+src/runtime/middleware-corpus-failure.test.js
+  s_923fecc9e5a133::t_05efab70ee3050 1-6,8-26,28-35,37-42,44-90,91-133,135-137,139-140,143,147-160,162-164
+  s_923fecc9e5a133::t_74e516d370e77a 7,36,43,138,141-142,144-146
+  s_dc00dec49de5df::t_359359c6970ca1 27,134,161
+src/runtime/middleware-corpus-auth.test.js
+  s_923fecc9e5a133::t_d08bb8d57139f3 490-492
+src/runtime/serve.test.js
+  s_dc00dec49de5df::t_359359c6970ca1 649
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "eb82d738284c24b6d8aa9491df05d94df3a30783",
+  "prompts": {},
+  "sessions": {
+    "s_923fecc9e5a133": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fd4f-7966-7552-9bed-766ed9b00461",
+        "model": "gpt-6-astra"
+      },
+      "human_author": null
+    },
+    "s_dc00dec49de5df": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10976-a3ab-7e51-8f3c-c7fb8842bb43",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}

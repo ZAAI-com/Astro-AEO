@@ -1,0 +1,63 @@
+src/index.d.ts
+  s_923fecc9e5a133::t_bf52dd3db36a80 1059,1073-1074,1146,1149,1151
+  s_923fecc9e5a133::t_9516304db59f18 289-295,298-300
+  s_923fecc9e5a133::t_094d39f6a7e293 749-752,785-831,928-929,1170-1171,1237,1250,1252-1253
+  s_923fecc9e5a133::t_1464ad60300167 301
+fixtures/types-consumer/consumer.ts
+  s_923fecc9e5a133::t_9516304db59f18 637
+  s_923fecc9e5a133::t_21b56b67c39880 992-1015
+  s_923fecc9e5a133::t_bc6ac6216ec32b 889-890
+src/plugins/recovery.test.js
+  s_923fecc9e5a133::t_9516304db59f18 1-71
+src/plugins/runtime-modules.js
+  s_923fecc9e5a133::t_21b56b67c39880 15
+src/virtual/plugin.js
+  s_923fecc9e5a133::t_21b56b67c39880 42-43
+src/audit/rules.js
+  s_923fecc9e5a133::t_bf52dd3db36a80 57
+.changeset/shared-feature-contracts.md
+  s_923fecc9e5a133::t_b0b87f358fdb77 1-7
+README.md
+  s_923fecc9e5a133::t_4306167ed9f21c 1329,1338-1344
+  s_923fecc9e5a133::t_b0b87f358fdb77 696-708
+  s_923fecc9e5a133::t_5128c890730d53 1345
+src/plugins/dispatcher.js
+  s_923fecc9e5a133::t_bf52dd3db36a80 5,13,34,51,70,77-79,86,133,154,169-172,185,287
+schema/astro-aeo.schema.json
+  s_923fecc9e5a133::t_738f1758ac875c 1
+scripts/schema-definition.mjs
+  s_923fecc9e5a133::t_ce1f31ed376b9d 328-344,346-362
+  s_923fecc9e5a133::t_81dc7c79c33282 258,417-428
+src/lib/config-features.test.js
+  s_923fecc9e5a133::t_ce1f31ed376b9d 1-46,48-63
+  s_923fecc9e5a133::t_9310775fa0bc9a 47
+src/core/plugin-recovery.js
+  s_923fecc9e5a133::t_bf52dd3db36a80 1-18
+src/virtual/serialize.js
+  s_923fecc9e5a133::t_ce1f31ed376b9d 13-15
+src/lib/config-features.js
+  s_923fecc9e5a133::t_a06bfc823750ea 1-48,50-154
+  s_923fecc9e5a133::t_b0b87f358fdb77 49
+src/runtime/plugins.js
+  s_923fecc9e5a133::t_bf52dd3db36a80 6,14,28,43,191,213,223-228,234,302-305,326
+src/config.js
+  s_923fecc9e5a133::t_094d39f6a7e293 11,38,129,146,148-149,646,650-651,664-668
+docs/rules.md
+  s_923fecc9e5a133::t_3de63760317c97 905-908
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "813cfb659875a52fa909a8922026aaa2aaf65281",
+  "prompts": {},
+  "sessions": {
+    "s_923fecc9e5a133": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fd4f-7966-7552-9bed-766ed9b00461",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
