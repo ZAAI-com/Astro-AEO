@@ -1,0 +1,178 @@
+src/build/evidence.js
+  s_d762ce5afe426a::t_d9a27f6d5e5370 29-30
+src/starlight/versions.js
+  s_d762ce5afe426a::t_f9be5f79669692 1-25
+src/build/collect.js
+  s_d762ce5afe426a::t_385de23d15cff7 99
+fixtures/starlight-versions-node/src/content/docs/en/guides/install.md
+  s_d762ce5afe426a::t_5896fe3a83eea5 1-5
+README.md
+  s_d762ce5afe426a::t_5a2c16c540cd12 1712-1714,1726-1757,1759-1760
+  s_d762ce5afe426a::t_b2783d573e6bc7 1758
+  s_d762ce5afe426a::t_40f60cec45af6b 1761
+src/generators/dotmd.js
+  s_d762ce5afe426a::t_aa81dacff6a77a 4,55
+fixtures/starlight-versions-node/catalog.mjs
+  s_d762ce5afe426a::t_57669587a9e94d 1-9,11-12
+  s_d762ce5afe426a::t_c1d63df9d7890d 10
+src/core/render/page-markdown.test.js
+  s_d762ce5afe426a::t_f3537987c87d93 9
+  s_d762ce5afe426a::t_44b1917a364727 1-8,10-32
+src/core/locale.js
+  s_d762ce5afe426a::t_aa81dacff6a77a 378
+  s_d762ce5afe426a::t_d9a27f6d5e5370 117-121
+fixtures/starlight-versions-static/src/content/docs/fr/guides/install.md
+  s_d762ce5afe426a::t_5896fe3a83eea5 1-5
+src/index.js
+  s_d762ce5afe426a::t_b2783d573e6bc7 269-273
+  s_d762ce5afe426a::t_4c2fcf79520eee 114,268,487-490,514,522,531
+  s_d762ce5afe426a::t_e7c34469199aff 34
+src/starlight.js
+  s_d762ce5afe426a::t_aa81dacff6a77a 76-77
+  s_d762ce5afe426a::t_f9be5f79669692 3-4,19,21-23,25,38-42,69-75,78-112
+  s_d762ce5afe426a::t_e7c34469199aff 5,43-45
+  s_d762ce5afe426a::t_e9034cc5495ddd 113-114
+AGENTS.md
+  s_d762ce5afe426a::t_b2783d573e6bc7 92-96
+fixtures/starlight-versions-static/astro.config.mjs
+  s_d762ce5afe426a::t_1a6c39e2eb659a 12
+  s_d762ce5afe426a::t_5896fe3a83eea5 1-11,13-18
+src/core/page-model.js
+  s_d762ce5afe426a::t_d9a27f6d5e5370 36-37,303-304
+  s_d762ce5afe426a::t_c7598e6768522e 179-180
+fixtures/starlight-versions-static/src/content/docs/en/index.md
+  s_d762ce5afe426a::t_5896fe3a83eea5 1-5
+src/starlight.d.ts
+  s_d762ce5afe426a::t_f9be5f79669692 17-25
+src/core/extract/marker.js
+  s_d762ce5afe426a::t_d9a27f6d5e5370 21-22,45-63
+src/core/render/page-markdown.js
+  s_d762ce5afe426a::t_d9a27f6d5e5370 1-9,11-18
+  s_d762ce5afe426a::t_f3537987c87d93 10
+src/core/plugin-validation.js
+  s_d762ce5afe426a::t_d9a27f6d5e5370 333-336
+src/core/corpus-artifacts.js
+  s_d762ce5afe426a::t_f83eb8fafab1ea 50
+  s_d762ce5afe426a::t_d9a27f6d5e5370 3,148,626
+src/core/locale.test.js
+  s_d762ce5afe426a::t_44b1917a364727 32-41
+fixtures/starlight-versions-node/astro.config.mjs
+  s_d762ce5afe426a::t_1a6c39e2eb659a 15
+  s_d762ce5afe426a::t_57669587a9e94d 18
+  s_d762ce5afe426a::t_5896fe3a83eea5 1-14,16-17,19-22
+fixtures/starlight-versions-static/src/content.config.ts
+  s_d762ce5afe426a::t_5896fe3a83eea5 1-7
+docs/rules.md
+  s_d762ce5afe426a::t_3c4386d5a079e0 845-848
+fixtures/starlight-versions-static/src/content/docs/en/guides/install.md
+  s_d762ce5afe426a::t_5896fe3a83eea5 1-5
+src/core/plugin-version-validation.test.js
+  s_d762ce5afe426a::t_b2783d573e6bc7 10-11
+fixtures/starlight-versions-node/src/content/docs/en/guides/fallback.mdx
+  s_d762ce5afe426a::t_5896fe3a83eea5 1-9
+fixtures/starlight-versions-static/src/content/docs/fr/index.md
+  s_d762ce5afe426a::t_5896fe3a83eea5 1-5
+src/starlight-versions.e2e.test.js
+  s_d762ce5afe426a::t_4ad412dde9e698 1-25,27-32,34-39,41-45,47-49
+  s_d762ce5afe426a::t_1a6c39e2eb659a 26,33,40,46
+src/lib/content-routes.js
+  s_d762ce5afe426a::t_e7c34469199aff 1-16
+src/generators/dotmd.test.js
+  s_d762ce5afe426a::t_7e7369788966c7 44-47,49-63
+  s_d762ce5afe426a::t_c7598e6768522e 48
+src/build/corpus.js
+  s_d762ce5afe426a::t_f83eb8fafab1ea 28
+src/hooks/build-done.test.js
+  s_d762ce5afe426a::t_385de23d15cff7 210,260
+fixtures/starlight-versions-node/src/content/docs/fr/index.md
+  s_d762ce5afe426a::t_5896fe3a83eea5 1-5
+src/starlight/marker.js
+  s_d762ce5afe426a::t_c7598e6768522e 47
+  s_d762ce5afe426a::t_f9be5f79669692 4,8,10,30-31,41-44,80-81,84-92
+  s_d762ce5afe426a::t_b00a8c70d869ae 93
+src/core/render/corpus.js
+  s_d762ce5afe426a::t_d9a27f6d5e5370 2,83
+src/build/collect.test.js
+  s_d762ce5afe426a::t_385de23d15cff7 134,188,211-213,218-220,261
+src/starlight.test.js
+  s_d762ce5afe426a::t_44b1917a364727 20-43
+fixtures/types-consumer/consumer.ts
+  s_d762ce5afe426a::t_b2783d573e6bc7 619-620
+  s_d762ce5afe426a::t_44b1917a364727 938-939
+src/audit/rules.js
+  s_d762ce5afe426a::t_aa81dacff6a77a 57
+fixtures/starlight-versions-static/package.json
+  s_d762ce5afe426a::t_a4f8113e4651c6 1-10
+fixtures/starlight-versions-static/src/content/docs/en/guides/fallback.mdx
+  s_d762ce5afe426a::t_5896fe3a83eea5 1-9
+src/starlight-versions.ssr.test.js
+  s_d762ce5afe426a::t_08a24a5d213240 72
+  s_d762ce5afe426a::t_7e7369788966c7 65-67
+  s_d762ce5afe426a::t_c7f22c42baf04f 5,17-24
+  s_d762ce5afe426a::t_57669587a9e94d 1-4,6-16,25-64,68-71,73-89
+src/starlight/marker.test.js
+  s_d762ce5afe426a::t_c7598e6768522e 49
+  s_d762ce5afe426a::t_44b1917a364727 19-40,78-84
+src/core/version-corpus.test.js
+  s_d762ce5afe426a::t_f83eb8fafab1ea 79,82-83
+  s_d762ce5afe426a::t_c1d63df9d7890d 77-78,80-81,84
+docs/release-evidence/1.6.0-decisions.md
+  s_d762ce5afe426a::t_f4ba93a816c8e3 131-136,139-158,160,162-175
+  s_d762ce5afe426a::t_0f5dc901ccda62 137-138
+  s_d762ce5afe426a::t_f83eb8fafab1ea 159,161
+src/core/render/markdown-doc.js
+  s_d762ce5afe426a::t_d9a27f6d5e5370 2,10-11,41-43
+fixtures/starlight-versions-node/src/content/docs/en/index.md
+  s_d762ce5afe426a::t_5896fe3a83eea5 1-5
+CHANGELOG.md
+  s_d762ce5afe426a::t_c1d63df9d7890d 9-11
+  s_d762ce5afe426a::t_e81d93c0798836 12
+src/core/page-model.test.js
+  s_d762ce5afe426a::t_c7598e6768522e 21-30
+fixtures/starlight-versions-node/src/content.config.ts
+  s_d762ce5afe426a::t_5896fe3a83eea5 1-7
+.changeset/starlight-version-locales.md
+  s_d762ce5afe426a::t_0f5dc901ccda62 5
+  s_d762ce5afe426a::t_c1d63df9d7890d 1-4
+fixtures/starlight-versions-node/package.json
+  s_d762ce5afe426a::t_a4f8113e4651c6 1-11
+src/integration-hooks.test.js
+  s_d762ce5afe426a::t_7e7369788966c7 1140-1143,1145-1151
+  s_d762ce5afe426a::t_4cd165e822874a 7,60-61,91,102,116
+  s_d762ce5afe426a::t_b2783d573e6bc7 1139,1144
+fixtures/starlight-versions-node/src/content/docs/fr/guides/install.md
+  s_d762ce5afe426a::t_5896fe3a83eea5 1-5
+src/core/render/llms-txt.js
+  s_d762ce5afe426a::t_d9a27f6d5e5370 2,249
+src/core/version-corpus.js
+  s_d762ce5afe426a::t_f83eb8fafab1ea 83-84
+  s_d762ce5afe426a::t_c1d63df9d7890d 82
+src/index.d.ts
+  s_d762ce5afe426a::t_d9a27f6d5e5370 313-316,1173-1174
+src/runtime/plugins.js
+  s_d762ce5afe426a::t_d9a27f6d5e5370 512-513
+fixtures/starlight-versions-node/src/content/docs/en/release-1/guides/install.md
+  s_d762ce5afe426a::t_f4bf4f17033d76 1-5
+fixtures/starlight-versions-node/src/content/docs/en/release-1/index.md
+  s_d762ce5afe426a::t_0a381c0ddee76d 1-5
+fixtures/starlight-versions-static/src/content/docs/en/release-1/guides/install.md
+  s_d762ce5afe426a::t_f25e1aeed5a53d 1-5
+fixtures/starlight-versions-static/src/content/docs/en/release-1/index.md
+  s_d762ce5afe426a::t_45e91c4d8d126d 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "91ecfbe52a59e21e028bbe1da51a72beadbb2971",
+  "prompts": {},
+  "sessions": {
+    "s_d762ce5afe426a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fea3-85b1-7b50-b1ce-3852f1b4cc01",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}

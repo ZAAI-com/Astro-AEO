@@ -1,0 +1,114 @@
+package.json
+  s_d762ce5afe426a::t_cbcf2245835517 225
+  s_d762ce5afe426a::t_41418c864186ef 227
+  s_d762ce5afe426a::t_1cbbd05eef986d 226
+CHANGELOG.md
+  s_d762ce5afe426a::t_a6e946410483bd 7
+  s_d762ce5afe426a::t_71cc913a8bf633 8
+  s_d762ce5afe426a::t_75ed2bfc95a2bc 9-65
+benchmarks/thresholds.mjs
+  s_d762ce5afe426a::t_a6e946410483bd 51,53
+  s_d762ce5afe426a::t_f8a17e4b1d193c 52,54-55
+src/build/transaction.js
+  s_d762ce5afe426a::t_427d27056821a7 39,41-43,51-67,69-74
+  s_d762ce5afe426a::t_169cac43524ade 12,40
+scripts/release-check.mjs
+  s_d762ce5afe426a::t_41418c864186ef 75
+  s_d762ce5afe426a::t_cbcf2245835517 41,71
+.github/workflows/W1-Test.yml
+  s_d762ce5afe426a::t_cbcf2245835517 29,90,122,249,261-263
+AGENTS.md
+  s_d762ce5afe426a::t_41418c864186ef 265-266,295-299
+benchmarks/1.6.0-projects.json
+  s_d762ce5afe426a::t_24846a64a6efcc 1-1088
+docs/STANDARDS_AND_COMPATIBILITY.md
+  s_d762ce5afe426a::t_6cb4a78fa2a278 1-37,39-43,48-62
+  s_d762ce5afe426a::t_94755a2a7a45ea 38,44-47
+README.md
+  s_d762ce5afe426a::t_1718c932171b36 878-881
+  s_d762ce5afe426a::t_6cb4a78fa2a278 2042-2049
+docs/release-evidence/1.6.0-semantic-validation.md
+  s_d762ce5afe426a::t_a6e946410483bd 9,39
+  s_d762ce5afe426a::t_b003dfa88384d4 8
+  s_d762ce5afe426a::t_ede5d8b58159a3 1-7,10-38,40
+benchmarks/1.6.0-local.json
+  s_d762ce5afe426a::t_b003dfa88384d4 1-290,293-298
+  s_d762ce5afe426a::t_24846a64a6efcc 291-292
+.tool-versions
+  s_d762ce5afe426a::t_cbcf2245835517 1
+fixtures/js-consumer/consumer.js
+  s_d762ce5afe426a::t_cbcf2245835517 1-25,29-34
+  s_d762ce5afe426a::t_d0b71f25bb5ee5 26-28
+renovate.json
+  s_d762ce5afe426a::t_cbcf2245835517 1-35
+benchmarks/projects.mjs
+  s_d762ce5afe426a::t_41418c864186ef 14-24,28,53,124-127
+  s_d762ce5afe426a::t_34c1398bf7a28d 1-2,6-13,29-31,33-34,38-39,42-45,49,55-76,78-85,88-93,106-123,128-129
+  s_d762ce5afe426a::t_454b113b636d9c 32,35-37,46,94-105
+  s_d762ce5afe426a::t_79e0a0799a618d 3-5,25-27,40-41,47-48,50-52,54,77,86-87
+benchmarks/run.mjs
+  s_d762ce5afe426a::t_34c1398bf7a28d 30,33
+src/build/artifacts.js
+  s_d762ce5afe426a::t_427d27056821a7 728-745
+  s_d762ce5afe426a::t_d68ccffc333a56 746-748,751-759
+test/adapters/runtime.test.js
+  s_d762ce5afe426a::t_6290dad146ed38 3,143
+docs/release-evidence/1.6.0-decisions.md
+  s_d762ce5afe426a::t_a6e946410483bd 462-470
+  s_d762ce5afe426a::t_461801b4223929 448-461
+  s_d762ce5afe426a::t_7eab90d3b4c44b 421-422,436
+  s_d762ce5afe426a::t_63814d4a4eaa26 409-420,423-435,437-447
+fixtures/js-consumer/tsconfig.json
+  s_d762ce5afe426a::t_cbcf2245835517 1-5
+benchmarks/project-worker.mjs
+  s_d762ce5afe426a::t_34c1398bf7a28d 1-30
+benchmarks/README.md
+  s_d762ce5afe426a::t_454b113b636d9c 156-159,161
+  s_d762ce5afe426a::t_a6e946410483bd 47-49,132-137,160,185-187
+  s_d762ce5afe426a::t_461801b4223929 178-184
+  s_d762ce5afe426a::t_ede5d8b58159a3 174-177
+  s_d762ce5afe426a::t_d627c693a528a5 1,11,138-155,162-173
+src/runtime/middleware.ssr.test.js
+  s_d762ce5afe426a::t_738c4f30ad1e55 3,18-21,79-96,101-102,341,408,444,560-578
+docs/release-evidence/1.6.0-release-preparation.md
+  s_d762ce5afe426a::t_ead3a9a63cc9e8 136-145
+  s_d762ce5afe426a::t_a6e946410483bd 4-6,81,83,91-92,111-114,134
+  s_d762ce5afe426a::t_461801b4223929 1-3,7-36,38-80,82,84-90,93-110,115-133,135
+  s_d762ce5afe426a::t_55ea03a06d6231 37
+scripts/check-deno-version.mjs
+  s_d762ce5afe426a::t_6290dad146ed38 1-15
+scripts/run-release-benchmark.mjs
+  s_d762ce5afe426a::t_34c1398bf7a28d 3,12-13,30
+fixtures/ssr-node/src/middleware.ts
+  s_d762ce5afe426a::t_3c8ce95ead6ca5 71
+scripts/package-smoke.mjs
+  s_d762ce5afe426a::t_47c231bc331390 5,12,124-126,137,161-164,175-179,257-266
+src/build/transaction.test.js
+  s_d762ce5afe426a::t_2cfd855ca48d42 114-124
+src/core/plugin-validation.js
+  s_d762ce5afe426a::t_cb91b16ddc7e57 39,43,265,267,274,318
+src/hooks/plugin-validation.test.js
+  s_d762ce5afe426a::t_9ed023ce39dbc2 144-154
+src/lib/config-migrate.test.js
+  s_d762ce5afe426a::t_865a10d5521fa4 16,334-352
+src/runtime/dynamic-routes.dev.test.js
+  s_d762ce5afe426a::t_6456aa2f4c9311 232,262,303
+src/runtime/serve.test.js
+  s_d762ce5afe426a::t_c76a41d3acea12 1620-1630
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4ba6567c0d2948d951a4cdf845cc4cd30b7dec41",
+  "prompts": {},
+  "sessions": {
+    "s_d762ce5afe426a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fea3-85b1-7b50-b1ce-3852f1b4cc01",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}

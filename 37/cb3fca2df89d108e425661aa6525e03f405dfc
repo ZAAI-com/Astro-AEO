@@ -1,0 +1,28 @@
+.changeset/tab-content.md
+  s_923fecc9e5a133::t_11ea9e30ea1c70 1-5
+src/core/extract/index.js
+  s_923fecc9e5a133::t_2b9032aecbeabd 310-311
+  s_923fecc9e5a133::t_99b48af3bb07d2 7,242,262-263,266-309,312-339,881-889
+src/core/extract/tabs.test.js
+  s_923fecc9e5a133::t_2b9032aecbeabd 46-50
+  s_923fecc9e5a133::t_11ea9e30ea1c70 1-45,51-84,85-94,99-104,106-116,119-155
+README.md
+  s_923fecc9e5a133::t_e3f4411c1edf6c 881
+  s_923fecc9e5a133::t_869efe974c3019 878-880
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "37cb3fca2df89d108e425661aa6525e03f405dfc",
+  "prompts": {},
+  "sessions": {
+    "s_923fecc9e5a133": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fd4f-7966-7552-9bed-766ed9b00461",
+        "model": "gpt-6-astra"
+      },
+      "human_author": null
+    }
+  }
+}

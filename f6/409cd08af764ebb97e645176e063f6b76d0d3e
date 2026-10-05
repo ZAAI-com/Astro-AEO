@@ -1,0 +1,28 @@
+README.md
+  s_923fecc9e5a133::t_13c370566ee0be 749-750,752-753
+.changeset/complete-runtime-corpus.md
+  s_923fecc9e5a133::t_05efab70ee3050 1-5
+src/runtime/serve.js
+  s_923fecc9e5a133::t_d08bb8d57139f3 16,80,83-86,89-90,92-93,97-98,100,103,109,115-116,121-122,124-125
+src/runtime/middleware-corpus-failure.test.js
+  s_923fecc9e5a133::t_05efab70ee3050 1-6,8-26,28-35,37-42,44-90,91-133,135-137,139-140,143,147-160,162-164
+  s_923fecc9e5a133::t_74e516d370e77a 7,36,43,138,141-142,144-146
+src/runtime/middleware-corpus-auth.test.js
+  s_923fecc9e5a133::t_d08bb8d57139f3 490-492
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f6409cd08af764ebb97e645176e063f6b76d0d3e",
+  "prompts": {},
+  "sessions": {
+    "s_923fecc9e5a133": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fd4f-7966-7552-9bed-766ed9b00461",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}

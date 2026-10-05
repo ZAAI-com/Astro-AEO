@@ -1,0 +1,124 @@
+src/build/ownership.js
+  s_d762ce5afe426a::t_09c1cc5187c705 51-59
+package.json
+  s_d762ce5afe426a::t_fd26de53ceeeb4 88-95
+cli/validate-report.js
+  s_d762ce5afe426a::t_10104ed9b7c4bf 1-32
+cli/reports/contracts.js
+  s_d762ce5afe426a::t_10104ed9b7c4bf 1-15,28-82
+  s_d762ce5afe426a::t_9209cf6373e5c8 16-17,23,27
+  s_d762ce5afe426a::t_7449af88a79387 18-22,24-26
+schema/graph-report-v1.schema.json
+  s_d762ce5afe426a::t_10104ed9b7c4bf 1-81
+docs/reports.md
+  s_d762ce5afe426a::t_b7d5923bf40bd9 1-30,32-128
+  s_d762ce5afe426a::t_fa729b47182024 31
+docs/release-evidence/1.6.0-decisions.md
+  s_d762ce5afe426a::t_c38ae0afb1d950 293-347
+scripts/report-schemas.mjs
+  s_d762ce5afe426a::t_10104ed9b7c4bf 1-60
+schema/changes-report-v1.schema.json
+  s_d762ce5afe426a::t_10104ed9b7c4bf 1-177
+bin/astro-aeo.js
+  s_d762ce5afe426a::t_b7d5923bf40bd9 57
+  s_d762ce5afe426a::t_297ca6aef1ff89 6-7,21-22,52-56,58-61,101-110
+  s_d762ce5afe426a::t_c212c20b8541bc 111-113
+src/index.d.ts
+  s_d762ce5afe426a::t_fd26de53ceeeb4 99-142
+src/core/version-corpus.e2e.test.js
+  s_d762ce5afe426a::t_09c1cc5187c705 7,96-97
+  s_d762ce5afe426a::t_916a55f0bbea10 94-95,98-113
+  s_d762ce5afe426a::t_43cbf196c22a15 8
+cli/reports/graph.js
+  s_d762ce5afe426a::t_7cdd29a9fa3ed8 1-21,31-69
+  s_d762ce5afe426a::t_a378a370ae2e93 22-30
+cli/reports/traffic.js
+  s_d762ce5afe426a::t_85c1275df3fe2a 1,3-35,37,40-74
+  s_d762ce5afe426a::t_2143aab4698f98 2,36
+  s_d762ce5afe426a::t_7449af88a79387 38-39
+cli/reports/io.js
+  s_d762ce5afe426a::t_a378a370ae2e93 54,80,118-120,128-134
+  s_d762ce5afe426a::t_10104ed9b7c4bf 1-29,35-53,55-79,81-117,121-127,135
+  s_d762ce5afe426a::t_b1cda4bfdef938 30-34
+cli/reports/formats.js
+  s_d762ce5afe426a::t_6621ce67463fee 63
+  s_d762ce5afe426a::t_297ca6aef1ff89 1-62,64-68,70-103
+  s_d762ce5afe426a::t_fd26de53ceeeb4 69
+cli/doctor.js
+  s_d762ce5afe426a::t_09c1cc5187c705 7,269
+schema/inspect-report-v1.schema.json
+  s_d762ce5afe426a::t_10104ed9b7c4bf 1-321
+cli/report.js
+  s_d762ce5afe426a::t_6621ce67463fee 21
+  s_d762ce5afe426a::t_9209cf6373e5c8 3,53-55,70-89
+  s_d762ce5afe426a::t_2143aab4698f98 24
+  s_d762ce5afe426a::t_7449af88a79387 46
+  s_d762ce5afe426a::t_297ca6aef1ff89 2,4-13,15-20,22-23,25-45,47-52,56-69,90-92,94-98
+schema/page-snapshot-v1.schema.json
+  s_d762ce5afe426a::t_10104ed9b7c4bf 1-161
+scripts/check-schema.mjs
+  s_d762ce5afe426a::t_10104ed9b7c4bf 2,93-96
+  s_d762ce5afe426a::t_d90218e202e29b 97-99
+.changeset/read-only-data-reports.md
+  s_d762ce5afe426a::t_b7d5923bf40bd9 1-5
+  s_d762ce5afe426a::t_09c1cc5187c705 6-7
+cli/reports/changes.js
+  s_d762ce5afe426a::t_85c1275df3fe2a 1-44
+cli/reports/reports.test.js
+  s_d762ce5afe426a::t_9209cf6373e5c8 322,335,340-357
+  s_d762ce5afe426a::t_7449af88a79387 1-244,246-279,284,291,298,306,311,320-321
+  s_d762ce5afe426a::t_2143aab4698f98 245
+  s_d762ce5afe426a::t_6b9ade129832f1 280-283,285-290,292-297,299-305,307-310,312-319,323-334,336-339
+schema/rag-report-v1.schema.json
+  s_d762ce5afe426a::t_10104ed9b7c4bf 1-254
+cli/reports/rag.js
+  s_d762ce5afe426a::t_7cdd29a9fa3ed8 1-18,21-39,41,46-63,68-170
+  s_d762ce5afe426a::t_7449af88a79387 19-20,42-45,67
+  s_d762ce5afe426a::t_1c9fba5d706b7a 40,64-66
+cli/formats/html.js
+  s_d762ce5afe426a::t_297ca6aef1ff89 2,38
+schema/processing-trace-v1.schema.json
+  s_d762ce5afe426a::t_10104ed9b7c4bf 1-191
+AGENTS.md
+  s_d762ce5afe426a::t_b7d5923bf40bd9 146-152
+cli/formats/csp.js
+  s_d762ce5afe426a::t_297ca6aef1ff89 1-11
+README.md
+  s_d762ce5afe426a::t_b7d5923bf40bd9 1872-1891
+cli/reports/inspect.js
+  s_d762ce5afe426a::t_297ca6aef1ff89 40
+  s_d762ce5afe426a::t_a378a370ae2e93 25-34,37-39,60,62-67,96,98
+  s_d762ce5afe426a::t_09c1cc5187c705 5,94
+  s_d762ce5afe426a::t_85c1275df3fe2a 1-4,6-8,10-22,24,35-36,41-59,61,68-76,104
+  s_d762ce5afe426a::t_2143aab4698f98 9,23,77-93,95,97,99-103
+schema/analytics-report-v1.schema.json
+  s_d762ce5afe426a::t_10104ed9b7c4bf 1-251
+scripts/generate-schema.mjs
+  s_d762ce5afe426a::t_10104ed9b7c4bf 2,30-32
+  s_d762ce5afe426a::t_f36d4337e40d58 33
+CHANGELOG.md
+  s_d762ce5afe426a::t_b7d5923bf40bd9 7-8
+fixtures/types-consumer/consumer.ts
+  s_d762ce5afe426a::t_b7d5923bf40bd9 1088-1090,1092-1112
+  s_d762ce5afe426a::t_0e5a7ebf54015e 1091
+cli/reports/cli.test.js
+  s_d762ce5afe426a::t_fa5b9c25e4a7f8 1-20
+src/audit/rules.test.js
+  s_d762ce5afe426a::t_258673aaa97caa 20-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e430adc2cb8527bc51e27dd38325dbda991d8fd3",
+  "prompts": {},
+  "sessions": {
+    "s_d762ce5afe426a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fea3-85b1-7b50-b1ce-3852f1b4cc01",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
