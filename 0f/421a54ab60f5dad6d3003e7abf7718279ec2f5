@@ -1,0 +1,38 @@
+README.md
+  s_923fecc9e5a133::t_e3f4411c1edf6c 881
+  s_923fecc9e5a133::t_869efe974c3019 878-880
+src/core/extract/tabs.test.js
+  s_923fecc9e5a133::t_2b9032aecbeabd 46-50
+  s_dc00dec49de5df::t_5332095c63a050 95-98,105,117-118
+  s_923fecc9e5a133::t_11ea9e30ea1c70 1-45,51-94,99-104,106-116,119-155
+.changeset/tab-content.md
+  s_923fecc9e5a133::t_11ea9e30ea1c70 1-5
+src/core/extract/index.js
+  s_923fecc9e5a133::t_99b48af3bb07d2 7,242,262-263,266-309,312-339,881-889
+  s_dc00dec49de5df::t_5332095c63a050 264-265
+  s_923fecc9e5a133::t_2b9032aecbeabd 310-311
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0f421a54ab60f5dad6d3003e7abf7718279ec2f5",
+  "prompts": {},
+  "sessions": {
+    "s_923fecc9e5a133": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fd4f-7966-7552-9bed-766ed9b00461",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_dc00dec49de5df": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10976-a3ab-7e51-8f3c-c7fb8842bb43",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    }
+  }
+}
