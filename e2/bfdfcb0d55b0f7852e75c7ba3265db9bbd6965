@@ -1,0 +1,20 @@
+docs/release-evidence/1.5.4-semantic-validation.md
+  s_e24111d6021266::t_e3b53789101df1 6-7,21,75,78,80,82-85
+  s_e24111d6021266::t_614484fc322502 20,79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e2bfdfcb0d55b0f7852e75c7ba3265db9bbd6965",
+  "prompts": {},
+  "sessions": {
+    "s_e24111d6021266": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1095e-7c00-7452-b794-1a86cd9e5944",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
