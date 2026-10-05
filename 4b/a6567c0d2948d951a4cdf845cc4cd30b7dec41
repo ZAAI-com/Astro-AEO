@@ -70,6 +70,7 @@ benchmarks/README.md
   s_d762ce5afe426a::t_d627c693a528a5 1,11,138-155,162-173
 src/runtime/middleware.ssr.test.js
   s_d762ce5afe426a::t_738c4f30ad1e55 3,18-21,79-96,101-102,341,408,444,560-578
+  s_dc00dec49de5df::t_cb281922812338 41-42,45,60,364,395
 docs/release-evidence/1.6.0-release-preparation.md
   s_d762ce5afe426a::t_ead3a9a63cc9e8 136-145
   s_d762ce5afe426a::t_a6e946410483bd 4-6,81,83,91-92,111-114,134
@@ -95,6 +96,8 @@ src/runtime/dynamic-routes.dev.test.js
   s_d762ce5afe426a::t_6456aa2f4c9311 232,262,303
 src/runtime/serve.test.js
   s_d762ce5afe426a::t_c76a41d3acea12 1620-1630
+fixtures/ssr-node/src/pages/sourced-error.astro
+  s_dc00dec49de5df::t_cb281922812338 6-7
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -106,6 +109,14 @@ src/runtime/serve.test.js
       "agent_id": {
         "tool": "codex",
         "id": "01a0fea3-85b1-7b50-b1ce-3852f1b4cc01",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_dc00dec49de5df": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10976-a3ab-7e51-8f3c-c7fb8842bb43",
         "model": "gpt-6.1-sol"
       },
       "human_author": "Manuel <m@manuelgruber.com>"
