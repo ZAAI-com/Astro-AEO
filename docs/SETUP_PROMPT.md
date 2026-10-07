@@ -39,11 +39,11 @@ You are setting up the `astro-aeo` integration in this Astro project. Do the fol
      }),
    ],
    ```
-   `starlightAeo()` registers Astro-AEO itself, publishes each docs page's authored Markdown, reads content from `.sl-markdown-content`, excludes `/404`, and leaves the sitemap to Starlight. See the [Starlight section](https://github.com/ZAAI-com/Astro-AEO#starlight).
+   `starlightAeo()` registers Astro-AEO itself, excludes `/404`, and leaves the sitemap to Starlight. Each docs page's `.md` companion uses its authored Markdown; a page whose source it cannot convert safely (an MDX expression, `export`, or unsupported component) falls back to the rendered `.sl-markdown-content` and records the `authored-source-fallback` diagnostic, which is expected, not an error. See the [Starlight section](https://github.com/ZAAI-com/Astro-AEO#starlight).
 
 3. Make sure `astro.config` sets a `site` URL (Astro-AEO needs it for absolute links). If it is missing, ask me for the production URL.
 
-4. Add the integration (on a Starlight site, pass these options as `starlightAeo({ aeo: { ... } })` from step 2 instead):
+4. Add the integration. Skip this step on an EmDash site. On a Starlight site, do not add `aeo()`: pass these options as `starlightAeo({ aeo: { ... } })` from step 2 instead.
    ```js
    import aeo from 'astro-aeo';
    // inside defineConfig:
