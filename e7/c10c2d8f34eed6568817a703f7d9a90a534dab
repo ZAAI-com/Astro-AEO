@@ -1,0 +1,19 @@
+.github/workflows/W2-Release.yml
+  s_0fa03f4543287d::t_1f7f4892513ea9 29-41,51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e7c10c2d8f34eed6568817a703f7d9a90a534dab",
+  "prompts": {},
+  "sessions": {
+    "s_0fa03f4543287d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fea1-43b1-7902-a56a-c47a5166f19b",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}

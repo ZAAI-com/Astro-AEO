@@ -1,0 +1,96 @@
+src/core/rag-plan.js
+  s_d762ce5afe426a::t_3a8863bb669e6f 1-13,23-25,27-45,47-53,55-60,62-64,66-69
+  s_d762ce5afe426a::t_9e7abaca41e5ae 14-22,26,46,54,61,65,70
+src/core/rag.js
+  s_d762ce5afe426a::t_25ea0f874708b2 1-10,12-22,24-62,64-65,67-111,113-120,123-136,138-150,152,157
+  s_d762ce5afe426a::t_4c650f5eace9a6 11,23,63,66,112,121-122,137,151,153-156
+src/core/version-corpus.js
+  s_d762ce5afe426a::t_3a8863bb669e6f 33-34,38,43,68,74,92
+src/runtime/serve.js
+  s_d762ce5afe426a::t_ff6ac5170b10ed 2,755-756,761,787-788
+  s_d762ce5afe426a::t_2bdc0f2f6dec8f 759-760,762-764
+src/index.d.ts
+  s_d762ce5afe426a::t_3a8863bb669e6f 154,821-855
+  s_d762ce5afe426a::t_eff76fe8f40a42 51-52,856,1264-1265
+src/build/rag.js
+  s_d762ce5afe426a::t_ff6ac5170b10ed 1-35
+docs/release-evidence/1.6.0-decisions.md
+  s_d762ce5afe426a::t_f7d13ef6046948 251-253,274,281-282,284-285
+  s_d762ce5afe426a::t_c557e38088e76b 238-245,247-250,254-273,275-280,283,286-292
+  s_d762ce5afe426a::t_a36396b54ba452 246
+src/core/corpus-artifacts.js
+  s_d762ce5afe426a::t_dc2cab81eec6ac 12,64,76-88,462
+  s_d762ce5afe426a::t_3a8863bb669e6f 3,32,49-50,72,75,89-93,449-455,457-460,599
+  s_d762ce5afe426a::t_bd992dc64ee65e 2,66,131,438-448,456,461,479-480,639,730
+src/build/evidence.js
+  s_d762ce5afe426a::t_ff6ac5170b10ed 87
+  s_d762ce5afe426a::t_e97d9a4bd9a2ca 15,18,44-45,53,59
+src/hooks/build-done.js
+  s_d762ce5afe426a::t_ff6ac5170b10ed 2-3,798-799,807,881,883,889-893
+  s_d762ce5afe426a::t_6a527e599ac8b1 800-806
+src/build/corpus.js
+  s_d762ce5afe426a::t_ff6ac5170b10ed 19,29,42-45,81-82,175,187
+  s_d762ce5afe426a::t_5daaf5c91b9558 3
+.changeset/private-rag-records.md
+  s_d762ce5afe426a::t_9c71d2c40389f9 1-9
+AGENTS.md
+  s_d762ce5afe426a::t_4433f472347d81 128-134
+CHANGELOG.md
+  s_d762ce5afe426a::t_e9900c1427c734 9-14
+README.md
+  s_d762ce5afe426a::t_95f40e9d07f0b5 277,1103-1136
+SECURITY.md
+  s_d762ce5afe426a::t_23dce92107edb8 143-153
+cli/validate-corpus.js
+  s_d762ce5afe426a::t_ad417702ec03b2 13,615
+docs/rag.md
+  s_d762ce5afe426a::t_5458634225b1ae 1-71
+docs/rules.md
+  s_d762ce5afe426a::t_ff2e8acc9bc6c0 605-608
+fixtures/types-consumer/consumer.ts
+  s_d762ce5afe426a::t_4c1defad148d5f 1070-1087
+package.json
+  s_d762ce5afe426a::t_4b2fe1fc403a00 86-88
+schema/rag-index-v1.schema.json
+  s_d762ce5afe426a::t_6a842f886d0404 1-69
+schema/rag-record-v1.schema.json
+  s_d762ce5afe426a::t_b172363fba0bf8 1-202
+scripts/check-schema.mjs
+  s_d762ce5afe426a::t_82a24f86720ecb 6,85-91
+scripts/generate-schema.mjs
+  s_d762ce5afe426a::t_a04ef90741759d 6,24-28
+scripts/rag-schema.mjs
+  s_d762ce5afe426a::t_cbb5e4a0803902 1-39
+src/audit/rules.js
+  s_d762ce5afe426a::t_2e65e2203161ce 135
+src/build/evidence.test.js
+  s_d762ce5afe426a::t_fbc284575d374d 97-106
+src/build/rag.test.js
+  s_d762ce5afe426a::t_10016fd1c4de59 1-97
+src/config.js
+  s_d762ce5afe426a::t_74cd2e24168595 70,91-92,95,153
+src/core/rag-plan.test.js
+  s_d762ce5afe426a::t_c2018a997f7ce4 1-111
+src/core/rag.test.js
+  s_d762ce5afe426a::t_d4991398e442f5 1-93
+src/core/version-corpus.e2e.test.js
+  s_d762ce5afe426a::t_287f7d6368db1b 4,30,79-89
+src/rag.ssr.test.js
+  s_d762ce5afe426a::t_c8e0f4c21a08dd 1-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "66bd05aa2c6485d41eac545e0cf2bb3a535b2f8e",
+  "prompts": {},
+  "sessions": {
+    "s_d762ce5afe426a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fea3-85b1-7b50-b1ce-3852f1b4cc01",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}

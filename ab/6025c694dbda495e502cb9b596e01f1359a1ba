@@ -1,0 +1,59 @@
+src/runtime/serve.test.js
+  s_d762ce5afe426a::t_4eec4dabd26e70 88,94,119
+src/hooks/build-done.js
+  s_d762ce5afe426a::t_3c3a14abd0a813 49,72,231-234
+src/runtime/serve.js
+  s_d762ce5afe426a::t_bd7f4a6520b5e1 35,54,298-299
+src/core/route-facts.test.js
+  s_d762ce5afe426a::t_3c3a14abd0a813 1-9
+benchmarks/baseline-postfix-29729bb.json
+  s_d762ce5afe426a::t_f21be8d0602f69 1-1431
+src/build/collect.test.js
+  s_d762ce5afe426a::t_d4e67cd89570b2 1,328,369,413,417,431,458,461,465
+src/core/page-model.js
+  s_d762ce5afe426a::t_f5d441286aeb0c 174-175,206
+  s_d762ce5afe426a::t_1550af0fc2e7ab 12,330
+src/index.js
+  s_d762ce5afe426a::t_3c3a14abd0a813 96-97,180,434,479-481,665
+schema/astro-aeo.schema.json
+  s_923fecc9e5a133::t_7718506d5448d5 1
+src/core/page-model.test.js
+  s_d762ce5afe426a::t_f5d441286aeb0c 15,21-38
+  s_d762ce5afe426a::t_2cf4489f60a247 425,430,441
+  s_d762ce5afe426a::t_d4e67cd89570b2 144,254,313,344,370,426
+  s_d762ce5afe426a::t_689374df1e5f8a 39
+docs/release-evidence/1.6.0-decisions.md
+  s_d762ce5afe426a::t_e95a6c2f8fa5fa 1-49
+.changeset/source-facts.md
+  s_d762ce5afe426a::t_e95a6c2f8fa5fa 1-7
+scripts/schema-definition.mjs
+  s_923fecc9e5a133::t_641229a7ee83e3 420,708
+src/core/route-facts.js
+  s_d762ce5afe426a::t_3c3a14abd0a813 1-13
+src/integration-hooks.test.js
+  s_d762ce5afe426a::t_b3c0a3db819ef8 1202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ab6025c694dbda495e502cb9b596e01f1359a1ba",
+  "prompts": {},
+  "sessions": {
+    "s_923fecc9e5a133": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fd4f-7966-7552-9bed-766ed9b00461",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_d762ce5afe426a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fea3-85b1-7b50-b1ce-3852f1b4cc01",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}

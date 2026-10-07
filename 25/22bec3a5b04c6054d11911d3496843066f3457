@@ -1,0 +1,64 @@
+src/edge.d.ts
+  s_d762ce5afe426a::t_2cf4489f60a247 8-9,22
+CHANGELOG.md
+  s_d762ce5afe426a::t_b42c228b0c650f 15-17
+src/core/semantic-plugin.js
+  s_d762ce5afe426a::t_c0a8e12924bfed 1-35,38-44
+  s_d762ce5afe426a::t_6b4558e2fe8d09 37
+  s_d762ce5afe426a::t_136cfbf660a990 36
+.changeset/markdown-http-policy.md
+  s_d762ce5afe426a::t_e95a6c2f8fa5fa 1-5
+  s_d762ce5afe426a::t_253b380a27d73e 6-7
+  s_d762ce5afe426a::t_38e3b0b5bd3c1b 8-9
+README.md
+  s_d762ce5afe426a::t_b42c228b0c650f 797-805
+src/runtime/edge/vercel.js
+  s_d762ce5afe426a::t_2cf4489f60a247 42,46-57,62-63
+  s_d762ce5afe426a::t_15be7e0ef4c85c 29-30,39-41
+src/runtime/serve.js
+  s_d762ce5afe426a::t_136cfbf660a990 36,381,387-390,488-499
+  s_d762ce5afe426a::t_6b4558e2fe8d09 391-395
+  s_d762ce5afe426a::t_cdef9c7daf591c 500-501
+src/runtime/middleware-head.test.js
+  s_d762ce5afe426a::t_bd7f4a6520b5e1 64-76
+src/core/head.test.js
+  s_d762ce5afe426a::t_203d91eed0ba46 32-42
+src/semantic/plugin.js
+  s_d762ce5afe426a::t_c0a8e12924bfed 2
+src/runtime/middleware.js
+  s_d762ce5afe426a::t_2cf4489f60a247 1369-1371
+src/core/head.js
+  s_d762ce5afe426a::t_739a5c0724ac25 561,563
+  s_d762ce5afe426a::t_38e3b0b5bd3c1b 554-560,562,564-566,734-735,743
+src/runtime/edge/handler.test.js
+  s_d762ce5afe426a::t_b42c228b0c650f 187,191,196-206
+  s_d762ce5afe426a::t_bd7f4a6520b5e1 207-216,286-305
+  s_d762ce5afe426a::t_12fbb38a9cf069 306
+src/hooks/build-done.js
+  s_d762ce5afe426a::t_2cf4489f60a247 748
+src/schema.js
+  s_d762ce5afe426a::t_203d91eed0ba46 414
+src/build/edge-manifest.js
+  s_d762ce5afe426a::t_2cf4489f60a247 18,31
+fixtures/types-consumer/consumer.ts
+  s_d762ce5afe426a::t_253b380a27d73e 977
+src/runtime/edge/handler.js
+  s_d762ce5afe426a::t_2cf4489f60a247 26,32-33,49,130-131,137,147,150,167
+  s_d762ce5afe426a::t_15be7e0ef4c85c 120-129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2522bec3a5b04c6054d11911d3496843066f3457",
+  "prompts": {},
+  "sessions": {
+    "s_d762ce5afe426a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fea3-85b1-7b50-b1ce-3852f1b4cc01",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}

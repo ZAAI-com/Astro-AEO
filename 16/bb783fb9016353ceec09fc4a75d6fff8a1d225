@@ -1,0 +1,111 @@
+scripts/schema-definition.mjs
+  s_d762ce5afe426a::t_604baf5aecedca 375
+  s_d762ce5afe426a::t_ab21a4e9d315f6 373-374,376-379
+src/core/locale.test.js
+  s_d762ce5afe426a::t_7da1a13350dbd0 32-56
+src/core/markdown-units.js
+  s_d762ce5afe426a::t_769fb62b4bd7f0 1-31
+schema/astro-aeo.schema.json
+  s_d762ce5afe426a::t_1dbb49d913523a 1
+src/build/sitemap-validate.test.js
+  s_d762ce5afe426a::t_5b8fec1a4e8aa1 27-43
+docs/rules.md
+  s_d762ce5afe426a::t_d74f788441712c 757-772,777-780,785-788,793-803
+  s_d762ce5afe426a::t_5dabe52bcf088f 829
+  s_d762ce5afe426a::t_cd00bacceebe8a 804,830-832
+src/lib/config-profile.js
+  s_d762ce5afe426a::t_604baf5aecedca 13-14,32-34
+  s_d762ce5afe426a::t_ab21a4e9d315f6 1-12,15-31,35-41
+src/generators/domain-profile.test.js
+  s_d762ce5afe426a::t_7da1a13350dbd0 6-18
+src/index.d.ts
+  s_d762ce5afe426a::t_ab21a4e9d315f6 1045-1046,1049-1050
+  s_d762ce5afe426a::t_3864c1bf8e1f4f 99-100
+  s_d762ce5afe426a::t_3ff510060e7daa 1051
+src/config.js
+  s_d762ce5afe426a::t_ab21a4e9d315f6 12,112,676
+README.md
+  s_d762ce5afe426a::t_55b551840abde6 977-987
+  s_d762ce5afe426a::t_355fbf0eebe271 228,997-999,1004-1006,1103-1108
+  s_d762ce5afe426a::t_672c6440ee1029 1109
+CHANGELOG.md
+  s_d762ce5afe426a::t_55b551840abde6 23-26
+src/config.test.js
+  s_d762ce5afe426a::t_604baf5aecedca 15
+  s_d762ce5afe426a::t_7da1a13350dbd0 6-14,16-19
+src/core/render/domain-profile.js
+  s_d762ce5afe426a::t_ab21a4e9d315f6 2,16-19
+src/runtime/corpus-tokenizer.test.js
+  s_d762ce5afe426a::t_c94d428ef74c19 1-16
+.changeset/heading-locale-corpus.md
+  s_d762ce5afe426a::t_5b8fec1a4e8aa1 1-5
+fixtures/types-consumer/consumer.ts
+  s_d762ce5afe426a::t_355fbf0eebe271 408-410,651,1035-1037
+src/runtime/serve.js
+  s_d762ce5afe426a::t_3864c1bf8e1f4f 706-707
+src/core/corpus-manifest.js
+  s_d762ce5afe426a::t_3864c1bf8e1f4f 91,113,133
+src/core/corpus-plan.test.js
+  s_d762ce5afe426a::t_7da1a13350dbd0 113-133
+  s_d762ce5afe426a::t_ad89cc813080c6 104-112
+src/core/corpus-artifacts.test.js
+  s_d762ce5afe426a::t_c94d428ef74c19 37-43,45-46,49-60
+  s_d762ce5afe426a::t_2145fcc9b154c9 5,44,47-48
+src/audit/rules.js
+  s_d762ce5afe426a::t_99e71483366ee9 57-61
+  s_d762ce5afe426a::t_5b8fec1a4e8aa1 173
+src/core/corpus-plan.js
+  s_d762ce5afe426a::t_769fb62b4bd7f0 2,44,196-197,203-207,214-215,218-220
+  s_d762ce5afe426a::t_ad89cc813080c6 208-213,216-217
+src/build/sitemap-validate.js
+  s_d762ce5afe426a::t_5b8fec1a4e8aa1 65-66,97-100
+  s_5bf817612d253b::t_64a9d3e9aba339 101
+src/core/markdown-units.test.js
+  s_d762ce5afe426a::t_355fbf0eebe271 8,10
+  s_d762ce5afe426a::t_7da1a13350dbd0 1-7,9,11-20
+docs/release-evidence/1.6.0-decisions.md
+  s_d762ce5afe426a::t_67c9790b662fc5 69-95
+cli/indexnow-prepare.test.js
+  s_d762ce5afe426a::t_5b8fec1a4e8aa1 23-46
+src/core/locale.js
+  s_d762ce5afe426a::t_99e71483366ee9 36,123,145,152,277-281
+  s_d762ce5afe426a::t_604baf5aecedca 39
+src/core/crawler-registry.test.js
+  s_d762ce5afe426a::t_355fbf0eebe271 2,26-34
+  s_d762ce5afe426a::t_f71fc1300dbf2b 35
+src/core/corpus-tokenizer.js
+  s_d762ce5afe426a::t_3864c1bf8e1f4f 184,199,217
+src/core/crawler-registry.js
+  s_d762ce5afe426a::t_3864c1bf8e1f4f 21-22,45-54
+  s_d762ce5afe426a::t_f66b8a52dd9b7a 55-56
+src/runtime/corpus-tokenizer.js
+  s_d762ce5afe426a::t_3864c1bf8e1f4f 13,41
+src/core/corpus-artifacts.js
+  s_d762ce5afe426a::t_3864c1bf8e1f4f 73,431-433,532
+src/build/corpus.js
+  s_d762ce5afe426a::t_71e871e5f03fcb 41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "16bb783fb9016353ceec09fc4a75d6fff8a1d225",
+  "prompts": {},
+  "sessions": {
+    "s_5bf817612d253b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dc243-7f98-7903-86e5-fb283a27a61f",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_d762ce5afe426a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fea3-85b1-7b50-b1ce-3852f1b4cc01",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}

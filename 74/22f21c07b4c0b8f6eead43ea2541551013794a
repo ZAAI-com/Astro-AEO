@@ -1,0 +1,163 @@
+src/core/corpus-topology.test.js
+  s_d762ce5afe426a::t_2c913365d1ec30 1-41
+src/core/plugin-validation.js
+  s_d762ce5afe426a::t_972dd639df01ac 335
+  s_d762ce5afe426a::t_e874ec16b2faaa 337
+  s_d762ce5afe426a::t_c5639785999bb8 2,17,39,330-334,336,338
+  s_81625f093b770e::t_8feae60faeb371 339
+src/audit/site-rules.js
+  s_d762ce5afe426a::t_a6ed63db759b33 57,263-267,269-283
+  s_d762ce5afe426a::t_716df24119b51d 268
+  s_d762ce5afe426a::t_a61d58e215b7e0 284
+src/page.js
+  s_d762ce5afe426a::t_a7a3654e3a528c 2,13-14,60-62
+  s_d762ce5afe426a::t_41694d5a9384c5 63
+src/runtime/plugins.js
+  s_d762ce5afe426a::t_a7a3654e3a528c 82,99-100,511
+src/core/extract/marker.js
+  s_d762ce5afe426a::t_a7a3654e3a528c 19-20
+src/content.test.js
+  s_d762ce5afe426a::t_a9434d34ab9431 17-27
+src/build/collect.js
+  s_d762ce5afe426a::t_a7a3654e3a528c 209,251,286-287
+  s_d762ce5afe426a::t_0fee84b5aead1a 99
+src/core/locale.test.js
+  s_d762ce5afe426a::t_586d9c1cf175f6 32-39
+src/build/evidence.js
+  s_d762ce5afe426a::t_0fee84b5aead1a 29
+src/core/plugin-version-validation.test.js
+  s_d762ce5afe426a::t_d699994f2400dc 1-9,11-15
+  s_d762ce5afe426a::t_586d9c1cf175f6 10
+src/runtime/serve.js
+  s_d762ce5afe426a::t_e874ec16b2faaa 203,321-323,325-332,603,619,628-629,669-700
+  s_d762ce5afe426a::t_a7a3654e3a528c 268-269
+  s_d762ce5afe426a::t_716df24119b51d 3,309-310,352-353,1170-1179
+  s_d762ce5afe426a::t_222b7a324515e4 319
+  s_d762ce5afe426a::t_a6ed63db759b33 646
+  s_d762ce5afe426a::t_d699994f2400dc 395,403,421
+  s_d762ce5afe426a::t_c5639785999bb8 2,159,745-747,755,774-775
+src/content.js
+  s_d762ce5afe426a::t_a6ed63db759b33 53
+README.md
+  s_d762ce5afe426a::t_862a4a4960c0b5 276,715-754
+src/build/collect.test.js
+  s_d762ce5afe426a::t_0fee84b5aead1a 134,188,211-213,218-220,261
+src/runtime/serve.test.js
+  s_d762ce5afe426a::t_d1e3702f0ab2a0 62-92
+  s_d762ce5afe426a::t_faa73ae6a49dbf 41-61
+src/core/version-corpus.js
+  s_d762ce5afe426a::t_5d26949e199298 19-24,34
+  s_d762ce5afe426a::t_a6ed63db759b33 41
+  s_d762ce5afe426a::t_5ca0e90d384307 1-18,25-33,35-40,42-90
+src/core/corpus-manifest.js
+  s_d762ce5afe426a::t_a7a3654e3a528c 51,67-68,83,96,148-149
+src/core/locale.js
+  s_d762ce5afe426a::t_a7a3654e3a528c 205,258,277
+  s_d762ce5afe426a::t_972dd639df01ac 259
+src/index.d.ts
+  s_d762ce5afe426a::t_a7a3654e3a528c 28-31,33-38,112,123,143-144,149,311,1168
+  s_d762ce5afe426a::t_a6ed63db759b33 32,39
+  s_d762ce5afe426a::t_c5639785999bb8 1188-1189
+src/core/version-pages.js
+  s_d762ce5afe426a::t_3bc5494e285a28 1,3-10,16-17,28-41,44-54,56-64,68-71,73-79,81-88,90-101
+  s_d762ce5afe426a::t_0fee84b5aead1a 2,14-15,55,89
+  s_d762ce5afe426a::t_c5639785999bb8 11-13,42-43,65-67,80
+  s_d762ce5afe426a::t_862a4a4960c0b5 18-27
+  s_d762ce5afe426a::t_716df24119b51d 72
+src/audit/facts.js
+  s_d762ce5afe426a::t_a7a3654e3a528c 127
+  s_d762ce5afe426a::t_a6ed63db759b33 18-20,122-125
+src/page.d.ts
+  s_d762ce5afe426a::t_a7a3654e3a528c 23-24,71
+fixtures/types-consumer/consumer.ts
+  s_d762ce5afe426a::t_0fee84b5aead1a 524-526,543-544,1043-1048
+src/build/corpus.test.js
+  s_d762ce5afe426a::t_faa73ae6a49dbf 87-106
+  s_d762ce5afe426a::t_33c44f926bf4bb 4,76-86
+src/audit/site-rules.test.js
+  s_d762ce5afe426a::t_faa73ae6a49dbf 7-19
+src/integration-hooks.test.js
+  s_d762ce5afe426a::t_384ca6fc678487 178-200
+src/core/page-model.test.js
+  s_d762ce5afe426a::t_384ca6fc678487 103-107
+CHANGELOG.md
+  s_d762ce5afe426a::t_862a4a4960c0b5 27-30
+src/core/corpus-artifacts.js
+  s_d762ce5afe426a::t_a7a3654e3a528c 30
+  s_d762ce5afe426a::t_5ca0e90d384307 2-4,46-48,65,68,73,94,104-105,131,136,170,251-252,361,413-417,452,510-512,554
+components/index.d.ts
+  s_d762ce5afe426a::t_a7a3654e3a528c 200-201
+src/core/page-model.js
+  s_d762ce5afe426a::t_716df24119b51d 36
+  s_d762ce5afe426a::t_a7a3654e3a528c 2,34-35,131,252,299-301
+src/build/catalogs.js
+  s_d762ce5afe426a::t_a7a3654e3a528c 4,243
+src/core/corpus-topology.js
+  s_d762ce5afe426a::t_3bc5494e285a28 1-39,41-42,46-56,58-92,96-97,99,113-115,117-125
+  s_d762ce5afe426a::t_5d26949e199298 43-45
+  s_d762ce5afe426a::t_c7ef894439ef72 93-95,98,100-112
+  s_d762ce5afe426a::t_c5639785999bb8 57
+  s_d762ce5afe426a::t_c00b4417b0c25e 40,116
+src/hooks/build-done.js
+  s_d762ce5afe426a::t_71d5b3d9d7fbac 43,290,292
+  s_d762ce5afe426a::t_c5639785999bb8 2,288-289,291,293-298,320,408,665-667
+src/build/corpus.js
+  s_d762ce5afe426a::t_222b7a324515e4 101,156-157,159-165
+  s_d762ce5afe426a::t_33c44f926bf4bb 158
+  s_81625f093b770e::t_90853e72ee721b 166
+src/core/version-pages.test.js
+  s_d762ce5afe426a::t_384ca6fc678487 70-71
+  s_d762ce5afe426a::t_2c913365d1ec30 1-28,31-69,72
+  s_d762ce5afe426a::t_862a4a4960c0b5 29-30
+src/hooks/build-done.test.js
+  s_d762ce5afe426a::t_faa73ae6a49dbf 24-62
+  s_d762ce5afe426a::t_0fee84b5aead1a 210,260
+src/core/page-version.js
+  s_d762ce5afe426a::t_a7a3654e3a528c 13-20
+src/core/version-corpus.test.js
+  s_d762ce5afe426a::t_2c913365d1ec30 1-76
+src/runtime/fallback-routes.dev.test.js
+  s_d762ce5afe426a::t_1b30bb964517e5 57,76-77,93-101,218-246
+docs/release-evidence/1.6.0-decisions.md
+  s_d762ce5afe426a::t_d465607546c08a 96-130
+src/core/version-corpus.e2e.test.js
+  s_d762ce5afe426a::t_1b30bb964517e5 1-68,70,72-81
+  s_d762ce5afe426a::t_6a7d23d9dd99d7 69,71
+docs/rules.md
+  s_d762ce5afe426a::t_0fee84b5aead1a 757-760,805-812,845-859
+  s_d762ce5afe426a::t_1026ab36cf7855 860
+.changeset/version-corpus-topology.md
+  s_d762ce5afe426a::t_862a4a4960c0b5 1-5
+src/audit/rules.js
+  s_d762ce5afe426a::t_a6ed63db759b33 59
+  s_d762ce5afe426a::t_0fee84b5aead1a 58
+src/runtime/middleware.js
+  s_d762ce5afe426a::t_716df24119b51d 598-599
+src/index.js
+  s_d762ce5afe426a::t_c7ef894439ef72 884-885,915
+  s_d762ce5afe426a::t_c5639785999bb8 33,886
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7422f21c07b4c0b8f6eead43ea2541551013794a",
+  "prompts": {},
+  "sessions": {
+    "s_81625f093b770e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fd02-61cc-79f0-a21a-35570284a024",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_d762ce5afe426a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fea3-85b1-7b50-b1ce-3852f1b4cc01",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
