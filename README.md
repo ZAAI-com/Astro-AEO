@@ -1111,6 +1111,8 @@ page and heading-aware chunk records under `.astro/aeo-cache/rag-v1/`. The index
 locale/version files, their hashes, the shared snapshot/trace build digest, and build-time
 incompleteness. Every file uses mode `0600`. Unlike sanitized evidence, these exports contain
 published Markdown text. Held MDX bodies and rendered HTML never enter the records.
+Records need absolute canonical URLs, so RAG requires a configured Astro `site`. Without one,
+the build reports `corpus-rag-origin-missing` and plans the other corpus families without RAG.
 
 Set `publish: true` explicitly to generate ownership-managed `/llms/rag.jsonl` artifacts.
 Global, locale, combined and automatic layouts follow the corpus topology, including archive

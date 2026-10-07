@@ -234,6 +234,14 @@ describe('single-observation audit exports',() => {
     const summary=readFileSync(join(root,'summary.md'),'utf8');expect(summary).toContain('https://example.test/');expect(summary).not.toContain('private');
     expect(JSON.parse(readFileSync(join(root,'audit.sarif'),'utf8')).runs[0].results[0].locations).toBeUndefined();
   });
+  test('writes URL exports into a real project reached through a linked folder',async() => {
+    const root=realpathSync(mkdtempSync(join(tmpdir(),'astro-aeo-linked-output-')));roots.push(root);
+    mkdirSync(join(root,'real','proj'),{recursive:true});symlinkSync(join(root,'real'),join(root,'link'));
+    const fetch=/** @type {typeof globalThis.fetch} */ (async() => new Response('<html lang="en"><head><title>Title</title></head></html>',{headers:{'content-type':'text/html'}}));
+    await runAudit(['https://example.test/','--format','sarif','--output','audit.sarif','--summary-output','summary.md'],{cwd:join(root,'link','proj'),version:'1.6.0',fetch});
+    expect(JSON.parse(readFileSync(join(root,'real','proj','audit.sarif'),'utf8')).version).toBe('2.1.0');
+    expect(readFileSync(join(root,'real','proj','summary.md'),'utf8')).toContain('https://example.test/');
+  });
   test('refuses duplicate outputs and symlinked destinations',async() => {
     const root=realpathSync(mkdtempSync(join(tmpdir(),'astro-aeo-audit-output-')));roots.push(root);
     await expect(runAudit([VALID,'--output','same','--github-output','same'],{cwd:root,version:'1.6.0'})).rejects.toThrow('distinct');

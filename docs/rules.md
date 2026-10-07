@@ -610,6 +610,10 @@ Severity: error. Raised by: offline.
 
 Severity: error. Raised by: offline.
 
+### corpus-rag-origin-missing
+
+Severity: error. Raised by: build.
+
 ### corpus-tokenizer-fallback
 
 Severity: warning. Raised by: build.

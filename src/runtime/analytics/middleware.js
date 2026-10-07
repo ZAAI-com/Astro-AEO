@@ -5,6 +5,20 @@ import { createConsoleSink } from './delivery.js';
 import { mdPathnameFor, basePrefix } from '../../core/page-model.js';
 import { corpusRoutePatterns } from '../../core/corpus-topology.js';
 
+/** A promise's value only if it has already fulfilled, never waiting for it.
+ * An already-fulfilled promise wins the race against the resolved marker.
+ * @template T @param {Promise<T>} promise @returns {Promise<{ value: T } | null>}
+ */
+async function fulfilledValue(promise) {
+  const marker = {};
+  try {
+    const result = await Promise.race([promise, marker]);
+    return result === marker ? null : { value: /** @type {T} */ (result) };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Enabled-only wrapper. Capture public request facts before Astro rewrites its
  * context; internal re-entries are filtered by the original middleware's state.
@@ -43,6 +57,16 @@ export function createAnalyticsMiddleware(middleware, internal, runtime, options
   });
   /** @type {Promise<import('../../page.js').PageDescriptor[]> | undefined} */
   let catalog;
+  /** @type {Promise<import('../../page.js').PageDescriptor[]> | undefined} */
+  let pending;
+  /** @param {Promise<import('../../page.js').PageDescriptor[]>} known @param {import('../../page.js').PageDescriptor[]} descriptors */
+  const apply = (known, descriptors) => {
+    try {
+      paths = [...new Set([...runtime.staticPaths, ...descriptors.map((page) => page.pathname)])].map((path) => `${base}${path}`);
+      if (runtime.config.markdown.enabled) artifacts = [...new Set([...initialArtifacts, ...descriptors.map((page) => `${base}${mdPathnameFor(page.pathname)}`)])];
+      catalog = known;
+    } catch { /* A malformed inventory does not affect visitor HTTP. */ }
+  };
   return async (context, next) => {
     const details = { pathname: context.url.pathname, internal: internal(context),
       prerendered: runtime.command === 'build' && context.isPrerendered,
@@ -52,12 +76,16 @@ export function createAnalyticsMiddleware(middleware, internal, runtime, options
     if (!details.internal && !details.prerendered && ['GET', 'HEAD'].includes(request.method)) {
       const known = cachedRuntimeCatalogPages(runtime);
       if (known && known !== catalog) {
-        try {
-          const descriptors = await known;
-          paths = [...new Set([...runtime.staticPaths, ...descriptors.map((page) => page.pathname)])].map((path) => `${base}${path}`);
-          if (runtime.config.markdown.enabled) artifacts = [...new Set([...initialArtifacts, ...descriptors.map((page) => `${base}${mdPathnameFor(page.pathname)}`)])];
-          catalog = known;
-        } catch { /* A failed inventory does not affect visitor HTTP. */ }
+        // Use a listing that has already settled, usually because this request's
+        // HTML enrichment awaited it. Never wait for one still in flight: an
+        // observer must not delay the visitor's response.
+        const settled = await fulfilledValue(known);
+        if (settled) apply(known, settled.value);
+        else if (pending !== known) {
+          pending = known;
+          // A newer listing may replace this one before it settles.
+          known.then((descriptors) => { if (cachedRuntimeCatalogPages(runtime) === known) apply(known, descriptors); }, () => {});
+        }
       }
     }
     return observer.observe(request, response, details);

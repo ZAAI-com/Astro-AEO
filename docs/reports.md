@@ -26,7 +26,9 @@ levels, and 16 MiB of combined companion text. Graph traversal is capped at 100,
 32 levels, 10,000 nodes and 50,000 edges. Split large observation logs into bounded windows;
 this release does not ingest host logs or execute arbitrary JSON schemas.
 
-Project evidence and discovered companions refuse symlinked directories and files. Explicit
+Project evidence and discovered companions refuse symlinked directories and files. The check
+covers the selected project (or the working directory) and everything below it; folders above
+it, such as a symlinked home directory, are the environment's choice and are not inspected. Explicit
 output uses an atomic sibling transaction and mode `0600`, refuses symlink targets, and
 does not modify inputs. Outputs cannot overwrite consumed inputs, companions or private build evidence. Default evidence is `.astro/aeo-cache` beneath the selected project.
 Exported content can contain authored Markdown: keep private RAG exports separate from

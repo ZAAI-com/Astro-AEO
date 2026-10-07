@@ -121,7 +121,7 @@ const RULE_LIST = Object.freeze([
     'processing-cache-lock-unavailable',
   ]),
   ...rules('corpus', 'error', ['build'], [
-    'corpus-manifest-canonical-missing', 'corpus-manifest-origin-missing',
+    'corpus-manifest-canonical-missing', 'corpus-manifest-origin-missing', 'corpus-rag-origin-missing',
   ]),
   ...rules('corpus', 'error', ['offline'], [
     'corpus-alias-content', 'corpus-alias-source-missing', 'corpus-artifact-duplicate',

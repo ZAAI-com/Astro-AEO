@@ -58,6 +58,20 @@ describe('logical corpus artifact planner', () => {
     expect(normal.manifest).not.toHaveProperty('tokenizerFallback');
   });
 
+  test.each([
+    ['unversioned', {}],
+    ['versioned', { versions: { current: 'v2' } }],
+  ])('skips %s RAG with one diagnostic when no site origin exists', async (_name, corpus) => {
+    const config = resolveConfig({ corpus: { ...corpus, rag: { enabled: true, publish: true } } });
+    const { canonicalUrl: _canonical, markdownUrl: _markdown, origin: _origin, ...rest } = page('/guide', 'en');
+    const plan = await planCorpusArtifacts({ config, pages: [{ ...rest, url: '/guide/' }], siteMeta, origin: '', base: '' });
+    expect(plan.diagnostics.filter((diagnostic) => diagnostic.code === 'corpus-rag-origin-missing'))
+      .toEqual([expect.objectContaining({ severity: 'error' })]);
+    expect(plan.ragRecords).toBeUndefined();
+    expect(plan.artifacts.some((artifact) => artifact.kind === 'rag')).toBe(false);
+    expect(plan.artifacts.map((artifact) => artifact.pathname)).toContain('/llms.txt');
+  });
+
   test('preserves the legacy root bytes for one implicit locale', async () => {
     const config = resolveConfig();
     const pages = [{ ...page('/guide', undefined, null), language: undefined, locale: null }];

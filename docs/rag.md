@@ -1,6 +1,7 @@
 # RAG ingestion
 
-Enable private exports with `corpus.rag.enabled: true`. Read
+Enable private exports with `corpus.rag.enabled: true` and a configured Astro `site` (without
+one, the build reports `corpus-rag-origin-missing` and skips RAG). Read
 `.astro/aeo-cache/rag-v1/index-v1.json`, then its listed relative JSONL files. The filenames encode
 locale/version tuples without trusting labels as filesystem paths. Check `buildTimeIncomplete`
 and `inventoryComplete` before claiming full coverage. Match `buildDigest` against the page

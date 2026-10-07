@@ -41,7 +41,7 @@ jobs:
           NODE
       - uses: denoland/setup-deno@v2
         with:
-          deno-version: v2.x
+          deno-version-file: .tool-versions
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Verify release tag, package, adapters, and performance

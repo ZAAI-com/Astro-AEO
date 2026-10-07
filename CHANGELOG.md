@@ -59,6 +59,10 @@ Benchmark regression explanation: Opt-in analytics and RAG, private processing e
   Replace pairwise transaction and artifact-claim overlap checks with ancestor indexes so large persistent-cache transactions retain symlink, rollback and ownership safety without quadratic validation cost.
 
 - d9de290: Preserve rendered inactive ARIA tab panels as labelled Markdown sections, including Starlight tabs when source conversion falls back to HTML. Keep panel order, remove redundant controls, and continue removing unrelated hidden chrome and explicitly excluded content.
+- Report RAG without a configured Astro `site` as `corpus-rag-origin-missing` and plan the other corpus families, instead of failing the build with an invalid URL error.
+- Never delay a visitor response while analytics waits for an in-flight catalog listing. A settled listing still classifies the same request; a pending one refreshes the inventory in the background.
+- Accept report inputs and audit/report outputs in projects reached through a symlinked folder above the project, while still refusing symlinks inside the project, linked project roots and linked destinations.
+- Install the pinned `.tool-versions` Deno in the release workflow, matching the exact version the adapter runtime contract requires.
 
 
 ### Implementation details

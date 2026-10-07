@@ -1,24 +1,34 @@
 // @ts-check
 import { constants } from 'node:fs';
 import { open, lstat, realpath, mkdir, rename, unlink } from 'node:fs/promises';
-import { dirname, resolve, relative, sep } from 'node:path';
+import { dirname, isAbsolute, resolve, relative, sep } from 'node:path';
 import { randomBytes } from 'node:crypto';
 
 export const MAX_BYTES = 16 * 1024 * 1024;
 export const MAX_ROWS = 100000;
 export class ReportInvocationError extends Error {}
 
-/** Check each project-relative component, not only its final canonical target.
- * System aliases such as /var are allowed above the explicit root.
+/** Lexical containment, including the parent itself. A Windows path on another
+ * drive is never within.
+ * @param {string} parent @param {string} child */
+function isWithin(parent, child) {
+  const rel = relative(parent, child);
+  return rel !== '..' && !rel.startsWith('..' + sep) && !isAbsolute(rel);
+}
+
+/** Check each component from the trusted root down, not only its final canonical
+ * target. The root defaults to the working directory for paths inside it, else
+ * the file's directory. Folders above the root belong to the caller's
+ * environment, such as a symlinked home directory, and are not inspected.
  * @param {string} file @param {string} [root] @param {boolean} [allowMissing] */
 export async function safeFile(file, root, allowMissing = false) {
   const target = resolve(file);
-  const anchor = root ? resolve(root) : dirname(target);
-  const rel = relative(anchor, target);
-  if (root && (rel === '..' || rel.startsWith('..' + sep) || rel.startsWith(sep))) throw new ReportInvocationError('Report input escapes its root.');
+  const cwd = resolve(process.cwd());
+  const anchor = root ? resolve(root) : isWithin(cwd, target) ? cwd : dirname(target);
+  if (!isWithin(anchor, target)) throw new ReportInvocationError('Report input escapes its root.');
   const ancestors = [];
   for (let part = target;; part = dirname(part)) {
-    ancestors.push(part); if (part === dirname(part)) break;
+    ancestors.push(part); if (part === anchor || part === dirname(part)) break;
   }
   // Top down catches a linked parent even when its requested child is missing.
   for (const part of ancestors.reverse()) {
@@ -116,8 +126,7 @@ export async function writeOutput(file, text) {
   const canonical = await realpath(anchor);
   // Reject a linked ancestor below the caller's filesystem alias.
   const cwd = resolve(process.cwd());
-  const local = relative(cwd,target);
-  await safeFile(target, local !== '..' && !local.startsWith('..' + sep) && !local.startsWith(sep) ? cwd : anchor, true);
+  await safeFile(target, isWithin(cwd, target) ? cwd : anchor, true);
   await mkdir(parent, { recursive: true });
   const parentReal = await realpath(parent);
   if (parentReal !== canonical && !parentReal.startsWith(canonical + sep)) throw new ReportInvocationError('Unsafe report output parent.');

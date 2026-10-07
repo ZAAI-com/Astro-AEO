@@ -1,6 +1,9 @@
-import { test, expect, vi } from 'vitest';
+import { test, expect, vi, afterEach } from 'vitest';
 import { resolveConfig } from '../../config.js';
 import { createAnalyticsMiddleware } from './middleware.js';
+const catalog = vi.hoisted(() => ({ pages: /** @type {Promise<{ pathname: string }[]> | undefined} */ (undefined) }));
+vi.mock('../serve.js', () => ({ cachedRuntimeCatalogPages: () => catalog.pages }));
+afterEach(() => { catalog.pages = undefined; });
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 const runtime = (command = 'build') => ({ command, config: resolveConfig({}), site: { base: '/docs', siteUrl: 'https://example.com' },
   staticPaths: ['/about'], routePatterns: [{ pattern: /^\/docs\/users\/[^/]+\/?$/, routePattern: '/docs/users/[id]' }] });
@@ -26,4 +29,29 @@ test('direct dynamic companions and corpus paths are bounded artifact identities
   const events = []; const middleware = createAnalyticsMiddleware(async () => new Response('same', { headers: { 'content-type': 'text/html' } }), () => false, runtime(), { enabled: true }, (event) => events.push(event));
   await middleware(context('/docs/users/private.md')); await middleware(context('/docs/llms-full.txt')); await tick();
   expect(events.map((event) => [event.path, event.pathKind])).toEqual([['/docs/users/[id].md', 'artifact'], ['/docs/llms-full.txt', 'artifact']]);
+});
+const html = () => new Response('same', { headers: { 'content-type': 'text/html' } });
+test('an in-flight catalog listing never delays the response and refreshes inventory in the background', async () => {
+  /** @type {(pages: { pathname: string }[]) => void} */
+  let finish = () => {};
+  catalog.pages = new Promise((resolve) => { finish = resolve; });
+  const events = []; const original = html();
+  const middleware = createAnalyticsMiddleware(async () => original, () => false, runtime(), { enabled: true }, (event) => events.push(event));
+  expect(await Promise.race([middleware(context('/docs/users/listed')), tick().then(() => 'delayed')])).toBe(original);
+  finish([{ pathname: '/users/listed' }]); await tick();
+  await middleware(context('/docs/users/listed')); await tick();
+  expect(events.map((event) => [event.path, event.pathKind])).toEqual([['/docs/users/[id]', 'pattern'], ['/docs/users/listed', 'inventory']]);
+});
+test('a settled catalog listing classifies the same request', async () => {
+  catalog.pages = Promise.resolve([{ pathname: '/users/listed' }]);
+  const events = []; const middleware = createAnalyticsMiddleware(async () => html(), () => false, runtime(), { enabled: true }, (event) => events.push(event));
+  await middleware(context('/docs/users/listed')); await tick();
+  expect(events.map((event) => event.pathKind)).toEqual(['inventory']);
+});
+test('a failed catalog listing leaves the response and route classification unchanged', async () => {
+  const failed = Promise.reject(new Error('private listing failure')); failed.catch(() => {}); catalog.pages = failed;
+  const events = []; const original = html();
+  const middleware = createAnalyticsMiddleware(async () => original, () => false, runtime(), { enabled: true }, (event) => events.push(event));
+  expect(await middleware(context('/docs/users/listed'))).toBe(original); await middleware(context('/docs/users/listed')); await tick();
+  expect(events.map((event) => event.pathKind)).toEqual(['pattern', 'pattern']); expect(JSON.stringify(events)).not.toContain('private');
 });

@@ -11,7 +11,7 @@ import { trafficReport } from './traffic.js';
 import { changesReport, changesFail } from './changes.js';
 import { graphReport } from './graph.js';
 import { renderDataReport } from './formats.js';
-import { readText, readStream, readBaseline, MAX_BYTES } from './io.js';
+import { readText, readStream, readBaseline, safeFile, MAX_BYTES } from './io.js';
 import { assertContract, assertSnapshot } from './contracts.js';
 import { createPageSnapshot, evidenceHash } from '../../src/build/evidence.js';
 import { planRagRecords, serializeRagRecords } from '../../src/core/rag.js';
@@ -295,6 +295,19 @@ describe('report identities and malformed contracts', () => {
     await expect(runReport(['traffic','linked/data'],{cwd:root})).rejects.toThrow('symlink');
     await expect(runReport(['traffic','-','--output','linked/result.json'],{cwd:root,stdin:(async function*(){yield '';})()})).rejects.toThrow('symlink');
     await expect(readStream((async function*(){yield Buffer.from([0xff]);})())).rejects.toThrow('UTF-8');
+  });
+  it('accepts a real project reached through a linked folder above its root', async () => {
+    await mkdir(join(root,'real','proj','.astro','aeo-cache'),{recursive:true});
+    await writeFile(join(root,'real','proj','.astro','aeo-cache','pages-v1.json'),JSON.stringify(snapshot()));
+    await symlink(join(root,'real'),join(root,'link'));
+    const project = join(root,'link','proj');
+    expect((await runReport(['inspect','--format','json'],{cwd:project})).report.pages).toHaveLength(1);
+    const written = await runReport(['inspect','--format','json','--output','reports/inspect.json'],{cwd:project});
+    expect(written.written).toBe('reports/inspect.json');
+    expect(JSON.parse(await readFile(join(root,'real','proj','reports','inspect.json'),'utf8')).type).toBe('inspect');
+    // The root itself remains part of the checked path.
+    await writeFile(join(root,'real','in.json'),'{}');
+    await expect(safeFile(join(root,'link','in.json'),join(root,'link'))).rejects.toThrow('symlink');
   });
   it('rejects malformed trace contracts and refuses credentialed graph URLs', async () => {
     await seed('pages-v1.json',snapshot());

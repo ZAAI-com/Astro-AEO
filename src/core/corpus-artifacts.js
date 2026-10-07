@@ -72,6 +72,14 @@ import {
  * @returns {Promise<{ artifacts: CorpusTextArtifact[]; ragRecords?: import('../index.js').RagRecordV1[]; manifest?: any; manifestText?: string; manifests?: Array<{ pathname: string; manifest: any; contents: string }>; diagnostics: Array<{ code: string; severity: 'info'|'warning'|'error'; message: string; pathname?: string; details?: unknown }>; tokenizer?: { name: string; version: string; approximate: boolean } }>}
  */
 export async function planCorpusArtifacts(input) {
+  if (input.config.corpus.rag.enabled && !normalizeOrigin(input.origin)) {
+    // Record identity and metadata need absolute canonical URLs, which a build
+    // without an Astro site cannot supply. Plan every other family without RAG.
+    const plan = await planCorpusArtifacts({ ...input, config: { ...input.config,
+      corpus: { ...input.config.corpus, rag: { ...input.config.corpus.rag, enabled: false } } } });
+    return { ...plan, diagnostics: [...plan.diagnostics, finding('corpus-rag-origin-missing', 'error',
+      'RAG records require a stable site origin; set Astro site to generate them.')] };
+  }
   const plan = input.config.corpus.versions ? await planVersionCorpus(input) : await planUnversionedCorpus(input);
   if (input.deferRagHooks) return plan;
   try { return await finishRagPlan(plan, input); }
