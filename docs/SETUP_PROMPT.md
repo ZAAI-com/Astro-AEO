@@ -28,9 +28,22 @@ You are setting up the `astro-aeo` integration in this Astro project. Do the fol
    ```
    Drop `taxonomies` when the project has no `src/pages/category` or `src/pages/tag` routes, and drop the `/search` exclusion when it has no `src/pages/search.astro`. `emdashAeo()` already excludes the admin, turns on content negotiation, and leaves `robots.txt` and sitemaps to EmDash. For steps 6 and 7, EmDash pages render on demand, so start the site (`npm run dev`, or `npm run build && npm start`) and fetch `/llms.txt` and one `.md` companion from it instead of reading `dist/`. See the [EmDash CMS section](https://github.com/ZAAI-com/Astro-AEO#emdash-cms).
 
+   **Starlight sites.** If `astro.config` calls `starlight()` from `@astrojs/starlight` (a [Starlight](https://starlight.astro.build/) docs site, version 0.32 or newer), do not add `aeo()`. In step 4, add `starlightAeo()` to that call's `plugins` array instead, and put the options from step 4 inside its `aeo` key:
+   ```js
+   import starlightAeo from 'astro-aeo/starlight';
+   // inside starlight({ ... }):
+   plugins: [
+     // ...existing Starlight plugins
+     starlightAeo({
+       aeo: { /* the options from step 4 */ },
+     }),
+   ],
+   ```
+   `starlightAeo()` registers Astro-AEO itself, excludes `/404`, and leaves the sitemap to Starlight. Each docs page's `.md` companion uses its authored Markdown; a page whose source it cannot convert safely (an MDX expression, `export`, or unsupported component) falls back to the rendered `.sl-markdown-content` and records the `authored-source-fallback` diagnostic, which is expected, not an error. See the [Starlight section](https://github.com/ZAAI-com/Astro-AEO#starlight).
+
 3. Make sure `astro.config` sets a `site` URL (Astro-AEO needs it for absolute links). If it is missing, ask me for the production URL.
 
-4. Add the integration:
+4. Add the integration. Skip this step on an EmDash site. On a Starlight site, do not add `aeo()`: pass these options as `starlightAeo({ aeo: { ... } })` from step 2 instead.
    ```js
    import aeo from 'astro-aeo';
    // inside defineConfig:
@@ -38,24 +51,30 @@ You are setting up the `astro-aeo` integration in this Astro project. Do the fol
      // ...existing integrations
      aeo({
        // Optional. Zero config already produces .md pages, llms.txt, and link tags.
-       stripTitleSuffix: 'YOUR BRAND',        // strips " | YOUR BRAND" from titles
-       robotsTxt: {
-         enabled: true,
-         allow: ['Googlebot', 'Bingbot', 'OAI-SearchBot', 'ChatGPT-User', 'Claude-SearchBot', 'PerplexityBot'],
-         disallow: ['GPTBot', 'ClaudeBot', 'Google-Extended'],
+       pages: {
+         stripTitleSuffix: 'YOUR BRAND',      // strips " | YOUR BRAND" from titles
        },
-       domainProfile: {
-         enabled: true,
-         name: 'YOUR SITE NAME',
-         description: 'ONE LINE ABOUT THE SITE',
-         entityType: 'Organization',           // or 'Person'
+       discovery: {
+         robots: {
+           enabled: true,
+           allow: ['Googlebot', 'Bingbot', 'OAI-SearchBot', 'ChatGPT-User', 'Claude-SearchBot', 'PerplexityBot'],
+           disallow: ['GPTBot', 'ClaudeBot', 'Google-Extended'],
+         },
+       },
+       site: {
+         profile: {
+           enabled: true,
+           name: 'YOUR SITE NAME',
+           description: 'ONE LINE ABOUT THE SITE',
+           entityType: 'Organization',         // or 'Person'
+         },
        },
      }),
    ],
    ```
-   Replace the placeholders. If the site groups content (blog, docs, products), propose an `llmsTxt.sections` array that matches its URL structure.
+   Replace the placeholders. If the site groups content (blog, docs, products), propose a `corpus.index.sections` array that matches its URL structure.
 
-5. If the project already generates its own `robots.txt` in `public/`, tell me before enabling `robotsTxt` (Astro-AEO would replace it).
+5. If the project already generates its own `robots.txt` in `public/`, tell me before enabling `discovery.robots` (Astro-AEO would replace it).
 
 6. Run `astro build`, then `npx astro-aeo validate` and report the result. Fix any errors it reports.
 

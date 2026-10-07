@@ -57,7 +57,7 @@ Astro-AEO requires Astro 5 or newer and Node 20.19.5+. It ships as plain ESM wit
 }
 ```
 
-Prefer an AI-assisted install? Paste [`docs/SETUP_PROMPT.md`](docs/SETUP_PROMPT.md) into Claude Code, Cursor, or a similar assistant pointed at your Astro project and it will install and configure Astro-AEO for you.
+Prefer an AI-assisted install? Paste [`docs/SETUP_PROMPT.md`](docs/SETUP_PROMPT.md) into Claude Code, Cursor, or a similar assistant pointed at your Astro project and it will install and configure Astro-AEO for you. It detects Starlight and EmDash sites and sets them up with `starlightAeo()` or `emdashAeo()`.
 
 ## Quick Start
 
@@ -1456,7 +1456,7 @@ permissions:
 steps:
   - uses: actions/checkout@v4
   - run: npm ci && npm run build
-  - uses: ZAAI-com/Astro-AEO@1.5.4
+  - uses: ZAAI-com/Astro-AEO@1.5.5
     with:
       target: dist            # or a deployed URL
       fail-on: error          # error, warning or none

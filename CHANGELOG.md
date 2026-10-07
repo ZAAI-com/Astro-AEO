@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## 1.5.5
+
+### Patch Changes
+
+- Teach the AI-assisted setup prompt (`docs/SETUP_PROMPT.md`) to install Starlight sites with `starlightAeo()` in Starlight's `plugins` instead of `aeo()`, and switch its example configuration to current option names (`pages`, `discovery.robots`, `site.profile`, `corpus.index.sections`) so a new install logs no 1.0 migration warnings. The README now says the prompt handles Starlight and EmDash sites.
+
+### Package size and benchmark rationale
+
+Benchmark regression explanation: this patch measures 401,198 packed bytes and 1,527,074
+unpacked bytes across 185 files. A clean archive of the 1.5.4 release, packed with the same Node 24
+toolchain, measures 401,167 and 1,526,979 bytes: increases of 31 and 95 bytes, all from one README
+sentence. `docs/SETUP_PROMPT.md` is not published. No runtime, component, or CLI source changed, so
+growth over the committed 1.4 baseline (350,713 packed and 1,358,848 unpacked bytes) and the Node
+integration gzip comparison are the 1.5 features explained under 1.5.4 and 1.5.3. The 450,000 packed
+and 1,530,000 unpacked ceilings, runtime limits, and benchmark baseline stay unchanged.
+
 ## 1.5.4
 
 ### Patch Changes
