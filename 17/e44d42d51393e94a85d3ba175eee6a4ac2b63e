@@ -1,0 +1,21 @@
+.changeset/lowercase-package-urls.md
+  s_a9cf1c25a809ea::t_77b954f857d3d5 1-5
+package.json
+  s_a9cf1c25a809ea::t_1df1364592dc21 10,14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "17e44d42d51393e94a85d3ba175eee6a4ac2b63e",
+  "prompts": {},
+  "sessions": {
+    "s_a9cf1c25a809ea": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1206a-3393-7091-bb14-0829ee8d27d5",
+        "model": "unknown"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
