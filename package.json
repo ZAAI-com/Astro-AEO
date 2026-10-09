@@ -7,11 +7,11 @@
   "author": "ZAAI (https://zaai.com)",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ZAAI-com/Astro-AEO.git"
+    "url": "git+https://github.com/zaai-com/astro-aeo.git"
   },
   "homepage": "https://zaai.com/astro-aeo/",
   "bugs": {
-    "url": "https://github.com/ZAAI-com/Astro-AEO/issues"
+    "url": "https://github.com/zaai-com/astro-aeo/issues"
   },
   "exports": {
     ".": {
