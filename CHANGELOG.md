@@ -63,6 +63,7 @@ Benchmark regression explanation: Opt-in analytics and RAG, private processing e
 - Never delay a visitor response while analytics waits for an in-flight catalog listing. A settled listing still classifies the same request; a pending one refreshes the inventory in the background.
 - Accept report inputs and audit/report outputs in projects reached through a symlinked folder above the project, while still refusing symlinks inside the project, linked project roots and linked destinations.
 - Install the pinned `.tool-versions` Deno in the release workflow, matching the exact version the adapter runtime contract requires.
+- Let `astro-aeo doctor` accept a project path through a symlinked parent folder by resolving it to its real location and matching either spelling of the build output. A project folder that is itself a link is still refused, and the fix hint explains that `fix` must run from inside such a project.
 
 
 ### Implementation details

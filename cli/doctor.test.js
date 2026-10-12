@@ -190,6 +190,43 @@ describe('doctor evidence and read-only advice', () => {
     expect(statuses(result.checks)['build-evidence']).toBe('conflicting');
   });
 
+  /** A project at <outer>/real/site, typed as <outer>/link/site. @param {Record<string, string>} files */
+  function linkedParentProject(files) {
+    const outer = realpathSync(mkdtempSync(join(tmpdir(), 'astro-aeo-doctor-link-')));
+    roots.push(outer);
+    const real = join(outer, 'real', 'site');
+    mkdirSync(join(real, '.astro/aeo-cache'), { recursive: true });
+    for (const [name, contents] of Object.entries(files)) {
+      mkdirSync(dirname(join(real, name)), { recursive: true });
+      writeFileSync(join(real, name), contents);
+    }
+    symlinkSync(join(outer, 'real'), join(outer, 'link'), 'dir');
+    return { outer, real, typed: join(outer, 'link', 'site') };
+  }
+
+  test('resolves a project reached through a linked parent folder', async () => {
+    const { real, typed } = linkedParentProject({ 'dist/index.md': '# t' });
+    ledger(real, [emitted]);
+    expect(statuses((await runDoctor([typed])).checks)).toMatchObject({ 'build-evidence': 'unverified', 'artifact-ownership': 'unverified', 'emitted-artifacts': 'unverified' });
+    // A build given the linked path records that spelling of its output folder.
+    ledger(typed, [emitted]);
+    expect(statuses((await runDoctor([typed])).checks)).toMatchObject({ 'build-evidence': 'unverified', 'emitted-artifacts': 'unverified' });
+  });
+
+  test('still refuses a project folder that is itself a link', async () => {
+    const { outer, real } = linkedParentProject({});
+    symlinkSync(real, join(outer, 'site'), 'dir');
+    await expect(runDoctor([join(outer, 'site')])).rejects.toThrow(DoctorInvocationError);
+    await expect(runDoctor([join(outer, 'site')])).rejects.toThrow(/symbolic link/);
+  });
+
+  test('tells fix to run from the project when the typed path is linked', async () => {
+    const { real, typed } = linkedParentProject({ 'vercel.json': '{}' });
+    const hint = async (/** @type {string} */ path) => (await runDoctor([path])).checks.find((check) => check.id === 'markdown-mime')?.hint;
+    expect(await hint(typed)).toContain('from inside the project directory');
+    expect(await hint(real)).toBe('run `astro-aeo fix --write`');
+  });
+
   test('does not follow linked emitted artifacts even when their bytes match', async () => {
     const outside = project({ 'index.md': '# t' });
     const root = project({ 'dist/placeholder': '' });

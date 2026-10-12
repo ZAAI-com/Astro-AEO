@@ -1,6 +1,6 @@
 // @ts-check
 import { createHash } from 'node:crypto';
-import { existsSync, lstatSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { deploymentFactsPath } from '../src/build/deployment-facts.js';
@@ -66,23 +66,30 @@ export async function runDoctor(args, context = {}) {
     throw new DoctorInvocationError(error instanceof Error ? error.message : String(error));
   }
   if (parsed.positionals.length > 1) throw new DoctorInvocationError('doctor accepts at most one projectDir');
-  const projectDir = resolve(context.cwd ?? process.cwd(), parsed.positionals[0] ?? '.');
-  if (!existsSync(projectDir) || !statSync(projectDir).isDirectory()) {
+  const requested = resolve(context.cwd ?? process.cwd(), parsed.positionals[0] ?? '.');
+  if (!existsSync(requested) || !statSync(requested).isDirectory()) {
     throw new DoctorInvocationError(`project directory not found: ${parsed.positionals[0]}`);
   }
-  if (!isUnlinkedDirectory(projectDir)) throw new DoctorInvocationError('project directory is reached through a symbolic link');
+  // A linked project folder is refused. Linked folders above it, such as a
+  // symlinked home directory or macOS /tmp, are the environment's choice: work
+  // from the real location so every check below sees one unlinked spelling.
+  if (lstatSync(requested).isSymbolicLink()) throw new DoctorInvocationError('project directory is a symbolic link');
+  const projectDir = realpathSync(requested);
+  const linkedParent = projectDir !== requested;
 
   const facts = readFacts(projectDir);
-  const distDir = resolve(projectDir, parsed.values.dist ?? 'dist');
+  const typedDist = resolve(requested, parsed.values.dist ?? 'dist');
+  // A linked build folder keeps its typed path, so its artifacts stay unread.
+  const distDir = existsSync(typedDist) && !lstatSync(typedDist).isSymbolicLink() ? realpathSync(typedDist) : typedDist;
   /** @type {DoctorCheck[]} */
   const checks = [
     facts
       ? { id: 'build-facts', status: 'unverified', message: `last local build: ${facts.output} output, ${facts.adapter ?? 'no adapter'}, negotiation ${facts.negotiation}` }
       : { id: 'build-facts', status: 'missing', message: 'no build facts found', hint: 'run `astro build` with astro-aeo 1.4 or newer, then run doctor again' },
-    await mimeCheck(projectDir, parsed.values['public-dir'] ?? 'public'),
+    await mimeCheck(projectDir, parsed.values['public-dir'] ?? 'public', linkedParent),
     negotiationCheck(projectDir, distDir, facts),
     ...providerEvidence(projectDir, facts),
-    ...ownershipChecks(projectDir, distDir, facts),
+    ...ownershipChecks(projectDir, distDir, facts, typedDist),
     ...packageOverlapChecks(projectDir),
   ];
 
@@ -123,9 +130,11 @@ function readFacts(projectDir) {
  * Would `astro-aeo fix` change anything? The same editors answer, so the two
  * commands cannot disagree.
  *
- * @param {string} projectDir @param {string} publicDir @returns {Promise<DoctorCheck>}
+ * @param {string} projectDir @param {string} publicDir
+ * @param {boolean} [linkedParent] the typed project path passes through a symbolic link
+ * @returns {Promise<DoctorCheck>}
  */
-async function mimeCheck(projectDir, publicDir) {
+async function mimeCheck(projectDir, publicDir, linkedParent = false) {
   const id = 'markdown-mime';
   const providers = detectProviders(projectDir);
   const targets = new Set(providers.map((provider) =>
@@ -150,7 +159,10 @@ async function mimeCheck(projectDir, publicDir) {
         : fixHeadersFile(text ?? '');
     return result.status === 'unchanged'
       ? { id, status: 'unverified', message: `${target} serves .md as text/markdown`, hint: 'local configuration only; pass --url to verify the deployment' }
-      : { id, status: 'missing', message: `${target} does not set the Markdown content type`, hint: 'run `astro-aeo fix --write`' };
+      : { id, status: 'missing', message: `${target} does not set the Markdown content type`, hint: linkedParent
+        // fix refuses a typed path through a link; its working directory is the real path.
+        ? 'run `astro-aeo fix --write` from inside the project directory (fix refuses project paths through a symbolic link)'
+        : 'run `astro-aeo fix --write`' };
   } catch (error) {
     if (!(error instanceof FixRefusal)) throw error;
     return { id, status: 'conflicting', message: error.message };
@@ -251,9 +263,10 @@ function providerEvidence(projectDir, facts) {
 
 /** Inspect the writer's existing decisions; doctor never arbitrates or changes ownership.
  * @param {string} projectDir @param {string} distDir @param {Record<string, any> | null} facts
+ * @param {string} [typedDist] the build folder as typed, before resolving linked parents
  * @returns {DoctorCheck[]}
  */
-function ownershipChecks(projectDir, distDir, facts) {
+function ownershipChecks(projectDir, distDir, facts, typedDist = distDir) {
   const path = ownershipManifestPath(projectDir);
   if (readLocalText(projectDir, path, 16 * MAX_EVIDENCE_BYTES) === null) {
     try {
@@ -266,7 +279,10 @@ function ownershipChecks(projectDir, distDir, facts) {
   const ownership = readOwnershipManifest(projectDir);
   if (!ownership) return [{ id: 'build-evidence', status: 'conflicting', message: 'the private ownership ledger is invalid', hint: 'rebuild before using this evidence' }];
   const digest = `sha256:${createHash('sha256').update(ownership.artifacts.map((/** @type {any} */ entry) => `${entry.status} ${entry.pathname}`).sort().join('\n')).digest('hex')}`;
-  if (!matchesOutputRootId(ownership.outputRootId, distDir) || (facts?.ownershipDigest && facts.ownershipDigest !== digest)) {
+  // Astro hashes the output path it built with: usually the real path, but the
+  // typed one when the build itself was given a path through a link.
+  const sameOutput = matchesOutputRootId(ownership.outputRootId, distDir) || matchesOutputRootId(ownership.outputRootId, typedDist);
+  if (!sameOutput || (facts?.ownershipDigest && facts.ownershipDigest !== digest)) {
     return [{ id: 'build-evidence', status: 'conflicting', message: 'the build output, deployment facts and ownership ledger do not identify the same build', hint: 'use the matching --dist directory, or rebuild; no artifact conclusions were drawn from mismatched evidence' }];
   }
   /** @type {DoctorCheck[]} */

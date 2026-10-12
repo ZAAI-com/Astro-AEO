@@ -39,6 +39,9 @@ ownership only where appropriate; installing a package alone never causes a
 `conflicting` result. Other packages are not inferred from their names.
 
 Evidence reads are bounded and do not follow symlinked files or directories.
+A project path that passes through a symlinked parent folder (a symlinked home
+directory, or macOS `/tmp`) is resolved to its real location first; a project
+folder that is itself a symbolic link is refused.
 The doctor does not scan arbitrary application files or execute consumer code.
 
 ## Build output and ownership
