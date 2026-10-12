@@ -1,0 +1,33 @@
+CHANGELOG.md
+  s_cd96004dd82e45::t_5745ba47ddaba6 66
+cli/doctor.js
+  s_6c27b5d03c7aed::t_e729355a5fc38d 3,69-70,73-78,81-83,89,92,133-135,137,162-165,266,269,282-285
+cli/doctor.test.js
+  s_cd96004dd82e45::t_1091e10f825e70 193-229
+docs/DOCTOR.md
+  s_cd96004dd82e45::t_6d3661e7f462fc 42-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2d645fddd7f3fd52693a151390a66eb7de7533af",
+  "prompts": {},
+  "sessions": {
+    "s_6c27b5d03c7aed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "918ca60a-4199-4f2f-a56e-24b6dfb06b45",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_cd96004dd82e45": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12fab-ad9b-7132-bcb7-10243fa43a7c",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
