@@ -1,0 +1,19 @@
+src/core/version-corpus.e2e.test.js
+  s_f9d6cc4dfc64b4::t_e57b934a982e31 28-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dc5789849e90008dfdce160fc8764ac1758bfe52",
+  "prompts": {},
+  "sessions": {
+    "s_f9d6cc4dfc64b4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13056-1348-7a40-9ecb-5ac28031bd37",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
