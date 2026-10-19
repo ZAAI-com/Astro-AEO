@@ -1,0 +1,21 @@
+docs/release-evidence/1.6.0-release-preparation.md
+  s_bd55031e6b4145::t_dc4cab7e432233 130,147-153
+docs/release-evidence/1.6.0-semantic-validation.md
+  s_bd55031e6b4145::t_dc4cab7e432233 9,11,14-16,31-40,47,49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ed57b57a522d90ae0b8a97b5e15d7196ded73c77",
+  "prompts": {},
+  "sessions": {
+    "s_bd55031e6b4145": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a524a2d8-3ec1-4723-9755-595c8f0d5013",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
