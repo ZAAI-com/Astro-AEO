@@ -1,0 +1,24 @@
+CHANGELOG.md
+  s_134b2974c690f2::t_e95abd040043c9 5-26
+  s_134b2974c690f2::t_192b1a081b9f5c 27
+package.json
+  s_134b2974c690f2::t_e95abd040043c9 3
+README.md
+  s_134b2974c690f2::t_e95abd040043c9 1713
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "af63cd7004e2cf4b287935c3f3d5c82f26bbc234",
+  "prompts": {},
+  "sessions": {
+    "s_134b2974c690f2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7d7536c7-b6f7-4dcc-9785-716be0829af8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
