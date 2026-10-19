@@ -1,0 +1,19 @@
+CHANGELOG.md
+  s_f2d126f0867da8::t_1429ce1bd35307 67-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "457d4ed2045ddbbd06c3e2b1ff585acf2f330f53",
+  "prompts": {},
+  "sessions": {
+    "s_f2d126f0867da8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "24709481-5f49-4cd5-a098-201f683ea158",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
