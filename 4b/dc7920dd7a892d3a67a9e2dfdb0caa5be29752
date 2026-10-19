@@ -1,0 +1,27 @@
+src/runtime/analytics/middleware.test.js
+  s_cea699738f4e97::t_2329c2f8195285 33-38
+CHANGELOG.md
+  s_cea699738f4e97::t_2414f12a7ee6e8 80-81
+src/audit/regions.js
+  s_cea699738f4e97::t_8c95fed9013277 71,73
+src/audit/regions.test.js
+  s_cea699738f4e97::t_fd73e800809598 49-50
+src/runtime/analytics/middleware.js
+  s_cea699738f4e97::t_88a0371a81bf33 41-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4bdc7920dd7a892d3a67a9e2dfdb0caa5be29752",
+  "prompts": {},
+  "sessions": {
+    "s_cea699738f4e97": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "91706be0-2ad9-4f19-8f10-caef8f00af5b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
