@@ -1,0 +1,19 @@
+package.json
+  s_139519f8a0b181::t_4eeea1ef1c4696 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b7d76f0e1ea259b8fb42e7938ceb21e3b8befaf8",
+  "prompts": {},
+  "sessions": {
+    "s_139519f8a0b181": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a154fb-b668-74d3-b001-7e4b96b1eec5",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
