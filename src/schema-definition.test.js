@@ -14,6 +14,24 @@ describe('published configuration schema', () => {
     expect(committed).toBe(serializeSchema());
   });
 
+  test('analytics adapters accept only values resolveAdapter accepts', () => {
+    const adapter = (value) => conforms({ analytics: { adapter: value } });
+    expect(adapter({ type: 'webhook', url: 'https://hooks.example.test:8443/v1?team=a' })).toBe(true);
+    expect(adapter({ type: 'opentelemetry', endpoint: 'https://[::1]:4318/v1/metrics' })).toBe(true);
+    for (const url of ['https://hooks.example.test:99999', 'https://user:secret@hooks.example.test', 'https://hooks.example.test/#x', 'http://hooks.example.test']) {
+      expect(adapter({ type: 'webhook', url }), url).toBe(false);
+    }
+    expect(adapter({ type: 'jsonl', path: '.astro/aeo-analytics/events-v1.jsonl' })).toBe(true);
+    for (const path of ['', '/var/log/events.jsonl', '../events.jsonl', '..', 'C:\\logs\\events.jsonl', 'a\nb']) {
+      expect(adapter({ type: 'jsonl', path }), JSON.stringify(path)).toBe(false);
+    }
+    expect(adapter({ type: 'module', module: './sink.mjs' })).toBe(true);
+    expect(adapter({ type: 'module', module: 'file:///srv/sink.mjs' })).toBe(true);
+    for (const module of ['https://cdn.example.test/sink.mjs', '   ', 'node:fs']) {
+      expect(adapter({ type: 'module', module }), module).toBe(false);
+    }
+  });
+
   test('catalog entries require a non-empty module specifier', () => {
     const sourceItems = buildSchema().properties.pages.properties.catalogs.items;
     const publishedItems = published.properties.pages.properties.catalogs.items;

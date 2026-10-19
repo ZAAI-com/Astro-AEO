@@ -247,8 +247,8 @@ function validateManifestRecords(distDir, manifest, base, referencedMarkdown, ou
       const chunk = artifacts.get(artifactKey(chunkPath, 'identity'))?.record;
       if (!chunk || chunk.kind !== 'chunk') {
         error(out, 'corpus-page-chunk-missing', `page references an unknown chunk: ${chunkPath}`, '/llms/manifest.json');
-      } else if (chunk.locale !== page.locale || chunk.section !== page.section) {
-        error(out, 'corpus-page-chunk-metadata', `page and chunk locale/section differ: ${chunkPath}`, '/llms/manifest.json');
+      } else if (chunk.locale !== page.locale || chunk.section !== page.section || (chunk.version ?? null) !== (page.version ?? null)) {
+        error(out, 'corpus-page-chunk-metadata', `page and chunk locale/section/version differ: ${chunkPath}`, '/llms/manifest.json');
       }
     }
   }
@@ -272,8 +272,9 @@ function validateManifestRecords(distDir, manifest, base, referencedMarkdown, ou
     }
     localeKeys.add(key);
     const canonical = artifacts.get(artifactKey(locale.canonicalArtifact, 'identity'))?.record;
-    if (!canonical || canonical.kind === 'alias') {
-      error(out, 'corpus-locale-canonical-missing', `locale canonical artifact is missing or is an alias: ${locale.canonicalArtifact}`, '/llms/manifest.json');
+    // A versioned locale's canonical artifact belongs to the same version.
+    if (!canonical || canonical.kind === 'alias' || (canonical.version ?? null) !== (locale.version ?? null)) {
+      error(out, 'corpus-locale-canonical-missing', `locale canonical artifact is missing, an alias, or from another version: ${locale.canonicalArtifact}`, '/llms/manifest.json');
       continue;
     }
     const candidates = [...artifacts.values()]

@@ -72,3 +72,9 @@ it('omits credentials embedded in the query of an otherwise plain URL',() => {
   expect(output).not.toContain('nested-password');expect(output).toContain('https://example.test/');
  }
 });
+
+it('keeps a plain query that only contains an @ sign',() => {
+ const url='https://example.test/search?q=a@b.com';
+ const output=serializeAuditReport(createAuditReport({...base,findings:[createFinding({ruleId:'canonical-duplicate',severity:'warning',message:'Shared '+url,evidence:url,url})]}));
+ expect(output).toContain('?q=a@b.com');
+});

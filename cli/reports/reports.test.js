@@ -170,6 +170,8 @@ describe('private inspection and safe exports', () => {
     finally { await rm(file,{force:true}); }
     await mkdir(join(root,'real')); await symlink(join(root,'real'),join(root,'linked-out'));
     await expect(writeOutput(join(root,'linked-out','report.json'),'{}')).rejects.toThrow('symlink');
+    await symlink(join(root,'absent'),join(root,'dangling'));
+    await expect(writeOutput(join(root,'dangling','report.json'),'{}')).rejects.toThrow('symlink');
   });
   it('writes only explicit outputs atomically at 0600, preserving inputs', async () => {
     const input = JSON.stringify(event());
@@ -292,7 +294,7 @@ describe('RAG export without configuration execution', () => {
     expect(result.warnings).toContain('Some manifest companions are unavailable in the build output.');
     expect(result.warnings).not.toContain('A companion differs from its manifest content hash.');
   });
-  it('discloses runtime-owned artifacts as incomplete and keeps llms-prefixed companions', async () => {
+  it('discloses an incomplete snapshot inventory and keeps llms-prefixed companions', async () => {
     await mkdir(join(root,'dist','en'),{recursive:true});
     const page = sourcePage({pathname:'/en/llms-guide',url:'https://example.test/docs/en/llms-guide'});
     const body = renderMarkdownDocument({...page,description:''},resolveConfig());
@@ -301,8 +303,8 @@ describe('RAG export without configuration execution', () => {
     await writeFile(join(root,'manifest.json'),JSON.stringify({version:1,base:'/docs/',origin:'https://example.test',pages:[descriptor],artifacts:[]}));
     await seed('pages-v1.json',snapshot([page]));
     const complete = await runReport(['rag','--manifest','manifest.json','--format','json'],{cwd:root});
-    const runtime = {pathname:'/docs/llms.txt',status:'runtime',owner:null,representation:null};
-    await seed('pages-v1.json',snapshot([page],[runtime]));
+    // A build with on-demand pages records an incomplete snapshot inventory.
+    await seed('pages-v1.json',snapshot([page],[],false));
     const owned = await runReport(['rag','--manifest','manifest.json','--format','json'],{cwd:root});
     expect(complete.report.buildTimeIncomplete).toBe(false);
     expect(owned.report.buildTimeIncomplete).toBe(true);
@@ -435,7 +437,7 @@ describe('published report contracts match their producers', () => {
     expect(() => assertContract(report([page,chunk]),'rag-report-v1')).not.toThrow();
     expect(() => assertContract(report([{...page,id:chunk.id}]),'rag-report-v1')).toThrow();
     expect(() => assertContract(report([{...chunk,id:chunk.pageId}]),'rag-report-v1')).toThrow();
-    for (const pathname of ['//host','/../secret','/a\\b']) expect(() => assertContract(report([{...page,metadata:{...page.metadata,pathname}}]),'rag-report-v1')).toThrow();
+    for (const pathname of ['//host','/../secret','/a\\b','/a\u2028/../secret','/'+'a'.repeat(2048)]) expect(() => assertContract(report([{...page,metadata:{...page.metadata,pathname}}]),'rag-report-v1')).toThrow();
     for (const url of ['file:///etc/passwd','https://user:secret@example.test/']) expect(() => assertContract(report([{...page,metadata:{...page.metadata,url}}]),'rag-report-v1')).toThrow();
   });
   it('accepts a processing trace with more than 100,000 stages', () => {

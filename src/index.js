@@ -695,6 +695,7 @@ export default function aeo(userConfig = {}) {
           publicDir,
           diagnostics,
           runtimeCorpora: corpusOwnedByRuntime,
+          onDemandPages: hasOnDemandProjectPage,
           catalogModules,
           markdownRenderers,
           corpusTokenizer: corpusTokenizer?.implementation,

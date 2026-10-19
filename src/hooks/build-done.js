@@ -81,6 +81,7 @@ import {
  * @property {URL} [publicDir]                   Astro's publicDir, for collision checks.
  * @property {import('../index.js').Diagnostic[]} [diagnostics]
  * @property {boolean} [runtimeCorpora]            A page renders on demand, so middleware owns the corpus paths.
+ * @property {boolean} [onDemandPages]             A project page renders on demand, outside the build inventory.
  * @property {{ module: string; specifier: string; namespace: any }[]} [catalogModules]
  * @property {import('../core/markdown-renderers.js').MarkdownRendererEntry[]} [markdownRenderers]
  * @property {Awaited<ReturnType<typeof import('../plugins/dispatcher.js').createPluginDispatcher>>} [pluginDispatcher]
@@ -883,7 +884,7 @@ async function onBuildDoneLocked(config, options, env, session) {
   // snapshot must not claim their absence. Stale deletion keeps its own flag.
   const evidence = stageBuildEvidence({
     projectRoot: env.projectRoot, pages, semanticPages, writer,
-    inventoryComplete: inventoryComplete && !env.runtimeCorpora, trace: processingTrace, diagnostics: buildDiagnostics, ragRecords: corpus.ragRecords,
+    inventoryComplete: inventoryComplete && !env.onDemandPages, trace: processingTrace, diagnostics: buildDiagnostics, ragRecords: corpus.ragRecords,
     cacheReasons: processingCache.stats.invalidations,
   });
 

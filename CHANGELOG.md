@@ -68,14 +68,14 @@ Benchmark regression explanation: Opt-in analytics and RAG, private processing e
 - Apply `markdown.cacheControl` only to successful and `304` Markdown responses. Markdown rendered from an error page and a negotiated `303` redirect keep the project's own policy.
 - Keep an embedded `report graph` entity without an `@id` as its own `_:` node with an edge from its parent, and reject credentialed graph URLs in any scheme case.
 - Include a plugin's declared `runtime.options` in pure hook cache keys, and reuse the stage cache when RAG artifacts are recounted.
-- Validate versioned corpus manifests with one locale record per version in `astro-aeo validate` and the offline audit.
-- Record `inventoryComplete: false` in snapshots and traces when pages render on demand, so `report changes` marks them unconfirmed rather than removed. `report rag` treats runtime-owned artifacts as incomplete and keeps companions whose names start with `llms`.
-- Redact credentials embedded in another URL's query from audit exports, read only a bounded regular corpus manifest in the local audit, keep a `doctor --dist` folder reached through a link inside the project unread, and allow report and audit output under macOS `/tmp`.
+- Validate versioned corpus manifests with one locale record per version in `astro-aeo validate` and the offline audit, and reject a locale canonical artifact or page chunk from another version.
+- Record `inventoryComplete: false` in snapshots and traces when a project page renders on demand, so `report changes` marks such pages unconfirmed rather than removed. `report rag` keeps companions whose names start with `llms`.
+- Redact credentials embedded in another URL's query from audit exports while keeping ordinary queries, never follow a linked corpus manifest in the local audit, keep a `doctor --dist` folder reached through a link inside the project unread (reported as unverified with a `--dist` hint), and allow report and audit output under macOS `/tmp`.
 - Accept a domain profile that names the site origin above the deployment base during live discovery, and resolve relative page canonicals before comparing them with the sitemap.
 - Require page alternates to be objects, send a fractional OTLP sample rate as `doubleValue`, check JSONL parent paths with Windows separators, and reject a sparse `sameAs` array.
 - Add trailing headings to a RAG record's `headings`, label tab panels through `aria-labelledby` and ancestor-dependent `removeSelectors`, and locate an `entity: false` graph node as it is collected.
 - Compare audit languages case-insensitively, and skip `<template>` contents, indented fences and multi-backtick code spans when locating audit findings.
-- Encode producer rules in the published schemas: kind-specific RAG ids, public HTTP(S) URLs, safe root-relative pathnames, at least one record per RAG index file, an uncapped trace stage list, safe traffic path keys, analytics event pairings and the analytics adapter constraints.
+- Encode producer rules in the published schemas: kind-specific RAG ids, public HTTP(S) URLs, safe root-relative pathnames, at least one record per RAG index file, an uncapped trace stage list, safe traffic path keys, analytics event pairings and the analytics adapter constraints, including valid ports and project-relative JSONL paths.
 - Use lowercase repository and issue tracker URLs in npm package metadata.
 
 

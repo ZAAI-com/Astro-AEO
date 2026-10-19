@@ -340,8 +340,9 @@ const analyticsAdapter = (type, properties = {}, required = []) => ({
   ...object({ type: { const: type }, ...properties }, `${type} analytics delivery.`),
   required: ['type', ...required],
 });
-// Mirrors resolveAdapter: HTTPS, no credentials, no fragment.
-const analyticsUrl = { type: 'string', pattern: '^[Hh][Tt][Tt][Pp][Ss]://[^/?#@\\s]+(?:[/?][^#\\s]*)?$', format: 'uri' };
+// Mirrors resolveAdapter: HTTPS, no credentials, no fragment, and a port the URL parser accepts.
+const analyticsUrl = { type: 'string', format: 'uri',
+  pattern: '^[Hh][Tt][Tt][Pp][Ss]://(?:\\[[^\\]\\s/?#@]+\\]|[^/?#@\\s:\\[\\]]+)(?::(?:6553[0-5]|655[0-2]\\d|65[0-4]\\d{2}|6[0-4]\\d{3}|[1-5]\\d{4}|\\d{1,4})?)?(?:[/?][^#\\s]*)?$' };
 
 const canonicalProperties = {
   analytics: object({
@@ -354,7 +355,7 @@ const canonicalProperties = {
       default: { type: 'console' },
       oneOf: [
         analyticsAdapter('console'),
-        analyticsAdapter('jsonl', { path: { ...string('Private Node JSONL destination.', '.astro/aeo-analytics/events-v1.jsonl'), minLength: 1, pattern: '^[^\\u0000-\\u001f]+$' } }),
+        analyticsAdapter('jsonl', { path: { ...string('Private Node JSONL destination.', '.astro/aeo-analytics/events-v1.jsonl'), minLength: 1, pattern: '^(?![/\\\\]|[A-Za-z]:|\\.\\.(?:[/\\\\]|$))[^\\u0000-\\u001f]+$' } }),
         analyticsAdapter('webhook', { url: analyticsUrl, headers: analyticsHeaders }, ['url']),
         analyticsAdapter('opentelemetry', { endpoint: analyticsUrl, headers: analyticsHeaders }),
         // A local specifier or file: URL; other schemes are remote and refused.

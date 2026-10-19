@@ -122,11 +122,12 @@ export async function writeOutput(file, text) {
       const next = dirname(anchor); if (next === anchor) throw new ReportInvocationError('Cannot create report output.'); anchor = next;
     }
   }
-  // safeFile checks the existing parent too, and allows only the macOS /tmp and /var aliases.
-  const canonical = await realpath(anchor);
-  // Reject a linked ancestor below the caller's filesystem alias.
+  // Reject a linked ancestor below the caller's filesystem alias first, so a
+  // dangling link reports a symlink error. safeFile checks the existing parent
+  // too, and allows only the macOS /tmp and /var aliases.
   const cwd = resolve(process.cwd());
   await safeFile(target, isWithin(cwd, target) ? cwd : anchor, true);
+  const canonical = await realpath(anchor);
   await mkdir(parent, { recursive: true });
   const parentReal = await realpath(parent);
   if (parentReal !== canonical && !parentReal.startsWith(canonical + sep)) throw new ReportInvocationError('Unsafe report output parent.');

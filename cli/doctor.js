@@ -314,10 +314,17 @@ function ownershipChecks(projectDir, distDir, facts, typedDist = distDir) {
     ...(conflicts.length ? { hint: 'review the existing build arbitration diagnostics; doctor does not replace routes or other generators' } : {}),
   });
   const emitted = ownership.artifacts.filter((/** @type {any} */ entry) => entry.status === 'emitted');
+  // A linked build folder is never read, so its artifacts are unknown, not missing.
+  if (emitted.length && !isUnlinkedDirectory(distDir)) {
+    checks.push({ id: 'emitted-artifacts', status: 'unverified',
+      message: `${emitted.length} emitted artifact(s) not checked: the build folder is reached through a symbolic link`,
+      hint: 'pass the real build folder with --dist to check emitted artifacts' });
+    return checks;
+  }
   let missing = 0;
   let changed = 0;
   for (const artifact of emitted) {
-    const path = isUnlinkedDirectory(distDir) ? resolveRecordedOutputPath(distDir, artifact.outputPath) : null;
+    const path = resolveRecordedOutputPath(distDir, artifact.outputPath);
     try {
       if (!path || !lstatSync(path).isFile()) missing++;
       else if (fileEtag(path) !== artifact.representation.etag) changed++;

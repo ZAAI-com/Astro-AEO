@@ -64,9 +64,8 @@ export async function ragReport(root, options) {
   const manifestFile = options.manifest ?? (await optionalJson(join(options.dist,'llms','manifest.json'),options.dist)
     ? join(options.dist,'llms','manifest.json') : undefined);
   const manifest = manifestFile ? await readManifest(manifestFile) : null;
-  // Runtime-owned artifacts render on demand, so their pages cannot be reconstructed from dist.
-  let incomplete = !snapshot || !snapshot.inventoryComplete || !digestOk ||
-    snapshot.artifacts.some((/** @type {any} */ artifact) => artifact.status === 'runtime');
+  // A build with on-demand pages records an incomplete inventory in its snapshot.
+  let incomplete = !snapshot || !snapshot.inventoryComplete || !digestOk;
   if (!manifest) warnings.push('Companion discovery has no manifest: locale, version and index eligibility may be unavailable.');
   const base = manifest?.base ?? options.base ?? '/';
   if (!inspectRootPathname(base)) throw new ReportInvocationError('Invalid build base.');

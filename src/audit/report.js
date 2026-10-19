@@ -82,6 +82,15 @@ export function serializeAuditReport(/** @type {AuditReportV1} */ report) {
   return `${JSON.stringify(report, null, 2)}\n`;
 }
 
+/** Does a query or fragment embed another credentialed URL (`?next=https://u:p@host`),
+ * raw or percent-encoded? A plain `@`, such as an email address, does not count.
+ * @param {string} text */
+function embedsCredentials(text) {
+  let decoded = text;
+  try { decoded = decodeURIComponent(text); } catch { /* Keep the raw spelling. */ }
+  return [text, decoded].some((value) => /[a-z][a-z\d+.-]*:\/\/[^/?#\s@]*@/i.test(value));
+}
+
 /** Authored canonical/link evidence can contain a credentialed URL. Public
  * audit exports omit its credentials and query without changing validator bytes.
  * @param {string} text */
@@ -89,8 +98,7 @@ function redactCredentialUrls(text) {
   return text.replace(/https?:\/\/[^\s"'<>]+/gi,(candidate) => {
     try {
       const url = new URL(candidate);
-      // A query or fragment can embed another credentialed URL (`?next=https://u:p@...`).
-      if (!url.username && !url.password && !/@|%40/i.test(url.search + url.hash)) return candidate;
+      if (!url.username && !url.password && !embedsCredentials(url.search + url.hash)) return candidate;
       url.username = ''; url.password = ''; url.search = ''; url.hash = '';
       return url.href;
     } catch {return 'https://[invalid URL omitted]';}

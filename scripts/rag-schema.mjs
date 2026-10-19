@@ -1,7 +1,7 @@
 /** Root-relative public pathname, matching `inspectRootPathname` for its raw form:
  * no `//` prefix, dot segments, backslash, query, fragment or control character.
  * Encoded traversal stays a runtime check. */
-export const SAFE_PATHNAME_PATTERN = '^(?!//)(?!.*/\\.{1,2}(?:/|$))/[^?#\\\\\\u0000-\\u001f\\u007f]*$';
+export const SAFE_PATHNAME_PATTERN = '^(?!//)(?![\\s\\S]*/\\.{1,2}(?:/|$))/[^?#\\\\\\u0000-\\u001f\\u007f]*$';
 /** A public HTTP(S) URL with no credentials, as `safeUrl` in src/core/rag.js produces. */
 const PUBLIC_URL_PATTERN = '^[Hh][Tt][Tt][Pp][Ss]?://[^/?#@\\s]+(?:/[^?#\\s]*)?$';
 
@@ -26,7 +26,7 @@ export function buildRagRecordSchema() {
       metadata: {type:'object',required:['url','pathname','title','locale','language','contentVersion','versionGroup','section'],
         propertyNames:{pattern:'^[A-Za-z][A-Za-z0-9_]{0,63}$'},
         additionalProperties:{type:['string','number','boolean','null']},
-        properties: {url:{type:'string',format:'uri',pattern:PUBLIC_URL_PATTERN},pathname:{type:'string',pattern:SAFE_PATHNAME_PATTERN},title:{type:'string'},
+        properties: {url:{type:'string',format:'uri',pattern:PUBLIC_URL_PATTERN},pathname:{type:'string',maxLength:2048,pattern:SAFE_PATHNAME_PATTERN},title:{type:'string'},
           locale:nullableString,language:nullableString,contentVersion:nullableString,versionGroup:nullableString,section:nullableString} },
     },
     // A page record's id is its pageId; a chunk record's id adds its ordinal.

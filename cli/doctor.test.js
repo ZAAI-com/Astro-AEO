@@ -233,7 +233,10 @@ describe('doctor evidence and read-only advice', () => {
     ledger(root, [emitted], 'link/out');
     symlinkSync(outside, join(root, 'link'), 'dir');
     const result = await runDoctor([root, '--dist', 'link/out']);
-    expect(statuses(result.checks)['emitted-artifacts']).not.toBe('unverified');
+    const check = result.checks.find((entry) => entry.id === 'emitted-artifacts');
+    expect(check).toMatchObject({ status: 'unverified', hint: expect.stringContaining('--dist') });
+    expect(check?.message).toContain('not checked');
+    expect(result.exitCode).toBe(0);
   });
 
   test('does not follow linked emitted artifacts even when their bytes match', async () => {
