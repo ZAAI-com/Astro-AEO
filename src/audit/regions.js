@@ -68,8 +68,9 @@ function decodeAttribute(value) {
 export function markdownRegion(markdown,pattern) {
   const mask = (/** @type {string} */ text) => text.replace(/[^\r\n]/g,' ');
   // CommonMark allows up to three spaces before a fence and a code span delimited by any backtick run.
+  // Both delimiters are maximal runs, so a span never starts inside a longer unclosed run.
   const visible = markdown.replace(/^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?^ {0,3}\1[^\n]*$/gm,mask)
-    .replace(/(`+)(?!`)[^\n]*?(?<!`)\1(?!`)/g,mask);
+    .replace(/(?<!`)(`+)(?!`)[^\n]*?(?<!`)\1(?!`)/g,mask);
   const match = pattern.exec(visible);
   return match ? regionLocator(markdown)(match.index,match.index+match[0].length) : undefined;
 }

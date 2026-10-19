@@ -77,6 +77,8 @@ Benchmark regression explanation: Opt-in analytics and RAG, private processing e
 - Compare audit languages case-insensitively, and skip `<template>` contents, indented fences and multi-backtick code spans when locating audit findings.
 - Encode producer rules in the published schemas: kind-specific RAG ids, public HTTP(S) URLs, safe root-relative pathnames, at least one record per RAG index file, an uncapped trace stage list, safe traffic path keys, analytics event pairings and the analytics adapter constraints, including valid ports and project-relative JSONL paths.
 - Use lowercase repository and issue tracker URLs in npm package metadata.
+- Classify `.gz` corpus paths as analytics artifacts only when the build wrote static gzip siblings. A runtime-owned corpus answers them `404`, so they are now `unlisted`.
+- Never start an inline code span inside a longer unclosed backtick run when locating audit findings in Markdown, so literal markup after it keeps its line and column.
 
 
 ### Implementation details

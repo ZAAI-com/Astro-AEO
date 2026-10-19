@@ -46,5 +46,7 @@ describe('audited-byte source regions',() => {
   it('masks indented fences and multi-backtick code spans before locating residue',() => {
     expect(markdownRegion('   ```html\n<div>a</div>\n   ```\n\n<div>real</div>',/<div/i)).toMatchObject({line:5,column:1});
     expect(markdownRegion('Use ``<div>`` here.\n<div>real</div>',/<div/i)).toMatchObject({line:2,column:1});
+    // An unclosed `` run and a lone backtick are literal text, so the markup stays visible.
+    expect(markdownRegion('a ``x <div>y</div> ` z',/<div/i)).toMatchObject({line:1,column:7});
   });
 });
