@@ -1,0 +1,33 @@
+AGENTS.md
+  s_1125577538be16::t_6728d88140925f 296-299
+scripts/update-benchmark-baseline.mjs
+  s_1125577538be16::t_66e50d92d5dc5b 13-14,17-20
+  s_1125577538be16::t_ecd055ea73fee9 12,15-16
+benchmarks/run.mjs
+  s_1125577538be16::t_1abe446dbcdf8a 33
+benchmarks/baseline-1.6.0.json
+  s_1125577538be16::t_33f4e1e0b4f20e 1-48
+benchmarks/README.md
+  s_1125577538be16::t_93a3f996ba8a69 125,137-141,145,149-150,162,174-175,190
+  s_1125577538be16::t_311b7e91bd509b 126-129,163
+benchmarks/projects.mjs
+  s_1125577538be16::t_b57e6f3e47c8eb 13-16,28,34-36,45,50,57,80,83,85,90
+.github/workflows/W2-Release.yml
+  s_1125577538be16::t_413ab6e6c2f8c8 23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "982c1066f4b7257297080e64ba638e0a9b03f5cd",
+  "prompts": {},
+  "sessions": {
+    "s_1125577538be16": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6dd98c19-e8d6-4a99-8b2d-354315fcea17",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
