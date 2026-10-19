@@ -1,0 +1,66 @@
+src/plugins/dispatcher.js
+  s_773eb15640d7f3::t_c90b462fc438e6 56-60
+  s_773eb15640d7f3::t_510f86eadb4f68 120-123,130
+  s_773eb15640d7f3::t_83202fddb9fc27 155-156
+  s_773eb15640d7f3::t_5bf2d566e44989 159
+.changeset/fix-160-review-findings.md
+  s_773eb15640d7f3::t_52213947658639 1-10
+src/build/evidence.js
+  s_773eb15640d7f3::t_5e143c11f31db1 59
+src/runtime/edge/vercel.js
+  s_773eb15640d7f3::t_2f21875a24490b 44
+cli/reports/graph.js
+  s_773eb15640d7f3::t_bc28df05e13d7a 31-35
+  s_773eb15640d7f3::t_c3c2347fcdeddf 42
+cli/reports/reports.test.js
+  s_773eb15640d7f3::t_32a1ad9cb6374c 193-210
+docs/reports.md
+  s_773eb15640d7f3::t_3d14662cbbc0c6 89-91
+src/hooks/build-done.test.js
+  s_773eb15640d7f3::t_6492defc6a0ac6 246-248
+  s_773eb15640d7f3::t_d9d03b73c51f17 21
+README.md
+  s_773eb15640d7f3::t_f586e15db57bd9 1557-1558,1566-1573
+  s_773eb15640d7f3::t_518a3b12144e29 920-921
+src/runtime/middleware.js
+  s_773eb15640d7f3::t_7e07336fdae8cd 1379-1381
+src/edge.d.ts
+  s_773eb15640d7f3::t_2f21875a24490b 24-25
+src/index.d.ts
+  s_773eb15640d7f3::t_696f13e1fa7ff4 1099
+  s_773eb15640d7f3::t_e93e6db3b559bc 44-49
+src/build/artifacts.js
+  s_773eb15640d7f3::t_3e1691761b68f4 1250-1255
+  s_773eb15640d7f3::t_87e58fd37a33de 1426-1432
+  s_773eb15640d7f3::t_7e1028a40b6275 1065
+src/build/incremental.test.js
+  s_773eb15640d7f3::t_eb9d7228558803 94-111
+src/build/evidence.test.js
+  s_773eb15640d7f3::t_b14e9c773d078d 82-85
+src/runtime/edge/handler.test.js
+  s_773eb15640d7f3::t_c5641c8062d4e5 275-276
+src/runtime/edge/handler.js
+  s_773eb15640d7f3::t_2f21875a24490b 26,49-51,126
+src/hooks/build-done.js
+  s_773eb15640d7f3::t_5e143c11f31db1 394-395
+src/runtime/middleware-head.test.js
+  s_773eb15640d7f3::t_11044df72a267e 77-88
+scripts/schema-definition.mjs
+  s_773eb15640d7f3::t_51d493460cea3f 258
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7038b5117027694f5193acb2f9a5467849cd87a5",
+  "prompts": {},
+  "sessions": {
+    "s_773eb15640d7f3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bcbb82f4-8b5f-4cc6-86a0-fb4d2c7c0fb1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
