@@ -48,6 +48,8 @@ const path=Astro.params.path??'';const version=path.includes('/v1/')?'v1':undefi
   expect(index).toMatchObject({version:1,inventoryComplete:false,buildTimeIncomplete:true,files:[]});
   const snapshot=JSON.parse(readFileSync(join(root,'.astro/aeo-cache/pages-v1.json'),'utf8'));
   expect(index.buildDigest).toBe(snapshot.buildDigest);
+  // On-demand pages are outside the build's reach, so the evidence must not claim a complete inventory.
+  expect(snapshot.inventoryComplete).toBe(false);
   const run=async(invalid,callback)=>{
     const listenPort=await port();const child=spawn(process.execPath,[join(root,'dist/server/entry.mjs')],
       {cwd:root,env:{...env(),HOST:'127.0.0.1',PORT:String(listenPort),AEO_RAG_INVALID:invalid?'1':'0'},stdio:['ignore','pipe','pipe']});

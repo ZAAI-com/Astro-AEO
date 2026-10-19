@@ -42,12 +42,12 @@
           "pathname": {
             "type": "string",
             "maxLength": 2048,
-            "pattern": "^/[^?#\\u0000-\\u001f\\u007f]*$"
+            "pattern": "^(?!//)(?!.*/\\.{1,2}(?:/|$))/[^?#\\\\\\u0000-\\u001f\\u007f]*$"
           },
           "routePattern": {
             "type": "string",
             "maxLength": 2048,
-            "pattern": "^/[^?#\\u0000-\\u001f\\u007f]*$"
+            "pattern": "^(?!//)(?!.*/\\.{1,2}(?:/|$))/[^?#\\\\\\u0000-\\u001f\\u007f]*$"
           },
           "locale": {
             "type": [
@@ -124,7 +124,7 @@
           "pathname": {
             "type": "string",
             "maxLength": 2048,
-            "pattern": "^/[^?#\\u0000-\\u001f\\u007f]*$"
+            "pattern": "^(?!//)(?!.*/\\.{1,2}(?:/|$))/[^?#\\\\\\u0000-\\u001f\\u007f]*$"
           },
           "status": {
             "type": [

@@ -33,4 +33,8 @@ describe('site-wide audit evidence',() => {
     expect(local.find((entry) => entry.category === 'corpus')?.status).toBe('unknown');
     expect(auditApplicability([page],{mode:'live'}).find((entry) => entry.category === 'internationalization')?.status).toBe('unknown');
   });
+  it('treats language tags that differ only in case as one language',() => {
+    const pages = ['en-US','en-us'].map((lang,index) => extractPageFacts('<html lang="'+lang+'"><main>hello</main></html>',{url:'/'+index}));
+    expect(auditApplicability(pages,{mode:'offline',inventoryComplete:true}).find((entry) => entry.category === 'internationalization')?.status).toBe('not-applicable');
+  });
 });

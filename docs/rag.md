@@ -17,7 +17,8 @@ record text, not a model prompt with extra instructions or metadata.
 A page ID hashes its public canonical URL, route pathname, locale and version. Distinct routes
 sharing an authored canonical remain distinct records. A chunk ID appends its ordinal,
 so preceding insertions can move later chunk identities. Hashes disclose changed text even when
-IDs remain stable. Query strings, credentials and fragments are not identity inputs. Metadata
+IDs remain stable. Query strings and fragments are removed from URL identity; a canonical URL with
+credentials or a non-HTTP(S) scheme fails RAG planning instead of being ignored. Metadata
 replacements preserve URL/path/locale/version identity and all measured fields. For example:
 
 ```js

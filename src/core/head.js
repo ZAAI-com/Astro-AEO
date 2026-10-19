@@ -561,7 +561,7 @@ function locatedGraphEntities(input, pointer = '') {
   if (Array.isArray(input.entries)) return /** @type {any[]} */ (input.entries).flatMap((entry, index) => entry?.entity
     ? [{ entity: entry.entity, pointer: `${pointer}/entries/${index}/entity` }] : []);
   if (Array.isArray(input['@graph'])) return /** @type {any[]} */ (input['@graph']).map((entity, index) => ({ entity, pointer: `${pointer}/@graph/${index}` }));
-  return [{ entity: input.entity ?? input, pointer: input.entity ? `${pointer}/entity` : pointer }];
+  return [{ entity: input.entity || input, pointer: input.entity ? `${pointer}/entity` : pointer }];
 }
 
 /**

@@ -57,3 +57,21 @@ it('checks artifact wire hashes without normalizing away newline mutations',asyn
  expect(result.findings.some((item) => item.ruleId==='live-corpus-hash')).toBe(true);
  expect(result.findings.some((item) => item.ruleId==='live-corpus-tokens')).toBe(false);
 });
+
+it('accepts a domain profile that names the site origin above the deployment base',async() => {
+ const request=async(/** @type {string} */ url) => ({status:200,url,body:url.endsWith('manifest.json')?JSON.stringify(manifest):url.endsWith('domain-profile.json')?JSON.stringify({url:origin}):url.endsWith('robots.txt')?'User-agent: *\n':text,contentType:url.endsWith('.json')?'application/json':'text/plain'});
+ expect((await auditLiveDiscovery(origin,'/docs',request,[])).findings).toEqual([]);
+ const credentialed=async(/** @type {string} */ url) => ({...await request(url),...(url.endsWith('domain-profile.json')?{body:JSON.stringify({url:'https://u:p@example.test/'})}:{})});
+ expect((await auditLiveDiscovery(origin,'/docs',credentialed,[])).findings.map((item) => item.ruleId)).toContain('live-discovery-invalid');
+});
+
+it('resolves a relative page canonical before comparing it with the sitemap URL',async() => {
+ const page=origin+'/docs/guide/';
+ const request=async(/** @type {string} */ url) => ({status:url.endsWith('.json')?404:200,url,contentType:url.endsWith('.xml')?'application/xml':'text/plain',
+   body:url.endsWith('robots.txt')?'Sitemap: '+origin+'/docs/sitemap.xml':url.endsWith('.xml')?'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>'+page+'</loc></url></urlset>':text});
+ const facts=/** @type {any} */ ([{url:page,canonical:'/docs/guide/'}]);
+ const result=await auditLiveDiscovery(origin,'/docs',request,facts);
+ expect(result.findings.filter((item) => item.ruleId==='live-sitemap-invalid')).toEqual([]);
+ const wrong=await auditLiveDiscovery(origin,'/docs',request,/** @type {any} */ ([{url:page,canonical:'/docs/other/'}]));
+ expect(wrong.findings.map((item) => item.ruleId)).toContain('live-sitemap-invalid');
+});

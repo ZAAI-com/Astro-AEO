@@ -18,7 +18,9 @@ export async function finishRagPlan(plan, input) {
     ? custom : BUILTIN_CORPUS_TOKENIZER;
   const options = tokenizer === BUILTIN_CORPUS_TOKENIZER ? undefined : corpusTokenizerOptions(input.tokenizerOptions);
   const count = (/** @type {string} */ text) => input.cachedCount
-    ? input.cachedCount(tokenizer, text, options, () => countCorpusTokens(tokenizer, text, options))
+    // The cache keys on a serializable identity; a module with `count` would bypass it.
+    ? input.cachedCount({ name: tokenizer.name, version: tokenizer.version, approximate: tokenizer.approximate },
+      text, options, () => countCorpusTokens(tokenizer, text, options))
     : countCorpusTokens(tokenizer, text, options);
   const records = [];
   let isolated = false;

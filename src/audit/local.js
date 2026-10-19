@@ -14,6 +14,8 @@ import { createFinding, fromDiagnostic, fromLegacyFinding } from './finding.js';
 import { auditApplicability } from './applicability.js';
 import { auditPages } from './site-rules.js';
 
+const MANIFEST_BYTES = 16 * 1024 * 1024;
+
 /**
  * @typedef {import('./facts.js').PageFacts} PageFacts
  * @typedef {import('../index.js').Finding} Finding
@@ -89,6 +91,9 @@ function readPages(root, origin, base, heuristics) {
   const path = join(root,'llms/manifest.json');
   if (isSafeOutputPath(root,path)) {
     try {
+      // An untrusted dist may link or inflate this file: read a bounded regular file only.
+      const stat = lstatSync(path);
+      if (!stat.isFile() || stat.size > MANIFEST_BYTES) throw new Error('unsafe manifest');
       const manifest = JSON.parse(readFileSync(path,'utf8'));
       if (basicManifestShape(manifest)) {
         const records = new Map(manifest.pages.map((/** @type {any} */ record) => [record.id,record]));

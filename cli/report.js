@@ -1,6 +1,6 @@
 // @ts-check
 import { parseArgs } from 'node:util';
-import { resolve, join, relative, sep } from 'node:path';
+import { resolve, join, relative, sep, isAbsolute } from 'node:path';
 import { ReportInvocationError, readText, readJson, readStream, readBaseline, writeOutput, optionalJson } from './reports/io.js';
 import { trafficReport } from './reports/traffic.js';
 import { changesReport, changesFail } from './reports/changes.js';
@@ -70,7 +70,6 @@ export async function runReport(args, environment = {}) {
     const target = path(values.output);
     const project = ['inspect','rag'].includes(kind) ? path(input ?? '.') : cwd;
     const cache = join(project,'.astro','aeo-cache');
-    const within = relative(cache,target);
     const consumed = [
       ...(input && !['inspect','rag'].includes(kind) && input !== '-' ? [path(input)] : []),
       ...(kind === 'changes' ? [path(input ?? '.astro/aeo-cache/pages-v1.json'), ...(/^https?:\/\//i.test(values.baseline) ? [] : [path(values.baseline)])] : []),
@@ -78,18 +77,23 @@ export async function runReport(args, environment = {}) {
       ...(values.manifest ? [path(values.manifest)] : []),
       ...(['inspect','rag'].includes(kind) ? [join(values.dist ? path(values.dist) : join(project,'dist'),'llms','manifest.json')] : []),
     ];
-    if (within !== '..' && !within.startsWith('..' + sep) && !within.startsWith(sep) || consumed.includes(target))
+    if (inside(cache,target) || consumed.includes(target))
       throw new ReportInvocationError('Report output must not overwrite input or private build evidence.');
     // Companion discovery reads Markdown under this output root; do not replace an input companion.
     if (kind === 'rag' && target.endsWith('.md')) {
       const dist = values.dist ? path(values.dist) : join(project,'dist');
-      const part = relative(dist,target);
-      if (part !== '..' && !part.startsWith('..' + sep) && !part.startsWith(sep)) throw new ReportInvocationError('Report output must not overwrite build companions.');
+      if (inside(dist,target)) throw new ReportInvocationError('Report output must not overwrite build companions.');
     }
     await writeOutput(target,output);
     return {output:'',exitCode,warnings:report.warnings,written:values.output,report};
   }
   return {output,exitCode,warnings:report.warnings,report};
+}
+/** Lexical containment. On Windows a path on another drive is relative-absolute, never inside.
+ * @param {string} parent @param {string} child */
+function inside(parent,child) {
+  const rel = relative(parent,child);
+  return rel !== '..' && !rel.startsWith('..' + sep) && !isAbsolute(rel);
 }
 /** @param {string|undefined} value @param {number} fallback @param {number} min @param {number} max @param {string} flag */
 function integerOption(value,fallback,min,max,flag) {

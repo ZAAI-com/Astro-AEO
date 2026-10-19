@@ -196,7 +196,7 @@ function validateManifestRecords(distDir, manifest, base, referencedMarkdown, ou
 
   const pageKeys = new Set();
   const chunkReferences = new Set();
-  /** @type {{ origin: string; locale: string | null; id: string }[]} */
+  /** @type {{ origin: string; locale: string | null; version: string | null; id: string }[]} */
   const pageLocales = [];
   for (const page of manifest.pages) {
     const key = `${page.origin}\0${page.id}`;
@@ -206,7 +206,7 @@ function validateManifestRecords(distDir, manifest, base, referencedMarkdown, ou
       error(out, 'corpus-page-shape', `invalid page record: ${String(page?.id ?? '<unknown>')}`, '/llms/manifest.json');
       continue;
     }
-    pageLocales.push({ origin: page.origin, locale: page.locale, id: page.id });
+    pageLocales.push({ origin: page.origin, locale: page.locale, version: page.version ?? null, id: page.id });
     if (page.markdownUrl == null) {
       if (page.hash != null || page.tokenCount != null) {
         error(out, 'corpus-page-shape', `companion-less page must omit hash and tokenCount: ${page.id}`, '/llms/manifest.json');
@@ -262,7 +262,8 @@ function validateManifestRecords(distDir, manifest, base, referencedMarkdown, ou
   const seenLocaleKeys = new Set();
   const localeKeys = new Set();
   for (const locale of manifest.locales) {
-    const key = `${locale.origin}\0${locale.locale ?? ''}`;
+    // A versioned corpus has one locale record per version.
+    const key = `${locale.origin}\0${locale.locale ?? ''}\0${locale.version ?? ''}`;
     if (seenLocaleKeys.has(key)) error(out, 'corpus-locale-duplicate', `duplicate locale record: ${key}`, '/llms/manifest.json');
     seenLocaleKeys.add(key);
     if (!validLocaleRecord(locale, manifest.origin)) {
@@ -278,7 +279,8 @@ function validateManifestRecords(distDir, manifest, base, referencedMarkdown, ou
     const candidates = [...artifacts.values()]
       .map((entry) => entry.record)
       .filter((entry) => entry.encoding === 'identity' && entry.kind !== 'alias' && (
-        entry.locale === locale.locale || entry.pathname === locale.canonicalArtifact
+        entry.locale === locale.locale && (entry.version ?? null) === (locale.version ?? null) ||
+        entry.pathname === locale.canonicalArtifact
       ))
       .sort(compareCandidateArtifacts);
     if (candidates.length > 0 && candidates[0].pathname !== locale.canonicalArtifact) {
@@ -286,7 +288,7 @@ function validateManifestRecords(distDir, manifest, base, referencedMarkdown, ou
     }
   }
   for (const page of pageLocales) {
-    if (!localeKeys.has(`${page.origin}\0${page.locale ?? ''}`)) {
+    if (!localeKeys.has(`${page.origin}\0${page.locale ?? ''}\0${page.version ?? ''}`)) {
       error(out, 'corpus-page-locale-missing', `page ${page.id} references a locale absent from the manifest`, '/llms/manifest.json');
     }
   }

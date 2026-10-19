@@ -13,7 +13,7 @@ test('keeps consecutive headings and a fenced first block indivisible', () => {
 
 test('never creates an orphan trailing heading unit', () => {
   expect(planMarkdownUnits('Body.\n\n## Trailing')).toMatchObject([
-    { text: 'Body.\n\n## Trailing', startLine: 1, endLine: 3 },
+    { text: 'Body.\n\n## Trailing', startLine: 1, endLine: 3, headings: ['## Trailing'] },
   ]);
   expect(planMarkdownUnits('# Title\n\n## Subtitle')).toHaveLength(1);
   expect(planMarkdownUnits('')).toEqual([]);

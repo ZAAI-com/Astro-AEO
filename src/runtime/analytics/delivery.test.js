@@ -53,5 +53,7 @@ test('OTLP HTTP JSON emits a delta counter without path attributes', async () =>
   const body = JSON.parse(fetch.mock.calls[0][1].body); const metric = body.resourceMetrics[0].scopeMetrics[0].metrics[0];
   expect(metric.name).toBe('astro_aeo.requests'); expect(metric.sum).toMatchObject({ aggregationTemporality: 1, isMonotonic: true });
   expect(metric.sum.dataPoints[0]).toMatchObject({ asInt: '1', timeUnixNano: '123456000000' });
+  // OTLP intValue accepts integers only, so the fractional sample rate is a double.
+  expect(metric.sum.dataPoints[0].attributes).toContainEqual({ key: 'sample_rate', value: { doubleValue: 0.5 } });
   expect(JSON.stringify(body)).not.toContain('secret-path');
 });

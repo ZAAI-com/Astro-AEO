@@ -89,7 +89,8 @@ function redactCredentialUrls(text) {
   return text.replace(/https?:\/\/[^\s"'<>]+/gi,(candidate) => {
     try {
       const url = new URL(candidate);
-      if (!url.username && !url.password) return candidate;
+      // A query or fragment can embed another credentialed URL (`?next=https://u:p@...`).
+      if (!url.username && !url.password && !/@|%40/i.test(url.search + url.hash)) return candidate;
       url.username = ''; url.password = ''; url.search = ''; url.hash = '';
       return url.href;
     } catch {return 'https://[invalid URL omitted]';}

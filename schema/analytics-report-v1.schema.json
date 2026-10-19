@@ -159,7 +159,9 @@
         ],
         "properties": {
           "key": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^(?:/[^?#\\u0000-\\u001f\\u007f]*|\\(unlisted\\))$"
           },
           "observed": {
             "type": "integer",

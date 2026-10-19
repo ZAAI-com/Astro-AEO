@@ -339,7 +339,7 @@ function versionFields(page) {
   if (page.version !== undefined && !isPageVersion(page.version)) return false;
   if (page.versionGroup !== undefined && !isVersionGroup(page.versionGroup)) return false;
   if (page.alternates !== undefined && !Array.isArray(page.alternates)) return false;
-  return !Array.isArray(page.alternates) || page.alternates.every((alternate) => alternate?.kind !== 'version' ||
-    isRecord(alternate) && isPageVersion(alternate.version) && isAbsolutePageUrl(alternate.url) &&
-      Object.keys(alternate).every((key) => ['kind', 'version', 'url'].includes(key)));
+  return !Array.isArray(page.alternates) || page.alternates.every((alternate) => isRecord(alternate) && (alternate.kind !== 'version' ||
+    isPageVersion(alternate.version) && isAbsolutePageUrl(alternate.url) &&
+      Object.keys(alternate).every((key) => ['kind', 'version', 'url'].includes(key))));
 }

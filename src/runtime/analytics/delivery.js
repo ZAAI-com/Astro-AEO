@@ -22,7 +22,7 @@ export function createOpenTelemetrySink(options) {
     const values = attributes(event);
     await post(/** @type {string} */ (options.endpoint), { resourceMetrics: [{ scopeMetrics: [{ scope: { name: 'astro-aeo', version: '1' }, metrics: [{
       name: 'astro_aeo.requests', sum: { aggregationTemporality: 1, isMonotonic: true, dataPoints: [{ startTimeUnixNano: time, timeUnixNano: time, asInt: '1',
-        attributes: Object.entries(values).map(([key, value]) => ({ key, value: typeof value === 'number' ? { intValue: String(value) } : { stringValue: value } })) }] },
+        attributes: Object.entries(values).map(([key, value]) => ({ key, value: typeof value === 'number' ? Number.isInteger(value) ? { intValue: String(value) } : { doubleValue: value } : { stringValue: value } })) }] },
     }] }] }] }, options);
   };
 }

@@ -123,15 +123,16 @@ export async function runAudit(args, context) {
   });
   const output = renderAuditReport(report, format, { failOn });
   const failed = report.findings.some((finding) => failsGate(finding.severity, failOn));
+  // Each extra format renders only when its export is requested.
   const exports = [
-    {file:values.output,text:output},
-    {file:values['github-output'],text:renderAuditReport(report,'github',{failOn})},
-    {file:values['summary-output'],text:renderAuditReport(report,'markdown',{failOn})},
+    {file:values.output,text:() => output},
+    {file:values['github-output'],text:() => renderAuditReport(report,'github',{failOn})},
+    {file:values['summary-output'],text:() => renderAuditReport(report,'markdown',{failOn})},
   ].filter((entry) => entry.file);
   const destinations = exports.map((entry) => resolve(cwd,/** @type {string} */ (entry.file)));
   if (new Set(destinations).size !== destinations.length) throw new AuditInvocationError('Audit output files must be distinct.');
   // Render once from a single immutable report, never re-crawl for the Action summary.
-  try { for (let i=0;i<exports.length;i++) await writeOutput(destinations[i],exports[i].text); }
+  try { for (let i=0;i<exports.length;i++) await writeOutput(destinations[i],exports[i].text()); }
   catch { throw new AuditInvocationError('Could not safely write audit output.'); }
   return {exitCode:failed ? 1 : 0,output:values.output ? '' : output,...(values.output ? {written:resolve(cwd,values.output)} : {})};
 }

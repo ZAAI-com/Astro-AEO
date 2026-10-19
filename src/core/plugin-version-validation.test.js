@@ -9,7 +9,7 @@ test('version fields fail closed for malformed hook replacements', () => {
     { version: '../v1' }, { versionGroup: '\u0000private' },
     { versionLinks: 'yes' }, { localeFallback: { requested: null } },
     { localeFallback: { requested: 'fr', private: 'not-a-route-fact' } },
-    { alternates: {} }, { alternates: 'invalid' },
+    { alternates: {} }, { alternates: 'invalid' }, { alternates: [null] }, { alternates: ['en'] },
     { alternates: [{ kind: 'version', version: 'v1', url: 'not-a-url' }] },
     { alternates: [{ kind: 'version', version: 'v1', url: 'https://user:secret@example.test/' }] },
     { alternates: [{ kind: 'version', version: 'v1', language: 'en', url: 'https://example.test/' }] },

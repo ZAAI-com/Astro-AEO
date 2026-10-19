@@ -11,7 +11,7 @@ import { trafficReport } from './traffic.js';
 import { changesReport, changesFail } from './changes.js';
 import { graphReport } from './graph.js';
 import { renderDataReport } from './formats.js';
-import { readText, readStream, readBaseline, safeFile, MAX_BYTES } from './io.js';
+import { readText, readStream, readBaseline, safeFile, writeOutput, MAX_BYTES } from './io.js';
 import { assertContract, assertSnapshot } from './contracts.js';
 import { createPageSnapshot, evidenceHash } from '../../src/build/evidence.js';
 import { planRagRecords, serializeRagRecords } from '../../src/core/rag.js';
@@ -164,6 +164,13 @@ describe('private inspection and safe exports', () => {
     await expect(readText(join(root,'big'))).rejects.toThrow('byte limit');
     await expect(runReport(['traffic','-','--output','link'],{cwd:root,stdin:(async function*(){yield '';})()})).rejects.toThrow('symlink');
   });
+  it.runIf(process.platform === 'darwin')('writes through the macOS /tmp alias but not a linked output parent', async () => {
+    const file = `/tmp/aeo-report-${process.pid}-${Date.now()}.json`;
+    try { await writeOutput(file,'{}'); expect(await readFile(file,'utf8')).toBe('{}'); }
+    finally { await rm(file,{force:true}); }
+    await mkdir(join(root,'real')); await symlink(join(root,'real'),join(root,'linked-out'));
+    await expect(writeOutput(join(root,'linked-out','report.json'),'{}')).rejects.toThrow('symlink');
+  });
   it('writes only explicit outputs atomically at 0600, preserving inputs', async () => {
     const input = JSON.stringify(event());
     await writeFile(join(root,'events'),input);
@@ -189,6 +196,8 @@ describe('offline graph HTML', () => {
     expect(graphReport(graph,{type:'Person'}).nodes).toHaveLength(1);
     expect(() => graphReport(graph,{node:'missing'})).toThrow('absent');
     assertContract(report,'graph-report-v1');
+    for (const scheme of ['HTTPS','Http']) expect(() => graphReport({'@graph':[{'@id':`${scheme}://user:secret@example.test/a?token=x`}]}))
+      .toThrow('must not contain credentials');
   });
   it('keeps nested anonymous entities as their own nodes instead of relabeling the parent', () => {
     const report = graphReport({'@graph':[{'@id':'https://example.test/a#article','@type':'Article',headline:'Hello',
@@ -282,6 +291,26 @@ describe('RAG export without configuration execution', () => {
     expect(result.report.records[0].metadata).toMatchObject({pathname:'/en/guide',locale:'en',contentVersion:'v2',versionGroup:'guide'});
     expect(result.warnings).toContain('Some manifest companions are unavailable in the build output.');
     expect(result.warnings).not.toContain('A companion differs from its manifest content hash.');
+  });
+  it('discloses runtime-owned artifacts as incomplete and keeps llms-prefixed companions', async () => {
+    await mkdir(join(root,'dist','en'),{recursive:true});
+    const page = sourcePage({pathname:'/en/llms-guide',url:'https://example.test/docs/en/llms-guide'});
+    const body = renderMarkdownDocument({...page,description:''},resolveConfig());
+    await writeFile(join(root,'dist','en','llms-guide.md'),body);
+    const descriptor = {id:'/en/llms-guide',canonicalUrl:page.url,markdownUrl:page.url+'.md',locale:'en',language:'en',section:'Docs',hash:evidenceHash(body),tokenCount:countApproximateTokens(body)};
+    await writeFile(join(root,'manifest.json'),JSON.stringify({version:1,base:'/docs/',origin:'https://example.test',pages:[descriptor],artifacts:[]}));
+    await seed('pages-v1.json',snapshot([page]));
+    const complete = await runReport(['rag','--manifest','manifest.json','--format','json'],{cwd:root});
+    const runtime = {pathname:'/docs/llms.txt',status:'runtime',owner:null,representation:null};
+    await seed('pages-v1.json',snapshot([page],[runtime]));
+    const owned = await runReport(['rag','--manifest','manifest.json','--format','json'],{cwd:root});
+    expect(complete.report.buildTimeIncomplete).toBe(false);
+    expect(owned.report.buildTimeIncomplete).toBe(true);
+    expect(owned.report.inventoryComplete).toBe(false);
+    expect(complete.report.records[0].metadata.pathname).toBe('/en/llms-guide');
+    await rm(join(root,'manifest.json'));
+    const discovered = await runReport(['rag','--origin','https://example.test','--base','/docs','--format','json'],{cwd:root});
+    expect(discovered.report.records.map((record) => record.metadata.pathname)).toContain('/en/llms-guide');
   });
   it('requires known URLs for unwrapped Markdown, refuses linked companions and malformed private records', async () => {
     await mkdir(join(root,'dist')); await writeFile(join(root,'dist','guide.md'),'# Guide\n');
@@ -385,4 +414,33 @@ it('preserves valid flat plugin metadata in private RAG exports', async () => {
   await writeFile(join(directory,'index-v1.json'),JSON.stringify({version:1,buildDigest:snapshot().buildDigest,inventoryComplete:true,buildTimeIncomplete:false,
     files:[{file:'ab.jsonl',locale:'en',contentVersion:'v2',records:records.length,hash:evidenceHash(body)}]}));
   expect((await runReport(['rag'],{cwd:root})).output).toBe(body);
+});
+
+describe('published report contracts match their producers', () => {
+  it('encodes analytics event pairings and safe traffic path keys', () => {
+    expect(() => assertContract(event(),'analytics-event-v1')).not.toThrow();
+    expect(() => assertContract(event({path:'(unlisted)',pathKind:'unlisted'}),'analytics-event-v1')).not.toThrow();
+    expect(() => assertContract(event({path:'(unlisted)'}),'analytics-event-v1')).toThrow();
+    expect(() => assertContract(event({pathKind:'unlisted'}),'analytics-event-v1')).toThrow();
+    expect(() => assertContract(event({crawler:{identity:'GPTBot',classification:'unclassified'}}),'analytics-event-v1')).toThrow();
+    expect(() => assertContract(event({crawler:{identity:'unknown',classification:'claimed'}}),'analytics-event-v1')).toThrow();
+    const report = trafficReport(JSON.stringify(event()));
+    expect(() => assertContract(report,'analytics-report-v1')).not.toThrow();
+    expect(() => assertContract({...report,paths:[{key:'/guide?token=x',observed:1}]},'analytics-report-v1')).toThrow();
+  });
+  it('rejects kind-inconsistent RAG ids, unsafe pathnames and non-HTTP URLs', async () => {
+    const {records} = await planRagRecords([sourcePage()],{maxTokens:5,tokenizer:BUILTIN_TOKENIZER_IDENTITY,count:async text => countApproximateTokens(text)});
+    const page = records.find((record) => record.kind === 'page'), chunk = records.find((record) => record.kind === 'chunk');
+    const report = (records) => ({version:1,type:'rag',warnings:[],source:'companions',buildDigest:null,inventoryComplete:false,buildTimeIncomplete:true,records});
+    expect(() => assertContract(report([page,chunk]),'rag-report-v1')).not.toThrow();
+    expect(() => assertContract(report([{...page,id:chunk.id}]),'rag-report-v1')).toThrow();
+    expect(() => assertContract(report([{...chunk,id:chunk.pageId}]),'rag-report-v1')).toThrow();
+    for (const pathname of ['//host','/../secret','/a\\b']) expect(() => assertContract(report([{...page,metadata:{...page.metadata,pathname}}]),'rag-report-v1')).toThrow();
+    for (const url of ['file:///etc/passwd','https://user:secret@example.test/']) expect(() => assertContract(report([{...page,metadata:{...page.metadata,url}}]),'rag-report-v1')).toThrow();
+  });
+  it('accepts a processing trace with more than 100,000 stages', () => {
+    const stages = Array.from({length:100001},() => ({pathname:'/guide',stage:'extract',outcome:'hit'}));
+    const trace = {version:1,buildDigest:'sha256:'+'a'.repeat(64),inventoryComplete:true,stages,pages:[],artifacts:[],diagnostics:{},cacheReasons:{}};
+    expect(() => assertContract(trace,'processing-trace-v1')).not.toThrow();
+  });
 });

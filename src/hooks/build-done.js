@@ -879,9 +879,11 @@ async function onBuildDoneLocked(config, options, env, session) {
     await runBuildComplete(env.pluginDispatcher, pages, env.diagnostics ?? []);
   }
 
+  // Evidence only: pages rendered on demand are outside the build's reach, so a
+  // snapshot must not claim their absence. Stale deletion keeps its own flag.
   const evidence = stageBuildEvidence({
     projectRoot: env.projectRoot, pages, semanticPages, writer,
-    inventoryComplete, trace: processingTrace, diagnostics: buildDiagnostics, ragRecords: corpus.ragRecords,
+    inventoryComplete: inventoryComplete && !env.runtimeCorpora, trace: processingTrace, diagnostics: buildDiagnostics, ragRecords: corpus.ragRecords,
     cacheReasons: processingCache.stats.invalidations,
   });
 

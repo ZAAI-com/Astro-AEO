@@ -65,3 +65,10 @@ it('omits credentials and associated queries from authored URL evidence without 
  expect(output).not.toContain('private-password');expect(output).not.toContain('private-token');expect(output).not.toContain('user:');
  expect(output).toContain('https://example.test/page');expect(finding.evidence).toBe(secret);
 });
+
+it('omits credentials embedded in the query of an otherwise plain URL',() => {
+ for (const secret of ['https://example.test/login?next=https://user:nested-password@other.test/','https://example.test/a?next=https%3A%2F%2Fuser%3Anested-password%40other.test']) {
+  const output=serializeAuditReport(createAuditReport({...base,findings:[createFinding({ruleId:'canonical-duplicate',severity:'warning',message:'Shared '+secret,evidence:secret,url:secret})]}));
+  expect(output).not.toContain('nested-password');expect(output).toContain('https://example.test/');
+ }
+});

@@ -121,7 +121,8 @@ try {
     const consumer = resolve(temporary, 'consumer');
     await mkdir(resolve(consumer, 'src/pages'), { recursive: true });
     const tarball = resolve(packDirectory, metadata.filename);
-    const revision = run('git', ['rev-parse', 'HEAD'], { capture: true }).trim();
+    // Only a Git install needs a revision; tarball mode also runs outside a checkout.
+    const revision = gitInstall ? run('git', ['rev-parse', 'HEAD'], { capture: true }).trim() : null;
     const dependency = gitInstall ? `git+${pathToFileURL(root).href}#${revision}` : `file:${tarball}`;
     console.log(`Installing ${gitInstall ? `Git HEAD ${revision} (committed files only)` : 'the working-tree tarball'}.`);
     const installedAstro = JSON.parse(

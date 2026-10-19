@@ -340,7 +340,8 @@ const analyticsAdapter = (type, properties = {}, required = []) => ({
   ...object({ type: { const: type }, ...properties }, `${type} analytics delivery.`),
   required: ['type', ...required],
 });
-const analyticsUrl = { type: 'string', pattern: '^https://', format: 'uri' };
+// Mirrors resolveAdapter: HTTPS, no credentials, no fragment.
+const analyticsUrl = { type: 'string', pattern: '^[Hh][Tt][Tt][Pp][Ss]://[^/?#@\\s]+(?:[/?][^#\\s]*)?$', format: 'uri' };
 
 const canonicalProperties = {
   analytics: object({
@@ -353,10 +354,11 @@ const canonicalProperties = {
       default: { type: 'console' },
       oneOf: [
         analyticsAdapter('console'),
-        analyticsAdapter('jsonl', { path: string('Private Node JSONL destination.', '.astro/aeo-analytics/events-v1.jsonl') }),
+        analyticsAdapter('jsonl', { path: { ...string('Private Node JSONL destination.', '.astro/aeo-analytics/events-v1.jsonl'), minLength: 1, pattern: '^[^\\u0000-\\u001f]+$' } }),
         analyticsAdapter('webhook', { url: analyticsUrl, headers: analyticsHeaders }, ['url']),
         analyticsAdapter('opentelemetry', { endpoint: analyticsUrl, headers: analyticsHeaders }),
-        analyticsAdapter('module', { module: { type: 'string', minLength: 1 }, options: {} }, ['module']),
+        // A local specifier or file: URL; other schemes are remote and refused.
+        analyticsAdapter('module', { module: { type: 'string', minLength: 1, pattern: '^(?:file:|(?![A-Za-z][A-Za-z\\d+.-]*:))(?=[^\\u0000-\\u001f]*\\S)[^\\u0000-\\u001f]+$' }, options: {} }, ['module']),
       ],
     },
   }, 'Optional privacy-first request analytics.'),

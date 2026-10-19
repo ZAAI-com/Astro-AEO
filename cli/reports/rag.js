@@ -64,7 +64,9 @@ export async function ragReport(root, options) {
   const manifestFile = options.manifest ?? (await optionalJson(join(options.dist,'llms','manifest.json'),options.dist)
     ? join(options.dist,'llms','manifest.json') : undefined);
   const manifest = manifestFile ? await readManifest(manifestFile) : null;
-  let incomplete = !snapshot || !snapshot.inventoryComplete || !digestOk;
+  // Runtime-owned artifacts render on demand, so their pages cannot be reconstructed from dist.
+  let incomplete = !snapshot || !snapshot.inventoryComplete || !digestOk ||
+    snapshot.artifacts.some((/** @type {any} */ artifact) => artifact.status === 'runtime');
   if (!manifest) warnings.push('Companion discovery has no manifest: locale, version and index eligibility may be unavailable.');
   const base = manifest?.base ?? options.base ?? '/';
   if (!inspectRootPathname(base)) throw new ReportInvocationError('Invalid build base.');
@@ -95,7 +97,7 @@ export async function ragReport(root, options) {
         if (entry.isSymbolicLink()) throw new ReportInvocationError('Companion discovery refuses symlinks.');
         const file = join(directory,entry.name);
         if (entry.isDirectory()) await discover(file,depth+1);
-        else if (entry.isFile() && entry.name.endsWith('.md') && !entry.name.startsWith('llms')) inputs.push({file,descriptor:null});
+        else if (entry.isFile() && entry.name.endsWith('.md')) inputs.push({file,descriptor:null});
       }
     };
     await discover(options.dist,0);

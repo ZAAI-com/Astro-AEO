@@ -147,16 +147,17 @@ order, and measures each build in a fresh process with the same Node and Astro. 
 project then receives an unchanged build and a single-page edit. Median and nearest-rank p95
 include raw paired samples; three samples are descriptive, not a statistically robust tail estimate.
 Peak RSS and end-of-build heap are separate from the existing post-GC retained-heap ceiling.
-Framework startup and page rendering are included in build duration; package and public output
-bytes are reported separately. Private trace evidence counts normalization and graph cache work.
+Build duration starts after the worker has loaded Astro, so it covers Astro's build (including
+page rendering) but not module loading; package and public output bytes are reported separately. Private trace evidence counts normalization and graph cache work.
 
 Warm normalization must hit every page; a one-page edit must miss exactly once. These conditions
 fail on every runner, independently of `--enforce`. The focused 10,000-page regression additionally
 spies on actual extraction and renderer calls, proving zero warm calls and exactly one reconversion.
 Fixed-input public output ceilings are 12,856 / 1,245,586 / 12,648,586 bytes for 10 / 1,000 /
 10,000 pages. The first two match reconstructed output; the last is a measured current contract,
-not historical extrapolation. Every sample, warm output equality and repeated cold determinism
-are blocking. Other page counts require a reviewed byte contract. These guards do not increase
+not historical extrapolation. Every sample's output-byte ceiling, the warm build's digest and
+output byte count, and repeated cold output byte counts are blocking. These are byte-count and
+digest checks, not file-by-file content comparisons. Other page counts require a reviewed byte contract. These guards do not increase
 a prior output allowance. The project gate applies the explicitly approved package ceilings. Bundle bytes and retained heap are still
 blocking in the complete microbenchmark gate. Output growth cannot be hidden in a timing ratio.
 

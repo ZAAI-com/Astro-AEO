@@ -20,7 +20,9 @@ describe('audited-byte source regions',() => {
     const page = extractPageFacts(html,{url:'/',file:'/index.html'});
     const findings = auditPages([page],{links:{resolve:() => ({key:'/missing',fragment:''}),lookup:() => undefined}});
     expect(findings.find((item) => item.ruleId === 'link-internal-broken')).toMatchObject({file:'/index.html',locationSource:'rendered-html',location:{line:3,column:1,endColumn:20}});
-    expect(findings.find((item) => item.ruleId === 'description-missing')?.location).toBeUndefined();
+    const description = findings.find((item) => item.ruleId === 'description-missing');
+    expect(description).toBeDefined();
+    expect(description?.location).toBeUndefined();
   });
   it('locates companion residue after code examples, not guessed source files',() => {
     const markdown = '# Heading\n\n```html\n<div>example</div>\n```\n\n<div>real</div>';
@@ -31,6 +33,18 @@ describe('audited-byte source regions',() => {
   it('refuses shifted JSON-LD source ordinals when a tag is ambiguous',() => {
     const html = '<script type="application/ld+json" type="application/ld+json">{bad}</script>\n<script type="application/ld+json">{bad}</script>';
     const page = extractPageFacts(html,{url:'/',file:'/index.html'});
-    expect(auditPages([page]).filter((item) => item.ruleId === 'authored-jsonld-malformed').every((item) => !item.location)).toBe(true);
+    const malformed = auditPages([page]).filter((item) => item.ruleId === 'authored-jsonld-malformed');
+    expect(malformed.length).toBeGreaterThan(0);
+    expect(malformed.every((item) => !item.location)).toBe(true);
+  });
+  it('skips inert template markup when locating a rendered link',() => {
+    const html = '<html lang="en">\n<body><template><a href="/missing">x</a></template>\n<a href="/missing">broken</a></body></html>';
+    const page = extractPageFacts(html,{url:'/',file:'/index.html'});
+    const findings = auditPages([page],{links:{resolve:() => ({key:'/missing',fragment:''}),lookup:() => undefined}});
+    expect(findings.find((item) => item.ruleId === 'link-internal-broken')).toMatchObject({location:{line:3,column:1}});
+  });
+  it('masks indented fences and multi-backtick code spans before locating residue',() => {
+    expect(markdownRegion('   ```html\n<div>a</div>\n   ```\n\n<div>real</div>',/<div/i)).toMatchObject({line:5,column:1});
+    expect(markdownRegion('Use ``<div>`` here.\n<div>real</div>',/<div/i)).toMatchObject({line:2,column:1});
   });
 });

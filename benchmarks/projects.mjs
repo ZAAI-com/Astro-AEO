@@ -12,62 +12,66 @@ const args = process.argv.slice(2);
 function option(name, fallback) { const index = args.indexOf(name); return index < 0 ? fallback : args[index + 1]; }
 const baseline = resolve(option('--baseline-root', join(root, '.context/baseline-postfix-29729bb')));
 let createdBaseline = false;
-if (args.includes('--prepare-baseline')) {
-  try { await readFile(join(baseline, 'package.json')); }
-  catch (error) {
-    if (error.code !== 'ENOENT') throw error;
-    await mkdir(dirname(baseline), { recursive: true });
-    execFileSync('git', ['worktree', 'add', '--detach', baseline, '29729bb'], { cwd: root, stdio: 'inherit' });
-    await symlink(join(root, 'node_modules'), join(baseline, 'node_modules'), 'dir');
-    createdBaseline = true;
-  }
-}
-const baselineRevision = execFileSync('git', ['-C', baseline, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
-if (!baselineRevision.startsWith('29729bb') || execFileSync('git', ['-C', baseline, 'status', '--porcelain', '--untracked-files=no'], { encoding: 'utf8' }).trim()) {
-  throw new Error('The reconstructed baseline must be a clean checkout of 29729bb.');
-}
-const samples = Number(option('--samples', '3'));
-const baselineProjectMax = Number(option('--baseline-project-max-pages', '1000'));
-const counts = option('--counts', '10,1000,10000').split(',').map(Number);
-if (!Number.isSafeInteger(baselineProjectMax) || baselineProjectMax < 0 || !Number.isSafeInteger(samples) || samples < 2 || counts.some(n => !Number.isSafeInteger(n) || n < 1)) {
-  throw new Error('Projects require at least two samples and positive integer page counts.');
-}
-// Fixed-input public output contracts, not a timing or historical extrapolation.
-// 10/1,000 match the reconstructed baseline; 10,000 is the measured current contract.
-const outputCeilings = { 10: 12856, 1000: 1245586, 10000: 12648586 };
-const output = resolve(option('--output', '.context/batch12-projects.json'));
-const temporary = await mkdtemp(join(tmpdir(), 'aeo-project-benchmark-'));
-const packed = JSON.parse(execFileSync('npm', ['pack', '--dry-run', '--json'], { cwd: root, encoding: 'utf8' }))[0];
-const report = { version: 1, package: { packedBytes: packed.size, unpackedBytes: packed.unpackedSize }, baseline: { revision: baselineRevision, kind: 'reconstructed-post-fix', publishedRelease: false },
-  environment: { node: process.version, platform: process.platform, architecture: process.arch,
-    astro: JSON.parse(await readFile(join(root, 'node_modules/astro/package.json'), 'utf8')).version,
-    runnerClass: process.env.ASTRO_AEO_BENCHMARK_RUNNER ?? null }, samples,
-  timingPolicy: 'Descriptive unless the declared reference runner matches; p95 uses nearest rank and small-sample uncertainty is disclosed.',
-  outputByteCeilings: outputCeilings,
-  baselineProjectMaxPages: baselineProjectMax,
-  baselineCoverage: 'Complete microbenchmark baseline is archived separately; reconstructed real-project timings above this bound are not claimed.',
-  projects: [], failures: [] };
-if (args.includes('--enforce')) {
-  if (packed.size > RELEASE_THRESHOLDS.packagePackedBytes) report.failures.push('Packed package exceeds the unchanged release ceiling.');
-  if (packed.unpackedSize > RELEASE_THRESHOLDS.packageUnpackedBytes) report.failures.push('Unpacked package exceeds the unchanged release ceiling.');
-}
-function summary(values) { if (!values.length) return { median: null, p95: null, samples: [] }; const sorted = [...values].sort((a,b)=>a-b); const middle = Math.floor(sorted.length/2);
-  return { median: sorted.length % 2 ? sorted[middle] : (sorted[middle-1]+sorted[middle])/2,
-    p95: sorted[Math.ceil(sorted.length*0.95)-1], samples: values }; }
-async function run(project, edit = false) {
-  const destination = join(project, 'measurement.json');
-  await new Promise((accept, reject) => {
-    const child = spawn(process.execPath, [join(root, 'benchmarks/project-worker.mjs'), project, destination], {
-      cwd: root, env: { ...process.env, AEO_BENCH_EDIT: edit ? '1' : '0' }, stdio: ['ignore', 'pipe', 'pipe'] });
-    let diagnostic = '';
-    child.stdout.on('data', data => { diagnostic = (diagnostic + data).slice(-8000); });
-    child.stderr.on('data', data => { diagnostic = (diagnostic + data).slice(-8000); });
-    child.on('error', reject);
-    child.on('exit', code => code === 0 ? accept() : reject(new Error(`Astro project failed (${code}): ${diagnostic}`)));
-  });
-  return JSON.parse(await readFile(destination, 'utf8'));
-}
+/** @type {string | undefined} */
+let temporary;
+// Every resource this run creates, including a prepared baseline worktree, is
+// cleaned up even when preflight (pack, metadata, baseline checks) fails.
 try {
+  if (args.includes('--prepare-baseline')) {
+    try { await readFile(join(baseline, 'package.json')); }
+    catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      await mkdir(dirname(baseline), { recursive: true });
+      execFileSync('git', ['worktree', 'add', '--detach', baseline, '29729bb'], { cwd: root, stdio: 'inherit' });
+      await symlink(join(root, 'node_modules'), join(baseline, 'node_modules'), 'dir');
+      createdBaseline = true;
+    }
+  }
+  const baselineRevision = execFileSync('git', ['-C', baseline, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  if (!baselineRevision.startsWith('29729bb') || execFileSync('git', ['-C', baseline, 'status', '--porcelain', '--untracked-files=no'], { encoding: 'utf8' }).trim()) {
+    throw new Error('The reconstructed baseline must be a clean checkout of 29729bb.');
+  }
+  const samples = Number(option('--samples', '3'));
+  const baselineProjectMax = Number(option('--baseline-project-max-pages', '1000'));
+  const counts = option('--counts', '10,1000,10000').split(',').map(Number);
+  if (!Number.isSafeInteger(baselineProjectMax) || baselineProjectMax < 0 || !Number.isSafeInteger(samples) || samples < 2 || counts.some(n => !Number.isSafeInteger(n) || n < 1)) {
+    throw new Error('Projects require at least two samples and positive integer page counts.');
+  }
+  // Fixed-input public output contracts, not a timing or historical extrapolation.
+  // 10/1,000 match the reconstructed baseline; 10,000 is the measured current contract.
+  const outputCeilings = { 10: 12856, 1000: 1245586, 10000: 12648586 };
+  const output = resolve(option('--output', '.context/batch12-projects.json'));
+  temporary = await mkdtemp(join(tmpdir(), 'aeo-project-benchmark-'));
+  const packed = JSON.parse(execFileSync('npm', ['pack', '--dry-run', '--json'], { cwd: root, encoding: 'utf8' }))[0];
+  const report = { version: 1, package: { packedBytes: packed.size, unpackedBytes: packed.unpackedSize }, baseline: { revision: baselineRevision, kind: 'reconstructed-post-fix', publishedRelease: false },
+    environment: { node: process.version, platform: process.platform, architecture: process.arch,
+      astro: JSON.parse(await readFile(join(root, 'node_modules/astro/package.json'), 'utf8')).version,
+      runnerClass: process.env.ASTRO_AEO_BENCHMARK_RUNNER ?? null }, samples,
+    timingPolicy: 'Descriptive unless the declared reference runner matches; p95 uses nearest rank and small-sample uncertainty is disclosed.',
+    outputByteCeilings: outputCeilings,
+    baselineProjectMaxPages: baselineProjectMax,
+    baselineCoverage: 'Complete microbenchmark baseline is archived separately; reconstructed real-project timings above this bound are not claimed.',
+    projects: [], failures: [] };
+  if (args.includes('--enforce')) {
+    if (packed.size > RELEASE_THRESHOLDS.packagePackedBytes) report.failures.push('Packed package exceeds the unchanged release ceiling.');
+    if (packed.unpackedSize > RELEASE_THRESHOLDS.packageUnpackedBytes) report.failures.push('Unpacked package exceeds the unchanged release ceiling.');
+  }
+  function summary(values) { if (!values.length) return { median: null, p95: null, samples: [] }; const sorted = [...values].sort((a,b)=>a-b); const middle = Math.floor(sorted.length/2);
+    return { median: sorted.length % 2 ? sorted[middle] : (sorted[middle-1]+sorted[middle])/2,
+      p95: sorted[Math.ceil(sorted.length*0.95)-1], samples: values }; }
+  async function run(project, edit = false) {
+    const destination = join(project, 'measurement.json');
+    await new Promise((accept, reject) => {
+      const child = spawn(process.execPath, [join(root, 'benchmarks/project-worker.mjs'), project, destination], {
+        cwd: root, env: { ...process.env, AEO_BENCH_EDIT: edit ? '1' : '0' }, stdio: ['ignore', 'pipe', 'pipe'] });
+      let diagnostic = '';
+      child.stdout.on('data', data => { diagnostic = (diagnostic + data).slice(-8000); });
+      child.stderr.on('data', data => { diagnostic = (diagnostic + data).slice(-8000); });
+      child.on('error', reject);
+      child.on('exit', code => code === 0 ? accept() : reject(new Error(`Astro project failed (${code}): ${diagnostic}`)));
+    });
+    return JSON.parse(await readFile(destination, 'utf8'));
+  }
   for (const count of counts) {
     const measurements = { control: [], reconstructed: [], current: [], warm: [], edited: [] };
     for (let pair = 0; pair < samples; pair++) {
@@ -121,9 +125,9 @@ try {
     await mkdir(dirname(output), { recursive: true });
     await writeFile(output, JSON.stringify(report, null, 2)+'\n', { mode: 0o600 });
   }
+  console.log(`Project benchmark evidence: ${output}`);
+  if (report.failures.length) { console.error(report.failures.join('\n')); process.exitCode = 1; }
 } finally {
-  await rm(temporary, { recursive: true, force: true });
+  if (temporary) await rm(temporary, { recursive: true, force: true });
   if (createdBaseline) execFileSync('git', ['worktree', 'remove', '--force', baseline], { cwd: root, stdio: 'inherit' });
 }
-console.log(`Project benchmark evidence: ${output}`);
-if (report.failures.length) { console.error(report.failures.join('\n')); process.exitCode = 1; }

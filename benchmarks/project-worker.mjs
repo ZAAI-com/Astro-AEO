@@ -1,4 +1,5 @@
-// A separate process keeps framework startup and peak RSS measurable per build.
+// A separate process keeps peak RSS measurable per build. Timing starts after the
+// Astro import, so module loading is excluded (see benchmarks/README.md).
 import { build } from 'astro';
 import { readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';

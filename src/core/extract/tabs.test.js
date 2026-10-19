@@ -118,6 +118,22 @@ describe('rendered ARIA tabs', () => {
     expect(markdown).toContain('Install with pnpm.');
   });
 
+  test('applies ancestor-dependent removals to a tab outside the selected root', () => {
+    const body = '<div class="tabs"><div role="tablist"><button role="tab" id="t">Visible' +
+      '<span class="private">SECRET_LABEL</span></button></div>' +
+      '<div role="tabpanel" id="p" aria-labelledby="t"><p>Panel body.</p></div></div>';
+    const markdown = convert(body, { selectors: ['#p'], removeSelectors: ['.tabs .private'] });
+    expect(markdown).toContain('**Visible**');
+    expect(markdown).not.toContain('SECRET_LABEL');
+  });
+
+  test('names a tab through aria-labelledby before its own text', () => {
+    const body = '<main><span id="name">Package manager</span><div role="tablist">' +
+      '<button role="tab" id="t" aria-labelledby="name">icon</button></div>' +
+      '<div role="tabpanel" aria-labelledby="t" hidden><p>Content.</p></div></main>';
+    expect(convert(body)).toContain('**Package manager**');
+  });
+
   test('removes unsafe label markup and escapes literal HTML and Markdown', () => {
     const body = '<main><div role="tablist"><button role="tab" id="label">' +
       '<svg><title>SECRET_ICON</title></svg><script>SECRET_SCRIPT</script><span hidden>SECRET_HIDDEN</span>' +

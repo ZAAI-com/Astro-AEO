@@ -180,11 +180,12 @@
             "properties": {
               "url": {
                 "type": "string",
-                "format": "uri"
+                "format": "uri",
+                "pattern": "^[Hh][Tt][Tt][Pp][Ss]?://[^/?#@\\s]+(?:/[^?#\\s]*)?$"
               },
               "pathname": {
                 "type": "string",
-                "pattern": "^/"
+                "pattern": "^(?!//)(?!.*/\\.{1,2}(?:/|$))/[^?#\\\\\\u0000-\\u001f\\u007f]*$"
               },
               "title": {
                 "type": "string"
@@ -235,6 +236,9 @@
               "properties": {
                 "chunkIndex": {
                   "type": "null"
+                },
+                "id": {
+                  "pattern": "^page:[a-f0-9]{64}$"
                 }
               }
             },
@@ -243,6 +247,9 @@
                 "chunkIndex": {
                   "type": "integer",
                   "minimum": 1
+                },
+                "id": {
+                  "pattern": "^page:[a-f0-9]{64}:chunk:[0-9]{4,}$"
                 }
               }
             }

@@ -23,7 +23,7 @@ export function graphReport(input, options = {}) {
       value['@type'] !== undefined && (Array.isArray(value['@type']) ? value['@type'].some((/** @type {unknown} */ entry) => typeof entry !== 'string') : typeof value['@type'] !== 'string')) throw new ReportInvocationError('Invalid graph identity or type.');
     for (const key of ['@id','url']) {
       const raw = value[key];
-      if (typeof raw === 'string' && /^https?:/.test(raw)) {
+      if (typeof raw === 'string' && /^https?:/i.test(raw)) {
         let url; try { url = new URL(raw); } catch { throw new ReportInvocationError('Invalid graph URL.'); }
         if (url.username || url.password || url.search) throw new ReportInvocationError('Graph URLs must not contain credentials or query values.');
       }

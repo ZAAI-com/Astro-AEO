@@ -22,7 +22,10 @@ export function planMarkdownUnits(markdown) {
   if (headings.length) {
     const text = headings.map((item) => item.text).join('\n\n');
     const last = units.at(-1);
-    if (last) { last.text += `\n\n${text}`; last.endLine = headings.at(-1)?.endLine ?? last.endLine; }
+    if (last) {
+      last.text += `\n\n${text}`; last.endLine = headings.at(-1)?.endLine ?? last.endLine;
+      last.headings.push(...headings.map((item) => item.text));
+    }
     else units.push({ text, startLine: headings[0].startLine,
       endLine: headings.at(-1)?.endLine ?? headings[0].endLine,
       sectionStart: true, headings: headings.map((item) => item.text) });

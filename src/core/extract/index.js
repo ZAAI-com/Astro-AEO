@@ -303,11 +303,23 @@ function normalizeTabPanels(root, removeSelectors) {
     if (controlledIds.length && !controlledIds.includes(panel.id)) continue;
     // A nested widget cannot borrow its outer widget's controls.
     if (tab.closest('[role="tabpanel"]') !== panel.parentElement?.closest('[role="tabpanel"]')) continue;
-    const clone = /** @type {Element} */ (tab.cloneNode(true));
-    for (const element of clone.querySelectorAll(
+    // Match exclusions on the attached tab, so selectors that depend on an
+    // ancestor (`.tabs .private`) still apply, then drop the same descendants
+    // from a clone. Both trees list descendants in the same order.
+    const excluded = new Set(tab.querySelectorAll(
       `${forbidden}, svg, [hidden], [aria-hidden="true"], [role="tablist"], [role="tabpanel"]`,
-    )) element.remove();
-    const label = ((tab.getAttribute('aria-label') ?? '').trim() || clone.textContent || '')
+    ));
+    const clone = /** @type {Element} */ (tab.cloneNode(true));
+    const originals = [...tab.querySelectorAll('*')];
+    for (const [index, element] of [...clone.querySelectorAll('*')].entries()) {
+      if (excluded.has(originals[index])) element.remove();
+    }
+    // Accessible-name order: aria-labelledby, aria-label, then content.
+    const labelledBy = attributeIds(tab, 'aria-labelledby')
+      .map((id) => ids.get(id))
+      .filter((element) => element && !element.closest(forbidden))
+      .map((element) => element?.textContent ?? '').join(' ').trim();
+    const label = (labelledBy || (tab.getAttribute('aria-label') ?? '').trim() || clone.textContent || '')
       .replace(/\s+/g, ' ').trim();
     if (!label) continue;
     const paragraph = root.ownerDocument.createElement('p');

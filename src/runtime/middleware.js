@@ -489,6 +489,11 @@ export const onRequest = async (context, next) => {
 
   if (wantsMarkdown && eligible && negotiation === 'redirect') {
     const headers = representationHeaders(decisionResponse, encodedPagePath, context, true);
+    // The configured Markdown policy describes the companion body, not this
+    // redirect, which keeps the page's own Cache-Control.
+    const pagePolicy = decisionResponse?.headers.get('cache-control');
+    if (pagePolicy) headers.set('cache-control', pagePolicy);
+    else headers.delete('cache-control');
     headers.set(
       'location',
       `${basePrefix(RUNTIME.site.base)}${mdPathnameFor(encodedPagePath)}${context.url.search}`,

@@ -40,7 +40,8 @@ export function htmlRegions(html) {
       attrs[key] = decodeAttribute(attribute[2] ?? attribute[3] ?? attribute[4] ?? '');
     }
     if (!ambiguous) tags.push({tag,attrs,location:locate(match.index,token.lastIndex)});
-    if (['script','style','textarea','title','xmp','iframe','noembed','noframes','plaintext'].includes(tag)) {
+    // Template contents are inert, so a finding never points into them.
+    if (['script','style','template','textarea','title','xmp','iframe','noembed','noframes','plaintext'].includes(tag)) {
       if (tag === 'plaintext') break;
       const close = new RegExp('</' + tag + '\\s*>','gi');
       close.lastIndex = token.lastIndex;
@@ -66,7 +67,9 @@ function decodeAttribute(value) {
  * @param {string} markdown @param {RegExp} pattern */
 export function markdownRegion(markdown,pattern) {
   const mask = (/** @type {string} */ text) => text.replace(/[^\r\n]/g,' ');
-  const visible = markdown.replace(/^(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\1[^\n]*$/gm,mask).replace(/`[^`\n]*`/g,mask);
+  // CommonMark allows up to three spaces before a fence and a code span delimited by any backtick run.
+  const visible = markdown.replace(/^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?^ {0,3}\1[^\n]*$/gm,mask)
+    .replace(/(`+)(?!`)[^\n]*?(?<!`)\1(?!`)/g,mask);
   const match = pattern.exec(visible);
   return match ? regionLocator(markdown)(match.index,match.index+match[0].length) : undefined;
 }

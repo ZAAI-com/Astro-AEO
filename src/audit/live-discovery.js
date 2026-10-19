@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { basicManifestShape } from '../../cli/validate-corpus.js';
 import { normalizePublishedText, countApproximateTokens } from '../core/corpus-tokenizer.js';
 import { parseSitemapXml } from '../core/sitemap-xml.js';
+import { documentUrlFor } from './facts.js';
 import { createFinding } from './finding.js';
 
 export const DISCOVERY_LIMIT = 100;
@@ -32,6 +33,14 @@ export async function auditLiveDiscovery(origin,base,request,pages) {
       return url.origin === origin && !url.username && !url.password && !url.search && !url.hash &&
         (url.pathname === prefix || url.pathname.startsWith(prefix + '/')) ? url.href : null;
     } catch { return null; }
+  }
+  /** An absolute HTTP(S) URL without credentials. It is never requested. @param {unknown} value */
+  function publicUrl(value) {
+    if (typeof value !== 'string') return false;
+    try {
+      const url = new URL(value);
+      return /^https?:$/.test(url.protocol) && !url.username && !url.password;
+    } catch { return false; }
   }
   /** @param {string} url @param {string} accept @param {boolean} [required] */
   async function fetchResource(url,accept,required = true) {
@@ -71,7 +80,9 @@ export async function auditLiveDiscovery(origin,base,request,pages) {
     if (!/^(?:application\/json|application\/[\w.+-]+\+json)\b/i.test(profile.contentType)) issue('live-discovery-invalid','Domain profile has a non-JSON MIME type.',root + '/.well-known/domain-profile.json');
     try {
       const value = JSON.parse(profile.body);
-      if (!value || typeof value !== 'object' || typeof value.url !== 'string' || !safeUrl(value.url)) throw new Error();
+      // The profile names the organization's website, which is commonly the site
+      // origin above a deployment base, so only its public URL shape is checked.
+      if (!value || typeof value !== 'object' || !publicUrl(value.url)) throw new Error();
     } catch { issue('live-discovery-invalid','Domain profile JSON does not identify this deployment.',root + '/.well-known/domain-profile.json'); }
   }
   const manifestUrl = root + '/llms/manifest.json';
@@ -118,7 +129,8 @@ export async function auditLiveDiscovery(origin,base,request,pages) {
   const visited = new Set();
   /** @type {Map<string,string>} */
   const parents = new Map();
-  const canonical = new Map(pages.map((page) => [page.url.replace(/\/$/,''),page.canonical]));
+  // A relative canonical is compared as the absolute URL it resolves to.
+  const canonical = new Map(pages.map((page) => [page.url.replace(/\/$/,''),page.canonical && documentUrlFor(page.url,page.canonical)]));
   while (sitemaps.size && responses.size < DISCOVERY_LIMIT && bytes < DISCOVERY_BYTES) {
     const url = [...sitemaps].sort()[0]; sitemaps.delete(url);
     if (visited.has(url)) continue; visited.add(url);

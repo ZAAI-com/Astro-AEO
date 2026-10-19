@@ -17,6 +17,16 @@ export function buildAnalyticsEventSchema() {
       surface: { enum: ['development', 'preview', 'node', 'deno', 'astro', 'cloudflare', 'netlify', 'vercel'] },
       sampleRate: { type: 'number', exclusiveMinimum: 0, maximum: 1 }, scope: { enum: ['agents', 'all'] }, coverage: { const: 'observable-only' },
     }),
+    // The same pairings the traffic report enforces: only the sentinel path is
+    // unlisted, and only an unknown crawler is unclassified.
+    allOf: [
+      { if: { properties: { path: { const: '(unlisted)' } } },
+        then: { properties: { pathKind: { const: 'unlisted' } } },
+        else: { properties: { pathKind: { enum: ['inventory', 'artifact', 'pattern'] } } } },
+      { if: { properties: { crawler: { properties: { identity: { const: 'unknown' } } } } },
+        then: { properties: { crawler: { properties: { classification: { const: 'unclassified' } } } } },
+        else: { properties: { crawler: { properties: { classification: { const: 'claimed' } } } } } },
+    ],
   };
 }
 export function serializeAnalyticsEventSchema() { return `${JSON.stringify(buildAnalyticsEventSchema(), null, 2)}\n`; }

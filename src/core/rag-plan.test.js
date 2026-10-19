@@ -109,3 +109,18 @@ test('replacement metadata count failures restart every version/family with one 
   expect(plan.manifests.every(scoped=>scoped.manifest.tokenizer.name==='astro-aeo-approx')).toBe(true);
   expect(JSON.stringify(plan.diagnostics)).not.toContain('PRIVATE DIAGNOSTIC');
 });
+
+test('recounts changed RAG artifacts through the cache with a serializable tokenizer identity', async () => {
+  /** @type {unknown[]} */
+  const identities = [];
+  const request = {...input({corpus:{rag:{enabled:true,publish:true}}}),
+    ragHook: async (record) => ({value:{...record,metadata:{...record.metadata,category:'changed'}},diagnostics:[],isolated:false}),
+    cachedCount: (identity, _text, _options, compute) => { identities.push(identity); return compute(); }};
+  const plan = await planCorpusArtifacts(request);
+  expect(plan.artifacts.find((entry) => entry.kind === 'rag').contents).toContain('changed');
+  expect(identities.length).toBeGreaterThan(0);
+  for (const identity of identities) {
+    expect(identity).toEqual({name:'astro-aeo-approx',version:'1',approximate:true});
+    expect(Object.values(identity).some((value) => typeof value === 'function')).toBe(false);
+  }
+});

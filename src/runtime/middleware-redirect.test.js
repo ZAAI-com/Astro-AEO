@@ -113,6 +113,19 @@ describe('redirect negotiation', () => {
     expect(response.headers.get('content-digest')).toBeNull();
   });
 
+  test.each([['private, max-age=30', 'private, max-age=30'], [undefined, null]])(
+    'keeps the page Cache-Control %s on the redirect, not markdown.cacheControl',
+    async (pagePolicy, expected) => {
+      RUNTIME.config = resolveConfig({ markdown: { negotiation: 'redirect', cacheControl: 'public, max-age=31536000' } });
+      const ctx = context('/docs/about');
+      const response = await onRequest(ctx, vi.fn(async () => new Response('<html><main>About</main></html>', {
+        headers: { 'content-type': 'text/html', ...(pagePolicy ? { 'cache-control': pagePolicy } : {}) },
+      })));
+      expect(response.status).toBe(303);
+      expect(response.headers.get('cache-control')).toBe(expected);
+    },
+  );
+
   test('does not redirect missing, error, or non-HTML responses', async () => {
     for (const response of [
       new Response('<html><main>Missing</main></html>', {

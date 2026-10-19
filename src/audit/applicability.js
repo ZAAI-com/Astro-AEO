@@ -7,7 +7,8 @@ import { AUDIT_CATEGORIES } from './rules.js';
 export function auditApplicability(pages,options) {
   const any = pages.length > 0, complete = options.inventoryComplete === true;
   const indexable = pages.some((page) => !page.noindex);
-  const languages = new Set(pages.map((page) => page.language).filter(Boolean));
+  // BCP 47 tags are case-insensitive: en-US and en-us are one language.
+  const languages = new Set(pages.map((page) => page.language?.toLowerCase()).filter(Boolean));
   const multilingual = languages.size > 1 || pages.some((page) => page.alternates.length > 0 || page.versionAlternates?.length);
   const markdown = pages.some((page) => page.markdown !== undefined);
   const graph = pages.some((page) => page.jsonLd.length > 0);

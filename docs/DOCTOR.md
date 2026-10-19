@@ -4,7 +4,8 @@
 `--url https://example.com/page` probe can mark a serving check `configured`.
 Local build facts, disabled negotiation, matching artifact bytes, server files,
 and package declarations remain `unverified`. `missing` and `conflicting` checks
-return exit code 1; invalid invocation returns 2.
+return exit code 1. Invalid invocation returns 2, and so does a `--url` probe that cannot
+reach the deployment or receives a non-2xx page response.
 
 ```sh
 astro-aeo doctor . --print

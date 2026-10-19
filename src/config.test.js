@@ -11,7 +11,7 @@ describe('resolveConfig', () => {
     for (const invalid of [
       [], { 'https://example.test/path': {} }, { 'https://user:secret@example.test': {} },
       { 'https://example.test?q=secret': {} }, { 'https://example.test': { enabled: true } },
-      { 'https://example.test': { sameAs: [1] } }, { 'https://example.test': { name: 42 } },
+      { 'https://example.test': { sameAs: [1] } }, { 'https://example.test': { sameAs: new Array(1) } }, { 'https://example.test': { name: 42 } },
       { 'https://example.test': { entityType: 'Spaceship' } },
       { 'https://example.test': {}, 'https://EXAMPLE.test/': {} },
     ]) expect(() => resolveConfig({ site: { profile: { origins: invalid } } })).toThrow(/site.profile.origins/);

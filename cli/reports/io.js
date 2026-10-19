@@ -122,7 +122,7 @@ export async function writeOutput(file, text) {
       const next = dirname(anchor); if (next === anchor) throw new ReportInvocationError('Cannot create report output.'); anchor = next;
     }
   }
-  if ((await lstat(anchor)).isSymbolicLink()) throw new ReportInvocationError('Report output parent must not be a symlink.');
+  // safeFile checks the existing parent too, and allows only the macOS /tmp and /var aliases.
   const canonical = await realpath(anchor);
   // Reject a linked ancestor below the caller's filesystem alias.
   const cwd = resolve(process.cwd());

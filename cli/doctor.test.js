@@ -227,6 +227,15 @@ describe('doctor evidence and read-only advice', () => {
     expect(await hint(real)).toBe('run `astro-aeo fix --write`');
   });
 
+  test('keeps a build folder reached through a link below the project unread', async () => {
+    const outside = project({ 'out/index.md': '# t' });
+    const root = project({});
+    ledger(root, [emitted], 'link/out');
+    symlinkSync(outside, join(root, 'link'), 'dir');
+    const result = await runDoctor([root, '--dist', 'link/out']);
+    expect(statuses(result.checks)['emitted-artifacts']).not.toBe('unverified');
+  });
+
   test('does not follow linked emitted artifacts even when their bytes match', async () => {
     const outside = project({ 'index.md': '# t' });
     const root = project({ 'dist/placeholder': '' });

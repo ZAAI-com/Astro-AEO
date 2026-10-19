@@ -8,7 +8,8 @@ import { dirname, isAbsolute, relative, resolve } from 'node:path';
 export function createJsonlSink(filename = '.astro/aeo-analytics/events-v1.jsonl', root = process.cwd()) {
   const target = resolve(root, filename);
   const path = relative(root, target);
-  if (!path || path === '..' || path.startsWith('../') || isAbsolute(path)) throw new TypeError('astro-aeo: analytics JSONL path must stay inside the project');
+  // `relative()` uses a backslash on Windows, so parent components are matched with either separator.
+  if (!path || /^\.\.(?:[\\/]|$)/.test(path) || isAbsolute(path)) throw new TypeError('astro-aeo: analytics JSONL path must stay inside the project');
   let queue = Promise.resolve();
   return (event) => {
     const work = queue.then(async () => {
@@ -17,7 +18,7 @@ export function createJsonlSink(filename = '.astro/aeo-analytics/events-v1.jsonl
       let current = resolve(root);
       const rootStat = await lstat(current);
       if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) throw new Error('Unsafe analytics root');
-      for (const part of relative(root, dirname(target)).split('/').filter(Boolean)) {
+      for (const part of relative(root, dirname(target)).split(/[\\/]/).filter(Boolean)) {
         current = resolve(current, part);
         try { await mkdir(current, { mode: 0o700 }); } catch (error) { if (/** @type {NodeJS.ErrnoException} */ (error).code !== 'EEXIST') throw error; }
         const stat = await lstat(current);

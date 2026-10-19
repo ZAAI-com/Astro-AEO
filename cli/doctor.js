@@ -1,7 +1,7 @@
 // @ts-check
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { parseArgs } from 'node:util';
 import { deploymentFactsPath } from '../src/build/deployment-facts.js';
 import { fileEtag, isSafeOutputPath, isUnlinkedDirectory, matchesOutputRootId, ownershipManifestPath, readOwnershipManifest, resolveRecordedOutputPath } from '../src/build/ownership.js';
@@ -79,8 +79,9 @@ export async function runDoctor(args, context = {}) {
 
   const facts = readFacts(projectDir);
   const typedDist = resolve(requested, parsed.values.dist ?? 'dist');
-  // A linked build folder keeps its typed path, so its artifacts stay unread.
-  const distDir = existsSync(typedDist) && !lstatSync(typedDist).isSymbolicLink() ? realpathSync(typedDist) : typedDist;
+  // A build folder linked at or below the project keeps its typed path, so its
+  // artifacts stay unread. Only linked folders above the project are resolved.
+  const distDir = existsSync(typedDist) && !linkedBelow(requested, typedDist) ? realpathSync(typedDist) : typedDist;
   /** @type {DoctorCheck[]} */
   const checks = [
     facts
@@ -124,6 +125,22 @@ function readFacts(projectDir) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Is any existing component from `root` (exclusive) down to `target` a symbolic
+ * link? A target outside `root` checks only itself.
+ * @param {string} root @param {string} target
+ */
+function linkedBelow(root, target) {
+  const rel = relative(root, target);
+  const parts = rel && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel) ? rel.split(sep) : [];
+  let current = parts.length ? root : dirname(target);
+  for (const part of parts.length ? parts : [basename(target)]) {
+    current = join(current, part);
+    if (existsSync(current) && lstatSync(current).isSymbolicLink()) return true;
+  }
+  return false;
 }
 
 /**

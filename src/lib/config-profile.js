@@ -27,7 +27,7 @@ export function resolveProfileOrigins(input) {
     if (!isPlainObject(values)) throw new AeoConfigError(`astro-aeo: ${path} must be a profile override object.`);
     for (const [key, value] of Object.entries(/** @type {Record<string, unknown>} */ (values))) {
       if (!allowed.has(key)) throw new AeoConfigError(`astro-aeo: ${path}.${key} is not a supported profile override.`);
-      if (key === 'sameAs' ? !Array.isArray(value) || value.some((item) => typeof item !== 'string') : typeof value !== 'string') {
+      if (key === 'sameAs' ? !Array.isArray(value) || Array.from(value).some((item) => typeof item !== 'string') : typeof value !== 'string') {
         throw new AeoConfigError(`astro-aeo: ${path}.${key} must be ${key === 'sameAs' ? 'an array of strings' : 'a string'}.`);
       }
       if (key === 'entityType' && !entityTypes.has(/** @type {string} */ (value))) {

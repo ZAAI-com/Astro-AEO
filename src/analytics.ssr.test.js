@@ -34,6 +34,10 @@ async function runServer(callback, extraEnv = {}) {
 }
 const events = (output) => output.split('\n').filter((line) => line.startsWith('astro-aeo:analytics-v1 ')).map((line) => JSON.parse(line.slice('astro-aeo:analytics-v1 '.length)));
 const delay = () => new Promise((resolve) => setTimeout(resolve, 50));
+/** Delivery is asynchronous: wait for a positive observation instead of a fixed sleep. */
+const until = async (check, timeout = 5000) => {
+  for (const end = Date.now() + timeout; !check();) { if (Date.now() > end) throw new Error('Timed out waiting for analytics output'); await new Promise((resolve) => setTimeout(resolve, 20)); }
+};
 
 test('absent and disabled server bundles are byte-identical and analytics-free, with enabled positive control', async () => {
   const absent = build('absent'); const disabled = build('disabled'); expect(disabled).toEqual(absent);
@@ -45,18 +49,18 @@ test('real middleware records bounded public observations once, excludes fan-out
   await runServer(async ({ get, output }) => {
     let start = events(output()).length;
     const dynamic = await get('/users/private-user?private-query=never', 'GET', { 'user-agent': 'GPTBot private-suffix', cookie: 'private-cookie', authorization: 'private-auth', referer: 'https://private-referrer.test' });
-    expect(dynamic.status).toBe(200); await delay(); const observed = events(output()).slice(start); expect(observed).toHaveLength(1); expect(observed[0]).toMatchObject({ path: '/docs/users/[id]', crawler: { identity: 'GPTBot' }, representation: 'html', surface: 'node' });
+    expect(dynamic.status).toBe(200); await until(() => events(output()).length > start); await delay(); const observed = events(output()).slice(start); expect(observed).toHaveLength(1); expect(observed[0]).toMatchObject({ path: '/docs/users/[id]', crawler: { identity: 'GPTBot' }, representation: 'html', surface: 'node' });
     expect(JSON.stringify(observed)).not.toContain('private-');
-    start = events(output()).length; const md = await get('/index.md'); expect(md.status).toBe(200); expect(await md.text()).toContain('Analytics home'); await delay(); expect(events(output()).slice(start)).toHaveLength(1);
-    start = events(output()).length; const corpus = await get('/llms-full.txt'); expect(corpus.status, `${await corpus.clone().text()}\n${output()}`).toBe(200); await delay(); expect(events(output()).slice(start)).toHaveLength(1); expect(events(output()).at(-1)).toMatchObject({ pathKind: 'artifact' });
+    start = events(output()).length; const md = await get('/index.md'); expect(md.status).toBe(200); expect(await md.text()).toContain('Analytics home'); await until(() => events(output()).length > start); await delay(); expect(events(output()).slice(start)).toHaveLength(1);
+    start = events(output()).length; const corpus = await get('/llms-full.txt'); expect(corpus.status, `${await corpus.clone().text()}\n${output()}`).toBe(200); await until(() => events(output()).length > start); await delay(); expect(events(output()).slice(start)).toHaveLength(1); expect(events(output()).at(-1)).toMatchObject({ pathKind: 'artifact' });
     start = events(output()).length; await get('/', 'POST'); await delay(); expect(events(output())).toHaveLength(start);
   });
 });
 test('generated user-module and Node JSONL sinks run only at request time', async () => {
-  build('module'); await runServer(async ({ get, output }) => { await get('/'); await delay(); expect(output()).toContain('custom-analytics:'); expect(output()).not.toContain('runtime setup failed'); });
-  await runServer(async ({ get, output }) => { const response = await get('/'); expect(response.status).toBe(200); expect(await response.text()).toContain('Analytics home'); await delay(); expect(output()).toContain('runtime setup failed'); expect(output()).not.toContain('private-runtime-details'); }, { AEO_SINK_RUNTIME_FAILURE: '1' });
+  build('module'); await runServer(async ({ get, output }) => { await get('/'); await until(() => output().includes('custom-analytics:')); expect(output()).not.toContain('runtime setup failed'); });
+  await runServer(async ({ get, output }) => { const response = await get('/'); expect(response.status).toBe(200); expect(await response.text()).toContain('Analytics home'); await until(() => output().includes('runtime setup failed')); expect(output()).not.toContain('private-runtime-details'); }, { AEO_SINK_RUNTIME_FAILURE: '1' });
   await runServer(async ({ get }) => { const response = await get('/'); expect(response.status).toBe(200); expect(await response.text()).toContain('Analytics home'); }, { AEO_SINK_RUNTIME_FAILURE: 'hang' });
   const path = join(root, '.astro/events-v1.jsonl'); rmSync(path, { force: true }); const source = build('jsonl').map(([, body]) => body).join('\n'); expect(source).toContain('node:fs'); expect(existsSync(path)).toBe(false);
-  try { await runServer(async ({ get }) => { await get('/'); await delay(); }); expect(statSync(path).mode & 0o777).toBe(0o600); const entries = readFileSync(path, 'utf8').trim().split('\n').map(JSON.parse); expect(entries.length).toBeGreaterThan(0); expect(entries.every((event) => event.surface === 'node')).toBe(true); }
+  try { await runServer(async ({ get }) => { await get('/'); await until(() => existsSync(path) && readFileSync(path, 'utf8').trim() !== ''); }); expect(statSync(path).mode & 0o777).toBe(0o600); const entries = readFileSync(path, 'utf8').trim().split('\n').map(JSON.parse); expect(entries.length).toBeGreaterThan(0); expect(entries.every((event) => event.surface === 'node')).toBe(true); }
   finally { rmSync(path, { force: true }); }
 });
