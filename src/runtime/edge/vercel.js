@@ -41,7 +41,7 @@ export function createVercelHandler(options) {
       }
     }
     if (direct) {
-      return cached?.cacheControl !== undefined && [...cached.routes.values()].includes(new URL(request.url).pathname)
+      return cached?.cacheControl !== undefined && cached.markdown.has(new URL(request.url).pathname)
         ? options.next({ headers: { 'cache-control': cached.cacheControl } }) : options.next();
     }
     const decision = decideEdgeRepresentation(request, cached);

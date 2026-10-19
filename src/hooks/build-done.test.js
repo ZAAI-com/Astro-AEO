@@ -18,6 +18,7 @@ import { createSemanticPlugin } from '../semantic/plugin.js';
 import { createGraph } from '../schema.js';
 import { createLocaleSnapshot } from '../core/locale.js';
 import { onBuildDone } from './build-done.js';
+import { runDoctor } from '../../cli/doctor.js';
 
 const roots = [];
 
@@ -242,6 +243,9 @@ describe('staged build plugin pipeline', () => {
     const warnings = await build(false);
     expect(existsSync(llms)).toBe(true);
     expect(warnings.some((message) => message.includes('stale output'))).toBe(true);
+    // The kept output is in the ledger, so the deployment facts must hash it too.
+    const doctor = await runDoctor([files.root]);
+    expect(doctor.checks.find((check) => check.id === 'build-evidence')?.status).toBe('unverified');
 
     rmSync(lock);
     await build(false);

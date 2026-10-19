@@ -391,7 +391,8 @@ async function onBuildDoneLocked(config, options, env, session) {
         trailingSlash: env.trailingSlash,
         negotiation: config.markdown.enabled ? config.markdown.negotiation : 'off',
         edgeProvider: env.edgeProvider ?? null,
-        ownership: /** @type {any} */ (writer).resolve?.().manifestEntries ?? [],
+        ownership: /** @type {any} */ (writer).ledgerArtifacts?.() ??
+          /** @type {any} */ (writer).resolve?.().manifestEntries ?? [],
       }),
       { mode: 0o600, confineTo: env.projectRoot },
     );

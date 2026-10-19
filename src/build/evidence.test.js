@@ -79,6 +79,10 @@ test('an incomplete inventory preserves unseen owned output until a complete bui
   w = writer(); w.withholdStaleDeletion(); evidence(w, [], false); w.commit();
   expect(readFileSync(join(root, 'dist', 'old.md'), 'utf8')).toBe('Old');
   expect(read('trace').artifacts).toEqual([{ pathname: '/docs/old.md', action: 'preserved' }]);
+  // Evidence derived from ownership lists the kept entry exactly as the ledger does.
+  expect(read('pages').artifacts.map((entry) => entry.pathname)).toEqual(['/docs/old.md']);
+  expect(read('ownership').artifacts.map((entry) => entry.pathname)).toEqual(['/docs/old.md']);
+  expect(w.ledgerArtifacts()).toEqual(read('ownership').artifacts);
   w = writer(); evidence(w); w.commit();
   expect(read('trace').artifacts).toEqual([{ pathname: '/docs/old.md', action: 'removed' }]);
   expect(() => lstatSync(join(root, 'dist', 'old.md'))).toThrow();

@@ -1376,7 +1376,9 @@ function canonicalLink(pagePath, context) {
  */
 function representationHeaders(source, pagePath, context, negotiated) {
   const headers = inheritedRepresentationHeaders(source ?? undefined);
-  if (RUNTIME.config.markdown.cacheControl !== undefined) {
+  // Successful representations only, as in the edge helpers: an error page
+  // keeps the project's own policy, so a long-lived value cannot cache it.
+  if (RUNTIME.config.markdown.cacheControl !== undefined && (source?.ok || source?.status === 304)) {
     headers.set('cache-control', RUNTIME.config.markdown.cacheControl);
   }
   stripInternalHeaders(headers);

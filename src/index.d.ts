@@ -41,6 +41,12 @@ export interface LanguagePageAlternate {
   url: string;
 }
 
+/**
+ * A pure, versioned declaration. A cached result may be reused instead of
+ * running the hook or renderer, so change `version` whenever its output can
+ * change for a reason outside the cache key (for example, options captured
+ * only in a closure, or an upgraded dependency).
+ */
 export interface CacheDeclaration {
   pure: true;
   version: string;
@@ -1090,7 +1096,7 @@ export interface MarkdownOptions {
    * everything and cannot negotiate anywhere; `.md` companions are unaffected.
    */
   negotiation?: 'off' | 'response' | 'redirect';
-  /** Cache-Control for generated Markdown. Omit to inherit the source policy. */
+  /** Cache-Control for successful generated Markdown. Omit to inherit the source policy; error responses always keep it. */
   cacheControl?: string;
   /** Which part of a rendered page becomes Markdown. */
   extraction?: ExtractionOptions;

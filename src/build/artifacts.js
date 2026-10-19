@@ -1062,7 +1062,7 @@ function createDeferredArtifactWriter(deps) {
 
       operations.push(...transformOperations(false));
       operations.push(...staleCleanupOperations(resolved.byServed));
-      const kept = staleDeletion ? [] : staleOutputs(resolved.byServed);
+      const kept = keptOutputs(resolved);
 
       for (const operation of privateWrites) {
         const contents = typeof operation.contents === 'function'
@@ -1247,6 +1247,12 @@ function createDeferredArtifactWriter(deps) {
     return staleOutputs(currentClaims).map(({ path }) => ({ kind: /** @type {const} */ ('delete'), path }));
   }
 
+  /** Stale outputs this build keeps because it may not delete them.
+   * @param {{ byServed: Map<string, any[]> }} resolved */
+  function keptOutputs(resolved) {
+    return staleDeletion ? [] : staleOutputs(resolved.byServed);
+  }
+
   /**
    * The current ledger, plus the prior entries and groups of stale outputs a
    * read-only build kept, so a later build still has the authority to remove
@@ -1417,6 +1423,13 @@ function createDeferredArtifactWriter(deps) {
     commit,
     report,
     resolve: resolveClaims,
+    /** The exact artifact list the ownership ledger records, kept entries included.
+     * Private evidence derived from ownership must hash this list, not the
+     * current claims alone, or kept outputs make the files disagree. */
+    ledgerArtifacts() {
+      const resolved = resolveClaims();
+      return ledgerWithKept(resolved, keptOutputs(resolved)).artifacts;
+    },
     /** @param {string} path */
     transformOwners(path) { return (transforms.get(path) ?? []).map((edit) => edit.owner); },
     /** Safe public output actions for private evidence, without filesystem paths. */

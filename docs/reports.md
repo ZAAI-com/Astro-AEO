@@ -86,7 +86,9 @@ compared with snapshot ownership etags instead. Selection does not rewrite or de
 
 `report graph [file]` defaults to `dist/schema/graph.jsonld`; choose an explicit path when
 your graph artifact uses a custom destination. It extracts JSON-LD nodes and references
-without resolving `@context` or fetching linked IDs. `--type <type>`, `--node <ID>`, and
+without resolving `@context` or fetching linked IDs. A typed or named entity without an
+`@id`, such as an embedded author, becomes its own node with a content-derived `_:` ID and
+an edge from the entity that contains it. `--type <type>`, `--node <ID>`, and
 `--depth 0|1|2|3` select types and undirected neighborhoods.
 
 HTML provides local search, type and neighborhood controls, plus complete initial nodes

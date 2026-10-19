@@ -53,6 +53,11 @@ export async function createPluginDispatcher({ plugins = [], internalPlugins = [
   /** @type {(import('../index.js').PluginArtifactClaim & { plugin: string })[]} */
   const claims = [];
   const runtime = [];
+  /** Declared runtime options per plugin, part of every hook cache identity.
+   * The entrypoint is left out: it is usually an absolute path, which would
+   * tie cache keys to the checkout location.
+   * @type {Map<string, import('../index.js').JsonValue>} */
+  const runtimeOptions = new Map();
   const names = new Set();
   const userHookStages = new Set();
 
@@ -112,20 +117,17 @@ export async function createPluginDispatcher({ plugins = [], internalPlugins = [
     }
 
     if (plugin.runtime) {
+      const options = plugin.runtime.options === undefined
+        ? undefined
+        : cloneJsonValue(plugin.runtime.options, `plugin ${plugin.name} runtime options`);
+      if (options !== undefined) runtimeOptions.set(plugin.name, options);
       runtime.push({
         name: plugin.name,
         apiVersion: 1,
         entrypoint: plugin.runtime.entrypoint instanceof URL
           ? plugin.runtime.entrypoint.href
           : plugin.runtime.entrypoint,
-        ...(plugin.runtime.options === undefined
-          ? {}
-          : {
-              options: cloneJsonValue(
-                plugin.runtime.options,
-                `plugin ${plugin.name} runtime options`,
-              ),
-            }),
+        ...(options === undefined ? {} : { options }),
         stages: PLUGIN_STAGES.filter((stage) => hooks.get(stage)?.some((item) => item.plugin === plugin.name)),
         hookManifest: PLUGIN_STAGES.flatMap((stage) =>
           (hooks.get(stage) ?? [])
@@ -150,8 +152,11 @@ export async function createPluginDispatcher({ plugins = [], internalPlugins = [
     cacheIdentity(stage) {
       const registrations = hooks.get(stage) ?? [];
       if (registrations.some((entry) => !entry.cache)) return null;
+      // Declared runtime options configure the plugin, so they key its hooks:
+      // changing them must not reuse output produced under the old options.
       return registrations.map(({ plugin, ordinal, cache, recoverable }) => ({
         plugin, ordinal, version: cache?.version, recoverable: recoverable === true,
+        options: runtimeOptions.get(plugin),
       }));
     },
     /**

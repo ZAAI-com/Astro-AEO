@@ -74,6 +74,18 @@ test.each([undefined, 'private, max-age=17'])('direct Markdown applies policy %s
   expect(response.headers.get('set-cookie')).toBe('session=retained');
 });
 
+test('direct Markdown for an error page keeps the project cache policy', async () => {
+  RUNTIME.config = resolveConfig({ markdown: { alternateLink: 'never', negotiation: 'off', cacheControl: 'public, max-age=31536000' } });
+  const context = contextFor('/missing.md');
+  context.rewrite.mockImplementation(async () => new Response(html('', '<main><h1>Not found</h1></main>'), {
+    status: 404, headers: { 'content-type': 'text/html', 'cache-control': 'no-store' },
+  }));
+  const response = await onRequest(context, async () => { throw new Error('must not fall through'); });
+  expect(response.status).toBe(404);
+  expect(response.headers.get('content-type')).toBe('text/markdown; charset=utf-8');
+  expect(response.headers.get('cache-control')).toBe('no-store');
+});
+
 describe('runtime semantic head enrichment', () => {
   test('injects the default managed graph while preserving status and non-byte headers', async () => {
     const source = html();

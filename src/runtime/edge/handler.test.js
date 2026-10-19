@@ -272,6 +272,8 @@ describe('shared negotiator responses', () => {
     expect(readEdgeManifest({ ...manifest('response'), routes: 'x' })).toBeNull();
     expect(readEdgeManifest({ ...manifest('response'), routes: new Array(200_001).fill({ html: '/', markdown: '/index.md' }) })).toBeNull();
     expect(readEdgeManifest(manifest('response'))?.routes.get('/guide')).toBe('/guide.md');
+    expect(readEdgeManifest(manifest('response'))?.markdown.has('/guide.md')).toBe(true);
+    expect(readEdgeManifest(manifest('response'))?.markdown.has('/guide')).toBe(false);
   });
 
   test('the Vercel factory refuses to start without its platform helpers', () => {

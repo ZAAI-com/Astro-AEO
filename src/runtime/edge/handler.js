@@ -23,7 +23,7 @@ const MAX_ROUTES = 200_000;
  * anything unexpected: a manifest is all or nothing.
  *
  * @param {unknown} value
- * @returns {{ mode: 'response' | 'redirect'; routes: Map<string, string>; cacheControl?: string } | null}
+ * @returns {{ mode: 'response' | 'redirect'; routes: Map<string, string>; markdown: Set<string>; cacheControl?: string } | null}
  */
 export function readEdgeManifest(value) {
   const manifest = /** @type {any} */ (value);
@@ -46,7 +46,9 @@ export function readEdgeManifest(value) {
     if (routes.has(key)) return null;
     routes.set(key, route.markdown);
   }
-  return { mode: manifest.mode, routes, ...(manifest.cacheControl === undefined ? {} : { cacheControl: manifest.cacheControl }) };
+  // Direct companion requests look up their own path, so index it once here.
+  return { mode: manifest.mode, routes, markdown: new Set(routes.values()),
+    ...(manifest.cacheControl === undefined ? {} : { cacheControl: manifest.cacheControl }) };
 }
 
 /**
@@ -121,7 +123,7 @@ export function createEdgeNegotiator(host) {
     if (new URL(request.url).pathname.endsWith('.md')) {
       const manifest = await manifestFor(request, /** @type {C} */ (context));
       const response = await next();
-      if (manifest?.cacheControl === undefined || ![...manifest.routes.values()].includes(new URL(request.url).pathname)) return response;
+      if (manifest?.cacheControl === undefined || !manifest.markdown.has(new URL(request.url).pathname)) return response;
       const headers = new Headers(response.headers);
       if (response.ok || response.status === 304) headers.set('cache-control', manifest.cacheControl);
       return new Response(response.body, { status: response.status, statusText: response.statusText, headers });

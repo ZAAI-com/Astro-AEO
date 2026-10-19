@@ -190,6 +190,24 @@ describe('offline graph HTML', () => {
     expect(() => graphReport(graph,{node:'missing'})).toThrow('absent');
     assertContract(report,'graph-report-v1');
   });
+  it('keeps nested anonymous entities as their own nodes instead of relabeling the parent', () => {
+    const report = graphReport({'@graph':[{'@id':'https://example.test/a#article','@type':'Article',headline:'Hello',
+      author:{'@type':'Person',name:'Jane'},image:[{'@type':'ImageObject',url:'https://example.test/a.png'}],
+      address:{streetAddress:'Main'}}]});
+    const article = report.nodes.find((node) => node.id === 'https://example.test/a#article');
+    expect(article).toEqual({id:'https://example.test/a#article',label:'Hello',types:['Article']});
+    const person = report.nodes.find((node) => node.types.includes('Person'));
+    expect(person).toMatchObject({label:'Jane',types:['Person']});
+    expect(person?.id).toMatch(/^_:[a-f\d]{64}$/);
+    expect(report.nodes.filter((node) => node.types.includes('ImageObject'))).toHaveLength(1);
+    expect(report.nodes).toHaveLength(3);
+    expect(report.edges).toContainEqual({from:'https://example.test/a#article',to:person?.id,property:'author'});
+    expect(report.edges.map((edge) => edge.property).sort()).toEqual(['author','image']);
+    expect(graphReport({'@graph':[{'@id':'https://example.test/a#article','@type':'Article',headline:'Hello',
+      author:{'@type':'Person',name:'Jane'}}]})).toEqual(graphReport({'@graph':[{'@id':'https://example.test/a#article',
+      '@type':'Article',headline:'Hello',author:{'@type':'Person',name:'Jane'}}]}));
+    assertContract(report,'graph-report-v1');
+  });
   it('pins exact script/style hashes, escapes hostile JSON and leaves a complete no-JS table', () => {
     const html = renderDataReport(graphReport(graph),'html');
     const document = cspHashes(html);

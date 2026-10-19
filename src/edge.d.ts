@@ -21,6 +21,8 @@ export interface EdgeManifestIndex {
   mode: 'response' | 'redirect';
   cacheControl?: string;
   routes: Map<string, string>;
+  /** Every companion pathname in `routes`, for direct `.md` lookups. */
+  markdown: ReadonlySet<string>;
 }
 
 export declare const EDGE_MANIFEST_PATHNAME: '/.well-known/astro-aeo-edge-v1.json';

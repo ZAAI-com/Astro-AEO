@@ -28,14 +28,18 @@ export function graphReport(input, options = {}) {
         if (url.username || url.password || url.search) throw new ReportInvocationError('Graph URLs must not contain credentials or query values.');
       }
     }
-    const target = typeof value['@id'] === 'string' ? value['@id'] : null;
+    const described = value['@type'] !== undefined || value.name !== undefined || value.headline !== undefined;
+    // A nested described object without an @id is its own blank node, named
+    // like a top-level one, so it never relabels or retypes its parent.
+    const target = typeof value['@id'] === 'string' ? value['@id']
+      : property && described ? '_:' + evidenceHash(value).slice(7) : null;
     if (target && target !== id) {
       edges.push({from:id,to:target,property:property || '@id'});
       if (edges.length > 50000) throw new ReportInvocationError('Graph input exceeds the edge limit.');
       if (!nodes.has(target)) nodes.set(target,{id:target,label:target,types:[]});
     }
     const owner = target ?? id;
-    if (value['@type'] !== undefined || value.name !== undefined || value.headline !== undefined) {
+    if (described) {
       const types = (Array.isArray(value['@type']) ? value['@type'] : [value['@type']]).filter((/** @type {unknown} */ t) => typeof t === 'string');
       const title = typeof value.name === 'string' ? value.name : typeof value.headline === 'string' ? value.headline : owner;
       const previous = nodes.get(owner);

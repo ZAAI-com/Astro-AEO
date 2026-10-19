@@ -91,3 +91,21 @@ test('hook versions invalidate their own stage and unsafe hooks do not disable p
   await cachedStage(cache, 'graph-v1', { infer: () => 1 }, produce, Number.isInteger);
   expect(produce).toHaveBeenCalledTimes(2);
 });
+
+test('declared plugin runtime options are part of a pure hook cache identity', async () => {
+  const { cache } = fixture();
+  const metadata = vi.fn(({ value }) => ({ action: 'replace', value: { ...value, tagged: true } }));
+  const dispatcher = (options) => createPluginDispatcher({ command: 'build', plugins: [{
+    name: 'configured', apiVersion: 1,
+    setup(api) { api.on('page:metadata', metadata, { cache: { pure: true, version: '1' } }); },
+    runtime: { entrypoint: '/configured.js', options },
+  }] });
+  const run = async (options) => runCachedPluginStage(await dispatcher(options), cache, 'page:metadata', { title: 'Page' }, {});
+  await run({ prefix: 'A' });
+  await run({ prefix: 'A' });
+  expect(metadata).toHaveBeenCalledTimes(1);
+  await run({ prefix: 'B' });
+  expect(metadata).toHaveBeenCalledTimes(2);
+  await run({ prefix: 'B' });
+  expect(metadata).toHaveBeenCalledTimes(2);
+});

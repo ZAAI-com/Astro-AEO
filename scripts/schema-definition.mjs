@@ -255,7 +255,7 @@ const extractionProperties = {
 };
 
 const markdownProperties = {
-  cacheControl: { type: 'string', minLength: 1, pattern: '^[ -~]+$', description: 'Cache-Control for generated Markdown; omission inherits the source policy.' },
+  cacheControl: { type: 'string', minLength: 1, pattern: '^[ -~]+$', description: 'Cache-Control for successful generated Markdown; omission inherits the source policy, and error responses always keep it.' },
   enabled: boolean('Generate .md companion pages.', true),
   strategy: {
     type: 'string',

@@ -56,7 +56,7 @@ export function stageBuildEvidence(input) {
   /** @type {ReturnType<typeof createPageSnapshot> | undefined} */
   let snapshot;
   const getSnapshot = () => snapshot ??= createPageSnapshot(input.pages,
-    input.writer.resolve().manifestEntries, input.inventoryComplete, input.ragRecords);
+    input.writer.ledgerArtifacts?.() ?? input.writer.resolve().manifestEntries, input.inventoryComplete, input.ragRecords);
   const directory = join(input.projectRoot, '.astro', 'aeo-cache');
   input.writer.stagePrivateWrite(join(directory, 'pages-v1.json'),
     () => `${canonicalStringify(getSnapshot())}\n`, { mode: 0o600, confineTo: input.projectRoot });

@@ -917,7 +917,8 @@ match the emitted `text/markdown; charset=utf-8` representation. The legacy
 Negotiated responses inherit the page's cache policy unless `markdown.cacheControl`
 explicitly overrides it. The override also applies to generated direct companions and
 known static companions served through the edge helpers; application HTML, redirects and
-unlisted assets keep their own policy. Omission preserves inherited behavior. Vercel's
+unlisted assets keep their own policy. It replaces the policy of successful (`2xx`) and
+`304` responses only: Markdown rendered from an error page keeps that page's policy. Omission preserves inherited behavior. Vercel's
 helper performs an anonymous, bounded companion HEAD before a rewrite or negotiation
 redirect and falls back to HTML if the asset is missing or unavailable. These helpers
 are tested locally, not as deployed-provider verification.
@@ -1553,8 +1554,8 @@ drops that record without isolating the page. Artifact hooks receive an `Artifac
 (`Artifact` is its alias): `{ claim, representation }`, with a null representation before
 generation. `ArtifactClaim` and `ArtifactRepresentation` describe those actual boundaries.
 
-Hooks on `page:discovered`, `page:extract`, `page:transform`, `page:metadata`, and `graph:build`
-may declare themselves pure:
+Hooks on `page:discovered`, `page:extract`, `page:transform`, `page:metadata`, `graph:build`,
+and `rag:record` may declare themselves pure:
 
 ```js
 api.on('page:metadata', hook, { cache: { pure: true, version: '2' } });
@@ -1562,9 +1563,14 @@ api.on('page:metadata', hook, { cache: { pure: true, version: '2' } });
 
 The declaration is recorded in the build's hook manifest and checked when the runtime module
 loads. A runtime module that registers different hooks or different declarations than the build
-fails to load, and its stages isolate. Bump `version` whenever the hook's output changes for the
-same input. The declaration does not currently let a build skip hook execution: every hook runs
-on every build.
+fails to load, and its stages isolate.
+
+With the processing cache enabled, a build reuses a stage's earlier result instead of running
+its hooks when every hook on that stage is pure and the previous run was clean (no
+diagnostics, isolation or drop). The cache key covers the stage input, each hook's plugin
+name, position, `version` and `recoverable` setting, and the plugin's declared
+`runtime.options`. Bump `version` whenever the output can change for any other reason, such
+as options captured only in the plugin factory's closure or an upgraded dependency.
 
 ## JSON-LD Components
 
