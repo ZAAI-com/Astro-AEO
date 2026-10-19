@@ -2,6 +2,29 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## 1.6.1
+
+### Patch Changes
+
+- 756e278: Fix review findings left open on the 1.6.0 release:
+
+  - `audit` export destinations and `report --output` now refuse a path that names the same file as
+    another export or an input under a different letter case (on macOS and Windows) or through a hard
+    link, instead of overwriting it.
+  - `audit --discovery` stops issuing new requests after 60 seconds and reports `live-discovery-limit`,
+    so a slow origin can no longer hold discovery for 100 sequential request timeouts.
+  - `report inspect` warns when the ownership ledger lists an artifact the snapshot lacks, or when
+    their byte lengths differ.
+  - Runtime plugins receive only the `requested` and `source` fields of a page's locale fallback marker.
+  - The Vercel edge handler applies the manifest cache policy to a direct `.md` request only after
+    the asset answers `200`, so a missing companion is no longer made cacheable.
+  - Edge handlers match direct companion requests against the manifest after decoding, so an
+    equivalent percent-encoding receives the same cache policy.
+  - `doctor` reports emitted artifacts as `missing` when the build folder no longer exists, instead
+    of calling them unverified behind a symbolic link.
+  - Analytics records requests for published `rag.jsonl.gz` siblings as artifacts, and reads the
+    build's gzip decision from one runtime flag instead of re-deriving it.
+
 ## 1.6.0
 
 Benchmark regression explanation: Opt-in analytics and RAG, private processing evidence, versioned topology, exported report schemas and read-only audit/report commands increase published source bytes against reconstructed commit 29729bb. The five mandatory dependencies and Node/Astro floors are unchanged. The measured package exception to 500,000 packed / 1,900,000 unpacked bytes was explicitly approved on 2026-10-04; all runtime, memory, request and bundle ceilings remain fixed. Reference-runner relative timing is not certified by these local measurements.
@@ -80,7 +103,6 @@ Benchmark regression explanation: Opt-in analytics and RAG, private processing e
 - Classify `.gz` corpus paths as analytics artifacts only when the build wrote static gzip siblings. A runtime-owned corpus answers them `404`, so they are now `unlisted`.
 - Never start an inline code span inside a longer unclosed backtick run when locating audit findings in Markdown, so literal markup after it keeps its line and column.
 
-
 ### Implementation details
 
 - Add audited-byte HTML/Markdown source regions, URL Action annotations from one audit,
@@ -88,7 +110,6 @@ Benchmark regression explanation: Opt-in analytics and RAG, private processing e
   findings, and opt-in bounded live discovery/corpus verification. Preserve validator contracts.
 
 - Add read-only traffic, changes, inspect, graph and RAG reports, versioned report/evidence schemas, and hash-pinned offline HTML CSP while retaining frozen validator formatting.
-
 
 - Generate private locale/version RAG page and chunk records with stable IDs, actual tokenizer
   counts, content hashes and immutable measurement fields. Publish ownership-managed JSONL and
