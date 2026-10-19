@@ -122,9 +122,11 @@ ASTRO_AEO_BENCHMARK_RUNNER=portable-size-only \
 node scripts/update-benchmark-baseline.mjs --sizes-only
 ```
 
-The complete run still has to pass every absolute ceiling, so a size-only reference is a full
-measurement with the environment-sensitive samples withheld rather than a partial one. Keep the
-machine idle: unrelated builds or test runs inflate the conversion p95 enough to fail the run.
+The updater writes `baseline-1.4.json` unless `--output <path>` names another file, as it did for
+`baseline-1.6.0.json`. The complete run still has to pass every absolute ceiling, so a size-only
+reference is a full measurement with the environment-sensitive samples withheld rather than a
+partial one. Keep the machine idle: unrelated builds or test runs inflate the conversion p95
+enough to fail the run.
 
 Conditional requests currently avoid response bytes but still calculate the Markdown
 representation. The request report records this explicitly and must not describe a `304` as a
@@ -132,17 +134,20 @@ conversion-cache hit.
 
 ## 1.6 project and incremental evidence
 
-The default microbenchmark comparison uses `baseline-postfix-29729bb.json`: a reconstructed
-post-fix snapshot, not a published 1.5.4 release. Its package already exceeded the prior
+Both release benchmarks compare against the published `1.6.0` release. The default
+microbenchmark comparison uses `baseline-1.6.0.json`, a size-only reference measured from a clean
+`1.6.0` checkout whose package bytes equal the published tarball. 1.6.0 itself was compared
+against `baseline-postfix-29729bb.json`, a reconstructed post-fix snapshot rather than a published
+1.5.4 release, which stays as a historical record. That package already exceeded the prior
 1,530,000-byte unpacked ceiling by 283 bytes. Do not label a diagnostic overage run a passing release gate.
 
 ```bash
-node benchmarks/projects.mjs --baseline-root .context/baseline-postfix-29729bb \
+node benchmarks/projects.mjs --baseline-root .context/baseline-1.6.0 \
   --samples 3 --counts 10,1000,10000 --output .context/batch12-projects.json --enforce
 ```
 
-The baseline must be a clean detached checkout at `29729bb` with dependencies installed. The
-harness generates real deterministic Astro projects, alternates control/reconstructed/current
+The baseline must be a clean detached checkout of the `1.6.0` tag with dependencies installed. The
+harness generates real deterministic Astro projects, alternates control/baseline/current
 order, and measures each build in a fresh process with the same Node and Astro. Each current
 project then receives an unchanged build and a single-page edit. Median and nearest-rank p95
 include raw paired samples; three samples are descriptive, not a statistically robust tail estimate.
@@ -154,8 +159,8 @@ Warm normalization must hit every page; a one-page edit must miss exactly once. 
 fail on every runner, independently of `--enforce`. The focused 10,000-page regression additionally
 spies on actual extraction and renderer calls, proving zero warm calls and exactly one reconversion.
 Fixed-input public output ceilings are 12,856 / 1,245,586 / 12,648,586 bytes for 10 / 1,000 /
-10,000 pages. The first two match reconstructed output; the last is a measured current contract,
-not historical extrapolation. Every sample's output-byte ceiling, the warm build's digest and
+10,000 pages. The first two matched the reconstructed `29729bb` output when they were reviewed for
+1.6.0; the last is a measured current contract, not historical extrapolation. Every sample's output-byte ceiling, the warm build's digest and
 output byte count, and repeated cold output byte counts are blocking. These are byte-count and
 digest checks, not file-by-file content comparisons. Other page counts require a reviewed byte contract. These guards do not increase
 a prior output allowance. The project gate applies the explicitly approved package ceilings. Bundle bytes and retained heap are still
@@ -166,8 +171,8 @@ Local paired ratios remain descriptive; a null runner class cannot establish tha
 absolute microbenchmark safety limits remain in force. No uncontrolled result replaces the
 reference baseline. Measurements should run without concurrent tests or install jobs.
 
-Reconstructed real-project comparisons default to at most 1,000 pages. Profiling showed
-quadratic destination-pair validation in the unmodified baseline; extrapolating that run to
+Baseline real-project comparisons default to at most 1,000 pages. Profiling the earlier `29729bb`
+baseline showed quadratic destination-pair validation; extrapolating that run to
 10,000 pages is not a completed measurement. The 10,000-page evidence still uses three
 paired control/current builds plus warm and one-edit passes, with all actual work counts.
 Use `--baseline-project-max-pages 10000` only when explicitly collecting the long historical
@@ -182,7 +187,7 @@ The archived baseline JSON retains its original independent toolchain and measur
 [Local complete measurements](1.6.0-local.json) and [real projects](1.6.0-projects.json) are
 reviewed working-tree evidence, not replacement reference baselines or passing release gates.
 The latter includes two source-frozen current/control pairs and separately labelled three-sample
-reconstructed results up to 1,000 pages. Control loads the integration module without registering
+`reconstructed` (`29729bb`) results up to 1,000 pages; later reports name that variant `baseline`. Control loads the integration module without registering
 it. These archived reports failed the prior package ceilings at review. The new 500,000 /
 1,900,000 ceilings are explicitly approved; subsequent gate results are recorded separately.
 Reference-runner relative timing and the 5% target remain unverified. See [release preparation](../docs/release-evidence/1.6.0-release-preparation.md).

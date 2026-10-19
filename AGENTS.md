@@ -293,7 +293,7 @@ gate additionally runs dev, SSR, adapter, package-install, bundle-baseline, and 
   broad local gate. The tag workflow adds strict tag, clean-worktree, adapter, package, and
   performance gates before npm publication.
 
-Release project benchmarks use a clean detached reconstructed `29729bb` checkout, never a
-published 1.5.4 label. The optional preparation creates an ignored worktree with the current
-comparison toolchain and removes only that worktree afterward. Preserve destination overlap
-diagnostics and transaction safety when optimizing ancestry checks.
+Release project benchmarks use a clean detached checkout of the published `1.6.0` tag. The
+optional preparation creates an ignored worktree with the current comparison toolchain and
+removes only that worktree afterward. Preserve destination overlap diagnostics and transaction
+safety when optimizing ancestry checks.

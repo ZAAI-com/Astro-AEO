@@ -9,8 +9,15 @@ const argv = process.argv.slice(2);
 // Recording its noisy samples under a runner class would let a later run on the
 // same laptop compare against them, so size-only references omit them instead.
 const sizesOnly = argv.includes('--sizes-only');
-const input = resolve(root, argv.find((value) => !value.startsWith('--')) ?? '.astro/aeo-benchmarks/1.4-reference.json');
-const output = resolve(root, 'benchmarks/baseline-1.4.json');
+const outputIndex = argv.indexOf('--output');
+const outputValue = outputIndex >= 0 ? argv[outputIndex + 1] : undefined;
+if (outputIndex >= 0 && (!outputValue || outputValue.startsWith('--'))) {
+  throw new Error('--output requires a destination path.');
+}
+const positional = argv.filter((value, index) =>
+  !value.startsWith('--') && (outputIndex < 0 || index !== outputIndex + 1));
+const input = resolve(root, positional[0] ?? '.astro/aeo-benchmarks/1.4-reference.json');
+const output = resolve(root, outputValue ?? 'benchmarks/baseline-1.4.json');
 const report = JSON.parse(await readFile(input, 'utf8'));
 
 if (!report.environment?.runnerClass) {

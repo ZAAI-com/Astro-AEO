@@ -10,7 +10,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 function option(name, fallback) { const index = args.indexOf(name); return index < 0 ? fallback : args[index + 1]; }
-const baseline = resolve(option('--baseline-root', join(root, '.context/baseline-postfix-29729bb')));
+// The published release every 1.6.x project build is compared against.
+const BASELINE_TAG = '1.6.0';
+const baselineRef = `refs/tags/${BASELINE_TAG}^{commit}`;
+const baseline = resolve(option('--baseline-root', join(root, `.context/baseline-${BASELINE_TAG}`)));
 let createdBaseline = false;
 /** @type {string | undefined} */
 let temporary;
@@ -22,14 +25,15 @@ try {
     catch (error) {
       if (error.code !== 'ENOENT') throw error;
       await mkdir(dirname(baseline), { recursive: true });
-      execFileSync('git', ['worktree', 'add', '--detach', baseline, '29729bb'], { cwd: root, stdio: 'inherit' });
+      execFileSync('git', ['worktree', 'add', '--detach', baseline, baselineRef], { cwd: root, stdio: 'inherit' });
       await symlink(join(root, 'node_modules'), join(baseline, 'node_modules'), 'dir');
       createdBaseline = true;
     }
   }
   const baselineRevision = execFileSync('git', ['-C', baseline, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
-  if (!baselineRevision.startsWith('29729bb') || execFileSync('git', ['-C', baseline, 'status', '--porcelain', '--untracked-files=no'], { encoding: 'utf8' }).trim()) {
-    throw new Error('The reconstructed baseline must be a clean checkout of 29729bb.');
+  const expectedRevision = execFileSync('git', ['rev-parse', '--verify', baselineRef], { cwd: root, encoding: 'utf8' }).trim();
+  if (baselineRevision !== expectedRevision || execFileSync('git', ['-C', baseline, 'status', '--porcelain', '--untracked-files=no'], { encoding: 'utf8' }).trim()) {
+    throw new Error(`The baseline must be a clean checkout of the published ${BASELINE_TAG} tag.`);
   }
   const samples = Number(option('--samples', '3'));
   const baselineProjectMax = Number(option('--baseline-project-max-pages', '1000'));
@@ -38,19 +42,19 @@ try {
     throw new Error('Projects require at least two samples and positive integer page counts.');
   }
   // Fixed-input public output contracts, not a timing or historical extrapolation.
-  // 10/1,000 match the reconstructed baseline; 10,000 is the measured current contract.
+  // 10/1,000 were reviewed against the former 29729bb baseline output; 10,000 is the measured current contract.
   const outputCeilings = { 10: 12856, 1000: 1245586, 10000: 12648586 };
   const output = resolve(option('--output', '.context/batch12-projects.json'));
   temporary = await mkdtemp(join(tmpdir(), 'aeo-project-benchmark-'));
   const packed = JSON.parse(execFileSync('npm', ['pack', '--dry-run', '--json'], { cwd: root, encoding: 'utf8' }))[0];
-  const report = { version: 1, package: { packedBytes: packed.size, unpackedBytes: packed.unpackedSize }, baseline: { revision: baselineRevision, kind: 'reconstructed-post-fix', publishedRelease: false },
+  const report = { version: 1, package: { packedBytes: packed.size, unpackedBytes: packed.unpackedSize }, baseline: { revision: baselineRevision, tag: BASELINE_TAG, kind: 'published-release', publishedRelease: true },
     environment: { node: process.version, platform: process.platform, architecture: process.arch,
       astro: JSON.parse(await readFile(join(root, 'node_modules/astro/package.json'), 'utf8')).version,
       runnerClass: process.env.ASTRO_AEO_BENCHMARK_RUNNER ?? null }, samples,
     timingPolicy: 'Descriptive unless the declared reference runner matches; p95 uses nearest rank and small-sample uncertainty is disclosed.',
     outputByteCeilings: outputCeilings,
     baselineProjectMaxPages: baselineProjectMax,
-    baselineCoverage: 'Complete microbenchmark baseline is archived separately; reconstructed real-project timings above this bound are not claimed.',
+    baselineCoverage: `Complete microbenchmark baseline is archived separately; published ${BASELINE_TAG} real-project timings above this bound are not claimed.`,
     projects: [], failures: [] };
   if (args.includes('--enforce')) {
     if (packed.size > RELEASE_THRESHOLDS.packagePackedBytes) report.failures.push('Packed package exceeds the unchanged release ceiling.');
@@ -73,17 +77,17 @@ try {
     return JSON.parse(await readFile(destination, 'utf8'));
   }
   for (const count of counts) {
-    const measurements = { control: [], reconstructed: [], current: [], warm: [], edited: [] };
+    const measurements = { control: [], baseline: [], current: [], warm: [], edited: [] };
     for (let pair = 0; pair < samples; pair++) {
       // Alternate pair order to avoid consistently charging the first build's OS cache to one side.
-      const order = pair % 2 ? ['current', 'reconstructed', 'control'] : ['control', 'reconstructed', 'current'];
+      const order = pair % 2 ? ['current', 'baseline', 'control'] : ['control', 'baseline', 'current'];
       for (const variant of order) {
-        if (variant === 'reconstructed' && count > baselineProjectMax) continue;
+        if (variant === 'baseline' && count > baselineProjectMax) continue;
         const project = join(temporary, `${count}-${pair}-${variant}`);
         await mkdir(join(project, 'src/pages'), { recursive: true });
         await symlink(join(root, 'node_modules'), join(project, 'node_modules'), 'dir');
         await writeFile(join(project, 'package.json'), '{"type":"module"}\n');
-        const integration = pathToFileURL(join(variant === 'reconstructed' ? baseline : root, 'src/index.js')).href;
+        const integration = pathToFileURL(join(variant === 'baseline' ? baseline : root, 'src/index.js')).href;
         await writeFile(join(project, 'astro.config.mjs'),
           `import aeo from ${JSON.stringify(integration)};\nexport default { site:'https://benchmark.example.test', integrations:${variant === 'control' ? '[]' : '[aeo()]'} };\n`);
         await writeFile(join(project, 'src/pages/[slug].astro'), `---\nexport function getStaticPaths() { return Array.from({length:${count}}, (_,index)=>({params:{slug:'p'+index},props:{index}})); }\nconst {index}=Astro.props;\nconst edit=process.env.AEO_BENCH_EDIT==='1' && index===0;\n---\n<html><head><title>Page {index}</title><meta name="description" content={'Deterministic page '+index} /></head><body><main><h1>Page {index}</h1><h2>Guide</h2><p>{edit ? 'Edited body' : 'Deterministic body'} {index}. Each page includes repeatable prose and a stable heading.</p><pre><code class="language-js">const value = 42;</code></pre></main></body></html>\n`);

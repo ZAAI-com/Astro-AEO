@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "recordedAt": "2026-10-19",
+  "environment": {
+    "node": "v24.15.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "cpus": 10,
+    "ci": false,
+    "runnerClass": "astro-aeo-local-sizes"
+  },
+  "package": {
+    "packedBytes": 494916,
+    "unpackedBytes": 1892681,
+    "files": 233
+  },
+  "bundles": {
+    "node": {
+      "files": 32,
+      "rawBytes": 1903785,
+      "gzipBytes": 446300,
+      "deltaRawBytes": 533287,
+      "deltaGzipBytes": 130583,
+      "baseline": {
+        "files": 29,
+        "rawBytes": 1370498,
+        "gzipBytes": 315717
+      }
+    },
+    "cloudflare": {
+      "files": 35,
+      "rawBytes": 2048170,
+      "gzipBytes": 494474,
+      "deltaRawBytes": 1305826,
+      "deltaGzipBytes": 306547,
+      "baseline": {
+        "files": 31,
+        "rawBytes": 742344,
+        "gzipBytes": 187927
+      }
+    }
+  },
+  "notes": [
+    "The package and bundle byte counts are deterministic build outputs measured by a complete release run.",
+    "Timing, memory, corpus, and Worker-startup samples are omitted because this machine is not a controlled runner.",
+    "Portable regressions over 10 percent always require an explanation; the absolute ceilings stay enforced by every complete release run."
+  ]
+}
