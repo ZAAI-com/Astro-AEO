@@ -1,0 +1,19 @@
+src/runtime/edge/handler.test.js
+  s_36a8b807f870ac::t_08097fc4294748 318-320,323,333-336
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "51540fd2dfb6d603c141bfcbea15b8d61e6b4d9a",
+  "prompts": {},
+  "sessions": {
+    "s_36a8b807f870ac": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "956c9942-6976-4e4f-beef-5a7a16b14992",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
