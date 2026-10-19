@@ -1,4 +1,5 @@
 // @ts-check
+import { observeEdge } from './observation.js';
 import { createEdgeNegotiator } from './handler.js';
 
 /**
@@ -6,7 +7,7 @@ import { createEdgeNegotiator } from './handler.js';
  * `fetch` is a Worker with a static assets binding. Assets are read through the
  * binding, never over the network.
  *
- * @param {{ base?: string; assetsBinding?: string }} [options]
+ * @param {{ base?: string; assetsBinding?: string; analytics?: import('../../analytics.js').AnalyticsObserver }} [options]
  */
 export function createCloudflareHandler(options = {}) {
   const binding = options.assetsBinding ?? 'ASSETS';
@@ -29,17 +30,20 @@ export function createCloudflareHandler(options = {}) {
   }
 
   return {
-    /** @param {{ request: Request; env: any; next: () => Promise<Response> }} context */
-    onRequest(context) {
+    /** @param {{ request: Request; env: any; next: () => Promise<Response>; waitUntil?: (work: Promise<void>) => void }} context */
+    async onRequest(context) {
       const negotiator = negotiatorFor(context.env);
-      return negotiator ? negotiator(context.request, () => context.next()) : context.next();
+      const response = await (negotiator ? negotiator(context.request, () => context.next()) : context.next());
+      return observeEdge(options.analytics, context.request, response, { surface: 'cloudflare', waitUntil: context.waitUntil?.bind(context) });
     },
-    /** @param {Request} request @param {any} env */
-    fetch(request, env) {
+    /** @param {Request} request @param {any} env @param {{ waitUntil?: (work: Promise<void>) => void }} [context] */
+    async fetch(request, env, context) {
       const negotiator = negotiatorFor(env);
       const assets = env?.[binding];
-      if (!negotiator) return new Response('astro-aeo: no static assets binding', { status: 500 });
-      return negotiator(request, () => assets.fetch(request));
+      if (!negotiator) return observeEdge(options.analytics, request, new Response('astro-aeo: no static assets binding', { status: 500 }),
+        { surface: 'cloudflare', waitUntil: context?.waitUntil?.bind(context) });
+      return observeEdge(options.analytics, request, await negotiator(request, () => assets.fetch(request)),
+        { surface: 'cloudflare', waitUntil: context?.waitUntil?.bind(context) });
     },
   };
 }

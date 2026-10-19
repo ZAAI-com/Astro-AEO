@@ -225,6 +225,7 @@ aeo({
       logo: '',
       sameAs: [],
       entityType: 'Organization',        // Organization | Person | Blog | ...
+      origins: {},                       // origin-keyed overrides of profile fields (not enabled)
     },
   },
 
@@ -272,6 +273,8 @@ aeo({
     small: { enabled: false, maxTokens: 20_000 },
     chunks: { enabled: false, maxTokensPerFile: 100_000, by: 'section' },
     manifest: { enabled: false },    // /llms/manifest.json
+    versions: undefined,             // { current: 'v2', order: ['v1'] }; opt-in partitions
+    rag: { enabled: false, maxTokens: 512, publish: false }, // private locale/version JSONL
     tokenizer: undefined,            // { module, options? }; local importable module only
     compression: { gzip: false },    // deterministic static .gz siblings
 
@@ -691,14 +694,140 @@ warns, records `catalog-load-failed`, and contributes nothing.
 EmDash sites use `emdashAeo()` instead of `aeo()`, with a catalog that lists every published entry.
 See [EmDash CMS](#emdash-cms).
 
+### Privacy-first request analytics
+
+Analytics is disabled by default. On an observable on-demand Astro middleware surface:
+
+```js
+aeo({ analytics: { enabled: true, scope: 'agents', sampleRate: 1,
+  adapter: { type: 'console' }, strict: false } })
+```
+
+Only public in-base GET/HEAD requests are observed. Collection, prerendering, anonymous
+corpus fan-out and development loopback requests are excluded. `agents` includes AEO
+artifact requests and claimed crawler HTML requests; `all` explicitly includes ordinary
+traffic. Events use minute-rounded UTC, configured inclusion rates and the versioned
+crawler registry. User-Agent classifications are **claims, not verified identities**.
+Known paths take priority over declared route patterns, then `(unlisted)`; route parameter
+values and arbitrary requested paths are never logged. IP, query, referrer, cookies,
+authorization, raw request headers and response bodies are not collected. Cache outcomes
+are `not-modified` for HTTP 304 or `unknown`, never an inferred provider hit/miss.
+
+The `astro-aeo/analytics` export includes `AnalyticsEventV1` (and `astro-aeo/analytics-event.schema.json`), `AnalyticsAdapterModule`,
+`createAnalytics`, `createConsoleSink`, `createWebhookSink` and `createOpenTelemetrySink`.
+Console events start with `astro-aeo:analytics-v1 `. Development always uses console,
+including when another sink is configured. Disabled and omitted analytics have identical
+analytics-free server bundles. No browser script is installed.
+
+Delivery options:
+
+| Adapter | Configuration and constraints |
+| --- | --- |
+| `console` | Default; marked one-event JSON lines. |
+| `jsonl` | Node adapter, Node-based development or preview only (not workerd/Deno); default `.astro/aeo-analytics/events-v1.jsonl`, mode `0600`, serialized appends, no symlinks or paths escaping the project. |
+| `webhook` | `{ type: 'webhook', url: 'https://events.example.test', headers: { Authorization: { env: 'EVENT_TOKEN', prefix: 'Bearer ' } } }`; secrets resolved at request time, one-event envelopes, redirects rejected, two-second timeout. |
+| `opentelemetry` | An HTTPS `endpoint` for OTLP/HTTP JSON, or separately installed optional `@opentelemetry/api` peer. Counters have bounded attributes, never path attributes. Edge helpers can inject a meter-backed sink. |
+| `module` | `{ type: 'module', module: './analytics.mjs', options: { ... } }`; strict JSON options and a default export `{ apiVersion: 1, createSink(options) }` returning a function `(event) => void | Promise<void>`. Setup is preflighted. |
+
+Strict preflight failures reject configuration; non-strict failures disable delivery with
+sanitized advice. Runtime failures are caught and reported once (strict: error; otherwise:
+warning), never propagated into HTTP. Supported provider request-lifetime callbacks retain
+pending delivery. Without a callback, delivery is caught fire-and-forget and is best effort.
+Runtime module loading/setup failures disable delivery without preventing HTTP responses.
+Module sinks receive only sanitized events and are responsible for their own runtime portability.
+
+A static deployment must explicitly declare an edge plugin and inject the observer into its
+handler. Integration configuration **does not install deployment middleware**. For example,
+with the Cloudflare edge plugin already configured:
+
+```js
+import { createCloudflareHandler } from 'astro-aeo/edge/cloudflare';
+import { createAnalytics, createWebhookSink } from 'astro-aeo/analytics';
+
+const handlers = new WeakMap();
+export default {
+  fetch(request, env, context) {
+    if (!handlers.has(env)) {
+      const analytics = createAnalytics({ enabled: true, base: '/docs',
+        inventory: ['/docs/guide'], artifacts: ['/docs/guide.md', '/docs/llms.txt'],
+        sink: createWebhookSink({ url: 'https://events.example.test',
+          headers: { Authorization: { env: 'EVENT_TOKEN', prefix: 'Bearer ' } },
+          secret: (name) => env[name] }),
+      });
+      handlers.set(env, createCloudflareHandler({ base: '/docs', analytics }));
+    }
+    return handlers.get(env).fetch(request, env, context);
+  },
+};
+```
+
+Cloudflare Pages/Workers and Netlify use supplied context lifetimes; Vercel accepts
+`waitUntil` alongside its `next`/`rewrite` helpers. These observers report only traffic
+reaching their declared surface, not whole-host logs or verified visitors. Vercel observations
+are routing-middleware responses, not the final origin status. Prerendered HTML served directly
+by an asset layer does not pass through Astro middleware. Provider checks are local contracts,
+not deployed verification. Analytics with no observable on-demand route and no declared edge
+surface is rejected.
+
 ### Page versions
+
+Version labels remain metadata-only unless `corpus.versions` is explicitly configured.
+Opt in with `corpus: { versions: { current: 'v2', order: ['v1'] } }`: `current` is required,
+unlabelled pages belong to it, and `order` lists unique safe version labels.
+
+The additional opt-in configuration contracts are `markdown.cacheControl` (an HTTP header
+value, omitted to inherit), `corpus.rag` (`enabled: false`, `maxTokens: 512`, `publish: false`),
+and `analytics` (`enabled: false`, `scope: 'agents'`, `sampleRate: 1`, `strict: false`).
+Analytics adapters use a `type` of `console`, `jsonl`, `webhook`, `opentelemetry`, or `module`.
+IP, query and referrer privacy settings accept only `'omit'`. Delivery headers use runtime
+environment references such as `{ Authorization: { env: 'AEO_TOKEN', prefix: 'Bearer ' } }`,
+never build-time secret values. Invalid booleans, enum values and new options report their
+configuration path through `AeoConfigError`.
 
 A page may carry a documentation version label: `version: 'v2'` on a catalog descriptor, on
 `defineAeoPage`, or as `data.version` on a content entry. A label is one path segment of letters,
 digits, `.`, `_` or `-` (at most 64 characters); anything else is ignored, and a catalog reports
 `catalog-invalid-version`. The label appears on `AeoPageRecord`, on plugin page records, and on the
-page's corpus manifest entry. It is metadata only: it changes no generated artifact, and a site without
-versions produces exactly the bytes it did before.
+page's corpus manifest entry. Without `corpus.versions`, labels remain metadata-only and change
+no generated artifact; an unversioned site keeps its existing bytes.
+
+With version partitioning enabled, current-version corpus paths stay unchanged. Archives insert
+one version segment beneath the existing base and locale topology:
+
+| Family | Current | Archived `v1` |
+| --- | --- | --- |
+| Locale index | `/docs/fr/llms.txt` | `/docs/fr/v1/llms.txt` |
+| Locale full corpus | `/docs/fr/llms-full.txt` | `/docs/fr/v1/llms-full.txt` |
+| Locale chunk | `/docs/fr/llms/guide-0001.txt` | `/docs/fr/v1/llms/guide-0001.txt` |
+| Compatibility alias (`both`) | `/docs/llms-fr.txt` | `/docs/v1/llms-fr.txt` |
+
+A global or single-locale root family uses `/docs/v1/llms.txt` for the archive. Static gzip
+siblings append `.gz` to these same paths. This partitions corpus artifacts, not project routes
+or companion URLs. Locale topology is selected from the complete inventory, not independently
+per version. Configured `order` sorts observed archives; other observed versions follow in
+code-unit order. A configured archive with no inventory does not invent pages.
+
+`/llms/manifest.json` joins all versions with `versions`, scoped locale/artifact records, and page
+`versionAlternates`. Each observed archive also has `/v1/llms/manifest.json`, restricted to its
+own records. Both include only artifacts that win ownership arbitration. An incomplete live
+inventory still fails closed, and runtime manifests omit static gzip siblings.
+
+Cross-version page matching removes only the configured base, configured locale prefix and
+matching version prefix, each at most once. It matches within a locale, never between languages.
+When routes have different names, supply `versionGroup` on `defineAeoPage`, a catalog descriptor,
+or content-entry data:
+
+```js
+defineAeoPage({ source: entry, version: 'v1', versionGroup: 'installation' });
+```
+
+Generated alternatives use `{ kind: 'version', version: 'v1', url: 'https://example.com/v1/install/' }`.
+Existing `{ language: 'fr', url: '...' }` hreflang alternatives are unchanged and never treated as
+version links. Version metadata crosses immutable plugin page boundaries; build hooks and live
+corpus hooks see reciprocal alternatives after collection. Ambiguous logical identities and
+conflicting declared version alternatives are errors, not guessed links. Audits check reciprocity
+and locale/version identity among known records. Authored canonicals and graph identities remain
+authoritative.
 
 A catalog that cannot resolve, import, evaluate, or run `listPages()` warns and
 contributes nothing rather than failing the build or server startup. Catalogs run in
@@ -746,6 +875,15 @@ from the development server's own bound address after an in-process rewrite has 
 and which is never present in a production or adapter bundle. `corpus.runtime.maxPages` defaults to 50. A larger
 corpus returns `503` with `Cache-Control: no-store`, without partial output. Raise the
 limit or select `'unlimited'` only when the deployment can safely absorb that work.
+A hybrid inventory containing a prerendered page that Astro cannot rewrite also returns `503`,
+rather than silently dropping that known page. Its build-time `.md` companion remains available.
+No production loopback fallback bypasses this restriction.
+
+Temporary source failures also return a sanitized, non-cacheable `503`, never a successful
+shorter text or schema corpus. This includes rendering, transport and body-read failures,
+server errors and partial or unusably encoded HTML. GET and HEAD share the
+failure status. Anonymous authorization denials, redirects, missing routes, non-HTML routes
+and explicit page opt-outs remain valid exclusions; plugin and semantic errors retain `500`.
 Astro 5 and Astro 6.0-6.2 receive `503` for request-time corpora because those
 versions do not expose a disposable request state. Their closure-held client address,
 cookies, and session cannot be replaced securely for an anonymous corpus render. The
@@ -776,7 +914,16 @@ browsers, curl, and crawlers that send `*/*` are unaffected. Media parameters mu
 match the emitted `text/markdown; charset=utf-8` representation. The legacy
 `text/x-markdown` type is distinct and does not opt a client into `text/markdown`.
 
-Negotiated responses preserve the page's cache policy, merge `Vary: Accept`, use a
+Negotiated responses inherit the page's cache policy unless `markdown.cacheControl`
+explicitly overrides it. The override also applies to generated direct companions and
+known static companions served through the edge helpers; application HTML, redirects and
+unlisted assets keep their own policy. It replaces the policy of successful (`2xx`) and
+`304` responses only: Markdown rendered from an error page keeps that page's policy. Omission preserves inherited behavior. Vercel's
+helper performs an anonymous, bounded companion HEAD before a rewrite or negotiation
+redirect and falls back to HTML if the asset is missing or unavailable. These helpers
+are tested locally, not as deployed-provider verification.
+
+Negotiated responses merge `Vary: Accept`, use a
 full SHA-256 ETag, and support `HEAD` and `If-None-Match`. A `304` avoids response
 bytes but currently still calculates the Markdown representation. A source `304` is
 re-evaluated with a sanitized GET only when Markdown is strictly preferred; otherwise
@@ -875,6 +1022,10 @@ page's own canonical URL, because a `.md` companion is usually read away from th
 that served it. Fragment links and non-navigational schemes (`mailto:`, `tel:`) are
 left exactly as authored.
 
+Rendered ARIA tabs become labelled Markdown sections, including inactive panels and
+Starlight tabs whose source conversion falls back to HTML. Panels retain their document
+order. Unrelated hidden interface content and explicitly removed elements remain excluded.
+
 The same extractor is available to integrations and tooling without importing
 Turndown directly:
 
@@ -943,6 +1094,53 @@ corpus: {
 
 Globs are segment-aware: `*` stays inside one path segment, `**` crosses segments and matches the base (`/blog/**` matches `/blog` and `/blog/post`). `/error` matches `/error` but not `/error-log`.
 
+### Crawler identity snapshot
+
+Crawler registry version 2 separates observable User-Agent claims from robots control tokens.
+Default robots policy keeps its existing tokens and ordering. The observable registry adds
+[Applebot](https://support.apple.com/en-us/119829) and Amazon's
+[Amzn-SearchBot and Amzn-User](https://developer.amazon.com/amazonbot), checked against first-party
+operator documentation on 2026-10-03. Google-Extended and Applebot-Extended are policy controls,
+not observable crawler identities. A User-Agent token is a claim, not operator authentication.
+Meta's existing entry retains its prior verification date because its first-party page could not
+be retrieved during this review; no new Meta identity is inferred from third-party descriptions.
+
+### Private RAG records
+
+Enable `corpus.rag: { enabled: true, maxTokens: 512, publish: false }` to write private
+page and heading-aware chunk records under `.astro/aeo-cache/rag-v1/`. The index identifies
+locale/version files, their hashes, the shared snapshot/trace build digest, and build-time
+incompleteness. Every file uses mode `0600`. Unlike sanitized evidence, these exports contain
+published Markdown text. Held MDX bodies and rendered HTML never enter the records.
+Records need absolute canonical URLs, so RAG requires a configured Astro `site`. Without one,
+the build reports `corpus-rag-origin-missing` and plans the other corpus families without RAG.
+
+Set `publish: true` explicitly to generate ownership-managed `/llms/rag.jsonl` artifacts.
+Global, locale, combined and automatic layouts follow the corpus topology, including archive
+prefixes below locale prefixes and the Astro base. Enabled static gzip adds deterministic siblings;
+runtime uses transport compression. Public JSONL uses `application/x-ndjson; charset=utf-8`.
+On-demand inventories generate complete public exports at request time, subject to the same
+live-corpus compatibility and completeness limits. Their private build index declares
+`buildTimeIncomplete: true`, even when it contains no records.
+
+Records expose stable page/chunk IDs, published text, actual tokenizer counts, approximation and
+fallback identity, content/page hashes, headings, oversized status and flat metadata. The chunk
+budget counts complete candidate text, including non-additive custom counters. Indivisible blocks,
+fences and headings attached to their first block remain whole, with `rag-chunk-over-budget`
+when necessary. Page records are complete and not subject to the chunk budget. RAG respects
+indexing, corpus and locale-fallback exclusions, but does not inherit `full.mode` truncation.
+
+`rag:record` hooks may drop one record or replace it to enrich flat metadata. Identity, URL/locale/
+version topology, text, headings, and measurements stay immutable. Use `page:transform` for text
+changes before tokenization. Invalid replacements and isolation withhold the export; only explicitly
+recoverable thrown exceptions keep the last valid record. Hooks receive a complete tokenizer plan. A custom counter failure on replacement metadata
+restarts every family/version with the fallback counter and revalidates hooks.
+Exported schemas are `astro-aeo/rag-record.schema.json` and `astro-aeo/rag-index.schema.json`;
+root declarations expose `RagRecordV1` and `RagIndexV1`.
+
+See [RAG ingestion examples](docs/rag.md) for LangChain and LlamaIndex mappings without adding
+framework dependencies to Astro-AEO.
+
 ### Small corpora, chunks, manifests, and gzip
 
 `corpus.small` builds a strict token-budgeted `llms-small.txt` from contiguous leading source
@@ -952,11 +1150,16 @@ reported as `small-corpus-truncated` with severity `info`, since that is the bud
 whose first block does not fit (`small-corpus-first-block-omitted`) is a warning. `corpus.chunks`
 splits full-corpus content at page, heading, paragraph, and fenced-code boundaries. Fences remain
 indivisible and an oversized unit is emitted with a diagnostic rather than silently truncated.
+Consecutive headings stay with their first content block. A complete heading section moves to
+a fresh chunk when it fits there but not in the current chunk; trailing headings never form
+an orphan chunk. Small-corpus allocation uses the same indivisible units.
 
 The built-in `astro-aeo-approx@1` counter is deterministic and explicitly approximate. A custom
 local tokenizer module must default-export API version 1 with stable `name`, `version`,
 `approximate`, and `count()` fields. It is probed twice. Any load or count failure restarts the
-whole plan with the built-in tokenizer so a manifest never mixes identities.
+whole plan with the built-in tokenizer so a manifest never mixes identities. The manifest records
+`tokenizerFallback: { reason: "preflight" | "count" }` when this happens, without module paths,
+exception messages, or options. Successful and unconfigured plans omit the field.
 
 When enabled, `/llms/manifest.json` records locales, canonical artifacts, pages, and exact SHA-256
 byte hashes of published companions. Pages without a `.md` companion (Markdown disabled, `no-dotmd`,
@@ -969,16 +1172,23 @@ compression.
 
 ### Incremental processing cache
 
-Only page extraction results are cached: the Markdown and page record of each page, under
-`.astro/aeo-cache/processing-v1`. An entry is keyed by the page's rendered HTML, its authored
-source, the `pages` and `markdown` options, the default locale, the renderers, and the extractor
-version (astro-aeo, `turndown`, and `linkedom`). When the extractor changes (an upgrade, a
-downgrade, or a dependency refresh), the cache resets once and the build logs the reset, so a
-build never reuses Markdown produced by another version. The key names versions, not source: if
-you run astro-aeo from a git checkout or a linked copy and change its code without changing its
-version, delete `.astro/aeo-cache/processing-v1` before the next build. Git modification dates are
-merged after extraction and are never frozen by a cache hit. A complete build prunes the entries
-it did not use; an incomplete inventory keeps them.
+Build processing uses independent versioned extraction, page normalization, pure plugin
+transformation, graph, tokenization, and artifact entries under `.astro/aeo-cache/processing-v1`.
+Each stage keys its relevant content, configuration, producer, and declared extension versions.
+HTTP cache policy does not invalidate extraction. Tokenization keys the tokenizer identity,
+options, and normalized text; locale text and section chunks depend on their own participating
+pages, while global corpora depend on the full participating inventory.
+
+Only pure/versioned hook stages and non-inline pure/versioned renderers are reused. Undeclared
+hooks, inline renderers, and function-dependent stages run again without disabling unrelated
+caches. A declining unsafe renderer can still reuse unchanged rendered-HTML fallback conversion.
+Thrown or malformed hook failures never become reusable successful plugin results. Parser and
+converter dependency refreshes invalidate affected stages, not unrelated tokenization/artifacts.
+Package upgrades and downgrades reset all entries. If you edit a git checkout or linked copy
+without changing its package or declared extension version, clear `processing-v1` before building.
+Git modification dates are merged after extraction. Incomplete inventories retain unseen cache
+entries and withhold stale output deletion. Identical output bytes retain their mtimes; missing
+owned artifacts are restored through the ordinary ownership transaction.
 
 An exclusive same-host process lock protects reusable state. A locked or invalid state makes the
 build run cold and read-only, with no stale deletion authority: stale files are kept, recorded for a
@@ -989,6 +1199,16 @@ win. A stale file is deleted only when the prior ledger names Astro-AEO, the pat
 file is regular and not a symlink, and its bytes still match the prior emitted hash. To clear the
 cache by hand, delete only `.astro/aeo-cache/processing-v1`: deleting all of `.astro/aeo-cache` also
 discards the artifact ownership and IndexNow ledgers. Set `cache.enabled: false` to stop reuse.
+
+Builds also write private `pages-v1.json` and `trace-v1.json` under `.astro/aeo-cache`, both mode
+`0600`. Snapshots contain component hashes and ownership etags, not page content. Trace records
+cache outcomes/reasons, skips, plugin actions, source strategy/renderer identity, graph provenance
+counts, HTML transform names, and generated/restored/removed/preserved artifact decisions.
+Both carry the same content-derived `buildDigest`; timestamps, timings, and warm/cold outcomes
+are excluded from that identity. Evidence omits source bodies, source locations, absolute paths,
+credential-bearing URLs, and diagnostic messages. These files are not public artifacts and must
+not be copied into a deployed output directory. The exported `AeoPageSnapshotV1` and
+`AeoProcessingTraceV1` types describe their versioned contracts.
 
 ### The universal robots.txt group
 
@@ -1035,6 +1255,13 @@ pending. Remote failures warn with exit 0 unless `strict` is enabled. `IndexNowI
 always exits 2. Keys, secret-derived paths, and POST bodies are never logged or persisted.
 
 ### Profile email
+
+`site.profile.origins` maps normalized HTTP(S) origins to overrides of `name`, `description`,
+`website`, `email`, `logo`, `sameAs`, and `entityType`. Other fields inherit the shared profile;
+`enabled` remains shared. For example, `{ 'https://fr.example.com': { name: 'Exemple' } }`
+changes the French host's profile without changing another host. Credentials, paths, queries,
+fragments, duplicate normalized origins, and unknown override keys are rejected. Build and runtime
+use the same renderer, and an authored `website` still takes precedence over the active origin.
 
 `site.profile.email` is routed into the schema.org profile by value shape: an `http(s)` URL becomes a `contactPoint` (`{ '@type': 'ContactPoint', url }`), a value containing `@` becomes `email`, and anything else becomes `telephone`. The old `domainProfile.contact` key is a deprecated alias; it still works but emits a deprecation warning.
 
@@ -1116,7 +1343,13 @@ headers:
   - path: /*.md
     name: Content-Type
     value: text/markdown; charset=utf-8
+  - path: /**/*.md
+    name: Content-Type
+    value: text/markdown; charset=utf-8
 ```
+
+Render matches root and nested files separately. Both rules are needed, as described
+in its [header matching documentation](https://render.com/docs/static-site-headers).
 
 **Netlify / Cloudflare Pages** (`public/_headers`):
 
@@ -1304,7 +1537,7 @@ aeo({ plugins: [plugin] });
 ```
 
 Hooks run sequentially in configured order through `page:discovered`, `page:extract`,
-`page:transform`, `page:metadata`, `graph:build`, `artifact:generate`, `artifact:validate`, and
+`page:transform`, `page:metadata`, `graph:build`, `rag:record`, `artifact:generate`, `artifact:validate`, and
 `build:complete`. Inputs are immutable; a hook keeps, replaces, or isolates its current scope.
 Runtime modules use literal entrypoints and strict JSON options. Omitting runtime `options` leaves
 `api.options` undefined, while an explicit JSON `null` remains `null`. Graph replacements are
@@ -1313,8 +1546,16 @@ build and runtime corpora use the same final graph. Artifact claims are exact
 app-relative pathnames, and runtime page access never exposes raw requests, cookies, credentials,
 or arbitrary rendering. The built-in semantic pipeline uses this same dispatcher.
 
-Hooks on `page:discovered`, `page:extract`, `page:transform`, `page:metadata`, and `graph:build`
-may declare themselves pure:
+Register a hook with `{ recoverable: true }` to warn and retain its last valid input when
+that hook throws. Later hooks continue. Malformed results or replacements, explicit
+isolation, setup errors and module failures still fail closed. Build and runtime must
+register the same recovery setting. Only `rag:record` accepts `{ action: 'drop' }`, which
+drops that record without isolating the page. Artifact hooks receive an `ArtifactEnvelope`
+(`Artifact` is its alias): `{ claim, representation }`, with a null representation before
+generation. `ArtifactClaim` and `ArtifactRepresentation` describe those actual boundaries.
+
+Hooks on `page:discovered`, `page:extract`, `page:transform`, `page:metadata`, `graph:build`,
+and `rag:record` may declare themselves pure:
 
 ```js
 api.on('page:metadata', hook, { cache: { pure: true, version: '2' } });
@@ -1322,9 +1563,14 @@ api.on('page:metadata', hook, { cache: { pure: true, version: '2' } });
 
 The declaration is recorded in the build's hook manifest and checked when the runtime module
 loads. A runtime module that registers different hooks or different declarations than the build
-fails to load, and its stages isolate. Bump `version` whenever the hook's output changes for the
-same input. The declaration does not currently let a build skip hook execution: every hook runs
-on every build.
+fails to load, and its stages isolate.
+
+With the processing cache enabled, a build reuses a stage's earlier result instead of running
+its hooks when every hook on that stage is pure and the previous run was clean (no
+diagnostics, isolation or drop). The cache key covers the stage input, each hook's plugin
+name, position, `version` and `recoverable` setting, and the plugin's declared
+`runtime.options`. Bump `version` whenever the output can change for any other reason, such
+as options captured only in the plugin factory's closure or an upgraded dependency.
 
 ## JSON-LD Components
 
@@ -1412,6 +1658,7 @@ See [content optimization](docs/CONTENT_OPTIMIZATION.md) for examples and false 
 ```bash
 npx astro-aeo doctor                       # what this project is set up to deploy
 npx astro-aeo doctor --url https://example.com/   # and what the deployment really does
+npx astro-aeo doctor --print               # read-only evidence-based manual advice
 npx astro-aeo fix                          # dry run: shows the change
 npx astro-aeo fix --write                  # applies it, after a backup
 ```
@@ -1423,7 +1670,7 @@ Static hosts often serve `.md` files as `text/plain` or as a download. `fix` mak
 |---|---|---|
 | Cloudflare Pages, Netlify | `public/_headers` | one block between `# astro-aeo:start markdown-mime` and `# astro-aeo:end markdown-mime`; every byte outside it, and CRLF line endings, are kept |
 | Vercel | `vercel.json` | one `headers` rule; unknown fields, key order and indentation are kept |
-| Render | `render.yaml` | one header on the static site service; comments, anchors and key order are kept |
+| Render | `render.yaml` | root (`/*.md`) and nested (`/**/*.md`) headers on one static site service; comments, anchors and key order are kept |
 
 It is a dry run unless you pass `--write`. Before writing, the original is copied with its file mode to
 `.astro/aeo-backups/<UTC timestamp>/`. A second `--write` finds nothing to do and makes no backup. `fix`
@@ -1436,7 +1683,7 @@ and Deno it prints a snippet and edits nothing: `astro-aeo fix --provider nginx`
 
 | Status | Meaning |
 |---|---|
-| `configured` | verified against the deployment (only `--url` can say this), or nothing is needed |
+| `configured` | verified against the deployment (only `--url` can say this) |
 | `unverified` | the local files look right, which proves nothing about what is deployed |
 | `missing` | nothing provides it; the hint says what to run |
 | `conflicting` | something contradicts it, locally or in the deployment |
@@ -1447,6 +1694,13 @@ content type, every case of the Accept contract the middleware and edge handlers
 suggest. Exit codes: `0` when nothing is missing or conflicting, `1` otherwise, `2` for a bad invocation
 or an unreachable URL. `--json` prints the checks.
 
+Local Node, Deno, nginx and Apache files provide evidence of intent, not verified serving
+behavior. Doctor also compares the selected output, deployment ownership digest and emitted
+artifact etags. Mismatched evidence withholds artifact conclusions. Declared overlapping packages
+and quoted config references are advisory, with explicit confidence; consumer configuration is
+never executed. `--print` adds manual advice, or an `advice` array with `--json`, without writing
+configuration. See [deployment evidence and advice](docs/DOCTOR.md) for scope and limitations.
+
 ## GitHub Action
 
 ```yaml
@@ -1456,7 +1710,7 @@ permissions:
 steps:
   - uses: actions/checkout@v4
   - run: npm ci && npm run build
-  - uses: ZAAI-com/Astro-AEO@1.5.5
+  - uses: ZAAI-com/Astro-AEO@1.6.0
     with:
       target: dist            # or a deployed URL
       fail-on: error          # error, warning or none
@@ -1577,6 +1831,9 @@ Each docs page publishes its authored Markdown, not a conversion of the rendered
 | `aeo` | `{}` | Options for the Astro-AEO integration. |
 | `links.pagination` | `true` | Append Starlight's previous and next page links to each companion. |
 | `links.edit` | `false` | Append the "edit this page" URL when Starlight resolved one. |
+| `links.source` | unset | Append a repository source-view URL using an explicit `{ baseUrl }` ending in `/`. Independent of edit links. |
+| `links.versions` | `false` | Append known same-locale version links to companions and corpus text. |
+| `versions` | unset | Explicit `{ current, archived }` version labels and served route prefixes. |
 | `techArticle` | `true` | Add a minimal `TechArticle` entity from the page's own title, description, language and modified date. Nothing is inferred. |
 
 Three integration defaults differ under Starlight, and each yields to what you set in `aeo`:
@@ -1587,6 +1844,62 @@ Three integration defaults differ under Starlight, and each yields to what you s
 The page source travels through the same private marker as `<AeoPage>`: it is emitted only while
 Astro-AEO collects a page, never on a visitor's request, and it is removed before anything is written or
 served.
+
+Versioned documentation uses an explicit configuration, including when another plugin such as
+`starlight-versions` owns the routes:
+
+```js
+starlightAeo({
+  versions: { current: 'v2', archived: ['v1', { version: 'v0', prefix: 'release-0' }] },
+  links: {
+    source: { baseUrl: 'https://github.com/example/docs/blob/main/' },
+    versions: true,
+  },
+  aeo: { corpus: { manifest: { enabled: true } } },
+});
+```
+
+Each archive string uses the same version label and prefix. An object separates the safe
+single-segment label from its served prefix. Prefixes match public `starlightRoute.id`, not raw
+source-directory names: configure the actual served slug if the content loader normalized it.
+Only configured prefixes are interpreted, before or after the public locale prefix. Current
+pages keep their routes. The plugin populates `aeo.corpus.versions.current` and defaults archive
+order to the configured list; a conflicting explicit current value is rejected. It does not
+discover upstream versions, install a versioning plugin, or rewrite source/project routes.
+
+The public route's `isFallback` and `entryMeta` facts identify untranslated pages. Such pages
+remain available as HTML and Markdown companions but are excluded from the requested locale's
+corpus with `starlight-fallback-locale-excluded`. This also applies when an authored `<AeoPage>`
+supplies the source. Authored content and metadata still win; missing route-version facts are
+filled from the inferred marker. Source links use relative public `entry.filePath` values and
+never expose an absolute local path. Version footers are rendered from known reciprocal
+inventory, not guessed URLs. On-demand projects still need an explicit complete catalog for
+live corpus paths; a direct companion without known peers omits version links.
+
+These facts use only Starlight's [public route-data API](https://starlight.astro.build/reference/route-data/).
+Held source bodies are content-hashed privately, including MDX; raw MDX is never published.
+Configured version prefixes can mirror the upstream plugin's
+[version slugs](https://starlight-versions.vercel.app/configuration/#slug) without private imports.
+
+## Read-only data reports
+
+Use `astro-aeo report traffic|changes|inspect|graph|rag` to inspect existing observations,
+private build evidence and published artifacts without executing consumer configuration.
+Traffic discloses observed counts, sampling and coverage; changes defaults to no failure gate.
+Inspection warns on evidence mismatches. Graph HTML is offline, escaped and hash-CSP protected,
+with filters and a no-JavaScript table. RAG exports private records or available companions
+without requiring prior RAG enablement, and discloses build-time incompleteness.
+
+```sh
+astro-aeo report traffic observations.jsonl --from 2026-10-01 --to 2026-11-01 --format json
+astro-aeo report changes --baseline previous-pages-v1.json
+astro-aeo report inspect . --page '/guide/**' --format json
+astro-aeo report graph dist/schema/graph.jsonld --output graph.html
+astro-aeo report rag . --output private/rag.jsonl
+```
+
+Inputs are bounded and project evidence refuses symlinks. Outputs are stdout unless explicitly
+exported with `--output` (atomic, mode `0600`). See [report options, limits and contracts](docs/reports.md).
 
 ## Validator CLI
 
@@ -1638,6 +1951,9 @@ attributes are checked both offline and live, except on noindex pages.
 | `--format <name>` | `terminal` (default), `json`, `sarif`, `html`, `markdown`, `github`, or `junit`. All seven render the same report. |
 | `--output <file>` | Write the report to a file (temporary file, then rename) and print nothing to standard output. |
 | `--fail-on <level>` | `error` (default), `warning`, or `none`. A `junit` report fails exactly these findings' cases; the others pass with their message in `<system-out>`. |
+| `--github-output <file>` / `--summary-output <file>` | Export annotations and Markdown from the same audit, without another crawl. |
+| `--discovery` | URL only. Opt in to bounded discovery, sitemap, and manifest/content checks. |
+| `--discovery-base <path>` | URL only, requires `--discovery`. Deployment base (default `/`). |
 | `--no-score` | Omit scores and per-finding deductions. |
 | `--base <path>` | Base path of a build directory. |
 | `--max-pages <n>` | URL only. Page cap, default `500`, or `unlimited`. |
@@ -1658,11 +1974,33 @@ The JSON format is `AuditReportV1` (exported from `astro-aeo`, with a JSON Schem
 `astro-aeo/audit-report.schema.json`). It has no timestamp and no absolute path, so two audits of the
 same input are byte-identical.
 
-Scores use the `astro-aeo-readiness-v1` rubric and are advisory. Each category starts at 100. An error
-removes 15 points and a warning 5, one rule can remove at most 30 points from its category (errors
-count first), and a category never goes below 0. The internationalization category is left out when the
-site has one language or none. The overall score is the mean of the scored categories, rounded to two
-decimals.
+Scores use advisory `astro-aeo-readiness-v2`. Each **applicable, observed** category starts at
+100. An error removes 15 points and a warning 5, with a 30-point cap per rule (errors first).
+Unknown and not-applicable categories are disclosed but excluded from the overall mean. With no
+applicable category, `overall` is `null`, displayed as `unknown`. Editorial hints do not change
+applicability or scores. The eight categories remain unchanged. The report schema also accepts
+existing readiness-v1 reports; severity, not readiness, controls failure.
+
+Audit source regions refer to the **audited rendered HTML or companion Markdown**, never guessed
+Astro/MDX source lines. Columns are one-based UTF-16, with exclusive end columns. Ambiguous locations
+are omitted. SARIF file regions use paths relative to the audited build root. URL-only findings keep
+URL evidence and receive Action annotations/summary entries without a fictitious repository file.
+The composite Action creates SARIF, annotations, and its summary from one audit.
+
+Cross-page JSON-LD references use definitions in all observed pages; unvisited live targets stay
+unknown. Exact duplicate visible main content is warned only for substantial, indexable pages within
+the same locale/version, excluding shared chrome and shared-canonical aliases. Source bodies are not
+included in duplicate findings.
+
+`--discovery` anonymously checks robots, corpus discovery text, optional domain profile/manifest,
+advertised sitemaps, identity-encoded manifest artifacts, and available companions. It never loads a
+consumer tokenizer. Built-in token counts, identity artifact bytes, and normalized companion hashes are checked; custom counts,
+compressed wire bytes, runtime-owned build omissions, and exhausted budgets are disclosed. Artifact
+requests stay within the selected origin/base, reject credentialed/query/fragment advertisements, and
+share the crawl's redirect, timeout and 5 MiB response limit. Discovery is capped at 100 resources
+and 16 MiB of inspected text. Missing optional profile/manifest files are not errors. These checks
+are live HTTP evidence, not deployed-provider certification. Without this flag, discovery/corpus
+coverage remains unknown unless findings establish an observed check.
 
 ## How It Works
 
@@ -1709,3 +2047,11 @@ Working on this repo with an AI agent? See [`AGENTS.md`](AGENTS.md) for the arch
 ## License
 
 MIT (c) 2026 ZAAI. Built and maintained by [ZAAI](https://zaai.com). Sibling project: [Jekyll-AEO](https://github.com/ZAAI-com/Jekyll-AEO).
+
+### Compatibility and measurement evidence
+
+See [standards and supported surfaces](docs/STANDARDS_AND_COMPATIBILITY.md),
+[benchmark methodology](benchmarks/README.md), and the
+[1.6.0 decision ledger](docs/release-evidence/1.6.0-decisions.md).
+Release checks include tarball and commit-pinned Git installs plus TypeScript and JS/JSDoc consumers.
+Local provider contracts do not certify deployed behavior.

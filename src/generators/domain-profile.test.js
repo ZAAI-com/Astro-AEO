@@ -3,6 +3,19 @@ import { buildDomainProfile } from './domain-profile.js';
 import { resolveConfig } from '../config.js';
 
 describe('buildDomainProfile', () => {
+  test('applies only the active origin override while retaining shared author fields', () => {
+    const config = resolveConfig({ site: { profile: { enabled: true, name: 'Shared',
+      description: 'Shared description', email: 'shared@example.test',
+      origins: { 'https://fr.example.test': { name: 'Français', email: 'fr@example.test' } },
+    } } });
+    expect(buildDomainProfile(config, 'https://fr.example.test')).toMatchObject({
+      name: 'Français', description: 'Shared description', email: 'fr@example.test', url: 'https://fr.example.test',
+    });
+    expect(buildDomainProfile(config, 'https://en.example.test')).toMatchObject({ name: 'Shared', email: 'shared@example.test' });
+    config.site.profile.website = 'https://authored.example.test';
+    expect(buildDomainProfile(config, 'https://fr.example.test').url).toBe('https://authored.example.test');
+  });
+
   test('omits empty fields, includes sameAs', () => {
     const config = resolveConfig({
       domainProfile: {

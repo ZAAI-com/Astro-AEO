@@ -255,6 +255,7 @@ const extractionProperties = {
 };
 
 const markdownProperties = {
+  cacheControl: { type: 'string', minLength: 1, pattern: '^[ -~]+$', description: 'Cache-Control for successful generated Markdown; omission inherits the source policy, and error responses always keep it.' },
   enabled: boolean('Generate .md companion pages.', true),
   strategy: {
     type: 'string',
@@ -324,7 +325,44 @@ const stripTitleSuffix = {
   default: false,
 };
 
+const analyticsHeaders = {
+  type: 'object',
+  propertyNames: { pattern: "^[!#$%&'*+.^_`|~0-9A-Za-z-]+$" },
+  additionalProperties: {
+    ...object({
+      env: { type: 'string', pattern: '^[A-Za-z_][A-Za-z_0-9]*$' },
+      prefix: { type: 'string', pattern: '^[ -~]*$' },
+    }, 'Runtime environment secret reference.'),
+    required: ['env'],
+  },
+};
+const analyticsAdapter = (type, properties = {}, required = []) => ({
+  ...object({ type: { const: type }, ...properties }, `${type} analytics delivery.`),
+  required: ['type', ...required],
+});
+// Mirrors resolveAdapter: HTTPS, no credentials, no fragment, and a port the URL parser accepts.
+const analyticsUrl = { type: 'string', format: 'uri',
+  pattern: '^[Hh][Tt][Tt][Pp][Ss]://(?:\\[[^\\]\\s/?#@]+\\]|[^/?#@\\s:\\[\\]]+)(?::(?:6553[0-5]|655[0-2]\\d|65[0-4]\\d{2}|6[0-4]\\d{3}|[1-5]\\d{4}|\\d{1,4})?)?(?:[/?][^#\\s]*)?$' };
+
 const canonicalProperties = {
+  analytics: object({
+    enabled: boolean('Observe public requests without collecting identifying request data.', false),
+    scope: { type: 'string', enum: ['agents', 'all'], default: 'agents' },
+    sampleRate: { type: 'number', minimum: 0, maximum: 1, default: 1 },
+    strict: boolean('Report delivery failures and fail adapter preflight.', false),
+    privacy: object({ ip: { const: 'omit' }, query: { const: 'omit' }, referrer: { const: 'omit' } }, 'Fixed privacy policy.'),
+    adapter: {
+      default: { type: 'console' },
+      oneOf: [
+        analyticsAdapter('console'),
+        analyticsAdapter('jsonl', { path: { ...string('Private Node JSONL destination.', '.astro/aeo-analytics/events-v1.jsonl'), minLength: 1, pattern: '^(?![/\\\\]|[A-Za-z]:|\\.\\.(?:[/\\\\]|$))[^\\u0000-\\u001f]+$' } }),
+        analyticsAdapter('webhook', { url: analyticsUrl, headers: analyticsHeaders }, ['url']),
+        analyticsAdapter('opentelemetry', { endpoint: analyticsUrl, headers: analyticsHeaders }),
+        // A local specifier or file: URL; other schemes are remote and refused.
+        analyticsAdapter('module', { module: { type: 'string', minLength: 1, pattern: '^(?:file:|(?![A-Za-z][A-Za-z\\d+.-]*:))(?=[^\\u0000-\\u001f]*\\S)[^\\u0000-\\u001f]+$' }, options: {} }, ['module']),
+      ],
+    },
+  }, 'Optional privacy-first request analytics.'),
   site: object(
     {
       name: string('Site name used in corpus headings.', ''),
@@ -335,7 +373,13 @@ const canonicalProperties = {
         description: 'Explicit Schema.org organization entity or ID reference.',
         additionalProperties: true,
       },
-      profile: object(profileProperties, 'Published site identity profile.'),
+      profile: object({ ...profileProperties, origins: {
+        type: 'object', default: {}, description: 'Shared profile overrides keyed by HTTP(S) origin.',
+        propertyNames: { format: 'uri', pattern: '^[Hh][Tt][Tt][Pp][Ss]?://[^/?#@]+/?$' },
+        additionalProperties: object(Object.fromEntries(Object.entries(profileProperties)
+          .filter(([key]) => key !== 'enabled')
+          .map(([key, { default: _default, ...property }]) => [key, property])), 'Per-origin profile values.'),
+      } }, 'Published site identity profile.'),
     },
     'Site identity and profile output.',
   ),
@@ -379,6 +423,18 @@ const canonicalProperties = {
   markdown: object(markdownProperties, 'Markdown representation settings.'),
   corpus: object(
     {
+      versions: {
+        ...object({
+          current: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$' },
+          order: { type: 'array', items: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$' }, uniqueItems: true, description: 'Defaults to an empty order when version partitioning is configured.' },
+        }, 'Opt-in version partitions. Omission keeps page labels metadata-only.'),
+        required: ['current'],
+      },
+      rag: object({
+        enabled: boolean('Generate private RAG exports.', false),
+        maxTokens: positiveSafeInteger('Maximum tokens per indivisible-block-aware record.', 512),
+        publish: boolean('Publish ownership-managed RAG exports.', false),
+      }, 'RAG export settings.'),
       index: object(indexProperties, 'llms.txt settings.'),
       full: object(fullProperties, 'llms-full.txt settings.'),
       small: object(
@@ -658,7 +714,7 @@ function buildPublishedSchema() {
   const source = buildSchema();
   const canonicalNames = [
     'site', 'pages', 'markdown', 'corpus', 'i18n', 'cache', 'discovery', 'artifacts', 'metadata',
-    'schema', 'validation', 'plugins',
+    'schema', 'validation', 'plugins', 'analytics',
   ];
   const legacyNames = [
     'include',

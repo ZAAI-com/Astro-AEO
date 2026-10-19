@@ -27,14 +27,17 @@ export function buildAuditReportSchema() {
         pagesFetched: count,
         truncated: { type: 'boolean' },
         skippedExternal: count,
+        discovery:{enum:['complete','partial']},
+        artifactsFetched:count,
       }, ['origins', 'maxPages', 'pagesFetched', 'truncated', 'skippedExternal']),
       summary: object(
         { errors: count, warnings: count, infos: count, pagesChecked: count },
         ['errors', 'warnings', 'infos', 'pagesChecked'],
       ),
       scores: object({
-        rubric: { const: SCORE_RUBRIC },
-        overall: { type: 'number', minimum: 0, maximum: 100 },
+        rubric: { enum: ['astro-aeo-readiness-v1', SCORE_RUBRIC] },
+        applicability: { type:'array',items:object({category,status:{enum:['applicable','not-applicable','unknown']},reason:{type:'string'}},['category','status','reason']) },
+        overall: { type: ['number','null'], minimum: 0, maximum: 100 },
         categories: {
           type: 'array',
           items: object(
@@ -57,6 +60,7 @@ export function buildAuditReportSchema() {
             { line: positive, column: positive, endLine: positive, endColumn: positive },
             ['line'],
           ),
+          locationSource:{enum:['rendered-html','markdown']},
           evidence: { type: 'string' },
           helpUrl: { type: 'string' },
           deduction: { type: 'number', minimum: 0 },

@@ -2,6 +2,130 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## 1.6.0
+
+Benchmark regression explanation: Opt-in analytics and RAG, private processing evidence, versioned topology, exported report schemas and read-only audit/report commands increase published source bytes against reconstructed commit 29729bb. The five mandatory dependencies and Node/Astro floors are unchanged. The measured package exception to 500,000 packed / 1,900,000 unpacked bytes was explicitly approved on 2026-10-04; all runtime, memory, request and bundle ceilings remain fixed. Reference-runner relative timing is not certified by these local measurements.
+
+### Minor Changes
+
+- b0c2d5a: Keep doctor serving checks unverified until a URL probe succeeds, add bounded read-only provider and package-overlap evidence with manual `--print` advice, and compare local ownership digests and emitted artifact etags without executing consumer configuration.
+
+  Repair Render Markdown MIME coverage with both root and nested wildcard rules in the existing one-file transaction, preserving YAML formatting, refusal behavior, and idempotence.
+
+- f3c4bd1: Keep headings with indivisible first content blocks and prefer fitting heading-section chunk boundaries. Disclose sanitized tokenizer fallback reasons in corpus manifests, enforce explicit unresolved-language policies and x-default agreement, and add inherited per-origin domain-profile overrides. Version claimed observable crawler identities separately without changing default robots policy.
+- e9ddbb7: Separate extraction, pure plugin transformation, graph, tokenizer, and artifact cache identities so unsafe stages do not disable unrelated reuse. Preserve identical output mtimes, restore cleaned owned output, and withhold stale deletion after incomplete inventories. Add private redacted snapshots and processing traces with shared deterministic build digests and versioned declaration contracts.
+- bae0c9e: Apply explicit Markdown Cache-Control to generated request-time representations and static edge manifests while preserving inherited policy when omitted. Verify Vercel companions with an anonymous HEAD before rewriting or redirecting, falling back to HTML when an asset is missing or unavailable.
+
+  Run request-time semantic enrichment through the same internal node-free plugin, preserving authored precedence and trusted diagnostic deduplication.
+
+  Attach exact JSON pointers to authored graph provenance without copying source values, and clarify that unresolved scalar conflicts must be reconciled by their producer rather than suggesting an integration configuration policy.
+
+- 5088613: Add opt-in privacy-first request analytics, bounded claimed crawler identities,
+  console, private Node JSONL, runtime-secret webhooks, optional OpenTelemetry and
+  validated module sinks. Generate middleware only when enabled and allow explicit
+  provider observer injection with supported request lifetimes. Preserve response
+  identity, exclude collection and fan-out, and keep disabled bundles analytics-free.
+- 25ba43e: Generate opt-in private locale/version RAG records with stable IDs, exact text hashes, tokenizer
+  counts and approximation/fallback identity. Publish JSONL and deterministic static gzip only
+  with explicit ownership-managed opt-in. Validate record metadata replacement/drop hooks in
+  build and runtime, and disclose build-time incompleteness through a versioned private index.
+  Export RAG record and index schemas and declarations without framework dependencies.
+- 1c8e76b: Add bounded, read-only traffic, changes, inspection, offline graph and RAG CLI reports with exported versioned data schemas. Preserve validator formatter output and apply hash-pinned CSP to offline graph and audit HTML.
+
+  Recognize equivalent trailing-separator output directory identities in local doctor and inspection evidence, without changing the writer's existing digest format.
+
+- 9367026: Add validated opt-in contracts for versioned corpora, RAG exports, privacy-first analytics, and Markdown Cache-Control. Existing version labels remain metadata-only until corpus versioning is configured. Keep analytics configuration out of ordinary runtime projection.
+
+  Allow explicit recoverable hook exceptions while retaining fail-closed malformed results and build/runtime manifest parity. Add the RAG record replacement/drop lifecycle and publish the actual artifact claim/representation/envelope types, retaining Artifact as the envelope alias.
+
+- 042b3c4: Retain available authored source bodies in internal page records and compute SHA-256 from actual content rather than trusting catalog claims. MDX remains renderer input only and never becomes published raw Markdown.
+
+  Publish analytics configuration in the generated schema and retain omission of corpus version partitioning rather than implying it is enabled by default.
+
+- 3c3fa1d: Add explicit Starlight current/archived versions with configurable route prefixes, conflict validation, and automatic corpus current-version configuration. Add opt-in repository source links and known reciprocal version footers. Preserve authored markers while carrying route-version and fallback-locale facts, and exclude untranslated fallbacks from requested locale corpora without disabling companions. Permit an empty runtime-owned versioned build inventory to defer its manifest to complete runtime collection while retaining static manifest validation.
+- bf91253: Add audited-byte rendered HTML and companion Markdown regions, complete SARIF regions and URL-target Action annotations. Generate Action summaries and annotations from the same audit observation.
+
+  Use applicability-aware readiness-v2 without rewarding unknown coverage, resolve observed cross-page graph definitions, and warn on substantial exact duplicate main content within locale/version groups. Add opt-in bounded anonymous live discovery, sitemap and manifest hash/token checks with explicit unverified coverage. Preserve the eight audit categories and frozen validator contracts.
+
+  Omit credentials and associated queries from authored URL evidence in audit exports without changing validator bytes.
+
+- ac962b7: Partition opt-in corpora by documentation version while preserving current-version paths. Add versionGroup and discriminated reciprocal version alternatives, aggregate and archive-scoped manifests, and one shared base/locale/version path planner for ownership, runtime matching, fallback routes, aliases, gzip and public RAG paths. Validate known version relationships in audits and expose complete collected version metadata to build and live-corpus hooks.
+
+### Patch Changes
+
+- 29729bb: Return a sanitized, non-cacheable 503 when a known live-corpus page cannot be rendered or its HTML cannot be read completely. Preserve anonymous authorization, redirect, missing-route, non-HTML and page opt-out exclusions, along with existing plugin and semantic validation failures.
+- Preserve encoded question marks, hashes, and percent characters in runtime semantic page records without relaxing catalog or traversal validation. Add reproducible compatibility, install, and release measurement evidence.
+
+  Replace pairwise transaction and artifact-claim overlap checks with ancestor indexes so large persistent-cache transactions retain symlink, rollback and ownership safety without quadratic validation cost.
+
+- d9de290: Preserve rendered inactive ARIA tab panels as labelled Markdown sections, including Starlight tabs when source conversion falls back to HTML. Keep panel order, remove redundant controls, and continue removing unrelated hidden chrome and explicitly excluded content.
+- Report RAG without a configured Astro `site` as `corpus-rag-origin-missing` and plan the other corpus families, instead of failing the build with an invalid URL error.
+- Never delay a visitor response while analytics waits for an in-flight catalog listing. A settled listing still classifies the same request; a pending one refreshes the inventory in the background.
+- Accept report inputs and audit/report outputs in projects reached through a symlinked folder above the project, while still refusing symlinks inside the project, linked project roots and linked destinations.
+- Install the pinned `.tool-versions` Deno in the release workflow, matching the exact version the adapter runtime contract requires.
+- Let `astro-aeo doctor` accept a project path through a symlinked parent folder by resolving it to its real location and matching either spelling of the build output. A project folder that is itself a link is still refused, and the fix hint explains that `fix` must run from inside such a project.
+- Report deployment facts and page snapshots over the same artifact list the ownership ledger records, so `astro-aeo doctor`, the local audit and `report inspect` no longer report a build mismatch after a build keeps stale outputs.
+- Apply `markdown.cacheControl` only to successful and `304` Markdown responses. Markdown rendered from an error page and a negotiated `303` redirect keep the project's own policy.
+- Keep an embedded `report graph` entity without an `@id` as its own `_:` node with an edge from its parent, and reject credentialed graph URLs in any scheme case.
+- Include a plugin's declared `runtime.options` in pure hook cache keys, and reuse the stage cache when RAG artifacts are recounted.
+- Validate versioned corpus manifests with one locale record per version in `astro-aeo validate` and the offline audit, and reject a locale canonical artifact or page chunk from another version.
+- Record `inventoryComplete: false` in snapshots and traces when a project page renders on demand, so `report changes` marks such pages unconfirmed rather than removed. `report rag` keeps companions whose names start with `llms`.
+- Redact credentials embedded in another URL's query from audit exports while keeping ordinary queries, never follow a linked corpus manifest in the local audit, keep a `doctor --dist` folder reached through a link inside the project unread (reported as unverified with a `--dist` hint), and allow report and audit output under macOS `/tmp`.
+- Accept a domain profile that names the site origin above the deployment base during live discovery, and resolve relative page canonicals before comparing them with the sitemap.
+- Require page alternates to be objects, send a fractional OTLP sample rate as `doubleValue`, check JSONL parent paths with Windows separators, and reject a sparse `sameAs` array.
+- Add trailing headings to a RAG record's `headings`, label tab panels through `aria-labelledby` and ancestor-dependent `removeSelectors`, and locate an `entity: false` graph node as it is collected.
+- Compare audit languages case-insensitively, and skip `<template>` contents, indented fences and multi-backtick code spans when locating audit findings.
+- Encode producer rules in the published schemas: kind-specific RAG ids, public HTTP(S) URLs, safe root-relative pathnames, at least one record per RAG index file, an uncapped trace stage list, safe traffic path keys, analytics event pairings and the analytics adapter constraints, including valid ports and project-relative JSONL paths.
+- Use lowercase repository and issue tracker URLs in npm package metadata.
+- Classify `.gz` corpus paths as analytics artifacts only when the build wrote static gzip siblings. A runtime-owned corpus answers them `404`, so they are now `unlisted`.
+- Never start an inline code span inside a longer unclosed backtick run when locating audit findings in Markdown, so literal markup after it keeps its line and column.
+
+
+### Implementation details
+
+- Add audited-byte HTML/Markdown source regions, URL Action annotations from one audit,
+  applicability-aware readiness-v2, full-site graph references, exact duplicate-content
+  findings, and opt-in bounded live discovery/corpus verification. Preserve validator contracts.
+
+- Add read-only traffic, changes, inspect, graph and RAG reports, versioned report/evidence schemas, and hash-pinned offline HTML CSP while retaining frozen validator formatting.
+
+
+- Generate private locale/version RAG page and chunk records with stable IDs, actual tokenizer
+  counts, content hashes and immutable measurement fields. Publish ownership-managed JSONL and
+  deterministic static gzip only with explicit opt-in, and disclose incomplete build-time exports.
+- Validate `rag:record` metadata replacement/drop hooks in build and runtime, preserving fail-closed
+  isolation and explicitly authorized exception recovery. Export versioned record/index schemas.
+
+- Add opt-in privacy-first request analytics with claimed crawler classifications, bounded
+  paths, sampling, private Node JSONL, runtime-secret webhooks, optional OpenTelemetry and
+  module sinks. Keep disabled bundles analytics-free and preserve response identity.
+
+- Interpret explicit Starlight version prefixes through public route data, populate corpus
+  current versions, and add opt-in source-view and known version links. Keep untranslated
+  fallback companions available while excluding those pages from requested locale corpora.
+
+- Keep local doctor results unverified, add bounded provider and package-overlap evidence,
+  and offer read-only `--print` advice without executing consumer configuration.
+- Compare deployment ownership digests and emitted artifact etags, withholding conclusions
+  when evidence is mismatched, malformed or unsafe.
+- Repair both root and nested Render Markdown MIME rules in one backed-up transaction,
+  preserving YAML formatting and refusing ambiguous rules before writing.
+- Apply explicit Markdown Cache-Control to generated representations and known static
+  companions, with inherited behavior when omitted. Vercel checks companion availability
+  before negotiating. Request-time semantic enrichment uses the internal node-free plugin.
+
+- Separate incremental processing identities, preserve unrelated caches after unsafe stages,
+  and restore missing owned output without rewriting identical bytes. Private snapshots and
+  traces share content-derived digests and omit raw content and diagnostic values.
+
+- Keep heading sections intact where budgets permit, disclose tokenizer fallback reasons,
+  enforce explicit locale policies and x-default agreement, and inherit per-origin profiles.
+  Version observable crawler identities without changing default robots output.
+
+- Partition opt-in versioned corpora beneath existing base/locale paths, retain current paths,
+  and emit reciprocal same-locale version alternatives with authored logical identity overrides.
+  Use one topology for manifests, ownership, fallback routes, aliases, gzip, and runtime matching.
+
 ## 1.5.5
 
 ### Patch Changes

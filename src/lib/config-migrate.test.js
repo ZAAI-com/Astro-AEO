@@ -13,6 +13,7 @@ import {
   truncate,
 } from './config-migrate.js';
 import { AeoConfigError } from './errors.js';
+import { resolveConfig } from '../config.js';
 
 /** @param {string} m */
 const throwing = (m) => {
@@ -329,4 +330,23 @@ describe('deepMerge', () => {
   test('an explicit undefined does not erase a base value', () => {
     expect(deepMerge({ a: 1 }, { a: undefined })).toEqual({ a: 1 });
   });
+});
+
+// Keep every accepted legacy spelling tied to the authoritative migration table.
+describe('complete legacy resolution parity', () => {
+  const defaults = resolveConfig();
+  for (const move of LEGACY_MOVES) {
+    test(`${move.from} resolves identically to ${move.to}`, () => {
+      const value = move.map ? false : getPath(defaults, move.to);
+      expect(value, `Missing representative value for ${move.to}`).not.toBeUndefined();
+      const legacy = {};
+      const canonical = {};
+      setPath(legacy, move.from, value);
+      setPath(canonical, move.to, move.map ? move.map(value) : value);
+      const warnings = [];
+      expect(resolveConfig(legacy, { warn: (message) => warnings.push(message) }))
+        .toEqual(resolveConfig(canonical));
+      expect(warnings.filter((message) => message.includes('deprecated'))).toHaveLength(1);
+    });
+  }
 });

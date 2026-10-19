@@ -50,6 +50,7 @@ export function contentDescriptor(entry, page) {
     ...(props.image ? { image: props.image } : {}),
     ...(props.language ? { language: props.language } : {}),
     ...(props.version ? { version: props.version } : {}),
+    ...(props.versionGroup ? { versionGroup: props.versionGroup } : {}),
     ...(props.markdown !== undefined ? { markdown: props.markdown } : {}),
     ...(props.lastModified ? { lastModified: props.lastModified } : {}),
     ...overrides,

@@ -9,4 +9,5 @@ export declare function createVercelHandler(options: EdgeHandlerOptions & {
   next(init?: { headers?: Record<string, string> }): Response;
   rewrite(destination: string | URL, init?: { headers?: Record<string, string> }): Response;
   fetch?: typeof fetch;
+  waitUntil?(work: Promise<void>): void;
 }): (request: Request) => Promise<Response>;

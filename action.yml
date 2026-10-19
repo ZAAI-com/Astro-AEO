@@ -48,14 +48,16 @@ runs:
         AEO_ARGS: ${{ inputs.args }}
       run: |
         set +e
+        annotations=$(mktemp)
+        summary=$(mktemp)
+        trap 'rm -f "$annotations" "$summary"' EXIT
         # shellcheck disable=SC2086
-        npx --no-install astro-aeo audit "$AEO_TARGET" --format sarif --output "$AEO_SARIF" --fail-on "$AEO_FAIL_ON" $AEO_ARGS
+        npx --no-install astro-aeo audit "$AEO_TARGET" --format sarif --output "$AEO_SARIF" --fail-on "$AEO_FAIL_ON" --github-output "$annotations" --summary-output "$summary" $AEO_ARGS
         code=$?
         echo "exit-code=$code" >> "$GITHUB_OUTPUT"
         echo "sarif-file=$PWD/$AEO_SARIF" >> "$GITHUB_OUTPUT"
-        if [ -f "$AEO_SARIF" ]; then
-          npx --no-install astro-aeo audit "$AEO_TARGET" --format markdown --fail-on none $AEO_ARGS >> "$GITHUB_STEP_SUMMARY" || true
-        fi
+        cat "$annotations"
+        cat "$summary" >> "$GITHUB_STEP_SUMMARY"
         exit 0
 
     - if: ${{ inputs.upload-sarif == 'true' && hashFiles(format('{0}/{1}', inputs.working-directory, inputs.sarif-file)) != '' }}

@@ -25,15 +25,126 @@ export type { ExtractedDocument } from './extract.js';
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
-export interface PageAlternate {
+export type PageAlternate = LanguagePageAlternate | VersionPageAlternate;
+
+export interface VersionPageAlternate {
+  kind: 'version';
+  language?: never;
+  version: string;
+  url: string;
+}
+
+export interface LanguagePageAlternate {
+  kind?: 'language';
+  version?: never;
   language: string | 'x-default';
   url: string;
 }
 
+/**
+ * A pure, versioned declaration. A cached result may be reused instead of
+ * running the hook or renderer, so change `version` whenever its output can
+ * change for a reason outside the cache key (for example, options captured
+ * only in a closure, or an upgraded dependency).
+ */
 export interface CacheDeclaration {
   pure: true;
   version: string;
 }
+
+/** Private, content-free build evidence at .astro/aeo-cache/pages-v1.json. */
+export interface AeoPageSnapshotV1 {
+  /** Hash of private RAG records when enabled, never their content. */
+  ragHash?: string;
+  version: 1;
+  buildDigest: string;
+  inventoryComplete: boolean;
+  pages: readonly {
+    pathname: string;
+    routePattern?: string;
+    locale: string | null;
+    version: string | null;
+    components: {
+      source: string | null;
+      html: string;
+      markdown: string;
+      metadata: string;
+      graph: string;
+      directives: string;
+    };
+  }[];
+  artifacts: readonly {
+    pathname: string;
+    status: string | null;
+    owner: string | null;
+    etag: string | null;
+    byteLength: number | null;
+  }[];
+}
+
+/** Private trace outcomes do not contribute to content-derived buildDigest. */
+export interface AeoProcessingTraceV1 {
+  version: 1;
+  buildDigest: string;
+  inventoryComplete: boolean;
+  stages: readonly { pathname: string; stage: string | null; outcome: string }[];
+  pages: readonly {
+    pathname: string;
+    source: string | null;
+    renderer: string | null;
+    graphEntities: number;
+    graphProvenance: Readonly<Record<string, number>>;
+    htmlTransforms: readonly string[];
+    diagnostics: Readonly<Record<string, number>>;
+  }[];
+  artifacts: readonly { pathname: string; action: string }[];
+  diagnostics: Readonly<Record<string, number>>;
+  cacheReasons: Readonly<Record<string, number>>;
+}
+
+export interface AnalyticsReportV1 {
+  version: 1; type: 'traffic'; warnings: string[]; observed: number; estimated?: number;
+  filters: { from: string | null; to: string | null };
+  disclosure: {
+    coverage: 'observable-only'; classification: 'claimed'; sampleRates: number[];
+    scopes: ('agents' | 'all')[]; surfaces: string[]; registryVersions: string[];
+    weighted: boolean; estimateBasis: 'inverse-probability-not-verified-traffic';
+  };
+  buckets: TrafficBucketV1[]; paths: TrafficBucketV1[]; crawlers: TrafficBucketV1[];
+  representations: TrafficBucketV1[]; statuses: TrafficBucketV1[];
+}
+export interface TrafficBucketV1 { key: string; observed: number; estimated?: number }
+export interface AeoChangeV1 {
+  pathname: string; locale: string | null; contentVersion: string | null;
+  status: 'added' | 'changed' | 'removed' | 'unconfirmed-addition' | 'unconfirmed-removal';
+  components: ('source' | 'html' | 'markdown' | 'metadata' | 'graph' | 'directives' |
+    'status' | 'owner' | 'etag' | 'byteLength')[];
+}
+export interface ChangesReportV1 {
+  version: 1; type: 'changes'; warnings: string[];
+  baselineDigest: string; currentDigest: string; baselineComplete: boolean; currentComplete: boolean;
+  pages: AeoChangeV1[]; artifacts: AeoChangeV1[]; ragChanged: boolean;
+}
+export interface InspectReportV1 {
+  version: 1; type: 'inspect'; warnings: string[]; buildDigest: string; inventoryComplete: boolean;
+  pages: {
+    snapshot: AeoPageSnapshotV1['pages'][number]; trace: AeoProcessingTraceV1['pages'][number] | null;
+    stages: AeoProcessingTraceV1['stages'];
+    companions: { pathname: string; hash: string | null; tokenCount: number | null }[];
+  }[];
+  artifacts: AeoPageSnapshotV1['artifacts'];
+}
+export interface GraphReportV1 {
+  version: 1; type: 'graph'; warnings: string[];
+  nodes: { id: string; label: string; types: string[] }[];
+  edges: { from: string; to: string; property: string }[];
+}
+export interface RagReportV1 {
+  version: 1; type: 'rag'; warnings: string[]; source: 'private' | 'companions';
+  buildDigest: string | null; inventoryComplete: boolean; buildTimeIncomplete: boolean;
+  records: RagRecordV1[];
+}
+export type AeoDataReportV1 = AnalyticsReportV1 | ChangesReportV1 | InspectReportV1 | GraphReportV1 | RagReportV1;
 
 export interface CorpusTokenizerModule {
   apiVersion: 1;
@@ -48,6 +159,9 @@ export interface CorpusManifestV1 {
   origin: string;
   base: string;
   tokenizer: { name: string; version: string; approximate: boolean };
+  /** Sanitized reason the configured tokenizer was replaced by the built-in approximation. */
+  tokenizerFallback?: { reason: 'preflight' | 'count' };
+  versions?: ResolvedCorpusVersions;
   locales: CorpusManifestLocaleV1[];
   pages: CorpusManifestPageV1[];
   artifacts: CorpusManifestArtifactV1[];
@@ -58,6 +172,7 @@ export interface CorpusManifestLocaleV1 {
   locale: string | null;
   language: string | null;
   canonicalArtifact: string;
+  version?: string;
 }
 
 export interface CorpusManifestPageV1 {
@@ -77,13 +192,16 @@ export interface CorpusManifestPageV1 {
   modified?: string;
   /** Documentation version label. Absent for unversioned pages. */
   version?: string;
+  versionGroup?: string;
+  versionAlternates?: VersionPageAlternate[];
   chunks: string[];
 }
 
 export interface CorpusManifestArtifactV1 {
+  version?: string;
   origin: string;
   pathname: string;
-  kind: 'index' | 'full' | 'small' | 'chunk' | 'alias';
+  kind: 'index' | 'full' | 'small' | 'chunk' | 'alias' | 'rag';
   locale: string | null;
   section: string | null;
   part: number | null;
@@ -150,6 +268,8 @@ export interface Finding {
   /** Page pathname for a local audit, absolute URL for a live one. */
   url?: string;
   location?: SourceLocation;
+  /** Position in audited rendered output or a published companion, never inferred source. */
+  locationSource?: 'rendered-html' | 'markdown';
   evidence?: string;
   helpUrl?: string;
   /** Points this finding removed from its category. Absent when scoring is off. */
@@ -163,13 +283,23 @@ export interface AuditCategoryScore {
 }
 
 /** Advisory only: scores never decide an exit status. */
+export interface AuditApplicability {
+  category: AuditCategory;
+  status: 'applicable' | 'not-applicable' | 'unknown';
+  reason: string;
+}
 export interface AuditScores {
-  rubric: 'astro-aeo-readiness-v1';
-  overall: number;
+  rubric: 'astro-aeo-readiness-v1' | 'astro-aeo-readiness-v2';
+  /** Null when no category was meaningfully assessed. */
+  overall: number | null;
+  /** Present for readiness-v2. Unknown and inapplicable categories never inflate the mean. */
+  applicability?: AuditApplicability[];
   categories: AuditCategoryScore[];
 }
 
 export interface AuditCrawlScope {
+  discovery?: 'complete' | 'partial';
+  artifactsFetched?: number;
   origins: string[];
   maxPages: number | 'unlimited';
   pagesFetched: number;
@@ -242,7 +372,12 @@ export interface AeoPageRecord extends AeoPage {
   language?: string;
   /** Documentation version label. Absent for unversioned pages. */
   version?: string;
+  versionGroup?: string;
   alternates?: PageAlternate[];
+  /** Opt-in Starlight companion/corpus footer using known version peers only. */
+  versionLinks?: boolean;
+  /** Public route metadata when Starlight is serving untranslated fallback content. */
+  localeFallback?: { requested: string; source?: string };
   metadata: {
     title: string;
     description?: string;
@@ -286,13 +421,18 @@ export interface Representation {
   readonly contentType: string;
 }
 
-export interface Artifact {
-  /** Browser-visible pathname, including Astro's configured base. */
-  readonly pathname: string;
-  readonly representation: Representation;
-  /** Plugin claims only: authorize replacing external ownership at this exact path. */
-  readonly replace?: boolean;
+/** The actual value supplied to artifact generation and validation hooks. */
+export interface ArtifactEnvelope {
+  readonly claim: ArtifactClaim;
+  /** Null until a generation hook supplies a representation. */
+  readonly representation: Representation | null;
+  /** Build generation hooks receive enumerated public page identities. */
+  readonly pages?: readonly { readonly id: string; readonly pathname: string }[];
 }
+
+export type Artifact = ArtifactEnvelope;
+export type ArtifactClaim = PluginArtifactClaim;
+export type ArtifactRepresentation = Representation;
 
 export type GeneratedArtifactOwner =
   | { readonly kind: 'core'; readonly name: string }
@@ -740,7 +880,47 @@ export interface CorpusRuntimeOptions {
   maxPages?: number | 'unlimited';
 }
 
+/** Versioned page/chunk data containing published Markdown, not raw source. */
+export interface RagRecordV1 {
+  version: 1;
+  tokenizerFallback?: { reason: 'preflight' | 'count' };
+  kind: 'page' | 'chunk';
+  id: string;
+  pageId: string;
+  chunkIndex: number | null;
+  text: string;
+  tokenCount: number;
+  tokenizer: { name: string; version: string; approximate: boolean };
+  hash: string;
+  pageHash: string;
+  headings: string[];
+  oversized: boolean;
+  metadata: {
+    url: string;
+    pathname: string;
+    title: string;
+    locale: string | null;
+    language: string | null;
+    contentVersion: string | null;
+    versionGroup: string | null;
+    section: string | null;
+    [key: string]: string | number | boolean | null;
+  };
+}
+
+export interface RagIndexV1 {
+  version: 1;
+  buildDigest: string;
+  inventoryComplete: boolean;
+  buildTimeIncomplete: boolean;
+  files: Array<{ file: string; locale: string | null; contentVersion: string | null; records: number; hash: string }>;
+}
+
 export interface CorpusOptions {
+  /** Opt in to version-partitioned corpora. Omit to keep version labels metadata-only. */
+  versions?: CorpusVersionsOptions;
+  /** Token-bounded RAG exports. Private unless publish is explicitly enabled. */
+  rag?: CorpusRagOptions;
   /** The /llms.txt index. */
   index?: CorpusIndexOptions;
   /** The /llms-full.txt full-text corpus. */
@@ -771,6 +951,53 @@ export interface I18nOptions {
 export interface CacheOptions {
   /** Reuse content-addressed page-processing payloads. Default: true. */
   enabled?: boolean;
+}
+
+export interface CorpusVersionsOptions {
+  current: string;
+  order?: string[];
+}
+
+export interface ResolvedCorpusVersions {
+  current: string;
+  order: string[];
+}
+
+export interface CorpusRagOptions {
+  enabled?: boolean;
+  maxTokens?: number;
+  publish?: boolean;
+}
+
+/** A secret reference, resolved on the serving runtime, never at build time. */
+export interface AnalyticsRuntimeSecret {
+  env: string;
+  prefix?: string;
+}
+
+export type AnalyticsAdapter =
+  | { type: 'console' }
+  | { type: 'jsonl'; path?: string }
+  | { type: 'webhook'; url: string; headers?: Record<string, AnalyticsRuntimeSecret> }
+  | { type: 'opentelemetry'; endpoint?: string; headers?: Record<string, AnalyticsRuntimeSecret> }
+  | { type: 'module'; module: string | URL; options?: JsonValue };
+
+export interface AnalyticsOptions {
+  enabled?: boolean;
+  scope?: 'agents' | 'all';
+  sampleRate?: number;
+  strict?: boolean;
+  adapter?: AnalyticsAdapter;
+  privacy?: { ip?: 'omit'; query?: 'omit'; referrer?: 'omit' };
+}
+
+export interface ResolvedAnalyticsOptions {
+  enabled: boolean;
+  scope: 'agents' | 'all';
+  sampleRate: number;
+  strict: boolean;
+  adapter: AnalyticsAdapter;
+  privacy: { ip: 'omit'; query: 'omit'; referrer: 'omit' };
 }
 
 export interface ExtractionOptions {
@@ -869,6 +1096,8 @@ export interface MarkdownOptions {
    * everything and cannot negotiate anywhere; `.md` companions are unaffected.
    */
   negotiation?: 'off' | 'response' | 'redirect';
+  /** Cache-Control for successful generated Markdown. Omit to inherit the source policy; error responses always keep it. */
+  cacheControl?: string;
   /** Which part of a rendered page becomes Markdown. */
   extraction?: ExtractionOptions;
 }
@@ -934,7 +1163,12 @@ export interface ProfileOptions {
   sameAs?: string[];
   /** schema.org @type. Default: 'Organization'. */
   entityType?: EntityType;
+  /** Shared profile overrides keyed by normalized HTTP(S) origin. */
+  origins?: Record<string, DomainProfileOverride>;
 }
+
+export type DomainProfileOverride = Pick<ProfileOptions,
+  'name' | 'description' | 'website' | 'email' | 'logo' | 'sameAs' | 'entityType'>;
 
 export interface SiteOptions {
   /** Site name for llms.txt headers. Falls back to the profile name, then <title>, then hostname. */
@@ -998,6 +1232,7 @@ export type AstroAeoPluginStage =
   | 'page:transform'
   | 'page:metadata'
   | 'graph:build'
+  | 'rag:record'
   | 'artifact:generate'
   | 'artifact:validate'
   | 'build:complete';
@@ -1011,6 +1246,8 @@ export interface PluginDiagnostic {
 
 export type AstroAeoPluginHookResult<T> =
   | void
+  /** Drop only the current RAG record. Invalid at every other stage. */
+  | { action: 'drop'; diagnostics?: readonly PluginDiagnostic[] }
   | { action: 'keep'; diagnostics?: readonly PluginDiagnostic[] }
   | { action: 'replace'; value: T; diagnostics?: readonly PluginDiagnostic[] }
   | { action: 'isolate'; diagnostics?: readonly PluginDiagnostic[] };
@@ -1032,6 +1269,9 @@ export interface RuntimePluginPageRecord {
   readonly origin?: string;
   readonly locale?: string;
   readonly version?: string;
+  readonly versionGroup?: string;
+  readonly versionLinks?: boolean;
+  readonly localeFallback?: { readonly requested: string; readonly source?: string };
   readonly routePattern?: string;
   readonly rendering?: 'prerendered' | 'on-demand';
   readonly canonicalUrl?: string;
@@ -1051,6 +1291,8 @@ export interface RuntimePluginPageRecord {
 }
 
 export interface RuntimePluginPageHandle {
+  readonly version?: string;
+  readonly versionGroup?: string;
   readonly id: string;
   readonly pathname: string;
   readonly origin?: string;
@@ -1081,12 +1323,15 @@ export interface AstroAeoPluginApi {
   readonly command: 'dev' | 'build' | 'preview';
   /** Present only in an importable runtime module, after strict JSON validation. */
   readonly options?: JsonValue;
+  /** RAG replacements may enrich flat metadata; protected fields must stay unchanged. */
+  on(stage: 'rag:record', hook: AstroAeoPluginHook<RagRecordV1>, options?: { cache?: CacheDeclaration; recoverable?: boolean }): void;
   on<T>(stage: AstroAeoPluginStage, hook: AstroAeoPluginHook<T>): void;
+  on<T>(stage: AstroAeoPluginStage, hook: AstroAeoPluginHook<T>, options: { recoverable?: boolean }): void;
   on<T>(
     // Edit together with CACHEABLE_STAGES in src/plugins/dispatcher.js.
-    stage: 'page:discovered' | 'page:extract' | 'page:transform' | 'page:metadata' | 'graph:build',
+    stage: 'page:discovered' | 'page:extract' | 'page:transform' | 'page:metadata' | 'graph:build' | 'rag:record',
     hook: AstroAeoPluginHook<T>,
-    options: { cache?: CacheDeclaration },
+    options: { cache?: CacheDeclaration; recoverable?: boolean },
   ): void;
   claimArtifact(claim: PluginArtifactClaim): void;
 }
@@ -1105,6 +1350,8 @@ export interface AstroAeoPlugin {
  * The canonical configuration surface.
  */
 export interface CanonicalAeoConfig {
+  /** Privacy-first request observation, disabled by default. */
+  analytics?: AnalyticsOptions;
   site?: SiteOptions;
   pages?: PagesOptions;
   markdown?: MarkdownOptions;
@@ -1170,7 +1417,7 @@ export interface ResolvedAstroAeoConfig {
     profile: Required<ProfileOptions>;
   };
   pages: Required<PagesOptions>;
-  markdown: Omit<Required<MarkdownOptions>, 'extraction'> & { extraction: Required<ExtractionOptions> };
+  markdown: Omit<Required<MarkdownOptions>, 'extraction' | 'cacheControl'> & { extraction: Required<ExtractionOptions>; cacheControl: string | undefined };
   artifacts: { replace: string[] };
   metadata: { fillMissing: boolean; defaults: MetadataDefaults };
   schema: {
@@ -1183,7 +1430,10 @@ export interface ResolvedAstroAeoConfig {
   plugins: AstroAeoPlugin[];
   i18n: Required<I18nOptions>;
   cache: Required<CacheOptions>;
+  analytics: ResolvedAnalyticsOptions;
   corpus: {
+    versions: ResolvedCorpusVersions | undefined;
+    rag: Required<CorpusRagOptions>;
     index: Required<CorpusIndexOptions>;
     full: Required<CorpusFullOptions>;
     small: Required<CorpusSmallOptions>;

@@ -22,6 +22,7 @@ import { categoryFor, getRule, helpUrlFor } from './rules.js';
  *   file?: string;
  *   url?: string;
  *   location?: Finding['location'];
+ *   locationSource?: Finding['locationSource'];
  *   evidence?: string;
  * }} input
  * @returns {Finding}
@@ -35,7 +36,7 @@ export function createFinding(input) {
     message: input.message,
     ...(input.file ? { file: input.file } : {}),
     ...(input.url ? { url: input.url } : {}),
-    ...(input.location ? { location: input.location } : {}),
+    ...(validLocation(input.location) ? {location:input.location, ...(input.locationSource ? {locationSource:input.locationSource} : {})} : {}),
     ...(input.evidence ? { evidence: input.evidence } : {}),
     ...(getRule(input.ruleId) ? { helpUrl: helpUrlFor(input.ruleId) } : {}),
   };
@@ -129,5 +130,18 @@ function portablePath(value) {
   if (!value) return undefined;
   if (value.startsWith('/') || value.startsWith('\\')) return undefined;
   if (/^[A-Za-z][A-Za-z\d+.-]*:/.test(value)) return undefined;
+  if (value.replaceAll('\\','/').split('/').includes('..') || /[\u0000-\u001f\u007f]/.test(value)) return undefined;
   return value;
+}
+
+/** Never pass malformed or inverted regions into SARIF/Action consumers.
+ * @param {Finding['location']} value */
+export function validLocation(value) {
+  if (!value || !Number.isSafeInteger(value.line) || value.line < 1) return false;
+  for (const field of ['column','endLine','endColumn']) {
+    const number = value[/** @type {'column'|'endLine'|'endColumn'} */ (field)];
+    if (number !== undefined && (!Number.isSafeInteger(number) || number < 1)) return false;
+  }
+  return (value.endLine ?? value.line) >= value.line &&
+    ((value.endLine ?? value.line) !== value.line || value.endColumn === undefined || value.endColumn >= (value.column ?? 1));
 }

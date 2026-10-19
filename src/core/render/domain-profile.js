@@ -1,4 +1,5 @@
 // @ts-check
+import { normalizeOrigin } from '../locale.js';
 
 /**
  * The /.well-known/domain-profile.json body. Pure, so the build and the runtime
@@ -12,7 +13,10 @@
  * @returns {Record<string, unknown>}
  */
 export function buildDomainProfile(config, siteUrl) {
-  const dp = config.site.profile;
+  const shared = config.site.profile;
+  const origin = normalizeOrigin(siteUrl);
+  const override = origin ? shared.origins?.[origin] : undefined;
+  const dp = override ? { ...shared, ...override } : shared;
   const website = dp.website || siteUrl;
   return {
     '@context': 'https://schema.org',

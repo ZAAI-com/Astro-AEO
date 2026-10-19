@@ -5,6 +5,8 @@ export interface StaticEdgeManifestV1 {
   /** `markdown.negotiation` at build time. */
   mode: 'response' | 'redirect';
   base: string;
+  /** Explicit Markdown cache policy; omission inherits the companion policy. */
+  cacheControl?: string;
   /** Sorted by `html`. Only pages whose companion the build really emitted. */
   routes: { html: string; markdown: string }[];
 }
@@ -17,7 +19,10 @@ export type EdgeDecision =
 
 export interface EdgeManifestIndex {
   mode: 'response' | 'redirect';
+  cacheControl?: string;
   routes: Map<string, string>;
+  /** Every companion pathname in `routes`, for direct `.md` lookups. */
+  markdown: ReadonlySet<string>;
 }
 
 export declare const EDGE_MANIFEST_PATHNAME: '/.well-known/astro-aeo-edge-v1.json';
@@ -33,6 +38,8 @@ export declare function createEdgeNegotiator<C = undefined>(host: {
 }): (request: Request, next: () => Promise<Response>, context?: C) => Promise<Response>;
 
 export interface EdgeHandlerOptions {
+  /** Explicit opt-in: integration configuration never installs this observer. */
+  analytics?: import('./analytics.js').AnalyticsObserver;
   /** The Astro `base`, when the site is not served from the root. */
   base?: string;
 }

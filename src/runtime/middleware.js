@@ -89,6 +89,14 @@ const ASTRO_FETCH_STATE = Symbol.for('astro.fetchState');
 const ASTRO_5_PIPELINE = Symbol.for('context.routes');
 const ASTRO_6_LEGACY_PIPELINE = Symbol.for('astro.pipeline');
 
+/** Collection exclusions shared only with the enabled generated wrapper.
+ * @param {import('astro').APIContext} context
+ */
+export function isInternalAeoRequest(context) {
+  return INTERNAL_REWRITES.has(context.locals) || context.locals[COLLECT_FLAG] === true ||
+    (RUNTIME.command === 'dev' && LOOPBACK_COLLECT_PATHS.has(decodePathname(context.url.pathname) ?? ''));
+}
+
 /**
  * @param {import('astro').APIContext} context
  * @param {import('astro').MiddlewareNext} next
@@ -481,6 +489,11 @@ export const onRequest = async (context, next) => {
 
   if (wantsMarkdown && eligible && negotiation === 'redirect') {
     const headers = representationHeaders(decisionResponse, encodedPagePath, context, true);
+    // The configured Markdown policy describes the companion body, not this
+    // redirect, which keeps the page's own Cache-Control.
+    const pagePolicy = decisionResponse?.headers.get('cache-control');
+    if (pagePolicy) headers.set('cache-control', pagePolicy);
+    else headers.delete('cache-control');
     headers.set(
       'location',
       `${basePrefix(RUNTIME.site.base)}${mdPathnameFor(encodedPagePath)}${context.url.search}`,
@@ -595,6 +608,8 @@ async function runtimePluginPageHandles(context, next, dynamicRouteSource) {
       descriptor: target.descriptor,
       ...(target.descriptor?.origin ? { origin: target.descriptor.origin } : {}),
       ...(target.descriptor?.locale ? { locale: target.descriptor.locale } : {}),
+      ...(target.descriptor?.version ? { version: target.descriptor.version } : {}),
+      ...(target.descriptor?.versionGroup ? { versionGroup: target.descriptor.versionGroup } : {}),
       // Catalog metadata is user supplied, so a truthy non-array here would throw out of
       // onRequest rather than degrading the one artifact that asked for it.
       ...(Array.isArray(target.descriptor?.alternates)
@@ -1366,6 +1381,11 @@ function canonicalLink(pagePath, context) {
  */
 function representationHeaders(source, pagePath, context, negotiated) {
   const headers = inheritedRepresentationHeaders(source ?? undefined);
+  // Successful representations only, as in the edge helpers: an error page
+  // keeps the project's own policy, so a long-lived value cannot cache it.
+  if (RUNTIME.config.markdown.cacheControl !== undefined && (source?.ok || source?.status === 304)) {
+    headers.set('cache-control', RUNTIME.config.markdown.cacheControl);
+  }
   stripInternalHeaders(headers);
   const generatedLink = canonicalLink(pagePath, context).link;
   const existingLink = source?.headers.get('link');

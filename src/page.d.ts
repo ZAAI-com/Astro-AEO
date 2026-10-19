@@ -20,6 +20,8 @@ export interface AeoPageInput {
   language?: string;
   /** Documentation version label, such as `v2`. One path segment of letters, digits, `.`, `_` or `-`. */
   version?: string;
+  versionGroup?: string;
+  alternates?: PageAlternate[];
   published?: Date | string;
   lastModified?: Date | string;
   authors?: EntityReference[];
@@ -66,6 +68,7 @@ export interface PageDescriptor {
   language?: string;
   /** Documentation version label, such as `v2`. Absent for unversioned sites. */
   version?: string;
+  versionGroup?: string;
   alternates?: PageAlternate[];
   markdown?: string;
   dates?: { published?: string; modified?: string };

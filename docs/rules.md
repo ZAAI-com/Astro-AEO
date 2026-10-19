@@ -52,6 +52,18 @@ Severity: error. Raised by: build.
 
 Severity: warning. Raised by: live.
 
+### live-discovery-invalid
+
+Severity: warning. Raised by: live.
+
+### live-discovery-limit
+
+Severity: warning. Raised by: live.
+
+### live-discovery-missing
+
+Severity: warning. Raised by: live.
+
 ### live-external-skipped
 
 Severity: info. Raised by: live.
@@ -71,6 +83,10 @@ Severity: warning. Raised by: live.
 ### live-redirect-limit
 
 Severity: warning. Raised by: live.
+
+### live-sitemap-invalid
+
+Severity: error. Raised by: live.
 
 ### live-target-unreachable
 
@@ -261,6 +277,10 @@ Severity: warning. Raised by: build, offline, live.
 ### canonical-invalid
 
 Severity: warning. Raised by: build.
+
+### content-duplicate
+
+Severity: warning. Raised by: build, offline, live.
 
 ### description-duplicate
 
@@ -590,6 +610,10 @@ Severity: error. Raised by: offline.
 
 Severity: error. Raised by: offline.
 
+### corpus-rag-origin-missing
+
+Severity: error. Raised by: build.
+
 ### corpus-tokenizer-fallback
 
 Severity: warning. Raised by: build.
@@ -599,6 +623,34 @@ Severity: warning. Raised by: build.
 Severity: error. Raised by: offline.
 
 ### corpus-tokenizer-load-failed
+
+Severity: warning. Raised by: build.
+
+### live-corpus-encoding-unchecked
+
+Severity: info. Raised by: live.
+
+### live-corpus-hash
+
+Severity: error. Raised by: live.
+
+### live-corpus-incomplete
+
+Severity: info. Raised by: live.
+
+### live-corpus-invalid
+
+Severity: error. Raised by: live.
+
+### live-corpus-tokenizer-unchecked
+
+Severity: info. Raised by: live.
+
+### live-corpus-tokens
+
+Severity: error. Raised by: live.
+
+### rag-chunk-over-budget
 
 Severity: warning. Raised by: build.
 
@@ -754,17 +806,65 @@ Severity: error. Raised by: offline.
 
 Severity: error. Raised by: offline.
 
+### corpus-version-current-required
+
+Severity: error. Raised by: build, offline, live.
+
+### hreflang-canonical-conflict
+
+Severity: error. Raised by: build, offline, live.
+
+### hreflang-duplicate-language
+
+Severity: error. Raised by: build, offline, live.
+
+### hreflang-invalid
+
+Severity: error. Raised by: build, offline, live.
+
+### hreflang-not-reciprocal
+
+Severity: error. Raised by: build, offline, live.
+
 ### hreflang-return-missing
 
 Severity: warning. Raised by: offline, live.
+
+### hreflang-structured-precedence
+
+Severity: error. Raised by: build, offline, live.
 
 ### hreflang-target-missing
 
 Severity: error. Raised by: offline, live.
 
+### hreflang-x-default-conflict
+
+Severity: error. Raised by: build, offline, live.
+
 ### html-lang-missing
 
 Severity: warning. Raised by: offline, live.
+
+### page-language-invalid
+
+Severity: error. Raised by: build, offline, live.
+
+### page-language-unresolved
+
+Severity: error. Raised by: build, offline, live.
+
+### page-version-group-invalid
+
+Severity: error. Raised by: build, offline, live.
+
+### page-version-invalid
+
+Severity: error. Raised by: build, offline, live.
+
+### site-default-locale-invalid
+
+Severity: error. Raised by: build, offline, live.
 
 ### sitemap-hreflang-canonical-mismatch
 
@@ -789,6 +889,30 @@ Severity: error. Raised by: offline.
 ### sitemap-hreflang-url-invalid
 
 Severity: error. Raised by: offline.
+
+### sitemap-hreflang-x-default-conflict
+
+Severity: error. Raised by: offline.
+
+### starlight-fallback-locale-excluded
+
+Severity: info. Raised by: build, offline, live.
+
+### version-alternate-conflict
+
+Severity: error. Raised by: build, offline, live.
+
+### version-alternate-identity-conflict
+
+Severity: error. Raised by: build, offline, live.
+
+### version-alternate-not-reciprocal
+
+Severity: error. Raised by: build, offline, live.
+
+### version-group-ambiguous
+
+Severity: error. Raised by: build, offline, live.
 
 ## Category: links
 
@@ -846,6 +970,10 @@ Severity: error. Raised by: build.
 
 Severity: error. Raised by: build.
 
+### audit-evidence-mismatch
+
+Severity: warning. Raised by: offline.
+
 ### catalog-foreign-origin-companion
 
 Severity: warning. Raised by: build.
@@ -901,6 +1029,10 @@ Severity: error. Raised by: build.
 ### plugin-build-complete-isolated
 
 Severity: error. Raised by: build.
+
+### plugin-hook-recovered
+
+Severity: warning. Raised by: build.
 
 ### plugin-html-delta-conflict
 

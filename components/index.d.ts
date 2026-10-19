@@ -197,6 +197,8 @@ export interface AeoPageProps {
   language?: string;
   /** Documentation version label, such as `v2`. */
   version?: string;
+  versionGroup?: string;
+  alternates?: import('../src/index.js').PageAlternate[];
   /** ISO date. */
   published?: string;
   /** ISO date. */

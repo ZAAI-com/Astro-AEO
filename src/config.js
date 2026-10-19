@@ -8,6 +8,8 @@ import { assertValidExtractionOptions } from './core/extract/index.js';
 import { cloneJsonValue } from './core/json-value.js';
 import { assertExactPathname } from './core/artifact-path.js';
 import { isPublicIp } from './build/public-ip.js';
+import { resolveAnalytics, resolveCacheControl, resolveCorpusRag, resolveCorpusVersions, validateScalarOptions } from './lib/config-features.js';
+import { resolveProfileOrigins } from './lib/config-profile.js';
 
 /** @type {import('./index.js').SectionRule[]} */
 export const DEFAULT_SECTIONS = [{ title: 'Home', match: '/' }];
@@ -34,6 +36,7 @@ export function resolveConfig(rawConfig = {}, logger) {
   }
 
   const userConfig = /** @type {import('./index.js').AstroAeoConfig} */ (merged);
+  validateScalarOptions(userConfig);
   validateExtractionSelectors(userConfig.markdown?.extraction);
   validateCatalogs(userConfig.pages?.catalogs);
   const renderers = validateRenderers(userConfig.markdown?.renderers);
@@ -64,6 +67,7 @@ export function resolveConfig(rawConfig = {}, logger) {
   const corpusCompression = validateCorpusCompressionOptions(userConfig.corpus?.compression);
   const corpusUrlMap = userConfig.corpus?.urlMap ?? {};
   const corpusRuntime = userConfig.corpus?.runtime ?? {};
+  const corpusRag = resolveCorpusRag(userConfig.corpus?.rag);
   const robots = validateRobotsOptions(userConfig.discovery?.robots);
   const indexNow = validateIndexNowOptions(userConfig.discovery?.indexNow, logger);
   const sitemap = userConfig.discovery?.sitemap ?? {};
@@ -84,10 +88,11 @@ export function resolveConfig(rawConfig = {}, logger) {
     !indexEnabled &&
     !fullEnabled &&
     !corpusSmall.enabled &&
-    !corpusChunks.enabled
+    !corpusChunks.enabled &&
+    !(corpusRag.enabled && corpusRag.publish)
   ) {
     throw new AeoConfigError(
-      'astro-aeo: corpus.manifest.enabled requires at least one enabled corpus index, full, small, or chunks artifact.',
+      'astro-aeo: corpus.manifest.enabled requires at least one enabled corpus index, full, small, chunks, or public RAG artifact.',
     );
   }
 
@@ -106,6 +111,7 @@ export function resolveConfig(rawConfig = {}, logger) {
         logo: profile.logo ?? '',
         sameAs: profile.sameAs ?? [],
         entityType: profile.entityType ?? 'Organization',
+        origins: resolveProfileOrigins(profile.origins),
       },
     },
     pages: {
@@ -124,6 +130,7 @@ export function resolveConfig(rawConfig = {}, logger) {
       includeLastModified: markdown.includeLastModified ?? true,
       frontmatter: markdown.frontmatter ?? false,
       negotiation: markdown.negotiation ?? 'off',
+      cacheControl: resolveCacheControl(markdown.cacheControl),
       extraction: {
         selectors: extraction.selectors ?? ['article', 'main'],
         removeSelectors: extraction.removeSelectors ?? ['nav', 'footer'],
@@ -140,7 +147,10 @@ export function resolveConfig(rawConfig = {}, logger) {
     plugins,
     i18n,
     cache,
+    analytics: resolveAnalytics(userConfig.analytics),
     corpus: {
+      versions: resolveCorpusVersions(userConfig.corpus?.versions),
+      rag: corpusRag,
       index: {
         enabled: indexEnabled,
         sections: corpusIndex.sections ?? DEFAULT_SECTIONS,
@@ -637,9 +647,12 @@ const CONFIG_SHAPE = {
     includeLastModified: null,
     frontmatter: null,
     negotiation: null,
+    cacheControl: null,
     extraction: { selectors: null, removeSelectors: null, keepSelectors: null },
   },
   corpus: {
+    versions: { current: null, order: null },
+    rag: { enabled: null, maxTokens: null, publish: null },
     index: { enabled: null, sections: null, defaultSection: null, includeDescriptions: null, showLastModified: null, includeHtmlOnly: null },
     full: { enabled: null, mode: null },
     small: { enabled: null, maxTokens: null },
@@ -652,12 +665,17 @@ const CONFIG_SHAPE = {
   },
   i18n: { indexes: null, unresolvedLanguage: null },
   cache: { enabled: null },
+  analytics: {
+    enabled: null, scope: null, sampleRate: null, strict: null,
+    adapter: { type: null, path: null, url: null, endpoint: null, headers: PASSTHROUGH, module: null, options: PASSTHROUGH },
+    privacy: { ip: null, query: null, referrer: null },
+  },
   site: {
     name: null,
     description: null,
     defaultLocale: null,
     organization: PASSTHROUGH,
-    profile: { enabled: null, name: null, description: null, website: null, email: null, logo: null, sameAs: null, entityType: null },
+    profile: { enabled: null, name: null, description: null, website: null, email: null, logo: null, sameAs: null, entityType: null, origins: PASSTHROUGH },
   },
   artifacts: { replace: null },
   metadata: { fillMissing: null, defaults: PASSTHROUGH },

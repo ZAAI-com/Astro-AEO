@@ -54,7 +54,7 @@ function write(root, pathname, contents) {
   writeFileSync(target, contents);
 }
 
-/** @param {{ redirects?: boolean; adapter?: boolean; trailingSlash?: 'always'; small?: boolean }} [options] */
+/** @param {{ redirects?: boolean; adapter?: boolean; trailingSlash?: 'always'; small?: boolean; versioned?: boolean }} [options] */
 function createFixture(options = {}) {
   const root = mkdtempSync(join(TEMP_PARENT, 'dev-fallback-routes-'));
   roots.push(root);
@@ -73,8 +73,8 @@ export default defineConfig({
   ${options.adapter ? "adapter: node({ mode: 'standalone' })," : ''}
   ${options.redirects === false ? '' : `redirects: { '/404${slash}': '/error/' },`}
   integrations: [aeo({
-    site: { profile: { enabled: true } },
-    corpus: { manifest: { enabled: true }${options.small ? ', small: { enabled: true }' : ''} },
+    site: { profile: { enabled: true }${options.versioned ? ", defaultLocale: 'en'" : ''} },
+    corpus: { manifest: { enabled: true }${options.small ? ', small: { enabled: true }' : ''}${options.versioned ? ", versions: { current: 'v2', order: ['v1'] }, chunks: { enabled: true }" : ''} },
     discovery: { robots: { enabled: true }, sitemap: { mode: 'disabled' } },
   })],
 });
@@ -90,6 +90,15 @@ export default defineConfig({
 `);
   write(root, 'src/pages/error.astro', `
 <html><head><title>Error</title></head><body><h1>Error</h1></body></html>
+`);
+  if (options.versioned) write(root, 'src/pages/v1/about.astro', `
+---
+import { AeoPage } from 'astro-aeo/components';
+---
+<html lang="en"><head><title>Legacy about</title></head><body>
+  <AeoPage markdown="# Legacy about" version="v1" />
+  <h1>Legacy about</h1>
+</body></html>
 `);
   return root;
 }
@@ -206,6 +215,35 @@ afterAll(async () => {
 });
 
 describe.sequential('development artifacts survive a redirect-owned 404', () => {
+  test('archive fallback routes serve only their version and share manifest chunk paths', async () => {
+    const running = await startServer(createFixture({ versioned: true }));
+    const archive = await request(`${running.base}/v1/llms-full.txt`);
+    expect(archive.status).toBe(200);
+    const legacyText = await archive.text();
+    expect(legacyText).toContain('Legacy about');
+    expect(legacyText).not.toContain('Redirect fixture about body.');
+    const current = await request(`${running.base}/llms-full.txt`);
+    expect(current.status).toBe(200);
+    const currentText = await current.text();
+    expect(currentText).toContain('Redirect fixture about body.');
+    expect(currentText).not.toContain('Legacy about');
+    const scopedResponse = await request(`${running.base}/v1/llms/manifest.json`);
+    expect(scopedResponse.status).toBe(200);
+    const scoped = await scopedResponse.json();
+    expect(scoped.pages).toHaveLength(1);
+    expect(scoped.pages[0].version).toBe('v1');
+    const chunk = scoped.artifacts.find((artifact) => artifact.kind === 'chunk');
+    expect(chunk.pathname).toMatch(/^\/v1\/llms\//);
+    const chunkResponse = await request(`${running.base}${chunk.pathname}`);
+    expect(chunkResponse.status).toBe(200);
+    expect(await chunkResponse.text()).toContain('Legacy about');
+    const aggregate = await (await request(`${running.base}/llms/manifest.json`)).json();
+    expect(aggregate.pages).toContainEqual(expect.objectContaining({ version: 'v1' }));
+    expect(aggregate.pages).toContainEqual(expect.objectContaining({ version: 'v2' }));
+    expect(running.output()).not.toContain('cannot be defined more than once');
+    await stopServer(running);
+  });
+
   test('artifacts answer with their content instead of the 404 redirect', async () => {
     const root = createFixture();
     const running = await startServer(root);

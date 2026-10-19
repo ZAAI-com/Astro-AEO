@@ -48,6 +48,7 @@ export function normalizeCorpusManifest(manifest) {
     locale: entry.locale ?? null,
     language: entry.language ?? null,
     canonicalArtifact: entry.canonicalArtifact,
+    ...(entry.version === undefined ? {} : { version: entry.version }),
   })).sort(compareLocaleRecords);
 
   const pages = manifest.pages.map((/** @type {any} */ entry) => ({
@@ -63,6 +64,8 @@ export function normalizeCorpusManifest(manifest) {
     sourceStrategy: entry.sourceStrategy,
     ...(entry.modified === undefined ? {} : { modified: entry.modified }),
     ...(entry.version === undefined ? {} : { version: entry.version }),
+    ...(entry.versionGroup === undefined ? {} : { versionGroup: entry.versionGroup }),
+    ...(entry.versionAlternates === undefined ? {} : { versionAlternates: entry.versionAlternates.map((/** @type {any} */ alternate) => ({ kind: 'version', version: alternate.version, url: alternate.url })) }),
     chunks: [...entry.chunks].sort(compareChunkReferences),
   })).sort(comparePageRecords);
 
@@ -77,6 +80,7 @@ export function normalizeCorpusManifest(manifest) {
     hash: entry.hash,
     encoding: entry.encoding,
     sourcePathname: entry.sourcePathname ?? null,
+    ...(entry.version === undefined ? {} : { version: entry.version }),
   })).sort(compareArtifactRecords);
 
   return {
@@ -88,6 +92,8 @@ export function normalizeCorpusManifest(manifest) {
       version: manifest.tokenizer.version,
       approximate: manifest.tokenizer.approximate,
     },
+    ...(manifest.tokenizerFallback ? { tokenizerFallback: { reason: manifest.tokenizerFallback.reason } } : {}),
+    ...(manifest.versions ? { versions: { current: manifest.versions.current, order: [...manifest.versions.order] } } : {}),
     locales,
     pages,
     artifacts,
@@ -109,6 +115,7 @@ export function serializeCorpusManifest(manifest) {
  *   origin: string;
  *   base: string;
  *   tokenizer: { name: string; version: string; approximate: boolean };
+ *   tokenizerFallback?: { reason: 'preflight'|'count' };
  *   locales: any[];
  *   pages: Array<any & { markdown: string | null }>;
  *   artifacts: Array<any & { contents: string | Uint8Array }>;
@@ -128,6 +135,7 @@ export async function createCorpusManifest(input) {
     origin: input.origin,
     base: input.base,
     tokenizer: input.tokenizer,
+    tokenizerFallback: input.tokenizerFallback,
     locales: input.locales,
     pages,
     artifacts,
@@ -137,8 +145,8 @@ export async function createCorpusManifest(input) {
 /** @param {any} left @param {any} right */
 function compareLocaleRecords(left, right) {
   return compareTuple(
-    [left.origin, left.locale ?? '', left.language ?? '', left.canonicalArtifact],
-    [right.origin, right.locale ?? '', right.language ?? '', right.canonicalArtifact],
+    [left.origin, left.locale ?? '', left.language ?? '', left.version ?? '', left.canonicalArtifact],
+    [right.origin, right.locale ?? '', right.language ?? '', right.version ?? '', right.canonicalArtifact],
   );
 }
 

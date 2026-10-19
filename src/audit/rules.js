@@ -54,6 +54,20 @@ function rules(category, severity, applicability, ruleIds) {
 
 /** @type {readonly AuditRule[]} */
 const RULE_LIST = Object.freeze([
+  ...rules('build','warning',['offline'],['audit-evidence-mismatch']),
+  ...rules('discovery','warning',['live'],['live-discovery-invalid','live-discovery-missing','live-discovery-limit']),
+  ...rules('discovery','error',['live'],['live-sitemap-invalid']),
+  ...rules('corpus','error',['live'],['live-corpus-invalid','live-corpus-hash','live-corpus-tokens']),
+  ...rules('corpus','info',['live'],['live-corpus-tokenizer-unchecked','live-corpus-encoding-unchecked','live-corpus-incomplete']),
+  ...rules('internationalization', 'info', ['build', 'offline', 'live'], ['starlight-fallback-locale-excluded']),
+  ...rules('internationalization', 'error', ['build', 'offline', 'live'], [
+    'corpus-version-current-required', 'page-version-invalid', 'page-version-group-invalid', 'version-group-ambiguous', 'version-alternate-conflict',
+    'version-alternate-identity-conflict', 'version-alternate-not-reciprocal',
+    'page-language-invalid', 'page-language-unresolved', 'site-default-locale-invalid',
+    'hreflang-invalid', 'hreflang-duplicate-language', 'hreflang-structured-precedence',
+    'hreflang-canonical-conflict', 'hreflang-not-reciprocal', 'hreflang-x-default-conflict',
+  ]),
+  ...rules('build', 'warning', ['build'], ['plugin-hook-recovered']),
   ...rules('markdown', 'info', ['offline', 'live'], [
     'editorial-long-paragraph', 'editorial-unanswered-question', 'editorial-unsourced-number',
     'editorial-howto-structure', 'editorial-comparison-structure', 'editorial-faq-structure',
@@ -69,7 +83,7 @@ const RULE_LIST = Object.freeze([
   ...rules('links', 'error', ['offline', 'live'], ['link-internal-broken']),
   ...rules('links', 'warning', ['offline', 'live'], ['link-anchor-missing']),
   ...rules('metadata', 'warning', ['build', 'offline', 'live'], [
-    'canonical-duplicate', 'description-duplicate', 'description-missing', 'title-duplicate',
+    'content-duplicate', 'canonical-duplicate', 'description-duplicate', 'description-missing', 'title-duplicate',
   ]),
   ...rules('markdown', 'error', ['build', 'offline', 'live'], ['markdown-empty']),
   ...rules('markdown', 'warning', ['build', 'offline', 'live'], [
@@ -107,7 +121,7 @@ const RULE_LIST = Object.freeze([
     'processing-cache-lock-unavailable',
   ]),
   ...rules('corpus', 'error', ['build'], [
-    'corpus-manifest-canonical-missing', 'corpus-manifest-origin-missing',
+    'corpus-manifest-canonical-missing', 'corpus-manifest-origin-missing', 'corpus-rag-origin-missing',
   ]),
   ...rules('corpus', 'error', ['offline'], [
     'corpus-alias-content', 'corpus-alias-source-missing', 'corpus-artifact-duplicate',
@@ -123,7 +137,7 @@ const RULE_LIST = Object.freeze([
     'corpus-page-shape', 'corpus-page-tokens', 'corpus-tokenizer-identity',
   ]),
   ...rules('corpus', 'warning', ['build'], [
-    'corpus-chunk-over-budget', 'corpus-manifest-skipped', 'corpus-tokenizer-fallback',
+    'corpus-chunk-over-budget', 'rag-chunk-over-budget', 'corpus-manifest-skipped', 'corpus-tokenizer-fallback',
     'corpus-tokenizer-load-failed', 'small-corpus-preamble-over-budget',
     'small-corpus-wrapper-omitted',
   ]),
@@ -164,7 +178,7 @@ const RULE_LIST = Object.freeze([
     'corpus-locale-canonical-missing', 'corpus-locale-canonical-order', 'corpus-locale-duplicate',
     'corpus-locale-shape', 'corpus-page-locale-missing', 'sitemap-hreflang-canonical-mismatch',
     'sitemap-hreflang-duplicate', 'sitemap-hreflang-invalid', 'sitemap-hreflang-not-reciprocal',
-    'sitemap-hreflang-target-missing', 'sitemap-hreflang-url-invalid',
+    'sitemap-hreflang-target-missing', 'sitemap-hreflang-url-invalid', 'sitemap-hreflang-x-default-conflict',
   ]),
   ...rules('internationalization', 'warning', ['build'], [
     'aeo-head-locale-invalid',

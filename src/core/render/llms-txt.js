@@ -1,4 +1,5 @@
 // @ts-check
+import { pageMarkdown } from './page-markdown.js';
 import { matchPath } from '../match.js';
 import { isoDate } from './markdown-doc.js';
 
@@ -245,7 +246,7 @@ export function renderLlmsFullTxt(pages, config, siteMeta, opts = {}) {
     lines.push(`URL: ${p.url}`);
     if (p.description) lines.push(`Description: ${p.description}`);
     lines.push('');
-    lines.push(p.markdown);
+    lines.push(pageMarkdown(p));
     lines.push('', '---', '');
   }
 

@@ -10,6 +10,8 @@ import type {
   AeoGraph,
   AeoPage,
   AeoPageRecord,
+  AeoPageSnapshotV1,
+  AeoProcessingTraceV1,
   AuditCategory,
   AuditReportV1,
   Artifact,
@@ -403,7 +405,9 @@ export const validationOpts: ValidationOptions = { onBuild: 'recommended', failO
 // runtime accepts the combination and only errors when the two values disagree.
 export const mixedEras: AstroAeoConfig = {
   domainProfile: { enabled: true },
-  site: { profile: { name: 'Example', entityType: 'Organization' } },
+  site: { profile: { name: 'Example', entityType: 'Organization',
+    origins: { 'https://fr.example.test': { name: 'Exemple', entityType: 'Organization', sameAs: [] } },
+  } },
   exclude: ['/private/**'],
   pages: { respectNoindex: true },
   dotmd: { includeLastModified: true },
@@ -517,6 +521,9 @@ export const defuddleModule: MarkdownRendererModule = defuddleRenderer;
 // The source marker: `defineAeoPage` produces exactly the component's props.
 export const markerInput: AeoPageInput = {
   markdown: '# X',
+  version: 'v2',
+  versionGroup: 'logical-x',
+  alternates: [{ kind: 'version', version: 'v1', url: 'https://example.com/v1/x/' }],
   title: 'X',
   description: 'Page X.',
   image: '/x.jpg',
@@ -533,6 +540,8 @@ export const markerProps: AeoPageProps = defineAeoPage(markerInput);
 export const source: PageSource = { kind: 'mdx', path: 'src/pages/blog/hello.mdx', body: '# Hello', hash: 'sha256:value' };
 export const descriptor: PageDescriptor = {
   pathname: '/blog/hello',
+  version: 'v2',
+  versionGroup: 'blog-hello',
   origin: 'https://example.com',
   locale: 'en',
   routePattern: '/blog/[slug]',
@@ -607,6 +616,8 @@ export const recordRendering: 'prerendered' | 'on-demand' = record.rendering;
 export const recordDate: string | undefined = record.lastModified;
 export const recordOrigin: string | undefined = record.origin;
 export const recordLocale: string | undefined = record.locale;
+export const fallbackRequestedLanguage: string | undefined = record.localeFallback?.requested;
+export const includeKnownVersionLinks: boolean | undefined = record.versionLinks;
 export const recordAlternateLanguage: string | undefined = record.alternates?.[0]?.language;
 export const extraction: ExtractionDiagnostics | undefined = record.extraction;
 export const auditCategory: AuditCategory = 'structured-data';
@@ -634,7 +645,7 @@ export const extractionDefaults: string[] = DEFAULT_EXTRACTION.selectors;
 export const extractedPromise: Promise<ExtractedDocument> = extractHtml('<main>Hello</main>');
 export const extractedFromSubpath: Promise<ExtractedDocumentFromSubpath> = extractedPromise;
 export const representation: Representation = { body: 'Answers\n', contentType: 'text/plain; charset=utf-8' };
-export const artifact: Artifact = { pathname: '/answers.txt', representation, replace: true };
+export const artifact: Artifact = { claim: { id: 'answers', pathname: '/answers.txt', replace: true }, representation };
 export const artifactOwner: ArtifactOwner = { kind: 'plugin', name: 'consumer-plugin', claimId: 'answers' };
 
 export const diagnosticsManifest: DiagnosticManifestV1 = {
@@ -644,6 +655,7 @@ export const diagnosticsManifest: DiagnosticManifestV1 = {
   diagnostics: [diagnostic],
 };
 export const corpusManifest: CorpusManifestV1 = {
+  tokenizerFallback: { reason: 'count' },
   version: 1,
   origin: 'https://example.com',
   base: '/',
@@ -886,8 +898,8 @@ export const badChunkStrategy: AstroAeoConfig = { corpus: { chunks: { by: 'page'
 export const literalIndexNowKey: AstroAeoConfig = { discovery: { indexNow: { key: { source: 'literal', value: 'secret' } } } };
 // @ts-expect-error Content Signals require all three booleans
 export const incompleteSignals: AstroAeoConfig = { discovery: { robots: { contentSignals: { search: true, aiInput: false } } } };
-// @ts-expect-error 1.5 analytics configuration is intentionally absent in 1.2
-export const noAnalyticsYet: AstroAeoConfig = { analytics: { enabled: true } };
+// @ts-expect-error analytics cannot collect or hash IP addresses
+export const noIdentifyingAnalytics: AstroAeoConfig = { analytics: { privacy: { ip: 'hash' } } };
 // @ts-expect-error artifact replacements are exact pathname arrays, never globs as a scalar
 export const badReplacementType: AstroAeoConfig = { artifacts: { replace: '/**' } };
 // @ts-expect-error schema.infer is a closed 1.2 role union
@@ -923,7 +935,8 @@ import type { StarlightAeoOptions, StarlightAeoPlugin } from 'astro-aeo/starligh
 
 const starlightOptions: StarlightAeoOptions = {
   aeo: { markdown: { negotiation: 'response' } },
-  links: { pagination: true, edit: false },
+  links: { pagination: true, edit: false, source: { baseUrl: 'https://example.com/blob/main/' }, versions: true },
+  versions: { current: 'v2', archived: ['v1', { version: 'v0', prefix: '0.9' }] },
   techArticle: true,
 };
 export const starlightPlugin: StarlightAeoPlugin = starlightAeo(starlightOptions);
@@ -974,6 +987,7 @@ export const edgeManifest: StaticEdgeManifestV1 = {
   provider: 'cloudflare',
   mode: 'response',
   base: '/',
+  cacheControl: 'public, max-age=60',
   routes: [{ html: '/', markdown: '/index.md' }],
 };
 export const edgeDecision: EdgeDecision = decideEdgeRepresentation(
@@ -989,3 +1003,122 @@ export const vercelMiddleware: (request: Request) => Promise<Response> = createV
   next: () => new Response(null),
   rewrite: () => new Response(null),
 });
+
+// 1.6 configuration contracts remain consumable on TypeScript 5.5.
+export const featureConfiguration: AstroAeoConfig = {
+  markdown: { cacheControl: 'public, max-age=60' },
+  corpus: { versions: { current: 'v2', order: ['v1'] }, rag: { enabled: true, maxTokens: 512, publish: false } },
+  analytics: { enabled: true, scope: 'agents', sampleRate: 0.5, strict: false,
+    privacy: { ip: 'omit', query: 'omit', referrer: 'omit' },
+    adapter: { type: 'webhook', url: 'https://events.example.com/', headers: { Authorization: { env: 'AEO_TOKEN', prefix: 'Bearer ' } } },
+  },
+};
+export const recoveryPlugin: AstroAeoPlugin = {
+  name: 'recoverable', apiVersion: 1, setup(api) {
+    api.on('page:metadata', () => undefined, { recoverable: true, cache: { pure: true, version: '1' } });
+    api.on('artifact:generate', () => undefined, { recoverable: true });
+    api.on('rag:record', () => ({ action: 'drop' }));
+  },
+};
+export function consumeFeatureConfiguration(config: ResolvedAstroAeoConfig) {
+  const cacheControl: string | undefined = config.markdown.cacheControl;
+  const version: string | undefined = config.corpus.versions?.current;
+  const maxTokens: number = config.corpus.rag.maxTokens;
+  const sampleRate: number = config.analytics.sampleRate;
+  return { cacheControl, version, maxTokens, sampleRate };
+}
+
+export const privateSnapshot: AeoPageSnapshotV1 = {
+  version: 1, buildDigest: 'sha256:example', inventoryComplete: true,
+  pages: [{ pathname: '/guide', routePattern: '/[slug]', locale: 'en', version: null,
+    components: { source: null, html: 'hash', markdown: 'hash', metadata: 'hash', graph: 'hash', directives: 'hash' } }],
+  artifacts: [{ pathname: '/guide.md', status: 'emitted', owner: 'dotmd', etag: 'etag', byteLength: 12 }],
+};
+export const privateTrace: AeoProcessingTraceV1 = {
+  version: 1, buildDigest: privateSnapshot.buildDigest, inventoryComplete: true, stages: [],
+  pages: [{ pathname: '/guide', source: 'rendered', renderer: null, graphEntities: 0,
+    graphProvenance: {}, htmlTransforms: [], diagnostics: {} }],
+  artifacts: [], diagnostics: {}, cacheReasons: {},
+};
+
+// @ts-expect-error Profile override enablement is shared, never per-origin.
+export const badOriginProfile: AstroAeoConfig = { site: { profile: { origins: { 'https://example.test': { enabled: true } } } } };
+
+export const versionAlternate: import('astro-aeo').VersionPageAlternate = { kind: 'version', version: 'v1', url: 'https://example.com/v1/guide/' };
+export const languageAlternate: import('astro-aeo').LanguagePageAlternate = { language: 'fr', url: 'https://example.com/fr/guide/' };
+// @ts-expect-error Version alternatives cannot carry hreflang language identities.
+export const mixedVersionAlternate: import('astro-aeo').PageAlternate = { kind: 'version', version: 'v1', language: 'en', url: 'https://example.com/v1/' };
+export const contentVersionGroup: string | undefined = contentDescriptor({ body: '# Doc', data: { versionGroup: 'doc' } }, { pathname: '/doc' }).versionGroup;
+
+import { createAnalytics, createWebhookSink, createOpenTelemetrySink } from 'astro-aeo/analytics';
+import type { AnalyticsEventV1, AnalyticsAdapterModule } from 'astro-aeo/analytics';
+export const analyticsObserver = createAnalytics({ enabled: true, base: '/docs', inventory: ['/docs/guide'],
+  patterns: [{ pattern: /^\/docs\/users\/[^/]+$/, routePattern: '/docs/users/[id]' }],
+  sink(event: Readonly<AnalyticsEventV1>) { const method: 'GET' | 'HEAD' = event.method; void method; },
+});
+export const runtimeWebhook = createWebhookSink({ url: 'https://events.example.test',
+  headers: { Authorization: { env: 'EVENT_TOKEN', prefix: 'Bearer ' } }, secret: (name) => name === 'EVENT_TOKEN' ? 'runtime-only' : undefined });
+export const otlpCounter = createOpenTelemetrySink({ endpoint: 'https://otel.example.test/v1/metrics' });
+export const eventModule: AnalyticsAdapterModule = { apiVersion: 1, createSink(options) { void options; return (event) => { void event.pathKind; }; } };
+// @ts-expect-error Observations cannot override privacy to collect IP addresses.
+export const identifyingObserver = createAnalytics({ enabled: true, privacy: { ip: 'collect' } });
+// @ts-expect-error Request methods remain bounded to observable public reads.
+export const invalidEventMethod: AnalyticsEventV1['method'] = 'POST';
+export const observedCloudflare = createCloudflareHandler({ analytics: analyticsObserver });
+export const observedNetlify = createNetlifyHandler({ analytics: analyticsObserver });
+export const observedVercel = createVercelHandler({ analytics: analyticsObserver, next: () => new Response(), rewrite: () => new Response(), waitUntil(work) { void work; } });
+
+// RAG hook values infer the versioned contract without a generic annotation.
+import type { RagRecordV1, RagIndexV1 } from 'astro-aeo';
+export const ragPlugin: AstroAeoPlugin = { name: 'rag-labels', apiVersion: 1, setup(api) {
+  api.on('rag:record', ({ value }) => {
+    const tokens: number = value.tokenCount;
+    const approximate: boolean = value.tokenizer.approximate;
+    return { action: 'replace', value: { ...value, headings: [...value.headings],
+      tokenizer: { ...value.tokenizer }, metadata: { ...value.metadata, measured: tokens, approximate } } };
+  }, { cache: { pure: true, version: '1' }, recoverable: true });
+} };
+export function consumeRag(record: RagRecordV1, index: RagIndexV1) {
+  const text: string = record.text;
+  const incomplete: boolean = index.buildTimeIncomplete;
+  // @ts-expect-error Nested metadata is not a flat RAG value.
+  record.metadata.nested = { source: 'private' };
+  return { text, incomplete, fallback: record.tokenizerFallback?.reason };
+}
+
+// Versioned read-only report contracts are available to downstream tooling.
+import type { AnalyticsReportV1, ChangesReportV1, InspectReportV1, GraphReportV1,
+  RagReportV1, AeoDataReportV1 } from 'astro-aeo';
+declare const trafficV1: AnalyticsReportV1;
+const observedTraffic: number = trafficV1.paths[0].observed;
+const observedCoverage: 'observable-only' = trafficV1.disclosure.coverage;
+declare const changesV1: ChangesReportV1;
+const changeStatus: 'added' | 'changed' | 'removed' | 'unconfirmed-addition' | 'unconfirmed-removal' = changesV1.pages[0].status;
+declare const inspectV1: InspectReportV1;
+const inspectedHash: string = inspectV1.pages[0].snapshot.components.markdown;
+declare const graphV1: GraphReportV1;
+const graphLabel: string = graphV1.nodes[0].label;
+declare const ragExportV1: RagReportV1;
+const ragIncomplete: boolean = ragExportV1.buildTimeIncomplete;
+const exportedRecordText: string = ragExportV1.records[0].text;
+declare const snapshotV1: AeoPageSnapshotV1;
+declare const traceV1: AeoProcessingTraceV1;
+const evidenceDigests: string[] = [snapshotV1.buildDigest, traceV1.buildDigest];
+const allReportsV1: AeoDataReportV1[] = [trafficV1, changesV1, inspectV1, graphV1, ragExportV1];
+// @ts-expect-error Observations never expose visitor IP.
+trafficV1.ip;
+// @ts-expect-error Content-free snapshots do not carry source bodies.
+snapshotV1.pages[0].sourceBody;
+void [observedTraffic,observedCoverage,changeStatus,inspectedHash,graphLabel,ragIncomplete,exportedRecordText,evidenceDigests,allReportsV1];
+
+// Readiness-v2 preserves the report envelope and makes evidence coverage explicit.
+import type { AuditScores, AuditApplicability, AuditCrawlScope } from 'astro-aeo';
+declare const readiness: AuditScores;
+const readinessOverall: number | null = readiness.overall;
+const readinessCoverage: AuditApplicability[] | undefined = readiness.applicability;
+declare const auditedFinding: Finding;
+const regionSource: 'rendered-html' | 'markdown' | undefined = auditedFinding.locationSource;
+const regionEnd: number | undefined = auditedFinding.location?.endColumn;
+declare const auditScope: AuditCrawlScope;
+const discoveryCoverage: 'complete' | 'partial' | undefined = auditScope.discovery;
+void [readinessOverall,readinessCoverage,regionSource,regionEnd,discoveryCoverage];

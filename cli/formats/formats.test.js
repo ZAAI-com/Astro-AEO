@@ -86,7 +86,7 @@ describe('audit report formats', () => {
     expect(lines).toHaveLength(4);
     expect(lines.filter((line) => line.startsWith('::'))).toHaveLength(3);
     const warning = lines.find((line) => line.startsWith('::warning')) ?? '';
-    expect(warning.startsWith('::warning file=a%2Cb%3Ac.md,title=orphan-md,line=3::')).toBe(true);
+    expect(warning.startsWith('::warning file=a%2Cb%3Ac.md,title=orphan-md,line=3,col=2::')).toBe(true);
     expect(lines.find((line) => line.startsWith('::notice'))).toBeDefined();
     const percent = { ...report, findings: [{ ...report.findings[0], message: '100%0A::error::x' }] };
     expect(renderAuditReport(percent, 'github')).toContain('100%250A::error::x');
@@ -131,4 +131,37 @@ describe('audit report formats', () => {
       expect(output).toContain('<system-out>warning: orphan</system-out>');
     }
   });
+});
+
+describe('trustworthy audit locations',() => {
+  it('renders complete SARIF regions and URL annotations without fictitious files',() => {
+    const report = createAuditReport({toolVersion:'1.6.0',target:{kind:'url',value:'https://example.test/'},findings:[
+      createFinding({ruleId:'link-internal-broken',severity:'error',message:'Broken target\n::error::forge',url:'https://example.test/page',location:{line:2,column:3,endLine:2,endColumn:8},locationSource:'rendered-html'}),
+      createFinding({ruleId:'markdown-html-residue',severity:'warning',message:'Residue',file:'/page.md',location:{line:4,column:2,endLine:5,endColumn:7},locationSource:'markdown'}),
+    ]});
+    const github = renderAuditReport(report,'github');
+    expect(github).toContain('(https://example.test/page)');
+    expect(github).toContain('file=page.md,title=markdown-html-residue,line=4,col=2,endLine=5,endColumn=7');
+    const sarif = JSON.parse(renderAuditReport(report,'sarif'));
+    expect(sarif.runs[0].columnKind).toBe('utf16CodeUnits');
+    const results = sarif.runs[0].results;
+    const file = results.find((item) => item.ruleId === 'markdown-html-residue');
+    expect(file.locations[0].physicalLocation.region).toEqual({startLine:4,startColumn:2,endLine:5,endColumn:7});
+    const url = results.find((item) => item.ruleId === 'link-internal-broken');
+    expect(url.locations).toBeUndefined();expect(url.properties.auditedRegion).toMatchObject({line:2,column:3});
+  });
+  it('does not pass inverted or non-integer regions into external consumers',() => {
+    const bad = {...report,findings:[{...report.findings[0],file:'/page.md',location:{line:2,column:9,endLine:2,endColumn:1}}]};
+    expect(renderAuditReport(bad,'github')).not.toContain('line=');
+    expect(JSON.parse(renderAuditReport(bad,'sarif')).runs[0].results[0].locations[0].physicalLocation.region).toBeUndefined();
+  });
+});
+
+it('discloses excluded readiness coverage in every human score presentation',() => {
+ const report=createAuditReport({toolVersion:'1.6.0',target:{kind:'dist',value:'dist'},findings:[],applicability:[{category:'metadata',status:'applicable',reason:'Observed'},{category:'links',status:'unknown',reason:'<script>not observed</script>'}]});
+ for (const format of /** @type {const} */ (['terminal','markdown','html'])) {
+   const output=renderAuditReport(report,format);
+   expect(output).toContain('links');expect(output).toContain('unknown');
+   if (format==='html') expect(output).not.toContain('<script>not observed</script>');
+ }
 });

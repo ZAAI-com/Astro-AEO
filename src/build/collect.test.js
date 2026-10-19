@@ -1,3 +1,4 @@
+import { sha256Digest } from '../core/corpus-manifest.js';
 import { afterEach, test, expect, describe } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -130,7 +131,7 @@ describe('collectPages processing cache', () => {
       key: (stage, inputs) => `${stage}:${/** @type {any} */ (inputs).pathname}`,
       get: (key) => store.get(key),
       put: (key, value) => {
-        puts.push({ key, value });
+        if (key.startsWith('normalization-v4:')) puts.push({ key, value });
         store.set(key, JSON.parse(JSON.stringify(value)));
       },
     };
@@ -184,7 +185,7 @@ describe('collectPages processing cache', () => {
     // The payload holds only the extraction result, never the merged git date,
     // which is not a key input. (A descriptor date is authored source, so it
     // is a key input and may stay in the payload.)
-    const payload = cache.store.get('extraction-v1:/git');
+    const payload = cache.store.get('normalization-v4:/git');
     expect(payload.page).not.toHaveProperty('lastModified');
     expect(payload.page.dates?.modified).toBeUndefined();
     expect(payload.page).not.toHaveProperty('htmlPath');
@@ -207,16 +208,16 @@ describe('collectPages processing cache', () => {
     const { collect, touch } = fixture();
     touch('2026-01-02T03:04:05.000Z');
     const cache = fakeCache(new Map([
-      ['extraction-v1:/git', { page: { id: 42 } }],
-      ['extraction-v1:/catalog', { skip: 'not-a-reason' }],
-      ['extraction-v1:/hidden', { page: { id: '/hidden' } }],
+      ['normalization-v4:/git', { page: { id: 42 } }],
+      ['normalization-v4:/catalog', { skip: 'not-a-reason' }],
+      ['normalization-v4:/hidden', { page: { id: '/hidden' } }],
     ]));
     const pages = await collect(cache, '2026-02-15T12:30:00Z');
     expect(pages.map((page) => page.pathname)).toEqual(['/git', '/catalog']);
     expect(cache.puts.map((item) => item.key))
-      .toEqual(['extraction-v1:/git', 'extraction-v1:/catalog', 'extraction-v1:/hidden']);
-    expect(cache.store.get('extraction-v1:/git').page.id).toBe(pages[0].id);
-    expect(cache.store.get('extraction-v1:/hidden')).toEqual({ skip: 'noindex' });
+      .toEqual(['normalization-v4:/git', 'normalization-v4:/catalog', 'normalization-v4:/hidden']);
+    expect(cache.store.get('normalization-v4:/git').page.id).toBe(pages[0].id);
+    expect(cache.store.get('normalization-v4:/hidden')).toEqual({ skip: 'noindex' });
 
     await collect(cache, '2026-02-15T12:30:00Z');
     expect(cache.puts).toHaveLength(3);
@@ -257,7 +258,7 @@ describe('collectPages processing cache', () => {
 
     expect((await collect(/\s*-\s*Docs$/))[0].title).toBe('Post | Acme');
     expect((await collect(/\s*\|\s*Acme - Docs$/))[0].title).toBe('Post');
-    expect(store.size).toBe(2);
+    expect([...store.keys()].filter((key) => key.startsWith('normalization-v4:')).length).toBe(2);
   });
 });
 
@@ -324,7 +325,7 @@ describe('authored source resolution', () => {
     );
 
     expect(pages[0].markdown).toBe('# Exact Guide\n\n- authored\n');
-    expect(pages[0].source).toEqual({ kind: 'markdown', strategy: 'markdown-route', path: 'src/pages/guide.md' });
+    expect(pages[0].source).toMatchObject({ kind: 'markdown', strategy: 'markdown-route', path: 'src/pages/guide.md' });
     expect(pages[0].extraction).toBeUndefined();
   });
 
@@ -365,7 +366,7 @@ describe('authored source resolution', () => {
     );
 
     expect(pages[0].markdown).toBe('\n\n# Exact MDX\n\n**Mapped**\n');
-    expect(pages[0].source).toEqual({
+    expect(pages[0].source).toMatchObject({
       kind: 'mdx',
       strategy: 'markdown-route',
       path: 'src/pages/guide.mdx',
@@ -409,11 +410,11 @@ describe('authored source resolution', () => {
 
     expect(page.title).toBe('Catalog title');
     expect(page.markdown).toBe('# Exact source\n\nPreserved.\n');
-    expect(page.source).toEqual({ kind: 'markdown', strategy: 'markdown-route', path: 'catalog:guide' });
+    expect(page.source).toMatchObject({ kind: 'markdown', strategy: 'markdown-route', path: 'catalog:guide' });
     expect(page.extraction).toBeUndefined();
   });
 
-  test('passes catalog source hashes to renderers and the collected source record', async () => {
+  test('computes held source hashes instead of trusting catalog claims', async () => {
     const root = mkdtempSync(join(tmpdir(), 'astro-aeo-source-hash-'));
     roots.push(root);
     const distRoot = join(root, 'dist');
@@ -427,7 +428,7 @@ describe('authored source resolution', () => {
           kind: 'custom',
           path: 'cms:hashed',
           body: 'source body',
-          hash: 'sha256:hashed',
+          hash: 'sha256:untrusted',
         },
       }],
       resolveConfig(),
@@ -454,14 +455,14 @@ describe('authored source resolution', () => {
       kind: 'custom',
       path: 'cms:hashed',
       body: 'source body',
-      hash: 'sha256:hashed',
+      hash: await sha256Digest('source body'),
     });
     expect(Object.isFrozen(rendererSource)).toBe(true);
-    expect(page.source).toEqual({
+    expect(page.source).toMatchObject({
       kind: 'custom',
       strategy: 'catalog',
       path: 'cms:hashed',
-      hash: 'sha256:hashed',
+      hash: await sha256Digest('source body'),
     });
   });
 

@@ -43,6 +43,25 @@ describe('commitFileTransaction', () => {
     expect(existsSync(join(root, 'missing.txt'))).toBe(false);
   });
 
+  test('identical writes retain mtimes but explicit permission changes are applied', () => {
+    const path = join(root, 'same.txt');
+    writeFileSync(path, 'Same', { mode: 0o644 });
+    const before = statSync(path).mtimeMs;
+    commitFileTransaction([{ kind: 'write', path, contents: 'Same', skipIdentical: true }]);
+    expect(statSync(path).mtimeMs).toBe(before);
+    commitFileTransaction([{ kind: 'write', path, contents: 'Same', mode: 0o600, skipIdentical: true }]);
+    expect(statSync(path).mode & 0o777).toBe(0o600);
+  });
+
+  test('rechecks identical output after caller hooks and refuses raced byte or permission changes', () => {
+    for (const mutation of [(path) => writeFileSync(path, 'Raced'), (path) => chmodSync(path, 0o644)]) {
+      const path = join(root, 'same.txt'); writeFileSync(path, 'Same'); chmodSync(path, 0o600);
+      expect(() => commitFileTransaction([{ kind: 'write', path, contents: 'Same', mode: 0o600, skipIdentical: true }], {
+        beforeApply() { mutation(path); },
+      })).toThrow(/changed during commit/);
+    }
+  });
+
   test('rolls a stale deletion back when a later operation fails', () => {
     const stale = join(root, 'stale.txt');
     const output = join(root, 'output.txt');
@@ -90,6 +109,17 @@ describe('commitFileTransaction', () => {
     ).toThrow(/duplicate destination/);
 
     expect(readFileSync(path, 'utf8')).toBe('original');
+  });
+
+  test.each([false, true])('rejects overlaps in a 10,000-file transaction in either insertion order (%s)', (parentFirst) => {
+    const parent = { kind: 'delete', path: join(root, 'name') };
+    const siblings = Array.from({ length: 10000 }, (_, index) => ({
+      kind: 'write', path: join(root, 'name-other', `file-${index}`), contents: 'Unchanged',
+    }));
+    const child = { kind: 'write', path: join(root, 'name', 'child'), contents: 'Child' };
+    const operations = parentFirst ? [parent, ...siblings, child] : [child, ...siblings, parent];
+    expect(() => commitFileTransaction(operations)).toThrow(/overlapping destinations/);
+    expect(readdirSync(root)).toEqual([]);
   });
 
   test('rejects ancestor and descendant destinations before staging', () => {

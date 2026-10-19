@@ -1,4 +1,5 @@
 // @ts-check
+import { cspMeta } from './csp.js';
 import { escapeXml, place } from './shared.js';
 
 const STYLE = 'body{font:15px/1.5 system-ui,sans-serif;margin:2rem;color:#1a1a1a}'
@@ -18,10 +19,12 @@ export function renderHtml(report) {
   const scoreRows = report.scores?.categories
     .map((entry) => `<tr><td>${escapeXml(entry.category)}</td><td>${entry.score}</td><td>${entry.findings}</td></tr>`)
     .join('');
+  const coverage = report.scores?.applicability?.filter((entry) => entry.status !== 'applicable')
+    .map((entry) => `<li>${escapeXml(entry.category)}: ${escapeXml(entry.status)} (${escapeXml(entry.reason)})</li>`).join('') ?? '';
   const scores = report.scores
     ? `<h2>Readiness <small>(advisory, ${escapeXml(report.scores.rubric)})</small></h2>\n`
-      + `<p class="overall">${report.scores.overall}</p>\n`
-      + `<table><thead><tr><th>Category</th><th>Score</th><th>Findings</th></tr></thead><tbody>${scoreRows}</tbody></table>`
+      + `<p class="overall">${report.scores.overall ?? 'unknown'}</p>\n`
+      + `<table><thead><tr><th>Category</th><th>Score</th><th>Findings</th></tr></thead><tbody>${scoreRows}</tbody></table>\n<ul>${coverage}</ul>`
     : '';
   const rows = report.findings.map((finding) => {
     // Only the registry's own https help links become anchors.
@@ -34,6 +37,7 @@ export function renderHtml(report) {
   }).join('\n');
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Astro-AEO audit</title>
+${cspMeta(STYLE)}
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>${STYLE}</style>
 </head><body>

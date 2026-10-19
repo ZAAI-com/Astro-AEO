@@ -18,8 +18,48 @@ import { createSemanticPlugin } from '../semantic/plugin.js';
 import { createGraph } from '../schema.js';
 import { createLocaleSnapshot } from '../core/locale.js';
 import { onBuildDone } from './build-done.js';
+import { runDoctor } from '../../cli/doctor.js';
 
 const roots = [];
+
+test('exposes reciprocal version data to hooks and writes scoped archives through the shared writer', async () => {
+  const files = fixture('<html><head><title>Home</title></head><body></body></html>');
+  for (const pathname of ['/guide', '/old/guide']) {
+    mkdirSync(join(files.dist, pathname), { recursive: true });
+    writeFileSync(join(files.dist, pathname, 'index.html'), '<html lang="en"><head><title>Guide</title></head><body><main>Guide</main></body></html>');
+  }
+  const resolved = resolveConfig({ site: { defaultLocale: 'en' }, corpus: {
+    versions: { current: 'v2', order: ['v1'] }, manifest: { enabled: true },
+    chunks: { enabled: true }, compression: { gzip: true },
+  } });
+  const observed = [];
+  const dispatcher = await createPluginDispatcher({ command: 'build', internalPlugins: [createSemanticPlugin(resolved)],
+    plugins: [{ name: 'versions-review', apiVersion: 1, setup(api) {
+      api.on('page:transform', ({ value }) => { observed.push(value); });
+    } }],
+  });
+  const env = environment(files.root, dispatcher);
+  env.catalogModules = [{ module: './versions.js', namespace: { default: { listPages() { return [
+    { pathname: '/guide', versionGroup: 'guide', markdown: '# Current' },
+    { pathname: '/old/guide', version: 'v1', versionGroup: 'guide', markdown: '# Archive' },
+  ]; } } } }];
+  env.resolvedRoutePaths = new Set(['/guide', '/old/guide']);
+  const writer = await onBuildDone(resolved, { dir: files.dir,
+    pages: [{ pathname: '/guide' }, { pathname: '/old/guide' }], logger }, env);
+  writer.commit();
+  expect(observed.map((page) => page.version)).toEqual(['v2', 'v1']);
+  expect(observed.every((page) => page.alternates.some((alternate) => alternate.kind === 'version'))).toBe(true);
+  expect(observed.every((page) => !('_generatedVersionAlternates' in page))).toBe(true);
+  const manifest = JSON.parse(readFileSync(join(files.dist, 'llms/manifest.json'), 'utf8'));
+  expect(manifest.pages.map((page) => page.version)).toEqual(['v2', 'v1']);
+  expect(manifest.artifacts.some((artifact) => artifact.version === 'v1' && artifact.encoding === 'gzip')).toBe(true);
+  const archive = JSON.parse(readFileSync(join(files.dist, 'v1/llms/manifest.json'), 'utf8'));
+  expect(archive.pages.every((page) => page.version === 'v1')).toBe(true);
+  expect(archive.artifacts.every((artifact) => artifact.version === 'v1')).toBe(true);
+  expect(readFileSync(join(files.dist, 'llms-full.txt'), 'utf8')).toContain('# Current');
+  expect(readFileSync(join(files.dist, 'llms-full.txt'), 'utf8')).not.toContain('# Archive');
+  expect(readFileSync(join(files.dist, 'v1/llms-full.txt'), 'utf8')).toContain('# Archive');
+});
 
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
@@ -168,7 +208,7 @@ describe('staged build plugin pipeline', () => {
     expect(existsSync(join(cacheRoot, 'blobs', legacyBlob))).toBe(false);
     const state = JSON.parse(readFileSync(join(cacheRoot, 'state.json'), 'utf8'));
     expect(state.producer).toMatchObject({ name: 'astro-aeo', version });
-    expect(Object.keys(state.entries)).toHaveLength(1);
+    expect(Object.keys(state.entries).filter((key) => key.startsWith('normalization-v4:'))).toHaveLength(1);
 
     // The next build on the same producer is warm and logs no reset.
     infos.length = 0;
@@ -203,6 +243,9 @@ describe('staged build plugin pipeline', () => {
     const warnings = await build(false);
     expect(existsSync(llms)).toBe(true);
     expect(warnings.some((message) => message.includes('stale output'))).toBe(true);
+    // The kept output is in the ledger, so the deployment facts must hash it too.
+    const doctor = await runDoctor([files.root]);
+    expect(doctor.checks.find((check) => check.id === 'build-evidence')?.status).toBe('unverified');
 
     rmSync(lock);
     await build(false);
@@ -217,7 +260,8 @@ describe('staged build plugin pipeline', () => {
       '<!doctype html><html><head><title>Other</title></head><body><main>Other</main></body></html>',
     );
     const statePath = join(files.root, '.astro', 'aeo-cache', 'processing-v1', 'state.json');
-    const entries = () => Object.keys(JSON.parse(readFileSync(statePath, 'utf8')).entries).length;
+    const entries = () => Object.keys(JSON.parse(readFileSync(statePath, 'utf8')).entries)
+      .filter((key) => key.startsWith('normalization-v4:')).length;
     const build = async (pages) => {
       const writer = await onBuildDone(
         config(),

@@ -14,6 +14,17 @@ const entry = {
 const logger = { warn() {} };
 
 describe('content helpers', () => {
+  it('carries authored logical version identities through markers and catalogs', async () => {
+    const grouped = { ...entry, data: { ...entry.data, versionGroup: 'installation' } };
+    expect(contentPage(grouped).versionGroup).toBe('installation');
+    expect(contentDescriptor(grouped, { pathname: '/new-install' }).versionGroup).toBe('installation');
+    expect(contentPage(grouped, { versionGroup: 'override' }).versionGroup).toBe('override');
+    const loaded = await loadCatalogPages([{ module: './content.js' }], async () => ({ default: {
+      listPages: () => [contentDescriptor(grouped, { pathname: '/new-install' })],
+    } }), logger, context);
+    expect(loaded.pages[0].versionGroup).toBe('installation');
+  });
+
   it('contentPage reads an entry and lets overrides win', () => {
     expect(contentPage(entry, { title: 'Custom' })).toEqual({
       ...defineAeoPage({ source: entry }),

@@ -14,6 +14,15 @@ export interface StarlightAeoOptions {
     pagination?: boolean;
     /** Append the "edit this page" URL when Starlight resolved one. Default `false`. */
     edit?: boolean;
+    /** Append a source-view URL, independent of Starlight's edit URL. */
+    source?: { baseUrl: string };
+    /** Append known same-locale version alternatives. Default false. */
+    versions?: boolean;
+  };
+  /** Explicit route-prefix interpretation; no automatic upstream discovery. */
+  versions?: {
+    current: string;
+    archived: Array<string | { version: string; prefix?: string }>;
   };
   /**
    * Add a minimal `TechArticle` entity (headline, description, language, modified

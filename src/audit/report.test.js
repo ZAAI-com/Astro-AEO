@@ -33,7 +33,7 @@ describe('audit report', () => {
 
   it('omits scores and deductions when scoring is off', () => {
     const scored = createAuditReport({ ...base, findings });
-    expect(scored.scores?.rubric).toBe('astro-aeo-readiness-v1');
+    expect(scored.scores?.rubric).toBe('astro-aeo-readiness-v2');
     expect(scored.findings.every((finding) => typeof finding.deduction === 'number')).toBe(true);
     const plain = createAuditReport({ ...base, findings: scored.findings, score: false });
     expect(plain.scores).toBeUndefined();
@@ -56,4 +56,25 @@ describe('audit report', () => {
     }
     expect(schema.properties.findings.items.properties.category.enum).toContain('structured-data');
   });
+});
+
+it('omits credentials and associated queries from authored URL evidence without mutating inputs',() => {
+ const secret='https://user:private-password@example.test/page?token=private-token';
+ const finding=createFinding({ruleId:'canonical-duplicate',severity:'warning',message:'Shared '+secret,evidence:secret,url:secret});
+ const output=serializeAuditReport(createAuditReport({...base,findings:[finding]}));
+ expect(output).not.toContain('private-password');expect(output).not.toContain('private-token');expect(output).not.toContain('user:');
+ expect(output).toContain('https://example.test/page');expect(finding.evidence).toBe(secret);
+});
+
+it('omits credentials embedded in the query of an otherwise plain URL',() => {
+ for (const secret of ['https://example.test/login?next=https://user:nested-password@other.test/','https://example.test/a?next=https%3A%2F%2Fuser%3Anested-password%40other.test']) {
+  const output=serializeAuditReport(createAuditReport({...base,findings:[createFinding({ruleId:'canonical-duplicate',severity:'warning',message:'Shared '+secret,evidence:secret,url:secret})]}));
+  expect(output).not.toContain('nested-password');expect(output).toContain('https://example.test/');
+ }
+});
+
+it('keeps a plain query that only contains an @ sign',() => {
+ const url='https://example.test/search?q=a@b.com';
+ const output=serializeAuditReport(createAuditReport({...base,findings:[createFinding({ruleId:'canonical-duplicate',severity:'warning',message:'Shared '+url,evidence:url,url})]}));
+ expect(output).toContain('?q=a@b.com');
 });

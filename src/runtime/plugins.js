@@ -3,6 +3,7 @@ import { immutableJsonValue } from '../core/json-value.js';
 import { assertExactPathname, matchesExactPathname } from '../core/artifact-path.js';
 import { inspectRootPathname } from '../core/match.js';
 import { textResponse } from './respond.js';
+import { recoveredHookDiagnostic } from '../core/plugin-recovery.js';
 
 const PLUGIN_STAGES = new Set([
   'page:discovered',
@@ -10,6 +11,7 @@ const PLUGIN_STAGES = new Set([
   'page:transform',
   'page:metadata',
   'graph:build',
+  'rag:record',
   'artifact:generate',
   'artifact:validate',
   'build:complete',
@@ -23,7 +25,7 @@ const GENERIC_FAILURE = 'Internal Server Error\n';
  * @property {string} module
  * @property {import('../index.js').JsonValue} [options]
  * @property {string[]} stages
- * @property {{ stage: string; ordinal: number; cache?: import('../index.js').CacheDeclaration }[]} [hookManifest]
+ * @property {{ stage: string; ordinal: number; cache?: import('../index.js').CacheDeclaration; recoverable?: boolean }[]} [hookManifest]
  * @property {{ id: string; pathname: string; replace?: boolean }[]} claims
  * @property {() => Promise<unknown>} load
  */
@@ -38,7 +40,7 @@ const GENERIC_FAILURE = 'Internal Server Error\n';
 /**
  * @typedef {object} LoadedRuntimePlugins
  * @property {Set<string>} failed
- * @property {(stage: string, initial: unknown, context: { pathname: string; pages?: readonly RuntimePluginPageHandle[]; validate?: (value: unknown) => boolean }) => Promise<{ value: import('../index.js').JsonValue; diagnostics: import('../index.js').Diagnostic[]; isolated: boolean }>} run
+ * @property {(stage: string, initial: unknown, context: { pathname: string; pages?: readonly RuntimePluginPageHandle[]; validate?: (value: unknown) => boolean }) => Promise<{ value: import('../index.js').JsonValue; diagnostics: import('../index.js').Diagnostic[]; isolated: boolean; dropped?: boolean }>} run
  */
 
 /** @type {WeakMap<RuntimePluginLoader[], Map<'dev'|'build'|'preview', Promise<LoadedRuntimePlugins>>>} */
@@ -77,7 +79,7 @@ export function runtimePluginArtifactFor(pathname, loaders, options = {}) {
  * already enumerated and cannot supply a pathname, request, headers, cookies,
  * credentials, or rewrite target of its own.
  *
- * @template {{ id?: string; pathname: string; origin?: string; locale?: string; alternates?: readonly { language: string; url: string }[] }} T
+ * @template {{ id?: string; pathname: string; origin?: string; locale?: string; version?: string; versionGroup?: string; alternates?: readonly import('../index.js').PageAlternate[] }} T
  * @param {readonly T[]} pages
  * @param {(page: T) => Promise<unknown>} readPage
  * @returns {readonly RuntimePluginPageHandle[]}
@@ -94,6 +96,8 @@ export function createRuntimePluginPageHandles(pages, readPage) {
       pathname: page.pathname,
       ...(typeof page.origin === 'string' ? { origin: page.origin } : {}),
       ...(typeof page.locale === 'string' ? { locale: page.locale } : {}),
+      ...(typeof page.version === 'string' ? { version: page.version } : {}),
+      ...(typeof page.versionGroup === 'string' ? { versionGroup: page.versionGroup } : {}),
       // Alternates metadata crosses the plugin boundary frozen: a runtime
       // hook must not rewrite or append entries later hooks then observe.
       ...(Array.isArray(page.alternates)
@@ -186,7 +190,7 @@ export function loadRuntimePlugins(loaders, command = 'build') {
 
 /** @param {RuntimePluginLoader[]} loaders @param {'dev'|'build'|'preview'} command @returns {Promise<LoadedRuntimePlugins>} */
 async function loadAll(loaders, command) {
-  /** @type {Map<string, { plugin: string; hook: Function }[]>} */
+  /** @type {Map<string, { plugin: string; hook: Function; recoverable?: boolean }[]>} */
   const hooks = new Map([...PLUGIN_STAGES].map((stage) => [stage, []]));
   /** @type {Set<string>} */
   const failed = new Set();
@@ -208,7 +212,7 @@ async function loadAll(loaders, command) {
         options: loader.options === undefined
           ? undefined
           : immutableJsonValue(loader.options, `${loader.name} runtime options`),
-        /** @param {string} stage @param {Function} hook @param {{ cache?: import('../index.js').CacheDeclaration }} [options] */
+        /** @param {string} stage @param {Function} hook @param {{ cache?: import('../index.js').CacheDeclaration; recoverable?: boolean }} [options] */
         on(stage, hook, options = {}) {
           if (!active || !PLUGIN_STAGES.has(stage) || typeof hook !== 'function') {
             throw new TypeError('invalid runtime hook registration');
@@ -218,12 +222,18 @@ async function loadAll(loaders, command) {
           }
           const ordinal = registeredHookCounts.get(stage) ?? 0;
           const expected = loader.hookManifest?.find((entry) => entry.stage === stage && entry.ordinal === ordinal);
+          if ((options.recoverable !== undefined && typeof options.recoverable !== 'boolean') ||
+            (expected?.recoverable !== undefined && typeof expected.recoverable !== 'boolean') ||
+            (options.recoverable === true && !expected) ||
+            (expected && (expected.recoverable === true) !== (options.recoverable === true))) {
+            throw new TypeError('runtime hook recovery declaration differs from the build manifest');
+          }
           if (loader.hookManifest && (!expected || !sameCacheDeclaration(expected.cache, options.cache))) {
             throw new TypeError('runtime hook cache declaration differs from the build manifest');
           }
           registeredHookCounts.set(stage, ordinal + 1);
           registeredStages.add(stage);
-          hooks.get(stage)?.push({ plugin: loader.name, hook });
+          hooks.get(stage)?.push({ plugin: loader.name, hook, recoverable: options.recoverable });
         },
         /** @param {{ id: string; pathname: string; replace?: boolean }} claim */
         claimArtifact(claim) {
@@ -291,6 +301,10 @@ async function loadAll(loaders, command) {
             pages: context.pages ?? Object.freeze([]),
           }));
         } catch {
+          if (registration.recoverable) {
+            diagnostics.push(recoveredHookDiagnostic(registration.plugin, stage, context.pathname));
+            continue;
+          }
           diagnostics.push(failure(registration.plugin, stage, context.pathname, 'plugin-hook-failed'));
           return { value, diagnostics, isolated: true };
         }
@@ -311,6 +325,7 @@ async function loadAll(loaders, command) {
           return { value, diagnostics, isolated: true };
         }
         diagnostics.push(...sanitized);
+        if (stage === 'rag:record' && hookResult.action === 'drop') return { value, diagnostics, isolated: false, dropped: true };
         if (hookResult.action === 'keep') continue;
         if (hookResult.action === 'isolate') {
           if (sanitized.length === 0) {
@@ -493,6 +508,9 @@ function sanitizeRuntimePage(value) {
     ...(typeof page.origin === 'string' ? { origin: page.origin } : {}),
     ...(typeof page.locale === 'string' ? { locale: page.locale } : {}),
     ...(typeof page.version === 'string' ? { version: page.version } : {}),
+    ...(typeof page.versionGroup === 'string' ? { versionGroup: page.versionGroup } : {}),
+    ...(page.versionLinks === true ? { versionLinks: true } : {}),
+    ...(page.localeFallback ? { localeFallback: page.localeFallback } : {}),
     ...(Array.isArray(page.alternates) ? { alternates: page.alternates } : {}),
     ...(page.metadata && typeof page.metadata === 'object' ? { metadata: page.metadata } : {}),
     representations: {

@@ -114,10 +114,11 @@ describe('render.yaml', () => {
     '',
   ].join('\n');
 
-  test('adds the rule and keeps comments, anchors and unknown fields', async () => {
+  test('adds root and nested rules and keeps comments, anchors and unknown fields', async () => {
     const { text } = await fixRenderYaml(yaml);
     for (const kept of ['# top comment', '&shared', '<<: *shared', 'name: site # the docs', 'futureField: kept', 'name: api']) expect(text).toContain(kept);
     expect(text).toContain(`path: /*.md`);
+    expect(text).toContain(`path: /**/*.md`);
     expect(text).toContain(`value: ${MIME}`);
     expect((await fixRenderYaml(text)).status).toBe('unchanged');
   });
@@ -126,8 +127,38 @@ describe('render.yaml', () => {
     const withHeaders = yaml.replace('    staticPublishPath: ./dist', '    staticPublishPath: ./dist\n    headers:\n      - path: /*\n        name: X-Frame-Options\n        value: DENY');
     const { text } = await fixRenderYaml(withHeaders);
     expect(text).toContain('X-Frame-Options');
-    expect(text.match(/- path:/g)).toHaveLength(2);
+    expect(text.match(/- path:/g)).toHaveLength(3);
     expect((await fixRenderYaml(text.replace(MIME, 'text/plain'))).text).toBe(text);
+  });
+
+  test.each(['/*.md', '/**/*.md'])('adds missing coverage when only %s is configured', async (path) => {
+    const before = `services:\r\n  - runtime: static\r\n    headers:\r\n      - path: ${path}\r\n        name: content-type\r\n        value: ${MIME}\r\n`;
+    const result = await fixRenderYaml(before);
+    expect(result.status).toBe('changed');
+    expect(result.text.match(/- path:/g)).toHaveLength(2);
+    expect(result.text).toContain('path: /*.md');
+    expect(result.text).toContain('path: /**/*.md');
+    expect(result.text).not.toMatch(/[^\r]\n/);
+    expect(await fixRenderYaml(result.text)).toEqual({ status: 'unchanged', text: result.text });
+  });
+
+  test.each(['/*.md', '/**/*.md'])('refuses duplicate %s rules before making any change', async (path) => {
+    const before = `services:\n  - runtime: static\n    headers:\n      - path: ${path}\n        name: Content-Type\n        value: text/plain\n      - path: ${path}\n        name: content-type\n        value: ${MIME}\n`;
+    const root = project({ 'render.yaml': before });
+    await expect(runFix([root, '--write'])).rejects.toThrow(/more than once/);
+    expect(tree(root)).toEqual(['render.yaml']);
+    expect(readFileSync(join(root, 'render.yaml'), 'utf8')).toBe(before);
+  });
+
+  test('writes both Render rules in one transaction with one original backup', async () => {
+    const root = project({ 'render.yaml': yaml });
+    await runFix([root, '--write'], { now: new Date('2026-10-02T12:00:00Z') });
+    const written = readFileSync(join(root, 'render.yaml'), 'utf8');
+    expect(written).toContain('path: /*.md');
+    expect(written).toContain('path: /**/*.md');
+    expect(readFileSync(join(root, '.astro/aeo-backups/20261002T120000Z/render.yaml'), 'utf8')).toBe(yaml);
+    expect(await runFix([root, '--write'])).toMatchObject({ changed: false, written: false });
+    expect(tree(root)).toEqual(['.astro/aeo-backups/20261002T120000Z/render.yaml', 'render.yaml']);
   });
 
   test('refuses several static services until one is named', async () => {

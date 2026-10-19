@@ -1,4 +1,5 @@
 // @ts-check
+import { observeEdge } from './observation.js';
 import { createEdgeNegotiator } from './handler.js';
 
 /**
@@ -6,8 +7,8 @@ import { createEdgeNegotiator } from './handler.js';
  * continues down the request chain for another path and never re-enters this
  * function.
  *
- * @typedef {{ next: (request?: Request) => Promise<Response> }} NetlifyContext
- * @param {{ base?: string }} [options]
+ * @typedef {{ next: (request?: Request) => Promise<Response>; waitUntil?: (work: Promise<void>) => void }} NetlifyContext
+ * @param {{ base?: string; analytics?: import('../../analytics.js').AnalyticsObserver }} [options]
  * @returns {(request: Request, context: NetlifyContext) => Promise<Response>}
  */
 export function createNetlifyHandler(options = {}) {
@@ -16,5 +17,6 @@ export function createNetlifyHandler(options = {}) {
     fetchAsset: (pathname, request, /** @type {NetlifyContext} */ context) =>
       context.next(new Request(new URL(pathname, request.url), { method: 'GET' })),
   });
-  return (request, context) => negotiate(request, () => context.next(), context);
+  return async (request, context) => observeEdge(options.analytics, request, await negotiate(request, () => context.next(), context),
+    { surface: 'netlify', waitUntil: context.waitUntil?.bind(context) });
 }

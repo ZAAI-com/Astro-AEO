@@ -15,6 +15,7 @@ export const EDGE_MANIFEST_ROUTE = EDGE_MANIFEST_PATHNAME;
  *   mode: 'response' | 'redirect';
  *   base: string;
  *   emitted: (pathname: string, owner: string) => boolean;
+ *   cacheControl?: string;
  * }} input
  */
 export function serializeEdgeManifest(input) {
@@ -27,6 +28,7 @@ export function serializeEdgeManifest(input) {
     provider: input.provider,
     mode: input.mode,
     base: input.base || '/',
+    ...(input.cacheControl === undefined ? {} : { cacheControl: input.cacheControl }),
     routes,
   })}\n`;
 }

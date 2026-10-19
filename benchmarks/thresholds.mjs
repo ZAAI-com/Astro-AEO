@@ -48,8 +48,11 @@ export const RELEASE_THRESHOLDS = Object.freeze({
   // Bounded schema processing, offline URL bases, Markdown filtering and component
   // guards measured 399,168 packed and 1,523,214 unpacked bytes across 184 files.
   // Raise the unpacked ceiling by another 10,000 bytes for these review fixes.
-  packagePackedBytes: 450_000,
-  packageUnpackedBytes: 1_530_000,
+  // Approved measured 1.6 envelope: 489,712 packed / 1,876,024 unpacked bytes.
+  // Opt-in reports, evidence, topology, analytics and RAG add source, not dependencies.
+  // Explicitly approved on 2026-10-04; retain all runtime/memory/bundle ceilings.
+  packagePackedBytes: 500_000,
+  packageUnpackedBytes: 1_900_000,
   parse100KbP95Ms: 50,
   convert100KbP95Ms: 150,
   // The rich document repeats hidden glyphs, a definition term, a two-image

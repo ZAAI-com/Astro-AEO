@@ -1,10 +1,11 @@
 // @ts-check
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { serializeDeploymentFacts } from '../src/build/deployment-facts.js';
+import { outputRootId, representationMetadata } from '../src/build/ownership.js';
 import { prefersMarkdown } from '../src/runtime/negotiate.js';
 import { DoctorInvocationError, runDoctor } from './doctor.js';
 import { runFix } from './fix/index.js';
@@ -56,7 +57,7 @@ describe('doctor, local files only', () => {
     await runFix([root, '--write']);
     const after = await runDoctor([root]);
     // Correct local configuration is never reported as a verified deployment.
-    expect(statuses(after.checks)).toEqual({ 'build-facts': 'configured', 'markdown-mime': 'unverified', negotiation: 'configured' });
+    expect(statuses(after.checks)).toEqual({ 'build-facts': 'unverified', 'markdown-mime': 'unverified', negotiation: 'unverified' });
     expect(after.exitCode).toBe(0);
     expect(after.output).toContain('Pass --url');
   });
@@ -90,6 +91,188 @@ describe('doctor, local files only', () => {
   });
 });
 
+describe('doctor evidence and read-only advice', () => {
+  test('Render MIME evidence needs both root and nested rules', async () => {
+    const root = project({ 'render.yaml': 'services:\n  - runtime: static\n    headers:\n      - path: /*.md\n        name: Content-Type\n        value: text/markdown; charset=utf-8\n' });
+    expect(statuses((await runDoctor([root])).checks)['markdown-mime']).toBe('missing');
+    await runFix([root, '--write']);
+    expect(statuses((await runDoctor([root])).checks)['markdown-mime']).toBe('unverified');
+  });
+
+  test.each([
+    ['node', 'server.mjs', "import express from 'express';\napp.use(express.static('dist'));"],
+    ['deno', 'deno.json', '{"tasks":{"start":"deno run main.ts"}}'],
+    ['nginx', 'nginx.conf', 'types { text/markdown md; }'],
+    ['apache', '.htaccess', 'AddType text/markdown .md'],
+  ])('%s evidence stays unverified and --print supplies a manual example', async (provider, file, contents) => {
+    const root = project({ [file]: contents });
+    const result = await runDoctor([root, '--print', '--json']);
+    const report = JSON.parse(result.output);
+    expect(report.checks.find((/** @type {any} */ check) => check.id === `provider-${provider}`)).toMatchObject({
+      status: 'unverified', evidence: [{ source: file, confidence: 'medium' }],
+    });
+    expect(report.advice.find((/** @type {any} */ advice) => advice.id === `provider-${provider}`).snippet).toContain('text/markdown');
+    expect(readFileSync(join(root, file), 'utf8')).toBe(contents);
+    expect(result.checks.some((check) => check.status === 'configured')).toBe(false);
+  });
+
+  test('distinguishes package declarations from textual references without executing config', async () => {
+    const sentinel = join(tmpdir(), `astro-aeo-doctor-never-execute-${process.pid}`);
+    const config = `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(sentinel)}, 'executed');\nthrow new Error('must not execute');\n// import robots from 'astro-robots-txt';\n`;
+    const root = project({
+      'package.json': JSON.stringify({ dependencies: { '@astrojs/sitemap': '1', 'astro-robots-txt': '1' } }),
+      'astro.config.mjs': config,
+    });
+    const before = readdirSync(root).sort();
+    const result = await runDoctor([root, '--print', '--json']);
+    const report = JSON.parse(result.output);
+    const sitemap = result.checks.find((check) => check.id === 'package-overlap:@astrojs/sitemap');
+    const robots = result.checks.find((check) => check.id === 'package-overlap:astro-robots-txt');
+    expect(sitemap).toMatchObject({ status: 'unverified', evidence: [{ source: 'package.json', confidence: 'low' }] });
+    expect(robots?.evidence?.map((entry) => entry.confidence)).toEqual(['low', 'medium']);
+    expect(robots?.evidence?.[1].detail).toContain('comments and inactive');
+    expect(report.advice.find((/** @type {any} */ entry) => entry.id === sitemap?.id).message).toContain('already registered');
+    expect(existsSync(sentinel)).toBe(false);
+    expect(readdirSync(root).sort()).toEqual(before);
+    expect(readFileSync(join(root, 'astro.config.mjs'), 'utf8')).toBe(config);
+    expect((await runDoctor([root, '--print'])).output).toContain('evidence (low): package.json:');
+  });
+
+  test('does not treat transitive packages or generic server files as provider evidence', async () => {
+    const root = project({ 'pnpm-lock.yaml': 'astro-robots-txt: 1\n', 'server.ts': 'export const answer = 42;', 'package.json': '{}' });
+    const result = await runDoctor([root, '--print']);
+    expect(result.checks.some((check) => check.id.startsWith('package-overlap:') || check.id.startsWith('provider-'))).toBe(false);
+    expect(result.output).toContain('nothing executed or written');
+  });
+
+  test('ignores linked evidence and refuses linked provider configuration', async () => {
+    const outside = project({ 'config.mjs': "'astro-robots-txt'", 'headers': '/*.md\n  Content-Type: text/markdown; charset=utf-8\n' });
+    const root = project({ 'netlify.toml': '' });
+    mkdirSync(join(root, 'public'));
+    symlinkSync(join(outside, 'config.mjs'), join(root, 'astro.config.mjs'));
+    symlinkSync(join(outside, 'headers'), join(root, 'public/_headers'));
+    const result = await runDoctor([root, '--print']);
+    expect(statuses(result.checks)['markdown-mime']).toBe('conflicting');
+    expect(result.checks.some((check) => check.id.startsWith('package-overlap:'))).toBe(false);
+  });
+
+  /** @param {string} root @param {any[]} artifacts @param {string} [dist] */
+  function ledger(root, artifacts, dist = 'dist') {
+    writeFileSync(join(root, '.astro/aeo-cache/ownership-v1.json'), JSON.stringify({
+      version: 1, outputRootId: outputRootId(join(root, dist)), base: '/', artifacts, groups: [],
+    }));
+    writeFileSync(join(root, '.astro/aeo-cache/deployment-v1.json'), serializeDeploymentFacts({
+      output: 'static', adapter: null, base: '/', buildFormat: 'directory', trailingSlash: 'ignore',
+      negotiation: 'off', edgeProvider: null, ownership: artifacts,
+    }));
+  }
+  const emitted = { pathname: '/index.md', status: 'emitted', owner: { kind: 'core', name: 'markdown' }, outputPath: 'index.md', representation: { contentType: 'text/markdown', ...representationMetadata('# t') } };
+
+  test('checks emitted bytes locally and detects changed or missing artifacts', async () => {
+    const root = project({ 'dist/index.md': '# t' });
+    ledger(root, [emitted]);
+    expect(statuses((await runDoctor([root])).checks)).toMatchObject({ 'build-evidence': 'unverified', 'artifact-ownership': 'unverified', 'emitted-artifacts': 'unverified' });
+    writeFileSync(join(root, 'dist/index.md'), '# changed');
+    expect(statuses((await runDoctor([root])).checks)['emitted-artifacts']).toBe('conflicting');
+    rmSync(join(root, 'dist/index.md'));
+    expect(statuses((await runDoctor([root])).checks)['emitted-artifacts']).toBe('missing');
+  });
+
+  test('rejects stale deployment digests and a ledger for a different output', async () => {
+    const root = project({ 'dist/index.md': '# t' });
+    ledger(root, [emitted]);
+    writeFileSync(join(root, '.astro/aeo-cache/deployment-v1.json'), readFileSync(join(root, '.astro/aeo-cache/deployment-v1.json'), 'utf8').replace(/sha256:[a-f\d]{64}/, `sha256:${'0'.repeat(64)}`));
+    let result = await runDoctor([root]);
+    expect(statuses(result.checks)['build-evidence']).toBe('conflicting');
+    expect(statuses(result.checks)['emitted-artifacts']).toBeUndefined();
+    ledger(root, [emitted], 'different-dist');
+    result = await runDoctor([root]);
+    expect(statuses(result.checks)['build-evidence']).toBe('conflicting');
+  });
+
+  /** A project at <outer>/real/site, typed as <outer>/link/site. @param {Record<string, string>} files */
+  function linkedParentProject(files) {
+    const outer = realpathSync(mkdtempSync(join(tmpdir(), 'astro-aeo-doctor-link-')));
+    roots.push(outer);
+    const real = join(outer, 'real', 'site');
+    mkdirSync(join(real, '.astro/aeo-cache'), { recursive: true });
+    for (const [name, contents] of Object.entries(files)) {
+      mkdirSync(dirname(join(real, name)), { recursive: true });
+      writeFileSync(join(real, name), contents);
+    }
+    symlinkSync(join(outer, 'real'), join(outer, 'link'), 'dir');
+    return { outer, real, typed: join(outer, 'link', 'site') };
+  }
+
+  test('resolves a project reached through a linked parent folder', async () => {
+    const { real, typed } = linkedParentProject({ 'dist/index.md': '# t' });
+    ledger(real, [emitted]);
+    expect(statuses((await runDoctor([typed])).checks)).toMatchObject({ 'build-evidence': 'unverified', 'artifact-ownership': 'unverified', 'emitted-artifacts': 'unverified' });
+    // A build given the linked path records that spelling of its output folder.
+    ledger(typed, [emitted]);
+    expect(statuses((await runDoctor([typed])).checks)).toMatchObject({ 'build-evidence': 'unverified', 'emitted-artifacts': 'unverified' });
+  });
+
+  test('still refuses a project folder that is itself a link', async () => {
+    const { outer, real } = linkedParentProject({});
+    symlinkSync(real, join(outer, 'site'), 'dir');
+    await expect(runDoctor([join(outer, 'site')])).rejects.toThrow(DoctorInvocationError);
+    await expect(runDoctor([join(outer, 'site')])).rejects.toThrow(/symbolic link/);
+  });
+
+  test('tells fix to run from the project when the typed path is linked', async () => {
+    const { real, typed } = linkedParentProject({ 'vercel.json': '{}' });
+    const hint = async (/** @type {string} */ path) => (await runDoctor([path])).checks.find((check) => check.id === 'markdown-mime')?.hint;
+    expect(await hint(typed)).toContain('from inside the project directory');
+    expect(await hint(real)).toBe('run `astro-aeo fix --write`');
+  });
+
+  test('keeps a build folder reached through a link below the project unread', async () => {
+    const outside = project({ 'out/index.md': '# t' });
+    const root = project({});
+    ledger(root, [emitted], 'link/out');
+    symlinkSync(outside, join(root, 'link'), 'dir');
+    const result = await runDoctor([root, '--dist', 'link/out']);
+    const check = result.checks.find((entry) => entry.id === 'emitted-artifacts');
+    expect(check).toMatchObject({ status: 'unverified', hint: expect.stringContaining('--dist') });
+    expect(check?.message).toContain('not checked');
+    expect(result.exitCode).toBe(0);
+  });
+
+  test('does not follow linked emitted artifacts even when their bytes match', async () => {
+    const outside = project({ 'index.md': '# t' });
+    const root = project({ 'dist/placeholder': '' });
+    ledger(root, [emitted]);
+    symlinkSync(join(outside, 'index.md'), join(root, 'dist/index.md'));
+    const result = await runDoctor([root]);
+    expect(statuses(result.checks)['emitted-artifacts']).toBe('missing');
+    expect(readFileSync(join(outside, 'index.md'), 'utf8')).toBe('# t');
+  });
+
+  test('withholds artifact conclusions for malformed or linked ownership evidence', async () => {
+    const root = project({ 'dist/index.md': '# t' });
+    const path = join(root, '.astro/aeo-cache/ownership-v1.json');
+    writeFileSync(path, '{not json');
+    let result = await runDoctor([root]);
+    expect(statuses(result.checks)['build-evidence']).toBe('conflicting');
+    expect(statuses(result.checks)['emitted-artifacts']).toBeUndefined();
+    rmSync(path);
+    const outside = project({ 'ledger.json': '{not json' });
+    symlinkSync(join(outside, 'ledger.json'), path);
+    result = await runDoctor([root]);
+    expect(statuses(result.checks)['build-evidence']).toBe('conflicting');
+    expect(statuses(result.checks)['emitted-artifacts']).toBeUndefined();
+  });
+
+  test('uses writer arbitration evidence without inferring collisions from package names', async () => {
+    const root = project({ 'package.json': '{"dependencies":{"astro-robots-txt":"1"}}' });
+    ledger(root, [{ pathname: '/robots.txt', status: 'conflict', claimants: [{ owner: { kind: 'core', name: 'robots' }, count: 2 }] }]);
+    const result = await runDoctor([root, '--json']);
+    expect(statuses(result.checks)).toMatchObject({ 'artifact-ownership': 'conflicting', 'package-overlap:astro-robots-txt': 'unverified' });
+    expect(result.exitCode).toBe(1);
+  });
+});
+
 describe('doctor --url', () => {
   const html = '<!doctype html><html lang="en"><head><title>t</title><link rel="alternate" type="text/markdown" href="/index.md"></head><body></body></html>';
 
@@ -117,7 +300,8 @@ describe('doctor --url', () => {
     const site = deployment(mode, 'text/markdown; charset=utf-8');
     const root = project({ 'netlify.toml': '' }, { negotiation: mode, adapter: mode === 'off' ? null : '@astrojs/node' });
     const result = await runDoctor([root, '--url', 'https://example.com/'], { fetch: site.fetch });
-    expect(statuses(result.checks)).toEqual({ 'build-facts': 'configured', 'markdown-mime': 'configured', negotiation: 'configured' });
+    expect(statuses(result.checks)).toMatchObject({ 'build-facts': 'unverified', 'markdown-mime': 'configured', negotiation: 'configured' });
+    expect(result.checks.filter((check) => check.status === 'configured').map((check) => check.id)).toEqual(['markdown-mime', 'negotiation']);
     expect(result.exitCode).toBe(0);
     // Bounded and anonymous: a fixed request count, same origin, no credentials.
     expect(site.seen.length).toBeLessThan(40);
@@ -168,7 +352,7 @@ describe('doctor and fix through the CLI', () => {
     expect(run(['fix', root, '--write']).status).toBe(0);
     const doctor = run(['doctor', root, '--json']);
     expect(doctor.status).toBe(0);
-    expect(JSON.parse(doctor.stdout).checks.map((/** @type {any} */ check) => check.status)).toEqual(['configured', 'unverified', 'configured']);
+    expect(JSON.parse(doctor.stdout).checks.map((/** @type {any} */ check) => check.status)).toEqual(['unverified', 'unverified', 'unverified']);
     expect(run(['doctor', root, '--bogus']).status).toBe(2);
     expect(run(['doctor', 'no-such-dir']).status).toBe(2);
     expect(run(['fix', root, '--provider', 'fastly']).status).toBe(2);

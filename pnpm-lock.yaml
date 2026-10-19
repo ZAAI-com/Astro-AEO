@@ -11,6 +11,9 @@ importers:
       '@astrojs/sitemap':
         specifier: ^3.7.3
         version: 3.7.4
+      '@opentelemetry/api':
+        specifier: ^1.9.0
+        version: 1.9.1
       linkedom:
         specifier: ^0.18.13
         version: 0.18.13

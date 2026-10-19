@@ -1,4 +1,5 @@
 // @ts-check
+import { validLocation } from '../../src/audit/finding.js';
 
 const LEVELS = Object.freeze({ error: 'error', warning: 'warning', info: 'note' });
 
@@ -17,6 +18,7 @@ export function renderSarif(report) {
     $schema: 'https://json.schemastore.org/sarif-2.1.0.json',
     version: '2.1.0',
     runs: [{
+      columnKind: 'utf16CodeUnits',
       tool: {
         driver: {
           name: 'astro-aeo',
@@ -39,10 +41,12 @@ export function renderSarif(report) {
           locations: [{
             physicalLocation: {
               artifactLocation: { uri: encodeURI(finding.file.replace(/^\//, '')), uriBaseId: 'AUDITROOT' },
-              ...(finding.location ? {
+              ...(validLocation(finding.location) && finding.location ? {
                 region: {
                   startLine: finding.location.line,
                   ...(finding.location.column ? { startColumn: finding.location.column } : {}),
+                  ...(finding.location.endLine ? {endLine:finding.location.endLine} : {}),
+                  ...(finding.location.endColumn ? {endColumn:finding.location.endColumn} : {}),
                 },
               } : {}),
             },
@@ -51,6 +55,8 @@ export function renderSarif(report) {
         properties: {
           category: finding.category,
           ...(finding.url ? { url: finding.url } : {}),
+          ...(finding.locationSource ? {locationSource:finding.locationSource} : {}),
+          ...(!finding.file && validLocation(finding.location) ? {auditedRegion:finding.location} : {}),
           ...(finding.evidence ? { evidence: finding.evidence } : {}),
         },
       })),

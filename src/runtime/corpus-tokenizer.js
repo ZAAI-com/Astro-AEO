@@ -10,7 +10,7 @@ import {
  * @typedef {{ module: string; name: string; version: string; approximate: boolean; options?: import('../index.js').JsonValue; load: () => Promise<unknown> }} RuntimeCorpusTokenizerLoader
  */
 
-/** @type {WeakMap<object, Promise<{ implementation: any; options?: import('../index.js').JsonValue }>>} */
+/** @type {WeakMap<object, Promise<{ implementation: any; options?: import('../index.js').JsonValue; fallback?: 'preflight' }>>} */
 const cache = new WeakMap();
 
 /** @param {RuntimeCorpusTokenizerLoader | undefined} loader */
@@ -38,6 +38,6 @@ async function load(loader) {
     return { implementation, ...(options === undefined ? {} : { options }) };
   } catch {
     console.warn(`astro-aeo: corpus tokenizer "${loader.module}" failed at runtime; astro-aeo-approx@1 was used.`);
-    return { implementation: BUILTIN_CORPUS_TOKENIZER };
+    return { implementation: BUILTIN_CORPUS_TOKENIZER, fallback: /** @type {const} */ ('preflight') };
   }
 }

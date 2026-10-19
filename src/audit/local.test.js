@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { UnsafeAuditRootError, auditDist } from './local.js';
 import { auditLive } from './live.js';
 import { createAuditReport, serializeAuditReport } from './report.js';
+import {createPageSnapshot} from '../build/evidence.js';
+import {outputRootId} from '../build/ownership.js';
 import { scoreFindings } from './score.js';
 
 /** @type {string[]} */
@@ -366,5 +368,37 @@ describe('offline audit', () => {
       toolVersion: 't', target: { kind: 'dist', value: 'd' }, ...auditDist('fixtures/dist-broken'),
     }));
     expect(run()).toBe(run());
+  });
+});
+
+describe('private audit evidence safety',() => {
+  it('does not inspect symlinked private diagnostic evidence',() => {
+    const project=site({'dist/index.html':html({title:'Guide',description:'A guide'})});
+    const external=join(project,'outside.json');
+    writeFileSync(external,JSON.stringify({version:1,diagnostics:[{version:1,code:'artifact-generated-conflict',severity:'error',message:'private body secret'}]}));
+    const cache=join(project,'.astro','aeo-cache');mkdirSync(cache,{recursive:true});
+    symlinkSync(external,join(cache,'diagnostics-v1.json'));
+    const result=auditDist(join(project,'dist'),{projectRoot:project});
+    expect(JSON.stringify(result)).not.toContain('private body secret');
+    expect(result.applicability.find((entry) => entry.category==='build')?.status).toBe('unknown');
+  });
+});
+
+describe('audit evidence identity checks',() => {
+  it('matches independent evidence and warns when trace/deployment identities disagree',() => {
+    const project=site({'dist/index.html':html({title:'Guide',description:'A guide'})});
+    const cache=join(project,'.astro','aeo-cache');mkdirSync(cache,{recursive:true});
+    const snapshot=createPageSnapshot([],[],true);
+    writeFileSync(join(cache,'pages-v1.json'),JSON.stringify(snapshot));
+    writeFileSync(join(cache,'ownership-v1.json'),JSON.stringify({version:1,base:'/',outputRootId:outputRootId(join(project,'dist')),artifacts:[],groups:[]}));
+    writeFileSync(join(cache,'trace-v1.json'),JSON.stringify({version:1,buildDigest:snapshot.buildDigest}));
+    expect(auditDist(join(project,'dist'),{projectRoot:project}).findings.some((item) => item.ruleId==='audit-evidence-mismatch')).toBe(false);
+    writeFileSync(join(cache,'trace-v1.json'),JSON.stringify({version:1,buildDigest:'sha256:'+'0'.repeat(64),secret:'not evidence'}));
+    const trace=auditDist(join(project,'dist'),{projectRoot:project});
+    expect(trace.findings.some((item) => item.ruleId==='audit-evidence-mismatch')).toBe(true);
+    expect(JSON.stringify(trace)).not.toContain('not evidence');
+    writeFileSync(join(cache,'trace-v1.json'),JSON.stringify({version:1,buildDigest:snapshot.buildDigest}));
+    writeFileSync(join(cache,'deployment-v1.json'),JSON.stringify({version:1,ownershipDigest:'sha256:'+'0'.repeat(64)}));
+    expect(auditDist(join(project,'dist'),{projectRoot:project}).findings.some((item) => item.ruleId==='audit-evidence-mismatch')).toBe(true);
   });
 });

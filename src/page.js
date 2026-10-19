@@ -1,5 +1,5 @@
 // @ts-check
-import { isPageVersion } from './core/page-version.js';
+import { isPageVersion, isVersionGroup } from './core/page-version.js';
 import { isSourceKind, sourceKindFor } from './core/source-kind.js';
 
 /**
@@ -10,6 +10,8 @@ import { isSourceKind, sourceKindFor } from './core/source-kind.js';
  * @property {string} [description]
  * @property {string} [image]
  * @property {string} [language]
+ * @property {string} [versionGroup] Logical cross-version identity.
+ * @property {import('./index.js').PageAlternate[]} [alternates]
  * @property {string} [version]       Documentation version label, such as `v2`.
  * @property {Date | string} [published]
  * @property {Date | string} [lastModified]
@@ -54,6 +56,10 @@ export function defineAeoPage(input = {}) {
 
   const version = input.version ?? entry?.data?.version;
   if (isPageVersion(version)) marker.version = version;
+
+  const versionGroup = input.versionGroup ?? entry?.data?.versionGroup;
+  if (isVersionGroup(versionGroup)) marker.versionGroup = versionGroup;
+  if (Array.isArray(input.alternates)) marker.alternates = input.alternates;
 
   const published = input.published ?? entry?.data?.published ?? entry?.data?.pubDate;
   const publishedIso = toIsoDate(published);

@@ -1,6 +1,7 @@
 // @ts-check
 import { writeFileSync, readFileSync } from 'node:fs';
 import { renderMarkdownDocument } from '../core/render/markdown-doc.js';
+import { pageMarkdown } from '../core/render/page-markdown.js';
 import { hasMarkdownCompanion } from '../core/render/llms-txt.js';
 import { mdPathnameFor } from '../core/page-model.js';
 import { normalizeOrigin } from '../core/locale.js';
@@ -19,7 +20,7 @@ export { hasMarkdownAlternateLink, matchMarkdownAlternateLinks };
  * @param {import('../build/collect.js').PageInfo[]} pages
  * @param {import('../index.js').ResolvedAstroAeoConfig} config
  * @param {ReturnType<typeof import('../build/artifacts.js').createArtifactWriter>} writer
- * @param {{ siteUrl?: string; diagnostics?: import('../index.js').Diagnostic[] }} [options]
+ * @param {{ siteUrl?: string; diagnostics?: import('../index.js').Diagnostic[]; cache?: import('../build/stage-cache.js').StageCache }} [options]
  * @returns {number} count of .md files written
  */
 export function emitDotMd(pages, config, writer, options = {}) {
@@ -50,11 +51,19 @@ export function emitDotMd(pages, config, writer, options = {}) {
       continue;
     }
 
+    const key = options.cache?.key('artifact-markdown-v1', {
+      title: page.title, url: page.url, description: page.description, markdown: pageMarkdown(page),
+      frontmatter: config.markdown.frontmatter, includeLastModified: config.markdown.includeLastModified,
+      ...(config.markdown.includeLastModified ? { lastModified: page.lastModified } : {}),
+    });
+    const cached = key ? options.cache?.get(key) : undefined;
+    const contents = typeof cached === 'string' ? cached : renderMarkdownDocument(page, config);
+    if (key && typeof cached !== 'string') options.cache?.put(key, contents);
     const wrote = writer.write({
       path: page.mdPath,
       owner: 'dotmd',
       route: mdPathnameFor(page.pathname),
-      contents: renderMarkdownDocument(page, config),
+      contents,
       onConflict: 'overwrite',
     });
     if (wrote) written++;

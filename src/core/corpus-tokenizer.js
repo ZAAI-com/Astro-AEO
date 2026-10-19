@@ -8,6 +8,8 @@ export const BUILTIN_TOKENIZER_IDENTITY = Object.freeze({
   approximate: true,
 });
 
+/** @typedef {(identity: { name: string; version: string; approximate: boolean }, text: string, options: import('../index.js').JsonValue | undefined, count: () => Promise<number>) => Promise<number>} CachedTokenCount */
+
 /**
  * Frozen probes exercise empty input, decomposed Latin marks, non-Latin text,
  * punctuation, symbols, and fenced Markdown. They are deliberately part of
@@ -178,8 +180,8 @@ export async function probeCorpusTokenizer(tokenizer, options) {
  * @param {unknown} customModule validated module value, raw module value, or undefined
  * @param {unknown} rawOptions
  * @param {(context: { tokenizer: { name: string; version: string; approximate: boolean }; count: (text: string) => Promise<number> }) => Promise<T>} plan
- * @param {{ skipProbe?: boolean }} [runOptions]
- * @returns {Promise<{ result: T; tokenizer: { name: string; version: string; approximate: boolean }; fallback?: { name?: string; message: string } }>}
+ * @param {{ skipProbe?: boolean; cachedCount?: CachedTokenCount }} [runOptions]
+ * @returns {Promise<{ result: T; tokenizer: { name: string; version: string; approximate: boolean }; fallback?: { name?: string; message: string; reason: 'preflight'|'count' } }>}
  */
 export async function runCorpusPlanWithTokenizer(customModule, rawOptions, plan, runOptions = {}) {
   const options = corpusTokenizerOptions(rawOptions);
@@ -190,29 +192,29 @@ export async function runCorpusPlanWithTokenizer(customModule, rawOptions, plan,
       if (!runOptions.skipProbe) await probeCorpusTokenizer(custom, options);
     } catch (error) {
       if (!(error instanceof CorpusTokenizerError)) throw error;
-      const result = await executePlan(BUILTIN_CORPUS_TOKENIZER, undefined, plan);
+      const result = await executePlan(BUILTIN_CORPUS_TOKENIZER, undefined, plan, runOptions.cachedCount);
       return {
         result,
         tokenizer: BUILTIN_TOKENIZER_IDENTITY,
-        fallback: { ...(custom ? { name: custom.name } : {}), message: error.message },
+        fallback: { ...(custom ? { name: custom.name } : {}), message: error.message, reason: 'preflight' },
       };
     }
   }
 
   const tokenizer = custom ?? BUILTIN_CORPUS_TOKENIZER;
   try {
-    const result = await executePlan(tokenizer, custom ? options : undefined, plan);
+    const result = await executePlan(tokenizer, custom ? options : undefined, plan, runOptions.cachedCount);
     return {
       result,
       tokenizer: tokenizerIdentity(tokenizer),
     };
   } catch (error) {
     if (!custom || !(error instanceof CorpusTokenizerError)) throw error;
-    const result = await executePlan(BUILTIN_CORPUS_TOKENIZER, undefined, plan);
+    const result = await executePlan(BUILTIN_CORPUS_TOKENIZER, undefined, plan, runOptions.cachedCount);
     return {
       result,
       tokenizer: BUILTIN_TOKENIZER_IDENTITY,
-      fallback: { name: custom.name, message: error.message },
+      fallback: { name: custom.name, message: error.message, reason: 'count' },
     };
   }
 }
@@ -222,11 +224,15 @@ export async function runCorpusPlanWithTokenizer(customModule, rawOptions, plan,
  * @param {{ name: string; version: string; approximate: boolean; count: (text: string, options?: import('../index.js').JsonValue) => number | Promise<number> }} tokenizer
  * @param {import('../index.js').JsonValue | undefined} options
  * @param {(context: { tokenizer: { name: string; version: string; approximate: boolean }; count: (text: string) => Promise<number> }) => Promise<T>} plan
+ * @param {CachedTokenCount} [cachedCount]
  */
-async function executePlan(tokenizer, options, plan) {
+async function executePlan(tokenizer, options, plan, cachedCount) {
   return plan({
     tokenizer: tokenizerIdentity(tokenizer),
-    count: (text) => countCorpusTokens(tokenizer, text, options),
+    count: (text) => cachedCount
+      ? cachedCount(tokenizerIdentity(tokenizer), normalizePublishedText(text), options,
+          () => countCorpusTokens(tokenizer, text, options))
+      : countCorpusTokens(tokenizer, text, options),
   });
 }
 

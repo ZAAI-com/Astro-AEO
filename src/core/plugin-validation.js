@@ -1,4 +1,5 @@
 // @ts-check
+import { isPageVersion, isVersionGroup } from './page-version.js';
 import { createId, validateGraph } from '../schema.js';
 import { stableCanonical } from './canonical.js';
 import { inspectRootPathname, normalizeCatalogPathname } from './match.js';
@@ -13,7 +14,7 @@ const DIRECTIVE_KEYS = ['index', 'includeInLlms', 'includeInLlmsFull', 'generate
 export function isPageDescriptor(value) {
   if (!isRecord(value)) return false;
   const descriptor = /** @type {Record<string, any>} */ (value);
-  if (!isPipelinePathname(descriptor.pathname)) return false;
+  if (!isPipelinePathname(descriptor.pathname) || !versionFields(descriptor)) return false;
   if (!optionalString(descriptor.routePattern) ||
       !optionalEnum(descriptor.rendering, RENDERING) ||
       !optionalString(descriptor.title) ||
@@ -35,11 +36,11 @@ export function isPageDescriptor(value) {
 export function isPageRecord(value) {
   if (!isRecord(value)) return false;
   const page = /** @type {Record<string, any>} */ (value);
-  if (!safeString(page.id, true) || !isPipelinePathname(page.pathname)) return false;
+  if (!versionFields(page) || !safeString(page.id, true) || !isPipelinePathname(page.pathname, true)) return false;
   const validPageUrl = isAbsolutePageUrl(page.url) ||
     (page.canonicalUrl === undefined && isRootRelativePageUrl(page.url));
   if (!validPageUrl || !safeString(page.mdHref, true) ||
-      !inspectRootPathname(page.mdHref)?.decoded.endsWith('.md') || typeof page.markdown !== 'string') return false;
+      !inspectRootPathname(page.mdHref, { allowEncodedReserved: true })?.decoded.endsWith('.md') || typeof page.markdown !== 'string') return false;
   if (!optionalString(page.routePattern) || !RENDERING.has(page.rendering)) return false;
   if (page.canonicalUrl !== undefined && !stableCanonical(page.canonicalUrl)) return false;
   if (page.markdownUrl !== undefined && !stableCanonical(page.markdownUrl)) return false;
@@ -261,14 +262,16 @@ function isIsoFullDate(value) {
  * Catalog inputs retain canonical URL spelling, while Astro request records are
  * already decoded and may contain Unicode or a literal percent character.
  * @param {unknown} value
+ * @param {boolean} [allowEncodedReserved]
  */
-function isPipelinePathname(value) {
+function isPipelinePathname(value, allowEncodedReserved = false) {
   if (typeof value !== 'string' || !value.startsWith('/')) return false;
   if (value !== '/' && value.endsWith('/')) return false;
   if (value.startsWith('//') || value.includes('//') || /[\\?#\u0000-\u001f\u007f]/.test(value)) {
     return false;
   }
   if (value.split('/').some((segment) => segment === '.' || segment === '..')) return false;
+  if (allowEncodedReserved && inspectRootPathname(value, { allowEncodedReserved: true })) return true;
   if (normalizeCatalogPathname(value) === value) return true;
   if (!value.includes('%')) return true;
   try {
@@ -312,7 +315,7 @@ function isAbsolutePageUrl(value) {
 
 /** @param {unknown} value */
 function isRootRelativePageUrl(value) {
-  return typeof value === 'string' && inspectRootPathname(value) !== null;
+  return typeof value === 'string' && inspectRootPathname(value, { allowEncodedReserved: true }) !== null;
 }
 
 /** @param {string} value */
@@ -325,4 +328,18 @@ function isRecord(value) {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);
   return prototype === Object.prototype || prototype === null;
+}
+
+/** @param {Record<string, any>} page */
+function versionFields(page) {
+  if (page.versionLinks !== undefined && typeof page.versionLinks !== 'boolean') return false;
+  if (page.localeFallback !== undefined && (!isRecord(page.localeFallback) ||
+      !safeString(page.localeFallback.requested, true) || !optionalString(page.localeFallback.source) ||
+      Object.keys(page.localeFallback).some((key) => !['requested', 'source'].includes(key)))) return false;
+  if (page.version !== undefined && !isPageVersion(page.version)) return false;
+  if (page.versionGroup !== undefined && !isVersionGroup(page.versionGroup)) return false;
+  if (page.alternates !== undefined && !Array.isArray(page.alternates)) return false;
+  return !Array.isArray(page.alternates) || page.alternates.every((alternate) => isRecord(alternate) && (alternate.kind !== 'version' ||
+    isPageVersion(alternate.version) && isAbsolutePageUrl(alternate.url) &&
+      Object.keys(alternate).every((key) => ['kind', 'version', 'url'].includes(key))));
 }

@@ -61,6 +61,31 @@ beforeEach(() => {
   RUNTIME.config = resolveConfig({ markdown: { alternateLink: 'never' } });
 });
 
+test.each([undefined, 'private, max-age=17'])('direct Markdown applies policy %s without negotiation', async (cacheControl) => {
+  RUNTIME.config = resolveConfig({ markdown: { alternateLink: 'never', negotiation: 'off', cacheControl } });
+  const context = contextFor('/page.md');
+  context.rewrite.mockImplementation(async () => new Response(html(), {
+    headers: { 'content-type': 'text/html', 'cache-control': 'public, max-age=5', vary: 'Cookie', 'set-cookie': 'session=retained' },
+  }));
+  const response = await onRequest(context, async () => { throw new Error('must not fall through'); });
+  expect(response.headers.get('content-type')).toBe('text/markdown; charset=utf-8');
+  expect(response.headers.get('cache-control')).toBe(cacheControl ?? 'public, max-age=5');
+  expect(response.headers.get('vary')).toBe('Cookie');
+  expect(response.headers.get('set-cookie')).toBe('session=retained');
+});
+
+test('direct Markdown for an error page keeps the project cache policy', async () => {
+  RUNTIME.config = resolveConfig({ markdown: { alternateLink: 'never', negotiation: 'off', cacheControl: 'public, max-age=31536000' } });
+  const context = contextFor('/missing.md');
+  context.rewrite.mockImplementation(async () => new Response(html('', '<main><h1>Not found</h1></main>'), {
+    status: 404, headers: { 'content-type': 'text/html', 'cache-control': 'no-store' },
+  }));
+  const response = await onRequest(context, async () => { throw new Error('must not fall through'); });
+  expect(response.status).toBe(404);
+  expect(response.headers.get('content-type')).toBe('text/markdown; charset=utf-8');
+  expect(response.headers.get('cache-control')).toBe('no-store');
+});
+
 describe('runtime semantic head enrichment', () => {
   test('injects the default managed graph while preserving status and non-byte headers', async () => {
     const source = html();

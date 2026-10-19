@@ -1,5 +1,5 @@
 // @ts-check
-import { isPageVersion } from './page-version.js';
+import { isPageVersion, isVersionGroup } from './page-version.js';
 import { createTurndown } from './html-to-md.js';
 import { extractMarkdown } from './extract/index.js';
 import { extractMetaContent, extractPageMeta, makeTitleStripper } from './page-meta.js';
@@ -9,6 +9,7 @@ import { readMarker, removeMarkers, stripMarkersFromHtml } from './extract/marke
 import { authoredCanonical, configuredCanonical, stableCanonical } from './canonical.js';
 import { resolveMarkdownWithRenderers } from './markdown-renderers.js';
 import { sourceKindFor } from './source-kind.js';
+import { sha256Digest } from './corpus-manifest.js';
 
 /**
  * @typedef {object} SiteFacts
@@ -30,7 +31,11 @@ import { sourceKindFor } from './source-kind.js';
  * @property {string} [locale]
  * @property {string} [language]
  * @property {string} [version]      Documentation version label.
- * @property {{ language: string; url: string }[]} [alternates]
+ * @property {string} [versionGroup]
+ * @property {import('../index.js').PageAlternate[]} [alternates]
+ * @property {boolean} [versionLinks]
+ * @property {{ requested: string; source?: string }} [localeFallback]
+ * @property {import('../index.js').VersionPageAlternate[]} [_generatedVersionAlternates] Internal derived-link tracking.
  * @property {boolean} [corpusExcluded] Internal corpus-planning exclusion marker.
  * @property {{ initial?: string; declared?: string; rendered?: string; siteDefault?: string }} [languageSources] Internal precedence inputs.
  * @property {{ title: string; description?: string; image?: string; canonicalSource?: 'authored'|'inferred' }} metadata
@@ -125,16 +130,17 @@ export function basePrefix(base) {
  * @param {SiteFacts} input.site
  * @param {import('turndown')} [input.td]
  * @param {() => Promise<import('turndown')>} [input.getTurndown]
- * @param {{ markdown?: string; body?: string; title?: string; description?: string; image?: string; language?: string; version?: string; published?: string; lastModified?: string; authors?: unknown[]; entities?: unknown[]; directives?: Partial<Record<'index'|'includeInLlms'|'includeInLlmsFull'|'generateMarkdown', boolean>>; kind?: 'markdown'|'mdx'|'astro'|'cms'|'rendered'|'custom'; path?: string; hash?: string; strategy?: 'markdown-route'|'catalog'; extraction?: import('./extract/index.js').ExtractionDiagnostics }} [input.authored]
+ * @param {{ markdown?: string; body?: string; title?: string; description?: string; image?: string; language?: string; version?: string; versionGroup?: string; alternates?: import('../index.js').PageAlternate[]; published?: string; lastModified?: string; authors?: unknown[]; entities?: unknown[]; directives?: Partial<Record<'index'|'includeInLlms'|'includeInLlmsFull'|'generateMarkdown', boolean>>; kind?: 'markdown'|'mdx'|'astro'|'cms'|'rendered'|'custom'; path?: string; hash?: string; strategy?: 'markdown-route'|'catalog'; extraction?: import('./extract/index.js').ExtractionDiagnostics }} [input.authored]
  * @param {import('./markdown-renderers.js').MarkdownRendererEntry[]} [input.renderers]
  * @param {boolean} [input.allowMarker]
  * @param {'prerendered'|'on-demand'} [input.rendering]
  * @param {string} [input.publicPathname] URL-encoded pathname used for emitted links.
  * @param {string} [input.routePattern]
  * @param {(title: string) => string} [input.strip]  Reused instance; derived from config when absent.
+ * @param {{ key: (stage: string, inputs: unknown) => string; get: (key: string) => unknown; put: (key: string, value: unknown) => void }} [input.extractionCache]
  * @returns {Promise<{ page: AeoPage } | { skip: SkipReason }>}
  */
-export async function buildPage({ pathname: rawPathname, html, config, site, td, getTurndown, authored, renderers = [], allowMarker = true, rendering = 'on-demand', publicPathname, routePattern, strip }) {
+export async function buildPage({ pathname: rawPathname, html, config, site, td, getTurndown, authored, renderers = [], allowMarker = true, rendering = 'on-demand', publicPathname, routePattern, strip, extractionCache }) {
   const pathname = normalizePath(rawPathname || '/');
   const emittedPathname = normalizePath(publicPathname ?? pathname);
 
@@ -170,12 +176,17 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
     : undefined;
   const authoredWins = !markerWins && markerBody === undefined && authoredMarkdown !== undefined;
   const sourceMarkdown = markerMarkdown ?? (markerBody === undefined ? authoredMarkdown : undefined);
+  const sourceBody = typeof marker?.sourceBody === 'string'
+    ? marker.sourceBody : markerMarkdown ?? markerBody ?? authoredMarkdown ?? authored?.body;
+  const sourceHash = typeof sourceBody === 'string' ? await sha256Digest(sourceBody) : undefined;
   let markdown = '';
   /** @type {import('./extract/index.js').ExtractionDiagnostics | undefined} */
   let extraction = authoredWins ? authored?.extraction : undefined;
   /** @type {import('../index.js').Diagnostic[]} */
   const rendererDiagnostics = [];
   let rendererWins = false;
+  /** @type {string | undefined} */
+  let extractedPlainText;
   if (sourceMarkdown !== undefined) {
     markdown = sourceMarkdown;
   } else {
@@ -200,7 +211,7 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
                   kind: authored.kind,
                   ...(authored.path ? { path: authored.path } : {}),
                   ...(typeof authored.body === 'string' ? { body: authored.body } : {}),
-                  ...(typeof authored.hash === 'string' ? { hash: authored.hash } : {}),
+                  ...(sourceHash ? { hash: sourceHash } : {}),
                 },
               }
             : {}),
@@ -214,12 +225,23 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
       }
     }
     if (!rendererWins) {
-      const extracted = extractMarkdown(
-        document,
-        config.markdown.extraction,
-        td ?? (await (getTurndown ?? createTurndown)()),
-        { baseUrl: url },
-      );
+      // The fallback extraction identity is independent of renderer purity and
+      // output policies. An unsafe renderer still runs on every build, but its
+      // decline does not force an identical HTML conversion again.
+      const key = extractionCache?.key('extraction-v2', {
+        html: document.toString(), extraction: config.markdown.extraction, baseUrl: url,
+      });
+      const cached = key ? extractionCache?.get(key) : undefined;
+      const reusable = cached && typeof cached === 'object' &&
+        typeof /** @type {any} */ (cached).markdown === 'string' &&
+        typeof /** @type {any} */ (cached).plainText === 'string' &&
+        typeof /** @type {any} */ (cached).diagnostics?.strategy === 'string';
+      const extracted = reusable
+        ? /** @type {ReturnType<typeof extractMarkdown>} */ (cached)
+        : extractMarkdown(document, config.markdown.extraction,
+            td ?? (await (getTurndown ?? createTurndown)()), { baseUrl: url });
+      extractedPlainText = reusable ? /** @type {any} */ (cached).plainText : documentPlainText(document);
+      if (key && !reusable) extractionCache?.put(key, { ...extracted, plainText: extractedPlainText });
       markdown = extracted.markdown;
       extraction = extracted.diagnostics;
     }
@@ -230,6 +252,7 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
   const image = marker?.image || authored?.image || extractMetaContent(cleanHtml, { property: 'og:image' });
   const declaredLanguage = marker?.language || authored?.language || undefined;
   const version = [marker?.version, authored?.version].find(isPageVersion);
+  const versionGroup = [marker?.versionGroup, authored?.versionGroup].find(isVersionGroup);
   const renderedLanguage = document.documentElement?.getAttribute('lang') || undefined;
   const language = declaredLanguage || renderedLanguage || config.site.defaultLocale;
   const published = toIsoTimestamp(marker?.published) ?? toIsoTimestamp(authored?.published);
@@ -276,6 +299,11 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
       ...(markdownUrl ? { markdownUrl } : {}),
       ...(language ? { language } : {}),
       ...(version ? { version } : {}),
+      ...(versionGroup ? { versionGroup } : {}),
+      ...(marker?.versionLinks === true ? { versionLinks: true } : {}),
+      ...(typeof marker?.localeFallback?.requested === 'string' ? { localeFallback: marker.localeFallback } : {}),
+      ...(Array.isArray(marker?.alternates ?? authored?.alternates)
+        ? { alternates: marker?.alternates ?? authored?.alternates } : {}),
       languageSources: {
         ...(language ? { initial: language } : {}),
         ...(declaredLanguage ? { declared: declaredLanguage } : {}),
@@ -293,7 +321,7 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
       representations: {
         html: cleanHtml,
         markdown,
-        plainText: documentPlainText(document),
+        plainText: extractedPlainText ?? documentPlainText(document),
       },
       ...(published || modified
         ? { dates: { ...(published ? { published } : {}), ...(modified ? { modified } : {}) } }
@@ -324,7 +352,7 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
               ? authored.strategy
               : 'rendered',
         ...(sourcePath ? { path: sourcePath } : {}),
-        ...(typeof authored?.hash === 'string' ? { hash: authored.hash } : {}),
+        ...(typeof sourceBody === 'string' ? { body: sourceBody, hash: sourceHash } : {}),
       },
       diagnostics: [
         ...rendererDiagnostics,

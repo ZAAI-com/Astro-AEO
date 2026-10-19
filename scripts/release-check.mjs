@@ -38,6 +38,7 @@ const steps = [
   ['Release metadata', 'node', metadataArgs],
   ['Current TypeScript declarations', 'pnpm', ['run', 'typecheck']],
   ['Oldest supported TypeScript consumer', 'pnpm', ['run', 'test:types']],
+  ['JavaScript/JSDoc consumer', 'pnpm', ['run', 'test:types:js']],
   ['Unit, CLI, and static build tests', 'pnpm', ['test']],
 ];
 
@@ -67,9 +68,11 @@ if (!quick) {
     ['Offline audit of 10,000 pages', 'pnpm', ['run', 'benchmark:audit']],
     ['Adapter bundle baselines', 'node', ['scripts/build-benchmark-baselines.mjs']],
     ['Packed tarball install and Astro build', 'node', ['scripts/package-smoke.mjs']],
+    ['Git dependency install and Astro build', 'node', ['scripts/package-smoke.mjs', '--git']],
     ['IndexNow live transport smoke', 'node', ['scripts/indexnow-network-smoke.mjs']],
   );
   if (!skipPerformance) {
+    steps.push(['Paired project and warm-cache evidence', 'pnpm', ['run', 'benchmark:projects']]);
     steps.push([
       'Performance safety ceilings',
       'node',

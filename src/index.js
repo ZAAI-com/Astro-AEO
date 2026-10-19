@@ -1,4 +1,5 @@
 // @ts-check
+import { AeoConfigError } from './lib/errors.js';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { isAbsolute, relative, resolve } from 'node:path';
@@ -30,7 +31,8 @@ import { runtimePluginModules } from './plugins/runtime-modules.js';
 import { createSemanticPlugin } from './semantic/plugin.js';
 import { exactPathnameIdentity } from './core/artifact-path.js';
 import { absoluteUrl } from './core/page-model.js';
-import { chunkTopology } from './core/corpus-artifacts.js';
+import { corpusRoutePatterns } from './core/corpus-topology.js';
+import { contentRoutesFor } from './lib/content-routes.js';
 import { createLocaleSnapshot } from './core/locale.js';
 import {
   preloadCorpusTokenizer,
@@ -44,6 +46,7 @@ import {
   normalizeIndexNowOrigin,
 } from './build/indexnow.js';
 import { parseIndexNowPrepareInput } from './build/indexnow-state.js';
+import { analyticsMiddlewarePlugin, analyticsSurface, preloadAnalytics, validateAnalyticsSurface } from './build/analytics.js';
 import { edgeProviderOf } from './edge/plugin.js';
 
 const FALLBACK_ENTRYPOINT = fileURLToPath(new URL('./runtime/fallback.js', import.meta.url));
@@ -93,6 +96,8 @@ export default function aeo(userConfig = {}) {
   };
   /** @type {Map<string, string>} */
   const routeEntrypoints = new Map();
+  /** @type {{ pattern: RegExp; routePattern: string }[]} */
+  const pageRoutePatterns = [];
   /** @type {Set<string>} */
   const resolvedRoutePaths = new Set();
   /** @type {{ pattern: RegExp; prerendered: boolean }[]} */
@@ -108,8 +113,14 @@ export default function aeo(userConfig = {}) {
   let serverOutput = false;
   let adapterFallbacks = false;
   let hasOnDemandProjectPage = false;
+  let hasObservableRuntimeRoute = false;
+  const declaredContentRoutes = new Set();
   /** @type {ReturnType<typeof edgeProviderOf>} */
   let edgeProvider = null;
+  /** @type {{ specifier?: string; failed?: boolean }} */
+  let analyticsModule = {};
+  /** @type {import('./analytics.js').AnalyticsSurface} */
+  let observationSurface = 'astro';
   /** @type {string | null} */
   let adapterName = null;
   let hasDynamicProjectPage = false;
@@ -175,6 +186,7 @@ export default function aeo(userConfig = {}) {
       staticPaths: [...runtimePagePaths],
       projectPaths: [...new Set([...runtimeProjectPaths, ...runtimePublicPaths])],
       projectPatterns: runtimeProjectPatterns,
+      routePatterns: pageRoutePatterns,
       standaloneSources: {},
       pluginManifest: pluginDispatcher?.runtimeManifest ?? { version: 1, plugins: [] },
     };
@@ -260,8 +272,16 @@ export default function aeo(userConfig = {}) {
         sitemapState.expected = plan.expected;
 
         adapterFallbacks = Boolean(astroConfig.adapter);
+        declaredContentRoutes.clear();
+        const declaredBase = (astroConfig.base ?? '').replace(/\/$/, '');
+        for (const pattern of contentRoutesFor(integration)) {
+          declaredContentRoutes.add(pattern);
+          if (declaredBase) declaredContentRoutes.add(`${declaredBase}${pattern}`);
+        }
         adapterName = typeof astroConfig.adapter?.name === 'string' ? astroConfig.adapter.name : null;
         edgeProvider = edgeProviderOf(config.plugins);
+        observationSurface = analyticsSurface(adapterName, command);
+        validateAnalyticsSurface(config.analytics, observationSurface, adapterName);
         // Static edge negotiation exists for sites with no server. The gate reads the
         // adapter the project configured, never `serverOutput`, which Astro-AEO's own
         // fallback routes turn on for any adapter.
@@ -341,6 +361,7 @@ export default function aeo(userConfig = {}) {
                 dynamicRouteModuleConfig,
                 devLoopbackConfig,
               ),
+              ...(config.analytics.enabled && (!edgeProvider || command === 'dev') ? [analyticsMiddlewarePlugin(() => ({ config: config.analytics, surface: observationSurface, adapterName, ...analyticsModule }))] : []),
             ],
           },
         });
@@ -392,6 +413,7 @@ export default function aeo(userConfig = {}) {
           logger,
           rendererDiagnostics,
         );
+        analyticsModule = await preloadAnalytics(config.analytics, projectRoot, logger);
         corpusTokenizer = await preloadCorpusTokenizer(
           config.corpus.tokenizer,
           projectRoot,
@@ -428,12 +450,14 @@ export default function aeo(userConfig = {}) {
 
       'astro:routes:resolved': ({ routes }) => {
         routeEntrypoints.clear();
+        pageRoutePatterns.length = 0;
         resolvedRoutePaths.clear();
         resolvedRouteMatchers.length = 0;
         runtimeProjectPaths.clear();
         runtimeProjectPatterns.length = 0;
         runtimePagePaths.clear();
         hasOnDemandProjectPage = false;
+        hasObservableRuntimeRoute = false;
         hasDynamicProjectPage = false;
         hasOnDemandDynamicProjectPage = false;
         hasPrerenderedCustom404 = false;
@@ -472,9 +496,16 @@ export default function aeo(userConfig = {}) {
           const routePattern = /** @type {string | undefined} */ (
             typeof route.pattern === 'string' ? route.pattern : route.route
           );
+          const relativePattern = routePattern && base && routePattern.startsWith(`${base}/`)
+            ? routePattern.slice(base.length) : routePattern;
+          const contentRoute = projectRoute || (origin === 'external' && declaredContentRoutes.has(relativePattern));
+          if (contentRoute && type === 'page' && pattern instanceof RegExp && typeof routePattern === 'string') {
+            pageRoutePatterns.push({ pattern, routePattern });
+          }
           const prerendered = /** @type {boolean | undefined} */ (
             route.isPrerendered ?? route.prerender
           );
+          if (ownedRoute && (type === 'page' || type === 'endpoint') && prerendered === false) hasObservableRuntimeRoute = true;
           const ownsExtensionPath =
             ownedRoute &&
             !normalizedPathname &&
@@ -493,7 +524,7 @@ export default function aeo(userConfig = {}) {
             runtimeProjectPatterns.push(pattern);
           }
           if (
-            projectRoute &&
+            contentRoute &&
             type === 'page' &&
             runtimePathname &&
             runtimePathname !== '/404' &&
@@ -501,7 +532,7 @@ export default function aeo(userConfig = {}) {
           ) {
             runtimePagePaths.add(runtimePathname);
           }
-          if (projectRoute && type === 'page' && prerendered === false) {
+          if (contentRoute && type === 'page' && prerendered === false) {
             hasOnDemandProjectPage = true;
             if (edgeProvider) {
               throw new Error(
@@ -510,7 +541,7 @@ export default function aeo(userConfig = {}) {
               );
             }
           }
-          const dynamicProjectPage = projectRoute && type === 'page' && pathname == null;
+          const dynamicProjectPage = contentRoute && type === 'page' && pathname == null;
           if (dynamicProjectPage) {
             hasDynamicProjectPage = true;
             if (prerendered === false) hasOnDemandDynamicProjectPage = true;
@@ -538,6 +569,9 @@ export default function aeo(userConfig = {}) {
           if (projectRoute && normalizedPathname === '/404' && prerendered === true) {
             hasPrerenderedCustom404 = true;
           }
+        }
+        if (config.analytics.enabled && command !== 'dev' && !hasObservableRuntimeRoute && !edgeProvider) {
+          throw new AeoConfigError('astro-aeo: enabled analytics requires an observable on-demand route middleware or an explicitly declared static edge surface. Integration configuration does not install deployment handlers.');
         }
         assertInlineMarkdownRenderersSupported(config.markdown.renderers ?? [], {
           command,
@@ -655,11 +689,13 @@ export default function aeo(userConfig = {}) {
           buildFormat,
           projectRoot,
           routeEntrypoints,
+          routePatterns: pageRoutePatterns,
           resolvedRoutePaths,
           resolvedRouteMatchers,
           publicDir,
           diagnostics,
           runtimeCorpora: corpusOwnedByRuntime,
+          onDemandPages: hasOnDemandProjectPage,
           catalogModules,
           markdownRenderers,
           corpusTokenizer: corpusTokenizer?.implementation,
@@ -870,15 +906,12 @@ function injectRuntimeFallbackRoutes(
     });
   }
 
-  const mode = config.i18n.indexes;
-  const topology = chunkTopology(mode);
   const artifacts = new Set();
   if (config.discovery.robots.enabled) artifacts.add('/robots.txt');
   if (config.site.profile.enabled) artifacts.add('/.well-known/domain-profile.json');
-  if (config.corpus.index.enabled && mode !== 'locale') artifacts.add('/llms.txt');
-  if (config.corpus.full.enabled && mode !== 'locale') artifacts.add('/llms-full.txt');
-  if (config.corpus.small.enabled && mode !== 'locale') artifacts.add('/llms-small.txt');
-  if (config.corpus.manifest.enabled) artifacts.add('/llms/manifest.json');
+  const corpusPatterns = corpusRoutePatterns(config);
+  for (const pattern of corpusPatterns) if (!pattern.includes('[')) artifacts.add(pattern);
+
   if (config.schema?.corpus.enabled) {
     artifacts.add(config.schema.corpus.graphPath);
     artifacts.add(config.schema.corpus.mapPath);
@@ -907,21 +940,7 @@ function injectRuntimeFallbackRoutes(
     );
   }
 
-  if (mode === 'locale' || mode === 'both' || mode === 'auto') {
-    if (config.corpus.index.enabled) patterns.push('/[astroAeoLocale]/llms.txt');
-    if (config.corpus.full.enabled) patterns.push('/[astroAeoLocale]/llms-full.txt');
-    if (config.corpus.small.enabled) patterns.push('/[astroAeoLocale]/llms-small.txt');
-  }
-  if (config.corpus.chunks.enabled) {
-    if (topology.root) patterns.push('/llms/[astroAeoChunk].txt');
-    if (topology.locale) patterns.push('/[astroAeoLocale]/llms/[astroAeoChunk].txt');
-  }
-  if (mode === 'both') {
-    if (config.corpus.index.enabled) patterns.push('/llms-[astroAeoAlias].txt');
-    if (config.corpus.full.enabled) patterns.push('/llms-full-[astroAeoAlias].txt');
-    if (config.corpus.small.enabled) patterns.push('/llms-small-[astroAeoAlias].txt');
-  }
-
+  patterns.push(...corpusPatterns.filter((pattern) => pattern.includes('[')));
   for (const pattern of patterns) {
     injectRoute({
       pattern,

@@ -493,8 +493,9 @@ function createDeferredArtifactWriter(deps) {
     onDiagnostics,
     beforeApply,
     onSettled,
-    staleDeletion = true,
   } = deps;
+  let staleDeletion = deps.staleDeletion !== false;
+  let staleRetentionReason = 'the processing cache is read-only';
   const root = fileURLToPath(distDir);
   const publicRoot = publicDir ? fileURLToPath(publicDir) : undefined;
   const outputId = outputRootId(root);
@@ -724,16 +725,37 @@ function createDeferredArtifactWriter(deps) {
     for (const [key, related] of byServed) markConflict(related, related[0].served.pathname ?? key);
     for (const [path, related] of byDestination) markConflict(related, artifactPathLabel(path));
     const destinations = [...byDestination.entries()];
-    for (let left = 0; left < destinations.length; left++) {
-      for (let right = left + 1; right < destinations.length; right++) {
-        const [leftPath, leftClaims] = destinations[left];
-        const [rightPath, rightClaims] = destinations[right];
-        if (!pathWithin(leftPath, rightPath) && !pathWithin(rightPath, leftPath)) continue;
-        markConflict(
-          [...leftClaims, ...rightClaims],
-          `${artifactPathLabel(leftPath)} and ${artifactPathLabel(rightPath)}`,
-        );
+    const comparisonKey = (/** @type {string} */ path) => process.platform === 'win32' ? path.toLowerCase() : path;
+    /** @type {Map<string, number[]>} */
+    const destinationOrder = new Map();
+    destinations.forEach(([path], index) => {
+      const key = comparisonKey(path);
+      const indices = destinationOrder.get(key) ?? [];
+      indices.push(index);
+      destinationOrder.set(key, indices);
+    });
+    /** @type {{ left: number; right: number }[]} */
+    const overlaps = [];
+    for (let index = 0; index < destinations.length; index++) {
+      const [path] = destinations[index];
+      let ancestor = dirname(path);
+      while (ancestor !== path) {
+        for (const prior of destinationOrder.get(comparisonKey(ancestor)) ?? []) {
+          overlaps.push({ left: Math.min(prior, index), right: Math.max(prior, index) });
+        }
+        const parent = dirname(ancestor);
+        if (parent === ancestor) break;
+        ancestor = parent;
       }
+    }
+    // Report actual overlaps in the same insertion-pair order as before, while
+    // ordinary sibling destinations require only path-depth work.
+    overlaps.sort((a, b) => a.left - b.left || a.right - b.right);
+    for (const { left, right } of overlaps) {
+      const [leftPath, leftClaims] = destinations[left];
+      const [rightPath, rightClaims] = destinations[right];
+      markConflict([...leftClaims, ...rightClaims],
+        `${artifactPathLabel(leftPath)} and ${artifactPathLabel(rightPath)}`);
     }
 
     for (const claim of claims) {
@@ -1040,7 +1062,7 @@ function createDeferredArtifactWriter(deps) {
 
       operations.push(...transformOperations(false));
       operations.push(...staleCleanupOperations(resolved.byServed));
-      const kept = staleDeletion ? [] : staleOutputs(resolved.byServed);
+      const kept = keptOutputs(resolved);
 
       for (const operation of privateWrites) {
         const contents = typeof operation.contents === 'function'
@@ -1072,11 +1094,13 @@ function createDeferredArtifactWriter(deps) {
         });
       }
 
-      commitFileTransaction(operations.map(confineOperation), { beforeApply });
+      commitFileTransaction(operations.map((operation) => confineOperation(
+        operation.kind === 'write' ? { ...operation, skipIdentical: true } : operation,
+      )), { beforeApply });
       committed = true;
       if (kept.length) {
         logger.warn(
-          `astro-aeo: the processing cache is read-only, so ${kept.length} stale output(s) from the previous build were kept; ` +
+          `astro-aeo: ${staleRetentionReason}, so ${kept.length} stale output(s) from the previous build were kept; ` +
             'the next build with a writable cache removes them.',
         );
       }
@@ -1221,6 +1245,12 @@ function createDeferredArtifactWriter(deps) {
   function staleCleanupOperations(currentClaims) {
     if (!staleDeletion) return [];
     return staleOutputs(currentClaims).map(({ path }) => ({ kind: /** @type {const} */ ('delete'), path }));
+  }
+
+  /** Stale outputs this build keeps because it may not delete them.
+   * @param {{ byServed: Map<string, any[]> }} resolved */
+  function keptOutputs(resolved) {
+    return staleDeletion ? [] : staleOutputs(resolved.byServed);
   }
 
   /**
@@ -1385,9 +1415,43 @@ function createDeferredArtifactWriter(deps) {
     stagePrivateWrite,
     stagePrivateDelete,
     isPlannedStaleDeletion,
+    withholdStaleDeletion() {
+      if (resolution || committed) throw new Error('astro-aeo: cannot change stale deletion authority after resolution');
+      staleDeletion = false;
+      staleRetentionReason = 'the page inventory is incomplete';
+    },
     commit,
     report,
     resolve: resolveClaims,
+    /** The exact artifact list the ownership ledger records, kept entries included.
+     * Private evidence derived from ownership must hash this list, not the
+     * current claims alone, or kept outputs make the files disagree. */
+    ledgerArtifacts() {
+      const resolved = resolveClaims();
+      return ledgerWithKept(resolved, keptOutputs(resolved)).artifacts;
+    },
+    /** @param {string} path */
+    transformOwners(path) { return (transforms.get(path) ?? []).map((edit) => edit.owner); },
+    /** Safe public output actions for private evidence, without filesystem paths. */
+    outputActions() {
+      const resolved = resolveClaims();
+      const priorPaths = new Set((previousUsable?.artifacts ?? [])
+        .filter((/** @type {any} */ entry) => entry.status === 'emitted')
+        .map((/** @type {any} */ entry) => entry.pathname));
+      const actions = resolved.manifestEntries.map((/** @type {any} */ entry) => {
+        if (entry.status !== 'emitted') return { pathname: entry.pathname, action: entry.status };
+        const claim = (resolved.byServed.get(internalPathKey(entry.pathname)) ?? [])
+          .find((/** @type {any} */ value) => resolved.decisions.get(value.id)?.status === 'emit');
+        const previous = claim ? fileEtag(claim.artifact.path) : null;
+        const ownedBefore = priorPaths.has(entry.pathname);
+        return { pathname: entry.pathname, action: previous === entry.representation.etag
+          ? 'preserved' : previous === null && ownedBefore ? 'restored' : 'generated' };
+      });
+      for (const { entry } of staleOutputs(resolved.byServed)) {
+        actions.push({ pathname: entry.pathname, action: staleDeletion ? 'removed' : 'preserved' });
+      }
+      return actions.sort((/** @type {any} */ a, /** @type {any} */ b) => codeUnitCompare(a.pathname, b.pathname));
+    },
     preview() {
       return resolveClaims(false);
     },

@@ -1,17 +1,17 @@
 {
   "name": "astro-aeo",
-  "version": "1.5.5",
+  "version": "1.6.0",
   "description": "Answer Engine Optimization for Astro: .md companion pages, llms.txt, llms-full.txt, robots.txt AI-bot policies, domain-profile.json, sitemap auto-wiring, JSON-LD components, a validator CLI, and one-line EmDash CMS support.",
   "type": "module",
   "license": "MIT",
   "author": "ZAAI (https://zaai.com)",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ZAAI-com/Astro-AEO.git"
+    "url": "git+https://github.com/zaai-com/astro-aeo.git"
   },
   "homepage": "https://zaai.com/astro-aeo/",
   "bugs": {
-    "url": "https://github.com/ZAAI-com/Astro-AEO/issues"
+    "url": "https://github.com/zaai-com/astro-aeo/issues"
   },
   "exports": {
     ".": {
@@ -78,7 +78,21 @@
     },
     "./schema.json": "./schema/astro-aeo.schema.json",
     "./audit-report.schema.json": "./schema/audit-report-v1.schema.json",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./analytics": {
+      "types": "./src/analytics.d.ts",
+      "default": "./src/analytics.js"
+    },
+    "./analytics-event.schema.json": "./schema/analytics-event-v1.schema.json",
+    "./rag-record.schema.json": "./schema/rag-record-v1.schema.json",
+    "./rag-index.schema.json": "./schema/rag-index-v1.schema.json",
+    "./analytics-report.schema.json": "./schema/analytics-report-v1.schema.json",
+    "./changes-report.schema.json": "./schema/changes-report-v1.schema.json",
+    "./page-snapshot.schema.json": "./schema/page-snapshot-v1.schema.json",
+    "./processing-trace.schema.json": "./schema/processing-trace-v1.schema.json",
+    "./inspect-report.schema.json": "./schema/inspect-report-v1.schema.json",
+    "./graph-report.schema.json": "./schema/graph-report-v1.schema.json",
+    "./rag-report.schema.json": "./schema/rag-report-v1.schema.json"
   },
   "bin": {
     "astro-aeo": "./bin/astro-aeo.js"
@@ -129,7 +143,8 @@
     "@mdx-js/mdx": "^3.1.1",
     "astro": ">=5.0.0",
     "defuddle": "^0.19.2",
-    "emdash": ">=1.0.1"
+    "emdash": ">=1.0.1",
+    "@opentelemetry/api": "^1.9.0"
   },
   "peerDependenciesMeta": {
     "@astrojs/starlight": {
@@ -142,6 +157,9 @@
       "optional": true
     },
     "defuddle": {
+      "optional": true
+    },
+    "@opentelemetry/api": {
       "optional": true
     }
   },
@@ -204,6 +222,8 @@
     "release:check": "node scripts/release-check.mjs",
     "demo:dev": "cd fixtures/demo && astro dev",
     "demo:build": "astro build --root fixtures/demo",
-    "demo:validate": "node bin/astro-aeo.js validate fixtures/demo/dist"
+    "demo:validate": "node bin/astro-aeo.js validate fixtures/demo/dist",
+    "test:types:js": "node node_modules/typescript-floor/bin/tsc --noEmit -p fixtures/js-consumer/tsconfig.json",
+    "benchmark:projects": "node benchmarks/projects.mjs --prepare-baseline --enforce"
   }
 }

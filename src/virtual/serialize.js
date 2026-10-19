@@ -10,7 +10,9 @@ import { isPlainObject } from '../lib/config-migrate.js';
  * @returns {T}
  */
 export function runtimeConfigProjection(config) {
-  const { plugins: _plugins, ...runtimeConfig } = /** @type {any} */ (config);
+  // Analytics configuration belongs only to its enabled generated entrypoint.
+  // Omitted and explicitly disabled analytics produce the same ordinary module.
+  const { plugins: _plugins, analytics: _analytics, ...runtimeConfig } = /** @type {any} */ (config);
   return /** @type {T} */ ({
     ...runtimeConfig,
     markdown: {

@@ -1,0 +1,7 @@
+{
+  "name": "astro-aeo-analytics-node",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": { "astro": "^7.3.5", "@astrojs/node": "^11.1.6" }
+}

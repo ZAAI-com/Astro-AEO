@@ -1,5 +1,5 @@
 // @ts-check
-import { scanMarkdownBlocks } from './corpus-blocks.js';
+import { planMarkdownUnits } from './markdown-units.js';
 import { compareCodeUnits } from './corpus-manifest.js';
 import { renderChunkFragments, renderSectionedCorpus } from './render/corpus.js';
 
@@ -41,7 +41,7 @@ export async function allocateSmallCorpus(input) {
         .sort(comparePages)
         .map((page) => ({
           page,
-          blocks: scanMarkdownBlocks(page.markdown).map((block) => block.text),
+          blocks: planMarkdownUnits(page.markdown).map((block) => block.text),
           included: 0,
           admitted: false,
           stopped: false,
@@ -193,12 +193,31 @@ export async function planSectionChunks(input) {
   };
 
   for (const page of [...input.pages].sort(comparePages)) {
-    const blocks = scanMarkdownBlocks(page.markdown).map((block) => block.text);
+    const plannedUnits = planMarkdownUnits(page.markdown);
+    const blocks = plannedUnits.map((block) => block.text);
     const units = blocks.length > 0 ? blocks : [null];
     let emittedForPage = false;
 
     for (let blockIndex = 0; blockIndex < units.length; blockIndex++) {
       const unit = units[blockIndex];
+      // Keep a complete heading section together when it fits a fresh chunk
+      // but not the current one. Oversized sections still split by whole units.
+      if (plannedUnits[blockIndex]?.sectionStart && fragments.length) {
+        let end = blockIndex + 1;
+        while (end < plannedUnits.length && !plannedUnits[end].sectionStart) end++;
+        const alreadyInChunk = fragments.some((fragment) => fragment.page.id === page.id);
+        const section = { page, blocks: blocks.slice(blockIndex, end),
+          includeDescription: !emittedForPage && !alreadyInChunk };
+        const combined = fragments.map((fragment) => ({ ...fragment, blocks: [...fragment.blocks] }));
+        if (combined.at(-1)?.page.id === page.id) combined[combined.length - 1].blocks.push(...section.blocks);
+        else combined.push(section);
+        const freshCount = await input.count(renderChunkFragments([section]));
+        if (freshCount <= input.maxTokens &&
+            await input.count(renderChunkFragments(combined)) > input.maxTokens) {
+          if (alreadyInChunk) emittedForPage = true;
+          await finalize();
+        }
+      }
       const last = fragments.at(-1);
       const extendsCurrentFragment = unit !== null && last?.page.id === page.id;
       const proposed = fragments.map((fragment) => ({ ...fragment, blocks: [...fragment.blocks] }));

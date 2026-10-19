@@ -1,5 +1,6 @@
 // @ts-check
 import { gzipSync } from 'node:zlib';
+import { isRagRecord } from '../core/rag.js';
 import { planCorpusArtifacts } from '../core/corpus-artifacts.js';
 import {
   normalizeCorpusManifest,
@@ -7,6 +8,7 @@ import {
   sha256Digest,
 } from '../core/corpus-manifest.js';
 import { normalizeOrigin } from '../core/locale.js';
+import { cachedStage } from './stage-cache.js';
 
 /**
  * Materialize the runtime-safe logical corpus plan through the shared artifact
@@ -14,7 +16,7 @@ import { normalizeOrigin } from '../core/locale.js';
  *
  * @param {any[]} inputPages
  * @param {import('../index.js').ResolvedAstroAeoConfig} config
- * @param {{ siteUrl: string; base: string; siteMeta: { name: string; description: string }; writer: any; runtime?: boolean; tokenizer?: unknown; i18n?: import('../core/locale.js').LocaleSnapshot; diagnostics: import('../index.js').Diagnostic[] }} env
+ * @param {{ siteUrl: string; base: string; siteMeta: { name: string; description: string }; writer: any; runtime?: boolean; ragHook?: import('../core/rag-plan.js').RagHook; tokenizer?: unknown; i18n?: import('../core/locale.js').LocaleSnapshot; diagnostics: import('../index.js').Diagnostic[]; cache?: import('./stage-cache.js').StageCache }} env
  */
 export async function stageCorpusArtifacts(inputPages, config, env) {
   const origin = normalizeOrigin(env.siteUrl) ?? '';
@@ -24,6 +26,8 @@ export async function stageCorpusArtifacts(inputPages, config, env) {
   const pages = inputPages.filter((page) => !page.corpusExcluded);
   const plan = await planCorpusArtifacts({
     pages,
+    ragHook: env.ragHook,
+    deferEmptyManifest: env.runtime === true,
     config,
     siteMeta: env.siteMeta,
     origin,
@@ -32,6 +36,18 @@ export async function stageCorpusArtifacts(inputPages, config, env) {
     tokenizer: env.tokenizer,
     tokenizerOptions: config.corpus.tokenizer?.options,
     tokenizerProbed: env.tokenizer != null,
+    cachedCount: (tokenizer, text, options, count) => cachedStage(env.cache,
+      'tokenization-v1', { tokenizer, text, options, module: config.corpus.tokenizer?.module }, count,
+      (value) => Number.isSafeInteger(value) && /** @type {number} */ (value) >= 0),
+    cachedRag: (identity, produce) => cachedStage(env.cache, 'rag-records-v1',
+      { identity, module: config.corpus.tokenizer?.module }, produce, (value) => Boolean(value && typeof value === 'object' &&
+        Array.isArray(/** @type {any} */ (value).records) && /** @type {any} */ (value).records.every(isRagRecord) &&
+        Array.isArray(/** @type {any} */ (value).diagnostics))),
+    cachedText: (identity, produce) => cachedStage(env.cache, 'artifact-text-v1',
+      identity, produce, (value) => typeof value === 'string'),
+    cachedChunks: (identity, produce) => cachedStage(env.cache, 'artifact-chunks-v2',
+      { identity, module: config.corpus.tokenizer?.module }, produce, (value) => Boolean(value && typeof value === 'object' &&
+        Array.isArray(/** @type {any} */ (value).chunks) && Array.isArray(/** @type {any} */ (value).diagnostics))),
   });
   env.diagnostics.push(...plan.diagnostics.map((diagnostic) => /** @type {import('../index.js').Diagnostic} */ ({
     version: /** @type {const} */ (1),
@@ -45,7 +61,10 @@ export async function stageCorpusArtifacts(inputPages, config, env) {
       artifacts.push({
         ...source,
         pathname: `${source.pathname}.gz`,
-        contents: deterministicGzip(source.contents),
+        contents: new Uint8Array(Buffer.from(await cachedStage(env.cache, 'artifact-gzip-v1',
+          { contents: source.contents, zlib: process.versions.zlib, level: 9 },
+          () => Buffer.from(deterministicGzip(source.contents)).toString('base64'),
+          (value) => typeof value === 'string' && /^[A-Za-z\d+/]*={0,2}$/.test(value)), 'base64')),
         sourcePathname: source.pathname,
         encoding: 'gzip',
       });
@@ -59,7 +78,8 @@ export async function stageCorpusArtifacts(inputPages, config, env) {
       owner: { kind: 'core', name: corpusOwner(artifact) },
       contents: artifact.contents,
       group: `astro-aeo/corpus:${groupPath}`,
-      ...(artifact.encoding === 'gzip' ? { contentType: 'application/gzip' } : {}),
+      ...(artifact.encoding === 'gzip' ? { contentType: 'application/gzip' } : artifact.kind === 'rag'
+        ? { contentType: 'application/x-ndjson; charset=utf-8' } : {}),
       ...(env.runtime ? { runtime: true } : {}),
     });
   }
@@ -86,6 +106,7 @@ export async function stageCorpusArtifacts(inputPages, config, env) {
         origin,
         pathname: withBase(artifact.pathname, env.base),
         kind: artifact.kind,
+        ...(artifact.version ? { version: artifact.version } : {}),
         locale: artifact.locale,
         section: artifact.section,
         part: artifact.part,
@@ -140,7 +161,18 @@ export async function stageCorpusArtifacts(inputPages, config, env) {
       ...(env.runtime ? { runtime: true } : {}),
     });
   }
-  return { artifacts, manifest, tokenizer: plan.tokenizer };
+  if (manifest) for (const archive of plan.manifests ?? []) {
+    const version = archive.manifest.locales[0]?.version;
+    const scoped = normalizeCorpusManifest({ ...archive.manifest,
+      locales: manifest.locales.filter((/** @type {any} */ entry) => entry.version === version),
+      pages: manifest.pages.filter((/** @type {any} */ entry) => entry.version === version),
+      artifacts: manifest.artifacts.filter((/** @type {any} */ entry) => entry.version === version),
+    });
+    env.writer.write({ route: archive.pathname, owner: { kind: 'core', name: 'corpusManifest' },
+      contents: serializeCorpusManifest(scoped), contentType: 'application/json; charset=utf-8',
+      ...(env.runtime ? { runtime: true } : {}) });
+  }
+  return { artifacts, manifest, tokenizer: plan.tokenizer, ragRecords: plan.ragRecords };
 }
 
 /** @param {{ kind: string; encoding: 'identity'|'gzip' }} artifact */
@@ -152,6 +184,7 @@ function corpusOwner(artifact) {
     small: 'llmsSmallTxt',
     chunk: 'corpusChunk',
     alias: 'corpusAlias',
+    rag: 'corpusRag',
   })[artifact.kind] ?? 'corpusArtifact';
 }
 

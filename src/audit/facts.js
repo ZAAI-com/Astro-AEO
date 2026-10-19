@@ -1,4 +1,6 @@
 // @ts-check
+import { createHash } from 'node:crypto';
+import { htmlRegions } from './regions.js';
 import { parseDocument } from '../core/html-document.js';
 import { extractEditorialFacts } from './editorial.js';
 
@@ -15,6 +17,9 @@ import { extractEditorialFacts } from './editorial.js';
  * @property {string} [description]
  * @property {string} [canonical]
  * @property {string} [documentUrl]       Absolute base for same-page structured-data references.
+ * @property {string} [version]
+ * @property {string} [locale]
+ * @property {import('../index.js').VersionPageAlternate[]} [versionAlternates]
  * @property {string} [language]
  * @property {boolean} noindex
  * @property {{ language: string; href: string }[]} alternates
@@ -22,13 +27,17 @@ import { extractEditorialFacts } from './editorial.js';
  * @property {string[]} links             Raw `href` values of every anchor.
  * @property {Set<string>} anchors        Every `id` and named anchor on the page.
  * @property {string[]} jsonLd            Raw JSON-LD script bodies.
+ * @property {string} [markdownFile] Audited companion path, never inferred author source.
+ * @property {ReturnType<typeof htmlRegions>} [regions]
+ * @property {string} [contentHash] Normalized visible main-content hash, no source body.
+ * @property {number} [contentWords]
  * @property {string} [markdown]          Companion Markdown, when one exists.
  * @property {import('./editorial.js').EditorialFacts} [editorial]
  */
 
 /**
  * @param {string} html
- * @param {{ url: string; file?: string; markdown?: string; documentUrl?: string; heuristics?: boolean }} identity
+ * @param {{ url: string; file?: string; markdownFile?: string; markdown?: string; documentUrl?: string; heuristics?: boolean }} identity
  * @returns {PageFacts}
  */
 export function extractPageFacts(html, identity) {
@@ -72,7 +81,10 @@ export function extractPageFacts(html, identity) {
   return {
     url: identity.url,
     renderedHtml: true,
+    regions: htmlRegions(html),
+    ...visibleContentFacts(document),
     ...(identity.file ? { file: identity.file } : {}),
+    ...(identity.markdownFile ? {markdownFile:identity.markdownFile} : {}),
     ...(title ? { title } : {}),
     ...(text('meta[name="description" i]', 'content') ? { description: text('meta[name="description" i]', 'content') } : {}),
     ...(canonical ? { canonical } : {}),
@@ -111,17 +123,40 @@ export function documentUrlFor(pageUrl, canonical, siteUrl) {
 export function factsFromPageRecord(page) {
   return {
     url: page.pathname,
+    ...(page.representations?.html ? visibleContentFacts(parseDocument(page.representations.html)) : {}),
     renderedHtml: false,
     ...(page.title ? { title: page.title } : {}),
     ...(page.description ? { description: page.description } : {}),
     ...(page.canonicalUrl ? { canonical: page.canonicalUrl } : {}),
     ...(page.language ? { language: page.language } : {}),
+    ...(page.version ? { version: page.version } : {}),
+    ...(page.locale ? { locale: page.locale } : {}),
+    ...(page.alternates?.some((alternate) => alternate.kind === 'version')
+      ? { versionAlternates: /** @type {import('../index.js').VersionPageAlternate[]} */ (page.alternates.filter((alternate) => alternate.kind === 'version')) } : {}),
     noindex: page.directives?.index === false,
-    alternates: (page.alternates ?? []).map((alternate) => ({ language: alternate.language, href: alternate.url })),
+    alternates: (page.alternates ?? []).filter((alternate) => alternate.kind !== 'version').map((alternate) => ({ language: /** @type {import('../index.js').LanguagePageAlternate} */ (alternate).language, href: alternate.url })),
     markdownAlternates: [],
     links: [],
     anchors: new Set(),
-    jsonLd: [],
+    jsonLd: page.entities?.length ? [JSON.stringify({'@graph':page.entities})] : [],
     ...(page.directives?.generateMarkdown === false ? {} : { markdown: page.markdown ?? '' }),
   };
+}
+
+/** Hash only observed public main text, excluding common chrome and executable content.
+ * @param {ReturnType<typeof parseDocument>} document */
+function visibleContentFacts(document) {
+  const root = document.querySelector('main') ?? document.querySelector('article') ?? document.body;
+  if (!root) return {};
+  for (let node = /** @type {Element|null} */ (root); node; node = node.parentElement) {
+    if (node.hasAttribute('hidden') || node.getAttribute('aria-hidden')?.toLowerCase() === 'true') return {};
+  }
+  const copy = /** @type {Element} */ (root.cloneNode(true));
+  for (const element of copy.querySelectorAll('nav,header,footer,aside,script,style,template,noscript,[hidden],[aria-hidden="true" i]')) element.remove();
+  for (const element of copy.querySelectorAll('div,section,article,h1,h2,h3,h4,h5,h6,p,li,table,tr,td,th,dd,dt,blockquote,pre,br')) {
+    element.prepend(document.createTextNode(' ')); element.append(document.createTextNode(' '));
+  }
+  const text = (copy.textContent ?? '').normalize('NFC').replace(/\s+/g,' ').trim();
+  return {contentHash:'sha256:' + createHash('sha256').update(text).digest('hex'),
+    contentWords:text.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word)).length};
 }

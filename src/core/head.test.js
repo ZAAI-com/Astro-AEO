@@ -29,6 +29,17 @@ function marker(value) {
 }
 
 describe('managed page head', () => {
+  test('authored graph provenance identifies JSON locations without copying content', () => {
+    const body = JSON.stringify({ '@graph': [
+      { '@id': 'https://example.com/a#thing', '@type': 'Thing', name: 'Private source value' },
+      { '@id': 'https://example.com/b#thing', '@type': 'Thing', name: 'Other' },
+    ] });
+    const result = enrichHtmlHead({ html: document(`<script type="application/ld+json">${body}</script>`),
+      page: page(), config: resolveConfig(), site, inspectAuthored: true });
+    expect(result.authoredGraph.entries[0].provenance).toEqual([{ source: 'authored-jsonld', pathname: '/about', pointer: '/@graph/0' }]);
+    expect(result.authoredGraph.entries[1].provenance).toEqual([{ source: 'authored-jsonld', pathname: '/about', pointer: '/@graph/1' }]);
+    expect(JSON.stringify(result.authoredGraph.entries.map((entry) => entry.provenance))).not.toContain('Private source value');
+  });
   test('default configuration injects one deterministic managed graph', () => {
     const result = enrichHtmlHead({ html: document(), page: page(), config: resolveConfig(), site });
     expect(result.html.match(/data-astro-aeo-graph/g)).toHaveLength(1);

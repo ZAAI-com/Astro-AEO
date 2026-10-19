@@ -17,12 +17,14 @@ export function renderMarkdown(report) {
   ];
   if (report.scores) {
     lines.push(
-      `Readiness (advisory, ${report.scores.rubric}): **${report.scores.overall}**`,
+      `Readiness (advisory, ${report.scores.rubric}): **${report.scores.overall ?? 'unknown'}**`,
       '',
       '| Category | Score | Findings |',
       '|---|---:|---:|',
     );
     for (const entry of report.scores.categories) lines.push(`| ${entry.category} | ${entry.score} | ${entry.findings} |`);
+    lines.push('');
+    if (report.scores.applicability) for (const entry of report.scores.applicability.filter((item) => item.status !== 'applicable')) lines.push('- ' + entry.category + ': ' + entry.status + ' (' + cell(entry.reason) + ')');
     lines.push('');
   }
   if (report.findings.length > 0) {

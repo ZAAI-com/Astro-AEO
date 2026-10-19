@@ -1,4 +1,9 @@
 // @ts-check
+import { stagePrivateRag } from '../build/rag.js';
+import { validateRagReplacement } from '../core/rag.js';
+import { normalizeVersionPages } from '../core/version-pages.js';
+import { cachedStage, runCachedPluginStage } from '../build/stage-cache.js';
+import { stageBuildEvidence } from '../build/evidence.js';
 import { collectPages } from '../build/collect.js';
 import { createArtifactWriter } from '../build/artifacts.js';
 import { PLUGIN_PAGE_LOSS_CODES } from '../plugins/dispatcher.js';
@@ -37,7 +42,7 @@ import {
   serializeIndexNowQueue,
   serializeIndexNowStateManifest,
 } from '../build/indexnow-state.js';
-import { normalizeOrigin, normalizePageAlternates, resolvePageLocale } from '../core/locale.js';
+import { createLocaleSnapshot, normalizeOrigin, normalizePageAlternates, resolvePageLocale } from '../core/locale.js';
 import { isOwnedArtifactPath } from '../core/owned-artifacts.js';
 import { renderSchemaCorpus, validateCollectedSchemaGraphs } from '../core/schema-corpus.js';
 import { siteScopeUrl, stableCanonical } from '../core/canonical.js';
@@ -46,6 +51,7 @@ import { catalogBreadcrumbTrail } from '../core/catalog-breadcrumbs.js';
 import { recommendedAuditDiagnostics } from '../audit/build.js';
 import { deploymentFactsPath, serializeDeploymentFacts } from '../build/deployment-facts.js';
 import { EDGE_MANIFEST_ROUTE, serializeEdgeManifest } from '../build/edge-manifest.js';
+import { routePatternFor } from '../core/route-facts.js';
 import {
   applySemanticGraphPatch,
   reconcileSemanticEnvelope,
@@ -68,12 +74,14 @@ import {
  * @property {'directory'|'file'} buildFormat
  * @property {string} projectRoot
  * @property {Map<string, string>} routeEntrypoints
+ * @property {{ pattern: RegExp; routePattern: string }[]} [routePatterns]
  * @property {Set<string>} [resolvedRoutePaths]  Concrete route pathnames, for collision checks.
  * @property {{ pattern: RegExp; prerendered: boolean }[]} [resolvedRouteMatchers]
  *   Dynamic project routes, for collision checks.
  * @property {URL} [publicDir]                   Astro's publicDir, for collision checks.
  * @property {import('../index.js').Diagnostic[]} [diagnostics]
  * @property {boolean} [runtimeCorpora]            A page renders on demand, so middleware owns the corpus paths.
+ * @property {boolean} [onDemandPages]             A project page renders on demand, outside the build inventory.
  * @property {{ module: string; specifier: string; namespace: any }[]} [catalogModules]
  * @property {import('../core/markdown-renderers.js').MarkdownRendererEntry[]} [markdownRenderers]
  * @property {Awaited<ReturnType<typeof import('../plugins/dispatcher.js').createPluginDispatcher>>} [pluginDispatcher]
@@ -226,7 +234,28 @@ async function onBuildDoneLocked(config, options, env, session) {
     logger.info(`astro-aeo: ${catalogPages.length} page(s) contributed by catalogs`);
   }
 
-  let pageDescriptors = mergeCatalogPages(rawPages, catalogPages);
+  /** @type {Array<{ pathname: string; stage: string; outcome: string }>} */
+  const processingTrace = [];
+  /** @param {string} pathname @param {string} stage @param {string} outcome */
+  const observe = (pathname, stage, outcome) => processingTrace.push({ pathname, stage, outcome });
+  /** @template T @param {import('../index.js').AstroAeoPluginStage} stage @param {T} initial
+   * @param {{ pathname?: string; mode?: 'build'|'runtime'; validate?: (value: unknown) => boolean }} context */
+  const runStage = async (stage, initial, context) => {
+    const result = await runCachedPluginStage(
+      /** @type {NonNullable<BuildEnv['pluginDispatcher']>} */ (env.pluginDispatcher),
+      processingCache, stage, initial, context,
+      stage === 'graph:build' ? { schema: config.schema, site: config.site, metadata: config.metadata } : undefined,
+      (outcome) => observe(context.pathname ?? '/', stage, outcome),
+    );
+    observe(context.pathname ?? '/', `${stage}:action`, result.isolated ? 'isolated'
+      : result.dropped ? 'dropped' : JSON.stringify(result.value) === JSON.stringify(initial) ? 'kept' : 'replaced');
+    return result;
+  };
+
+  let pageDescriptors = mergeCatalogPages(rawPages.map((page) => ({ ...page,
+    routePattern: routePatternFor(page.pathname, env.routePatterns) ??
+      routePatternFor(`${env.base.replace(/\/$/, '')}/${page.pathname.replace(/^\//, '')}`, env.routePatterns),
+  })), catalogPages);
   // Marker removal covers every concrete page Astro reported, including a page
   // a discovered hook later isolates before collection. The marker payload is
   // private transport and must never depend on lifecycle eligibility.
@@ -234,7 +263,7 @@ async function onBuildDoneLocked(config, options, env, session) {
   if (env.pluginDispatcher) {
     const discovered = [];
     for (const descriptor of pageDescriptors) {
-      const result = await env.pluginDispatcher.run('page:discovered', descriptor, {
+      const result = await runStage('page:discovered', descriptor, {
         pathname: descriptor.pathname,
         mode: 'build',
         validate: (value) => isPageDescriptor(value) && value.pathname === descriptor.pathname,
@@ -256,12 +285,24 @@ async function onBuildDoneLocked(config, options, env, session) {
     diagnostics: buildDiagnostics,
     renderers: env.markdownRenderers,
     cache: processingCache,
+    observe,
   });
+
+  if (config.corpus.versions) {
+    const initialVersions = normalizeVersionPages(pages.map((page) => {
+      const localized = resolvePageLocale(page, env.i18n ?? createLocaleSnapshot(undefined, env.siteUrl), {
+        unresolvedLanguage: config.i18n.unresolvedLanguage, siteDefaultLocale: config.site.defaultLocale,
+      }).page;
+      return localized;
+    }), config.corpus.versions, { base: env.base, i18n: env.i18n });
+    buildDiagnostics.push(...initialVersions.diagnostics);
+    pages = initialVersions.pages;
+  }
 
   if (env.pluginDispatcher) {
     const processed = [];
     for (const original of pages) {
-      const extracted = await env.pluginDispatcher.run('page:extract', {
+      const extracted = await runStage('page:extract', {
         representations: original.representations,
         extraction: original.extraction ?? null,
         source: original.source,
@@ -279,8 +320,8 @@ async function onBuildDoneLocked(config, options, env, session) {
         ...('source' in extracted.value ? { source: extracted.value.source ?? undefined } : {}),
       };
       page.markdown = page.representations.markdown ?? '';
-      const { htmlPath: _htmlPath, mdPath: _mdPath, ...publicPage } = page;
-      const transformed = await env.pluginDispatcher.run('page:transform', publicPage, {
+      const { htmlPath: _htmlPath, mdPath: _mdPath, _generatedVersionAlternates: _generated, ...publicPage } = /** @type {typeof page & { _generatedVersionAlternates?: unknown }} */ (page);
+      const transformed = await runStage('page:transform', publicPage, {
         pathname: page.pathname,
         mode: 'build',
         validate: (value) => isPageRecord(value) && value.id === page.id && value.pathname === page.pathname,
@@ -292,7 +333,7 @@ async function onBuildDoneLocked(config, options, env, session) {
         ...transformed.value,
         markdown: transformed.value.representations.markdown ?? '',
       };
-      const metadata = await env.pluginDispatcher.run('page:metadata', page.metadata, {
+      const metadata = await runStage('page:metadata', page.metadata, {
         pathname: page.pathname,
         mode: 'build',
         validate: isPageMetadata,
@@ -351,7 +392,8 @@ async function onBuildDoneLocked(config, options, env, session) {
         trailingSlash: env.trailingSlash,
         negotiation: config.markdown.enabled ? config.markdown.negotiation : 'off',
         edgeProvider: env.edgeProvider ?? null,
-        ownership: /** @type {any} */ (writer).resolve?.().manifestEntries ?? [],
+        ownership: /** @type {any} */ (writer).ledgerArtifacts?.() ??
+          /** @type {any} */ (writer).resolve?.().manifestEntries ?? [],
       }),
       { mode: 0o600, confineTo: env.projectRoot },
     );
@@ -367,7 +409,7 @@ async function onBuildDoneLocked(config, options, env, session) {
   if (env.pluginDispatcher) {
     for (let index = 0; index < pages.length; index++) {
       const page = pages[index];
-      const { htmlPath: _htmlPath, mdPath: _mdPath, ...publicPage } = page;
+      const { htmlPath: _htmlPath, mdPath: _mdPath, _generatedVersionAlternates: _generated, ...publicPage } = /** @type {typeof page & { _generatedVersionAlternates?: unknown }} */ (page);
       // Astro exposes prerendered status pages as ordinary build pages. They
       // remain eligible for an explicit AeoHead decision, but must never gain
       // the default graph merely because they contain successful HTML bytes.
@@ -392,28 +434,30 @@ async function onBuildDoneLocked(config, options, env, session) {
         graph: null,
         explicit: false,
       };
-      const internalBaseline = enrichHtmlHead({
+      const baselineInput = {
         html: initial.html,
         page: publicPage,
         config,
         site: semanticSite,
         allowGlobal,
         breadcrumbTrail,
-      });
-      const authoredBaseline = enrichHtmlHead({
-        html: initial.html,
-        page: publicPage,
-        config,
-        site: semanticSite,
-        allowGlobal,
-        inspectAuthored: true,
-        breadcrumbTrail,
-      });
+      };
+      const { internalBaseline, authoredBaseline } = await cachedStage(processingCache,
+        'graph-baseline-v1', { ...initial, schema: config.schema, configSite: config.site, metadata: config.metadata },
+        () => ({
+          internalBaseline: enrichHtmlHead(baselineInput),
+          authoredBaseline: enrichHtmlHead({ ...baselineInput, inspectAuthored: true }),
+        }),
+        (value) => Boolean(value && typeof value === 'object' &&
+          /** @type {any} */ (value).internalBaseline?.page?.id === page.id &&
+          Array.isArray(/** @type {any} */ (value).authoredBaseline?.diagnostics)),
+        (outcome) => observe(page.pathname, 'graph-baseline', outcome),
+      );
       const baseline = {
         ...internalBaseline,
         authoredGraph: authoredBaseline.authoredGraph,
       };
-      const semantic = await env.pluginDispatcher.run('graph:build', initial, {
+      const semantic = await runStage('graph:build', initial, {
         pathname: page.pathname,
         mode: 'build',
         validate: (value) => isGraphEnvelope(value, {
@@ -622,7 +666,9 @@ async function onBuildDoneLocked(config, options, env, session) {
   }
   const alternates = normalizePageAlternates(localizedPages);
   buildDiagnostics.push(...alternates.diagnostics);
-  pages = alternates.pages;
+  const versioned = normalizeVersionPages(alternates.pages, config.corpus.versions, { base: env.base, i18n: env.i18n });
+  buildDiagnostics.push(...versioned.diagnostics);
+  pages = versioned.pages;
   if (
     (config.i18n?.indexes === 'locale' || config.i18n?.indexes === 'both') &&
     pages.some((page) => !page.corpusExcluded && page.locale == null)
@@ -728,6 +774,7 @@ async function onBuildDoneLocked(config, options, env, session) {
   const written = emitDotMd(pages, config, writer, {
     siteUrl: env.siteUrl,
     diagnostics: buildDiagnostics,
+    cache: processingCache,
   });
   if (config.markdown.enabled) logger.info(`astro-aeo: emitted ${written} .md companion files`);
 
@@ -740,7 +787,7 @@ async function onBuildDoneLocked(config, options, env, session) {
       representation: { body: '', contentType: 'application/json; charset=utf-8' },
       onConflict: 'overwrite',
       // The body lists only companions that survived ownership arbitration.
-      produce: (emitted) => serializeEdgeManifest({ pages, provider, mode, base: env.base, emitted }),
+      produce: (emitted) => serializeEdgeManifest({ pages, provider, mode, base: env.base, emitted, cacheControl: config.markdown.cacheControl }),
     });
   }
 
@@ -750,9 +797,20 @@ async function onBuildDoneLocked(config, options, env, session) {
     siteMeta: { name: siteName, description: siteDescription },
     writer,
     runtime: Boolean(env.runtimeCorpora),
+    ragHook: env.pluginDispatcher ? (record) => {
+      const context = { pathname: record.metadata.pathname, validate: (/** @type {unknown} */ value) => validateRagReplacement(value, record) };
+      return runCachedPluginStage(/** @type {NonNullable<typeof env.pluginDispatcher>} */ (env.pluginDispatcher), processingCache, 'rag:record', record, context,
+        undefined, (outcome) => processingTrace.push({ pathname: record.metadata.pathname, stage: 'rag:record', outcome })).then((result) => {
+          processingTrace.push({ pathname: record.metadata.pathname, stage: 'rag:record',
+            outcome: result.isolated ? 'isolated' : result.dropped ? 'dropped' :
+              JSON.stringify(record.metadata) === JSON.stringify(result.value.metadata) ? 'kept' : 'replaced' });
+          return result;
+        });
+    } : undefined,
     tokenizer: env.corpusTokenizer,
     i18n: env.i18n,
     diagnostics: buildDiagnostics,
+    cache: processingCache,
   });
   if (corpus.artifacts.length > 0) {
     logger.info(
@@ -802,6 +860,7 @@ async function onBuildDoneLocked(config, options, env, session) {
   ]);
   const inventoryComplete = loadedCatalogs.inventoryComplete &&
     !buildDiagnostics.some((diagnostic) => incompleteInventoryCodes.has(diagnostic.code));
+  if (!inventoryComplete) /** @type {any} */ (writer).withholdStaleDeletion?.();
 
   if (config.discovery.indexNow.enabled && indexNowPrivate) {
     stageIndexNowBuild({
@@ -821,8 +880,21 @@ async function onBuildDoneLocked(config, options, env, session) {
     await runBuildComplete(env.pluginDispatcher, pages, env.diagnostics ?? []);
   }
 
+  // Evidence only: pages rendered on demand are outside the build's reach, so a
+  // snapshot must not claim their absence. Stale deletion keeps its own flag.
+  const evidence = stageBuildEvidence({
+    projectRoot: env.projectRoot, pages, semanticPages, writer,
+    inventoryComplete: inventoryComplete && !env.onDemandPages, trace: processingTrace, diagnostics: buildDiagnostics, ragRecords: corpus.ragRecords,
+    cacheReasons: processingCache.stats.invalidations,
+  });
+
   // An incomplete inventory did not see every page, so keep the entries it
   // could not touch instead of sweeping them and extracting them again later.
+  if (config.corpus.rag.enabled && corpus.ragRecords) stagePrivateRag({
+    projectRoot: env.projectRoot, writer, records: corpus.ragRecords,
+    buildDigest: () => evidence().buildDigest, inventoryComplete,
+    buildTimeIncomplete: Boolean(env.runtimeCorpora),
+  });
   processingCache.stage(/** @type {any} */ (writer), { sweep: inventoryComplete });
   // Keep diagnostics observable for integrations and test harnesses that call
   // only the primary build hook. The late finalizer writes the same sanitized

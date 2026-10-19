@@ -2,6 +2,7 @@
 import { AeoConfigError } from '../lib/errors.js';
 import { cloneJsonValue, deepFreeze, immutableJsonValue } from '../core/json-value.js';
 import { assertExactPathname } from '../core/artifact-path.js';
+import { recoveredHookDiagnostic } from '../core/plugin-recovery.js';
 
 export const PLUGIN_STAGES = /** @type {const} */ ([
   'page:discovered',
@@ -9,6 +10,7 @@ export const PLUGIN_STAGES = /** @type {const} */ ([
   'page:transform',
   'page:metadata',
   'graph:build',
+  'rag:record',
   'artifact:generate',
   'artifact:validate',
   'build:complete',
@@ -29,6 +31,7 @@ export const PLUGIN_PAGE_LOSS_CODES = Object.freeze([
 const STAGE_SET = new Set(PLUGIN_STAGES);
 // Edit together with the `on()` overload's stage union in src/index.d.ts.
 const CACHEABLE_STAGES = new Set([
+  'rag:record',
   'page:discovered',
   'page:extract',
   'page:transform',
@@ -45,11 +48,16 @@ const CACHEABLE_STAGES = new Set([
  * @param {'dev'|'build'|'preview'} input.command
  */
 export async function createPluginDispatcher({ plugins = [], internalPlugins = [], command }) {
-  /** @type {Map<import('../index.js').AstroAeoPluginStage, { plugin: string; hook: import('../index.js').AstroAeoPluginHook<any>; cache?: import('../index.js').CacheDeclaration; ordinal: number }[]>} */
+  /** @type {Map<import('../index.js').AstroAeoPluginStage, { plugin: string; hook: import('../index.js').AstroAeoPluginHook<any>; cache?: import('../index.js').CacheDeclaration; ordinal: number; recoverable?: boolean }[]>} */
   const hooks = new Map(PLUGIN_STAGES.map((stage) => [stage, []]));
   /** @type {(import('../index.js').PluginArtifactClaim & { plugin: string })[]} */
   const claims = [];
   const runtime = [];
+  /** Declared runtime options per plugin, part of every hook cache identity.
+   * The entrypoint is left out: it is usually an absolute path, which would
+   * tie cache keys to the checkout location.
+   * @type {Map<string, import('../index.js').JsonValue>} */
+  const runtimeOptions = new Map();
   const names = new Set();
   const userHookStages = new Set();
 
@@ -64,19 +72,23 @@ export async function createPluginDispatcher({ plugins = [], internalPlugins = [
     let active = true;
     const api = Object.freeze({
       command,
-      /** @param {import('../index.js').AstroAeoPluginStage} stage @param {import('../index.js').AstroAeoPluginHook<any>} hook @param {{ cache?: import('../index.js').CacheDeclaration }} [options] */
+      /** @param {import('../index.js').AstroAeoPluginStage} stage @param {import('../index.js').AstroAeoPluginHook<any>} hook @param {{ cache?: import('../index.js').CacheDeclaration; recoverable?: boolean }} [options] */
       on(stage, hook, options = {}) {
         if (!active) throw new AeoConfigError(`astro-aeo: plugin "${plugin.name}" registered a hook after setup completed.`);
         if (!STAGE_SET.has(stage) || typeof hook !== 'function') {
           throw new AeoConfigError(`astro-aeo: plugin "${plugin.name}" registered an invalid ${String(stage)} hook.`);
         }
         const cache = validateCacheDeclaration(plugin.name, stage, options.cache);
+        if (options.recoverable !== undefined && typeof options.recoverable !== 'boolean') {
+          throw new AeoConfigError(`astro-aeo: plugin "${plugin.name}" hook recoverable must be a boolean.`);
+        }
         const registrations = hooks.get(stage) ?? [];
         registrations.push({
           plugin: plugin.name,
           hook,
           ordinal: registrations.filter((entry) => entry.plugin === plugin.name).length,
           ...(cache ? { cache } : {}),
+          ...(options.recoverable === true ? { recoverable: true } : {}),
         });
         hooks.set(stage, registrations);
         if (!internal) userHookStages.add(stage);
@@ -105,25 +117,22 @@ export async function createPluginDispatcher({ plugins = [], internalPlugins = [
     }
 
     if (plugin.runtime) {
+      const options = plugin.runtime.options === undefined
+        ? undefined
+        : cloneJsonValue(plugin.runtime.options, `plugin ${plugin.name} runtime options`);
+      if (options !== undefined) runtimeOptions.set(plugin.name, options);
       runtime.push({
         name: plugin.name,
         apiVersion: 1,
         entrypoint: plugin.runtime.entrypoint instanceof URL
           ? plugin.runtime.entrypoint.href
           : plugin.runtime.entrypoint,
-        ...(plugin.runtime.options === undefined
-          ? {}
-          : {
-              options: cloneJsonValue(
-                plugin.runtime.options,
-                `plugin ${plugin.name} runtime options`,
-              ),
-            }),
+        ...(options === undefined ? {} : { options }),
         stages: PLUGIN_STAGES.filter((stage) => hooks.get(stage)?.some((item) => item.plugin === plugin.name)),
         hookManifest: PLUGIN_STAGES.flatMap((stage) =>
           (hooks.get(stage) ?? [])
             .filter((item) => item.plugin === plugin.name)
-            .map((item) => ({ stage, ordinal: item.ordinal, ...(item.cache ? { cache: item.cache } : {}) })),
+            .map((item) => ({ stage, ordinal: item.ordinal, ...(item.cache ? { cache: item.cache } : {}), ...(item.recoverable ? { recoverable: true } : {}) })),
         ),
         claims: claims
           .filter((claim) => claim.plugin === plugin.name)
@@ -139,12 +148,23 @@ export async function createPluginDispatcher({ plugins = [], internalPlugins = [
     hasUserHooks(stage) {
       return userHookStages.has(stage);
     },
+    /** @param {import('../index.js').AstroAeoPluginStage} stage */
+    cacheIdentity(stage) {
+      const registrations = hooks.get(stage) ?? [];
+      if (registrations.some((entry) => !entry.cache)) return null;
+      // Declared runtime options configure the plugin, so they key its hooks:
+      // changing them must not reuse output produced under the old options.
+      return registrations.map(({ plugin, ordinal, cache, recoverable }) => ({
+        plugin, ordinal, version: cache?.version, recoverable: recoverable === true,
+        options: runtimeOptions.get(plugin),
+      }));
+    },
     /**
      * @template T
      * @param {import('../index.js').AstroAeoPluginStage} stage
      * @param {T} initial
      * @param {{ pathname?: string; mode?: 'build'|'runtime'; validate?: (value: unknown) => boolean }} [context]
-     * @returns {Promise<{ value: T; diagnostics: import('../index.js').Diagnostic[]; isolated: boolean }>}
+     * @returns {Promise<{ value: T; diagnostics: import('../index.js').Diagnostic[]; isolated: boolean; dropped?: boolean }>}
      */
     async run(stage, initial, context = {}) {
       let value = /** @type {T} */ (immutablePipelineInput(initial, `${stage} input`));
@@ -159,6 +179,10 @@ export async function createPluginDispatcher({ plugins = [], internalPlugins = [
             mode: context.mode ?? 'build',
           }));
         } catch {
+          if (registration.recoverable) {
+            diagnostics.push(recoveredHookDiagnostic(registration.plugin, stage, context.pathname));
+            continue;
+          }
           diagnostics.push(failure(registration.plugin, stage, context.pathname, 'plugin-hook-failed'));
           return { value, diagnostics, isolated: true };
         }
@@ -171,6 +195,7 @@ export async function createPluginDispatcher({ plugins = [], internalPlugins = [
           return { value, diagnostics, isolated: true };
         }
         diagnostics.push(...normalized.diagnostics);
+        if (!normalized.invalid && normalized.action === 'drop') return { value, diagnostics, isolated: false, dropped: true };
         if (normalized.invalid || normalized.action === 'isolate') {
           if (normalized.action === 'isolate' && normalized.diagnostics.length === 0) {
             diagnostics.push(failure(registration.plugin, stage, context.pathname, 'plugin-scope-isolated'));
@@ -272,7 +297,7 @@ function validateClaim(plugin, claim) {
  */
 function normalizeResult(result, plugin, stage, pathname) {
   if (result === undefined) return { action: 'keep', diagnostics: [] };
-  if (!result || typeof result !== 'object' || !['keep', 'replace', 'isolate'].includes(/** @type {any} */ (result).action)) {
+  if (!result || typeof result !== 'object' || !['keep', 'replace', 'isolate', ...(stage === 'rag:record' ? ['drop'] : [])].includes(/** @type {any} */ (result).action)) {
     return { action: 'isolate', diagnostics: [failure(plugin, stage, pathname, 'plugin-invalid-result')], invalid: true };
   }
   const action = /** @type {any} */ (result).action;

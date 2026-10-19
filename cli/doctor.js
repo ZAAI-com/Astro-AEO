@@ -1,8 +1,10 @@
 // @ts-check
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { createHash } from 'node:crypto';
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { parseArgs } from 'node:util';
 import { deploymentFactsPath } from '../src/build/deployment-facts.js';
+import { fileEtag, isSafeOutputPath, isUnlinkedDirectory, matchesOutputRootId, ownershipManifestPath, readOwnershipManifest, resolveRecordedOutputPath } from '../src/build/ownership.js';
 import { extractPageFacts } from '../src/audit/facts.js';
 import { EDGE_MANIFEST_PATHNAME, readEdgeManifest } from '../src/runtime/edge/handler.js';
 import { ACCEPT_CONTRACT } from './accept-contract.js';
@@ -10,6 +12,7 @@ import { FixRefusal, detectProviders } from './fix/index.js';
 import { fixHeadersFile } from './fix/headers.js';
 import { fixRenderYaml } from './fix/render-yaml.js';
 import { fixVercelJson } from './fix/vercel-json.js';
+import { SNIPPETS } from './fix/snippets.js';
 
 /** A bad command line or an unreachable `--url`: exit status 2. */
 export class DoctorInvocationError extends Error {}
@@ -20,7 +23,9 @@ export class DoctorInvocationError extends Error {}
  * `missing`: nothing provides it. `conflicting`: something contradicts it.
  *
  * @typedef {'configured' | 'missing' | 'conflicting' | 'unverified'} DoctorStatus
- * @typedef {{ id: string; status: DoctorStatus; message: string; hint?: string }} DoctorCheck
+ * @typedef {{ source: string; confidence: 'low' | 'medium' | 'high'; detail: string }} DoctorEvidence
+ * @typedef {{ id: string; status: DoctorStatus; message: string; hint?: string; evidence?: DoctorEvidence[] }} DoctorCheck
+ * @typedef {{ id: string; message: string; snippet?: string }} DoctorAdvice
  */
 
 const ENTRY_FILES = Object.freeze({
@@ -29,6 +34,14 @@ const ENTRY_FILES = Object.freeze({
   vercel: ['middleware.js', 'middleware.ts', 'middleware.mjs', 'src/middleware.js', 'src/middleware.ts'],
 });
 const PROBE_TIMEOUT = 10_000;
+const MAX_EVIDENCE_BYTES = 1024 * 1024;
+const CONFIG_FILES = ['astro.config.mjs', 'astro.config.js', 'astro.config.ts', 'astro.config.mts', 'astro.config.cjs', 'astro.config.cts'];
+const OVERLAPPING_PACKAGES = Object.freeze({
+  '@astrojs/sitemap': { feature: 'sitemap', advice: 'Astro-AEO detects an already registered sitemap integration. Keep its options; use discovery.sitemap.mode: "external" if another integration owns registration.' },
+  '@astrojs/starlight': { feature: 'sitemap', advice: 'Use astro-aeo/starlight for Starlight defaults, including external sitemap registration. Do not register a second aeo() integration.' },
+  'astro-robots-txt': { feature: 'robots.txt', advice: 'Choose one robots.txt producer. If the other integration owns it, disable discovery.robots.enabled in Astro-AEO after reviewing its existing policy.' },
+  'astro-llms-txt': { feature: 'llms.txt', advice: 'Choose one llms.txt producer. If the other integration owns it, disable corpus.index.enabled in Astro-AEO after reviewing its output.' },
+});
 
 /**
  * @param {string[]} args
@@ -46,25 +59,39 @@ export async function runDoctor(args, context = {}) {
         dist: { type: 'string', default: 'dist' },
         'public-dir': { type: 'string', default: 'public' },
         json: { type: 'boolean', default: false },
+        print: { type: 'boolean', default: false },
       },
     });
   } catch (error) {
     throw new DoctorInvocationError(error instanceof Error ? error.message : String(error));
   }
   if (parsed.positionals.length > 1) throw new DoctorInvocationError('doctor accepts at most one projectDir');
-  const projectDir = resolve(context.cwd ?? process.cwd(), parsed.positionals[0] ?? '.');
-  if (!existsSync(projectDir) || !statSync(projectDir).isDirectory()) {
+  const requested = resolve(context.cwd ?? process.cwd(), parsed.positionals[0] ?? '.');
+  if (!existsSync(requested) || !statSync(requested).isDirectory()) {
     throw new DoctorInvocationError(`project directory not found: ${parsed.positionals[0]}`);
   }
+  // A linked project folder is refused. Linked folders above it, such as a
+  // symlinked home directory or macOS /tmp, are the environment's choice: work
+  // from the real location so every check below sees one unlinked spelling.
+  if (lstatSync(requested).isSymbolicLink()) throw new DoctorInvocationError('project directory is a symbolic link');
+  const projectDir = realpathSync(requested);
+  const linkedParent = projectDir !== requested;
 
   const facts = readFacts(projectDir);
+  const typedDist = resolve(requested, parsed.values.dist ?? 'dist');
+  // A build folder linked at or below the project keeps its typed path, so its
+  // artifacts stay unread. Only linked folders above the project are resolved.
+  const distDir = existsSync(typedDist) && !linkedBelow(requested, typedDist) ? realpathSync(typedDist) : typedDist;
   /** @type {DoctorCheck[]} */
   const checks = [
     facts
-      ? { id: 'build-facts', status: 'configured', message: `last build: ${facts.output} output, ${facts.adapter ?? 'no adapter'}, negotiation ${facts.negotiation}` }
+      ? { id: 'build-facts', status: 'unverified', message: `last local build: ${facts.output} output, ${facts.adapter ?? 'no adapter'}, negotiation ${facts.negotiation}` }
       : { id: 'build-facts', status: 'missing', message: 'no build facts found', hint: 'run `astro build` with astro-aeo 1.4 or newer, then run doctor again' },
-    await mimeCheck(projectDir, parsed.values['public-dir'] ?? 'public'),
-    negotiationCheck(projectDir, resolve(projectDir, parsed.values.dist ?? 'dist'), facts),
+    await mimeCheck(projectDir, parsed.values['public-dir'] ?? 'public', linkedParent),
+    negotiationCheck(projectDir, distDir, facts),
+    ...providerEvidence(projectDir, facts),
+    ...ownershipChecks(projectDir, distDir, facts, typedDist),
+    ...packageOverlapChecks(projectDir),
   ];
 
   if (parsed.values.url) {
@@ -78,29 +105,53 @@ export async function runDoctor(args, context = {}) {
   }
 
   const failed = checks.some((check) => check.status === 'missing' || check.status === 'conflicting');
+  const advice = parsed.values.print ? adviceFor(checks) : undefined;
   const output = parsed.values.json
-    ? `${JSON.stringify({ version: 1, ...(parsed.values.url ? { url: parsed.values.url } : {}), checks }, null, 2)}\n`
-    : render(checks, Boolean(parsed.values.url));
+    ? `${JSON.stringify({ version: 1, ...(parsed.values.url ? { url: parsed.values.url } : {}), checks, ...(advice ? { advice } : {}) }, null, 2)}\n`
+    : render(checks, Boolean(parsed.values.url)) + (advice ? renderAdvice(advice) : '');
   return { exitCode: failed ? 1 : 0, output, checks };
 }
 
 /** @param {string} projectDir @returns {Record<string, any> | null} */
 function readFacts(projectDir) {
   try {
-    const facts = JSON.parse(readFileSync(deploymentFactsPath(projectDir), 'utf8'));
-    return facts?.version === 1 && typeof facts.negotiation === 'string' ? facts : null;
+    const facts = JSON.parse(readLocalText(projectDir, deploymentFactsPath(projectDir)) ?? 'null');
+    return facts?.version === 1 && ['static', 'server'].includes(facts.output) &&
+      ['off', 'response', 'redirect'].includes(facts.negotiation) &&
+      (facts.adapter === null || (typeof facts.adapter === 'string' && /^[@a-z\d][a-z\d@/._-]*$/i.test(facts.adapter))) &&
+      (facts.edgeProvider === null || Object.hasOwn(ENTRY_FILES, facts.edgeProvider)) &&
+      typeof facts.base === 'string' && /^\/(?!\/)/.test(facts.base) &&
+      !facts.base.split('/').includes('..') ? facts : null;
   } catch {
     return null;
   }
 }
 
 /**
+ * Is any existing component from `root` (exclusive) down to `target` a symbolic
+ * link? A target outside `root` checks only itself.
+ * @param {string} root @param {string} target
+ */
+function linkedBelow(root, target) {
+  const rel = relative(root, target);
+  const parts = rel && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel) ? rel.split(sep) : [];
+  let current = parts.length ? root : dirname(target);
+  for (const part of parts.length ? parts : [basename(target)]) {
+    current = join(current, part);
+    if (existsSync(current) && lstatSync(current).isSymbolicLink()) return true;
+  }
+  return false;
+}
+
+/**
  * Would `astro-aeo fix` change anything? The same editors answer, so the two
  * commands cannot disagree.
  *
- * @param {string} projectDir @param {string} publicDir @returns {Promise<DoctorCheck>}
+ * @param {string} projectDir @param {string} publicDir
+ * @param {boolean} [linkedParent] the typed project path passes through a symbolic link
+ * @returns {Promise<DoctorCheck>}
  */
-async function mimeCheck(projectDir, publicDir) {
+async function mimeCheck(projectDir, publicDir, linkedParent = false) {
   const id = 'markdown-mime';
   const providers = detectProviders(projectDir);
   const targets = new Set(providers.map((provider) =>
@@ -113,16 +164,22 @@ async function mimeCheck(projectDir, publicDir) {
   }
   const target = [...targets][0];
   const path = join(projectDir, target);
-  const text = existsSync(path) ? readFileSync(path, 'utf8') : '';
+  const text = readLocalText(projectDir, path);
+  if (!isSafeOutputPath(projectDir, path) || (existsSync(path) && text === null)) {
+    return { id, status: 'conflicting', message: 'the provider configuration is unreadable, too large, outside the project or reached through a symbolic link' };
+  }
   try {
     const result = target === 'vercel.json'
-      ? fixVercelJson(text)
+      ? fixVercelJson(text ?? '')
       : target === 'render.yaml'
-        ? await fixRenderYaml(text)
-        : fixHeadersFile(text);
+        ? await fixRenderYaml(text ?? '')
+        : fixHeadersFile(text ?? '');
     return result.status === 'unchanged'
       ? { id, status: 'unverified', message: `${target} serves .md as text/markdown`, hint: 'local configuration only; pass --url to verify the deployment' }
-      : { id, status: 'missing', message: `${target} does not set the Markdown content type`, hint: 'run `astro-aeo fix --write`' };
+      : { id, status: 'missing', message: `${target} does not set the Markdown content type`, hint: linkedParent
+        // fix refuses a typed path through a link; its working directory is the real path.
+        ? 'run `astro-aeo fix --write` from inside the project directory (fix refuses project paths through a symbolic link)'
+        : 'run `astro-aeo fix --write`' };
   } catch (error) {
     if (!(error instanceof FixRefusal)) throw error;
     return { id, status: 'conflicting', message: error.message };
@@ -133,7 +190,7 @@ async function mimeCheck(projectDir, publicDir) {
 function negotiationCheck(projectDir, distDir, facts) {
   const id = 'negotiation';
   if (!facts) return { id, status: 'unverified', message: 'unknown until a build records its configuration' };
-  if (facts.negotiation === 'off') return { id, status: 'configured', message: 'markdown.negotiation is off, so there is nothing to deploy' };
+  if (facts.negotiation === 'off') return { id, status: 'unverified', message: 'the local build disables markdown.negotiation', hint: 'pass --url to verify that the deployment also leaves HTML requests unchanged' };
   if (facts.adapter) {
     return { id, status: 'unverified', message: `the Astro middleware negotiates on-demand routes through ${facts.adapter}`, hint: 'prerendered routes cannot negotiate; pass --url to verify the deployment' };
   }
@@ -145,7 +202,7 @@ function negotiationCheck(projectDir, distDir, facts) {
   const manifestPath = join(distDir, (facts.base === '/' ? '' : facts.base) + EDGE_MANIFEST_PATHNAME);
   let manifest = null;
   try {
-    manifest = readEdgeManifest(JSON.parse(readFileSync(manifestPath, 'utf8')));
+    manifest = readEdgeManifest(JSON.parse(readLocalText(distDir, manifestPath) ?? 'null'));
   } catch {
     // Reported below.
   }
@@ -159,17 +216,177 @@ function negotiationCheck(projectDir, distDir, facts) {
 /** @param {string} projectDir @param {keyof typeof ENTRY_FILES} provider */
 function hasHandler(projectDir, provider) {
   const mentions = (/** @type {string} */ path) => {
-    try {
-      return readFileSync(path, 'utf8').includes(`astro-aeo/edge/${provider}`);
-    } catch {
-      return false;
-    }
+    return readLocalText(projectDir, path)?.includes(`astro-aeo/edge/${provider}`) ?? false;
   };
   return ENTRY_FILES[provider].some((entry) => {
     const path = join(projectDir, entry);
-    if (!existsSync(path)) return false;
-    return statSync(path).isDirectory() ? readdirSync(path).some((name) => mentions(join(path, name))) : mentions(path);
+    if (!isSafeOutputPath(projectDir, path) || !existsSync(path) || lstatSync(path).isSymbolicLink()) return false;
+    return lstatSync(path).isDirectory() ? readdirSync(path).some((name) => mentions(join(path, name))) : mentions(path);
   });
+}
+
+/** Read bounded local evidence, never a symlink, directory or executable module.
+ * @param {string} root @param {string} path @param {number} [limit]
+ */
+function readLocalText(root, path, limit = MAX_EVIDENCE_BYTES) {
+  if (!isUnlinkedDirectory(root) || !isSafeOutputPath(root, path)) return null;
+  try {
+    const stat = lstatSync(path);
+    if (!stat.isFile() || stat.size > limit) return null;
+    return readFileSync(path, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+/** Local server files are evidence of intent, never proof of a deployed MIME rule.
+ * @param {string} projectDir @param {Record<string, any> | null} facts
+ * @returns {DoctorCheck[]}
+ */
+function providerEvidence(projectDir, facts) {
+  const candidates = {
+    node: ['server.js', 'server.mjs', 'server.ts', 'src/server.js', 'src/server.ts'],
+    deno: ['deno.json', 'deno.jsonc', 'main.ts', 'server.ts'],
+    nginx: ['nginx.conf', 'conf/nginx.conf'],
+    apache: ['.htaccess', 'public/.htaccess', 'httpd.conf', 'apache.conf'],
+  };
+  /** @type {DoctorCheck[]} */
+  const checks = [];
+  for (const [provider, files] of Object.entries(candidates)) {
+    /** @type {DoctorEvidence[]} */
+    const evidence = [];
+    const adapter = provider === 'node' ? '@astrojs/node' : provider === 'deno' ? '@deno/astro-adapter' : null;
+    if (adapter && facts?.adapter === adapter) {
+      evidence.push({ source: '.astro/aeo-cache/deployment-v1.json', confidence: 'high', detail: `the last build names ${adapter}` });
+    }
+    for (const name of files) {
+      const text = readLocalText(projectDir, join(projectDir, name));
+      if (text === null) continue;
+      // Generic server names alone do not identify Node or Deno.
+      if (provider === 'node' && !/node:|express\s*[.(]|@astrojs\/node/.test(text)) continue;
+      if (provider === 'deno' && !name.startsWith('deno.') && !/Deno\.|jsr:@std\/http|@deno\//.test(text)) continue;
+      evidence.push({ source: name, confidence: 'medium', detail: /text\/markdown/i.test(text)
+        ? 'local text mentions the Markdown MIME type; rule scope and deployment are unverified'
+        : 'local server configuration is present; Markdown MIME coverage is unverified' });
+    }
+    if (evidence.length) checks.push({
+      id: `provider-${provider}`, status: 'unverified', evidence,
+      message: `${provider} has local deployment evidence only`,
+      hint: `use --url to probe serving behavior, or --print for a manual ${provider} MIME example`,
+    });
+  }
+  return checks;
+}
+
+/** Inspect the writer's existing decisions; doctor never arbitrates or changes ownership.
+ * @param {string} projectDir @param {string} distDir @param {Record<string, any> | null} facts
+ * @param {string} [typedDist] the build folder as typed, before resolving linked parents
+ * @returns {DoctorCheck[]}
+ */
+function ownershipChecks(projectDir, distDir, facts, typedDist = distDir) {
+  const path = ownershipManifestPath(projectDir);
+  if (readLocalText(projectDir, path, 16 * MAX_EVIDENCE_BYTES) === null) {
+    try {
+      lstatSync(path);
+    } catch {
+      return [];
+    }
+    return [{ id: 'build-evidence', status: 'conflicting', message: 'the private ownership ledger is unsafe, unreadable or too large', hint: 'rebuild before using this evidence; no artifact conclusions were drawn' }];
+  }
+  const ownership = readOwnershipManifest(projectDir);
+  if (!ownership) return [{ id: 'build-evidence', status: 'conflicting', message: 'the private ownership ledger is invalid', hint: 'rebuild before using this evidence' }];
+  const digest = `sha256:${createHash('sha256').update(ownership.artifacts.map((/** @type {any} */ entry) => `${entry.status} ${entry.pathname}`).sort().join('\n')).digest('hex')}`;
+  // Astro hashes the output path it built with: usually the real path, but the
+  // typed one when the build itself was given a path through a link.
+  const sameOutput = matchesOutputRootId(ownership.outputRootId, distDir) || matchesOutputRootId(ownership.outputRootId, typedDist);
+  if (!sameOutput || (facts?.ownershipDigest && facts.ownershipDigest !== digest)) {
+    return [{ id: 'build-evidence', status: 'conflicting', message: 'the build output, deployment facts and ownership ledger do not identify the same build', hint: 'use the matching --dist directory, or rebuild; no artifact conclusions were drawn from mismatched evidence' }];
+  }
+  /** @type {DoctorCheck[]} */
+  const checks = [{ id: 'build-evidence', status: 'unverified', message: facts?.ownershipDigest ? 'local deployment and ownership evidence agree; deployed bytes remain unverified' : 'the local ownership ledger matches the selected output; deployment identity remains unverified' }];
+  const conflicts = ownership.artifacts.filter((/** @type {any} */ entry) => entry.status === 'conflict' || entry.status === 'group-skipped');
+  const preserved = ownership.artifacts.filter((/** @type {any} */ entry) => entry.status === 'preserved');
+  checks.push({
+    id: 'artifact-ownership', status: conflicts.length ? 'conflicting' : 'unverified',
+    message: conflicts.length
+      ? `the build writer recorded ${conflicts.length} conflicting or skipped artifact claim(s)`
+      : `the build writer recorded no conflicting claims and preserved ${preserved.length} externally owned artifact(s)`,
+    ...(conflicts.length ? { hint: 'review the existing build arbitration diagnostics; doctor does not replace routes or other generators' } : {}),
+  });
+  const emitted = ownership.artifacts.filter((/** @type {any} */ entry) => entry.status === 'emitted');
+  // A linked build folder is never read, so its artifacts are unknown, not missing.
+  if (emitted.length && !isUnlinkedDirectory(distDir)) {
+    checks.push({ id: 'emitted-artifacts', status: 'unverified',
+      message: `${emitted.length} emitted artifact(s) not checked: the build folder is reached through a symbolic link`,
+      hint: 'pass the real build folder with --dist to check emitted artifacts' });
+    return checks;
+  }
+  let missing = 0;
+  let changed = 0;
+  for (const artifact of emitted) {
+    const path = resolveRecordedOutputPath(distDir, artifact.outputPath);
+    try {
+      if (!path || !lstatSync(path).isFile()) missing++;
+      else if (fileEtag(path) !== artifact.representation.etag) changed++;
+    } catch {
+      missing++;
+    }
+  }
+  if (emitted.length) checks.push({
+    id: 'emitted-artifacts', status: changed ? 'conflicting' : missing ? 'missing' : 'unverified',
+    message: `${emitted.length} emitted artifact(s) checked locally: ${missing} missing or unsafe, ${changed} changed`,
+    ...(missing || changed ? { hint: 'rebuild the output before deploying it' } : {}),
+  });
+  return checks;
+}
+
+/** Installed packages and textual config references are advisory, never active-config proof.
+ * @param {string} projectDir @returns {DoctorCheck[]}
+ */
+function packageOverlapChecks(projectDir) {
+  let declared = {};
+  try {
+    const pkg = JSON.parse(readLocalText(projectDir, join(projectDir, 'package.json')) ?? '{}');
+    declared = { ...pkg.dependencies, ...pkg.devDependencies, ...pkg.optionalDependencies };
+  } catch {
+    return [{ id: 'package-evidence', status: 'unverified', message: 'package.json could not be read as JSON; no package overlap advice was inferred' }];
+  }
+  const configs = CONFIG_FILES.map((name) => ({ name, text: readLocalText(projectDir, join(projectDir, name)) }));
+  /** @type {DoctorCheck[]} */
+  const checks = [];
+  for (const [name, overlap] of Object.entries(OVERLAPPING_PACKAGES)) {
+    /** @type {DoctorEvidence[]} */
+    const evidence = [];
+    if (Object.hasOwn(declared, name)) evidence.push({ source: 'package.json', confidence: 'low', detail: `${name} is declared directly; installation does not prove use` });
+    for (const config of configs) {
+      if (config.text?.includes(`'${name}'`) || config.text?.includes(`"${name}"`)) {
+        evidence.push({ source: config.name, confidence: 'medium', detail: `${name} appears as a quoted config reference; comments and inactive configuration may also match` });
+      }
+    }
+    if (evidence.length) checks.push({
+      id: `package-overlap:${name}`, status: 'unverified', evidence,
+      message: `${name} may share ${overlap.feature} responsibilities; this is not a detected collision`,
+      hint: overlap.advice,
+    });
+  }
+  return checks;
+}
+
+/** @param {DoctorCheck[]} checks @returns {DoctorAdvice[]} */
+function adviceFor(checks) {
+  return checks.flatMap((check) => {
+    if (check.id.startsWith('provider-')) {
+      const provider = check.id.slice('provider-'.length);
+      return [{ id: check.id, message: 'Review this example against the actual server configuration. It is not an automatic migration.', snippet: SNIPPETS[/** @type {keyof typeof SNIPPETS} */ (provider)] }];
+    }
+    return check.hint ? [{ id: check.id, message: check.hint }] : [];
+  });
+}
+
+/** @param {DoctorAdvice[]} advice */
+function renderAdvice(advice) {
+  return '\nManual configuration advice (nothing executed or written):\n' +
+    (advice.length ? advice.map((entry) => `\n${entry.id}: ${entry.message}\n${entry.snippet ? `\n${entry.snippet}` : ''}`).join('') : 'No additional advice from the available local evidence.\n');
 }
 
 /**
@@ -260,6 +477,7 @@ const MARKS = Object.freeze({ configured: 'ok', unverified: '??', missing: '--',
 function render(checks, probed) {
   const lines = checks.flatMap((check) => [
     `  ${MARKS[check.status]} ${check.id.padEnd(14)} ${check.status.padEnd(12)} ${check.message}`,
+    ...(check.evidence ?? []).map((entry) => `     evidence (${entry.confidence}): ${entry.source}: ${entry.detail}`),
     ...(check.hint ? [`     ${' '.repeat(14)} ${' '.repeat(12)} ${check.hint}`] : []),
   ]);
   const unverified = checks.filter((check) => check.status === 'unverified').length;

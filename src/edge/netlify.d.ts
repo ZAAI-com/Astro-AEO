@@ -7,4 +7,4 @@ export declare function netlifyEdge(): AstroAeoPlugin;
 /** Netlify Edge Function: `export default createNetlifyHandler()`. */
 export declare function createNetlifyHandler(
   options?: EdgeHandlerOptions,
-): (request: Request, context: { next(request?: Request): Promise<Response> }) => Promise<Response>;
+): (request: Request, context: { next(request?: Request): Promise<Response>; waitUntil?(work: Promise<void>): void }) => Promise<Response>;

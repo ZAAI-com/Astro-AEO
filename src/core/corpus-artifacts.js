@@ -1,9 +1,15 @@
 // @ts-check
+import { isRagEligible, planRagRecords, serializeRagRecords } from './rag.js';
+import { finishRagPlan } from './rag-plan.js';
+import { planVersionCorpus } from './version-corpus.js';
+import { pageMarkdown } from './render/page-markdown.js';
+import { chunkTopology, corpusPathname } from './corpus-topology.js';
+export { chunkTopology, isPotentialCorpusArtifactPath } from './corpus-topology.js';
 import { allocateSmallCorpus, planSectionChunks } from './corpus-plan.js';
 import { chunkPathname, resolveSectionSlugs } from './corpus-blocks.js';
 import { createCorpusManifest, serializeCorpusManifest } from './corpus-manifest.js';
 import { corpusPageIdentity } from './page-identity.js';
-import { normalizePublishedText, runCorpusPlanWithTokenizer } from './corpus-tokenizer.js';
+import { CorpusTokenizerError, normalizePublishedText, runCorpusPlanWithTokenizer } from './corpus-tokenizer.js';
 import { normalizeOrigin } from './locale.js';
 import { renderMarkdownDocument } from './render/markdown-doc.js';
 import {
@@ -23,7 +29,8 @@ import {
 /**
  * @typedef {object} CorpusTextArtifact
  * @property {string} pathname
- * @property {'index'|'full'|'small'|'chunk'|'alias'} kind
+ * @property {'index'|'full'|'small'|'chunk'|'alias'|'rag'} kind
+ * @property {string} [version]
  * @property {string|null} locale
  * @property {string|null} section
  * @property {number|null} part
@@ -34,33 +41,17 @@ import {
  */
 
 /**
- * Where chunk files live for a given indexes mode and locale count.
- * Pass `undefined` localeCount for ownership preflight: `auto` and `global`
- * stay permissive for both spellings because the count is not yet known, while
- * `locale`/`both` only accept locale-prefixed chunks.
- *
- * @param {'auto'|'global'|'locale'|'both'} mode
- * @param {number} [localeCount]
- * @returns {{ root: boolean; locale: boolean }}
- */
-export function chunkTopology(mode, localeCount) {
-  if (localeCount === undefined) {
-    if (mode === 'locale' || mode === 'both') return { root: false, locale: true };
-    return { root: true, locale: true };
-  }
-  const oneLocale = localeCount <= 1;
-  if (mode === 'auto' || mode === 'global') {
-    return { root: oneLocale, locale: !oneLocale };
-  }
-  return { root: false, locale: true };
-}
-
-/**
  * Plan every logical (uncompressed) corpus artifact with no filesystem or Node
  * dependencies. Build output may add gzip siblings after this step; middleware
  * serves these exact strings and relies on transport compression.
  *
  * @param {{
+ *   ragHook?: import('./rag-plan.js').RagHook;
+ *   deferRagHooks?: boolean;
+ *   topologyLocaleCount?: number;
+ *   artifactVersion?: { version: string; current: string };
+ *   tokenContext?: { tokenizer: { name: string; version: string; approximate: boolean }; count: (text: string) => Promise<number> };
+ *   deferEmptyManifest?: boolean;
  *   pages: any[];
  *   config: import('../index.js').ResolvedAstroAeoConfig;
  *   siteMeta: { name: string; description: string };
@@ -70,16 +61,49 @@ export function chunkTopology(mode, localeCount) {
  *   tokenizer?: unknown;
  *   tokenizerOptions?: unknown;
  *   tokenizerProbed?: boolean;
+ *   tokenizerFallback?: 'preflight'|'count';
+ *   cachedCount?: import('./corpus-tokenizer.js').CachedTokenCount;
+ *   cachedRag?: (identity: unknown, produce: () => ReturnType<typeof planRagRecords>) => ReturnType<typeof planRagRecords>;
+ *   cachedText?: (identity: unknown, produce: () => string) => Promise<string>;
+ *   cachedChunks?: (identity: unknown, produce: () => ReturnType<typeof planSectionChunks>) => ReturnType<typeof planSectionChunks>;
  *   requestTime?: boolean;
  *   note?: string;
  * }} input
- * @returns {Promise<{ artifacts: CorpusTextArtifact[]; manifest?: any; manifestText?: string; diagnostics: Array<{ code: string; severity: 'info'|'warning'|'error'; message: string; pathname?: string; details?: unknown }>; tokenizer?: { name: string; version: string; approximate: boolean } }>}
+ * @returns {Promise<{ artifacts: CorpusTextArtifact[]; ragRecords?: import('../index.js').RagRecordV1[]; manifest?: any; manifestText?: string; manifests?: Array<{ pathname: string; manifest: any; contents: string }>; diagnostics: Array<{ code: string; severity: 'info'|'warning'|'error'; message: string; pathname?: string; details?: unknown }>; tokenizer?: { name: string; version: string; approximate: boolean } }>}
  */
 export async function planCorpusArtifacts(input) {
+  if (input.config.corpus.rag.enabled && !normalizeOrigin(input.origin)) {
+    // Record identity and metadata need absolute canonical URLs, which a build
+    // without an Astro site cannot supply. Plan every other family without RAG.
+    const plan = await planCorpusArtifacts({ ...input, config: { ...input.config,
+      corpus: { ...input.config.corpus, rag: { ...input.config.corpus.rag, enabled: false } } } });
+    return { ...plan, diagnostics: [...plan.diagnostics, finding('corpus-rag-origin-missing', 'error',
+      'RAG records require a stable site origin; set Astro site to generate them.')] };
+  }
+  const plan = input.config.corpus.versions ? await planVersionCorpus(input) : await planUnversionedCorpus(input);
+  if (input.deferRagHooks) return plan;
+  try { return await finishRagPlan(plan, input); }
+  catch (error) {
+    if (!(error instanceof CorpusTokenizerError) || input.tokenizer === undefined) throw error;
+    // A metadata replacement can make serialized JSONL fail a custom counter
+    // after the raw record transaction. Restart every family/version, not just
+    // the JSONL counts, so no manifest can mix tokenizer identities.
+    const fallbackInput = { ...input, tokenizer: undefined, tokenContext: undefined,
+      tokenizerFallback: /** @type {const} */ ('count') };
+    const fallback = input.config.corpus.versions
+      ? await planVersionCorpus(fallbackInput) : await planUnversionedCorpus(fallbackInput);
+    return finishRagPlan(fallback, fallbackInput);
+  }
+}
+
+/** @param {Parameters<typeof planCorpusArtifacts>[0]} input
+ * @returns {ReturnType<typeof planCorpusArtifacts>} */
+async function planUnversionedCorpus(input) {
   const origin = normalizeOrigin(input.origin) ?? '';
   const mode = input.config.i18n.indexes;
   const allParticipatingPages = input.pages.filter((page) => !page.corpusExcluded);
   const allLocales = localeGroups(allParticipatingPages, input.i18n, input.config);
+  const topologyLocaleCount = input.topologyLocaleCount ?? allLocales.length;
   const participatingPages = allParticipatingPages.filter((page) =>
     !origin || !page.origin || normalizeOrigin(page.origin) === origin);
   const locales = localeGroups(participatingPages, input.i18n, input.config);
@@ -100,7 +124,7 @@ export async function planCorpusArtifacts(input) {
   // unresolved, which spells `null` into a public `/null/` directory.
   const unresolvedLocaleGroup = allLocales.some((locale) => locale.locale === null);
   const requiresConcreteLocale = mode === 'locale' || mode === 'both' ||
-    (mode === 'auto' && allLocales.length > 1);
+    (mode === 'auto' && topologyLocaleCount > 1);
   if (requiresConcreteLocale && unresolvedLocaleGroup) {
     diagnostics.push(finding(
       'corpus-locale-required',
@@ -110,10 +134,9 @@ export async function planCorpusArtifacts(input) {
     return { artifacts: [], manifest: undefined, diagnostics, tokenizer: undefined };
   }
 
-  const planned = await runCorpusPlanWithTokenizer(
-    input.tokenizer,
-    input.tokenizerOptions,
-    async ({ tokenizer, count }) => {
+  /** @param {NonNullable<typeof input.tokenContext>} context */
+  const producePlan = async ({ tokenizer, count }) => {
+      diagnostics.length = 0; // A failed tokenizer transaction must not retain partial-plan warnings.
       /** @type {CorpusTextArtifact[]} */
       const artifacts = [];
       /**
@@ -122,7 +145,7 @@ export async function planCorpusArtifacts(input) {
        * @param {string|null} locale
        * @param {string|null} section
        * @param {number|null} part
-       * @param {string} contents
+       * @param {string | (() => string)} contents
        * @param {string|null} [sourcePathname]
        * @param {string[]} [pageIds]
        */
@@ -136,7 +159,35 @@ export async function planCorpusArtifacts(input) {
         sourcePathname = null,
         pageIds,
       ) => {
-        const normalized = normalizePublishedText(contents);
+        const produce = typeof contents === 'function' ? contents : () => contents;
+        let text;
+        if (typeof contents === 'function' && input.cachedText) {
+          const directory = ((mode === 'both' || (mode === 'auto' && topologyLocaleCount > 1)) && pathname === '/llms.txt');
+          const relevantPages = directory ? [] : locale === null ? participatingPages
+            : locales.find((group) => group.locale === locale)?.pages ?? [];
+          const identity = {
+            pathname, kind, locale, section, part, origin, base: input.base,
+            siteMeta: input.siteMeta, note: input.note, artifactVersion: input.artifactVersion,
+            ...(locale === null && !directory ? { localeOrder: locales.map((group) => ({
+              locale: group.locale, language: group.language, pageIds: group.pages.map(pageId),
+            })) } : {}),
+            family: directory ? undefined : kind === 'index' ? input.config.corpus.index : { mode: input.config.corpus.full.mode },
+            markdown: kind === 'index' && !directory ? { enabled: input.config.markdown.enabled } : undefined,
+            pages: relevantPages.map((page) => ({
+              pathname: page.pathname, url: page.url, canonicalUrl: page.canonicalUrl, mdHref: page.mdHref,
+              locale: page.locale, language: page.language, title: page.title, description: page.description,
+              directives: page.directives, aeoTokens: page.aeoTokens, rendering: page.rendering,
+              ...(kind === 'index' ? {} : { markdown: pageMarkdown(page) }),
+              ...((kind === 'index' && input.config.corpus.index.showLastModified)
+                ? { lastModified: page.lastModified } : {}),
+            })),
+            ...(directory
+              ? { directory: allLocales.map((group) => ({ locale: group.locale, language: group.language, origin: group.origin,
+                origins: [...new Set(group.pages.map((page) => page.origin))].sort() })) } : {}),
+          };
+          text = await input.cachedText(identity, produce);
+        } else text = produce();
+        const normalized = normalizePublishedText(text);
         artifacts.push({
           pathname,
           kind,
@@ -150,7 +201,7 @@ export async function planCorpusArtifacts(input) {
         });
       };
 
-      const oneLocale = allLocales.length <= 1;
+      const oneLocale = topologyLocaleCount <= 1;
       const legacyRoot = oneLocale && (mode === 'auto' || mode === 'global');
       if (legacyRoot) {
         const locale = locales[0];
@@ -162,7 +213,7 @@ export async function planCorpusArtifacts(input) {
             locale?.locale ?? null,
             null,
             null,
-            renderLlmsTxt(pages, input.config, input.siteMeta, { note: input.note }),
+            () => renderLlmsTxt(pages, input.config, input.siteMeta, { note: input.note }),
           );
         }
         if (input.config.corpus.full.enabled) {
@@ -173,7 +224,7 @@ export async function planCorpusArtifacts(input) {
             locale?.locale ?? null,
             null,
             null,
-            renderLlmsFullTxt(pages, input.config, input.siteMeta, { note: input.note }),
+            () => renderLlmsFullTxt(pages, input.config, input.siteMeta, { note: input.note }),
             null,
             selected.map(pageId),
           );
@@ -182,7 +233,7 @@ export async function planCorpusArtifacts(input) {
         const grouped = locales.map((locale) => ({ language: locale.language ?? 'und', pages: locale.pages }));
         if (input.config.corpus.index.enabled) {
           await addText('/llms.txt', 'index', null, null, null,
-            renderGroupedLlmsTxt(grouped, input.config, input.siteMeta, { note: input.note }));
+            () => renderGroupedLlmsTxt(grouped, input.config, input.siteMeta, { note: input.note }));
         }
         if (input.config.corpus.full.enabled) {
           await addText(
@@ -191,7 +242,7 @@ export async function planCorpusArtifacts(input) {
             null,
             null,
             null,
-          renderGroupedLlmsFullTxt(grouped, input.config, input.siteMeta, { note: input.note }),
+          () => renderGroupedLlmsFullTxt(grouped, input.config, input.siteMeta, { note: input.note }),
             null,
             grouped.flatMap((locale) => selectFullTxtPages(locale.pages, input.config).map(pageId)),
           );
@@ -204,7 +255,7 @@ export async function planCorpusArtifacts(input) {
           const prefix = `/${encodeURIComponent(/** @type {string} */ (locale.locale))}`;
           if (input.config.corpus.index.enabled) {
             await addText(`${prefix}/llms.txt`, 'index', locale.locale, null, null,
-              renderLlmsTxt(locale.pages, input.config, input.siteMeta, { note: input.note }));
+              () => renderLlmsTxt(locale.pages, input.config, input.siteMeta, { note: input.note }));
           }
           if (input.config.corpus.full.enabled) {
             const selected = selectFullTxtPages(locale.pages, input.config);
@@ -214,7 +265,7 @@ export async function planCorpusArtifacts(input) {
               locale.locale,
               null,
               null,
-              renderLlmsFullTxt(locale.pages, input.config, input.siteMeta, { note: input.note }),
+              () => renderLlmsFullTxt(locale.pages, input.config, input.siteMeta, { note: input.note }),
               null,
               selected.map(pageId),
             );
@@ -223,7 +274,7 @@ export async function planCorpusArtifacts(input) {
       }
 
       if (((mode === 'auto' && !oneLocale) || mode === 'both') && input.config.corpus.index.enabled) {
-        await addText('/llms.txt', 'index', null, null, null, renderLanguageDirectory(
+        await addText('/llms.txt', 'index', null, null, null, () => renderLanguageDirectory(
           input.siteMeta,
           allLocales.map((locale) => ({
             language: locale.language ?? 'und',
@@ -231,7 +282,8 @@ export async function planCorpusArtifacts(input) {
               locale,
               origin,
               input.base,
-              `/${encodeURIComponent(/** @type {string} */ (locale.locale))}/llms.txt`,
+              corpusPathname(`/${encodeURIComponent(/** @type {string} */ (locale.locale))}/llms.txt`,
+                { locale: locale.locale, ...input.artifactVersion }),
             ),
           })),
           { note: input.note },
@@ -245,7 +297,7 @@ export async function planCorpusArtifacts(input) {
           null,
           null,
           null,
-          renderGroupedLlmsFullTxt(grouped, input.config, input.siteMeta, { note: input.note }),
+          () => renderGroupedLlmsFullTxt(grouped, input.config, input.siteMeta, { note: input.note }),
           null,
           grouped.flatMap((locale) => selectFullTxtPages(locale.pages, input.config).map(pageId)),
         );
@@ -329,13 +381,18 @@ export async function planCorpusArtifacts(input) {
           const slugs = await resolveSectionSlugs(sections.map((section) => section.title));
           for (let index = 0; index < sections.length; index++) {
             const section = sections[index];
-            const result = await planSectionChunks({
+            const chunkInput = {
               pages: section.pages.map(planPage),
               maxTokens: input.config.corpus.chunks.maxTokensPerFile,
               count,
-            });
+            };
+            const produce = () => planSectionChunks(chunkInput);
+            const result = input.cachedChunks
+              ? await input.cachedChunks({ pages: chunkInput.pages, maxTokens: chunkInput.maxTokens,
+                  tokenizer, options: input.tokenizerOptions }, produce)
+              : await produce();
             addPlannerDiagnostics(diagnostics, result.diagnostics, locale.locale, section.title);
-            const topology = chunkTopology(mode, allLocales.length);
+            const topology = chunkTopology(mode, topologyLocaleCount);
             for (const chunk of result.chunks) {
               await addText(
                 chunkPathname({
@@ -386,18 +443,48 @@ export async function planCorpusArtifacts(input) {
         // origin and each owns its companion token count.
         pageTokenCounts.set(`${corpusPageIdentity(page)}\0${page.locale ?? ''}`, await count(published));
       }
-      return { artifacts, tokenizer, pageTokenCounts };
-    },
-    { skipProbe: input.tokenizerProbed === true },
-  );
+      /** @type {any[]} */
+      const ragPages = input.config.corpus.rag.enabled ? groupSections(participatingPages.filter(isRagEligible),
+        input.config.corpus.index.sections, input.config.corpus.index.defaultSection).flatMap((section) =>
+          section.pages.map((page) => ({ ...page, section: section.title }))) : [];
+      const produceRag = () => planRagRecords(ragPages, { maxTokens: input.config.corpus.rag.maxTokens, tokenizer, count });
+      const rag = !input.config.corpus.rag.enabled ? undefined : input.cachedRag
+        ? await input.cachedRag({ maxTokens: input.config.corpus.rag.maxTokens, tokenizer, options: input.tokenizerOptions,
+            pages: ragPages.map((page) => ({ pathname: page.pathname, canonicalUrl: page.canonicalUrl ?? page.url,
+              locale: page.locale, language: page.language, version: page.version, versionGroup: page.versionGroup,
+              title: page.title, section: page.section, markdown: pageMarkdown(page) })) }, produceRag)
+        : await produceRag();
+      if (rag) {
+        diagnostics.push(...rag.diagnostics);
+        if (input.config.corpus.rag.publish) {
+          const addRag = async (/** @type {string} */ pathname, /** @type {string|null} */ locale,
+            /** @type {import('../index.js').RagRecordV1[]} */ records) =>
+            addText(pathname, 'rag', locale, null, null, serializeRagRecords(records));
+          if (mode === 'global' || mode === 'both' || mode === 'auto' && topologyLocaleCount <= 1)
+            await addRag('/llms/rag.jsonl', topologyLocaleCount <= 1 ? locales[0]?.locale ?? null : null, rag.records);
+          if (mode === 'locale' || mode === 'both' || mode === 'auto' && topologyLocaleCount > 1)
+            for (const locale of locales) await addRag(`/${encodeURIComponent(/** @type {string} */ (locale.locale))}/llms/rag.jsonl`,
+              locale.locale, rag.records.filter((record) => record.metadata.locale === locale.locale));
+        }
+      }
+      return { artifacts, tokenizer, pageTokenCounts, ragRecords: rag?.records.map((record) => ({ ...record })) };
+    };
+  const planned = input.tokenContext
+    ? { result: await producePlan(input.tokenContext), tokenizer: input.tokenContext.tokenizer }
+    : await runCorpusPlanWithTokenizer(input.tokenizer, input.tokenizerOptions, producePlan,
+      { skipProbe: input.tokenizerProbed === true, cachedCount: input.cachedCount });
 
-  if (planned.fallback) {
+  const tokenizerFallback = planned.fallback?.reason ?? input.tokenizerFallback ??
+    (input.config.corpus.tokenizer && input.tokenizer === undefined ? 'preflight' : undefined);
+  if (tokenizerFallback) {
     diagnostics.push(finding(
       'corpus-tokenizer-fallback',
       'warning',
       'The configured tokenizer failed; the complete corpus plan was restarted with astro-aeo-approx@1.',
     ));
   }
+
+  if (tokenizerFallback) for (const record of planned.result.ragRecords ?? []) record.tokenizerFallback = { reason: tokenizerFallback };
 
   let manifest;
   if (input.config.corpus.manifest.enabled) {
@@ -422,7 +509,7 @@ export async function planCorpusArtifacts(input) {
           locale.locale,
           planned.result.artifacts,
           mode,
-          allLocales.length,
+          topologyLocaleCount,
         );
         return canonical
           ? [{
@@ -480,6 +567,9 @@ export async function planCorpusArtifacts(input) {
                 sourceStrategy: page.source?.strategy ?? 'rendered',
                 ...(page.lastModified ? { modified: page.lastModified } : {}),
                 ...(page.version ? { version: page.version } : {}),
+                ...(page.versionGroup ? { versionGroup: page.versionGroup } : {}),
+                ...(page.alternates?.some((/** @type {any} */ alternate) => alternate.kind === 'version')
+                  ? { versionAlternates: page.alternates.filter((/** @type {any} */ alternate) => alternate.kind === 'version') } : {}),
                 chunks: chunksByPage.get(chunkIdentity) ?? [],
                 markdown: published,
               });
@@ -490,6 +580,7 @@ export async function planCorpusArtifacts(input) {
           origin,
           base: input.base || '/',
           tokenizer: planned.tokenizer,
+          ...(tokenizerFallback ? { tokenizerFallback: { reason: tokenizerFallback } } : {}),
           locales: localeRecords,
           pages: pageRecords,
           artifacts: planned.result.artifacts.map((artifact) => ({
@@ -513,54 +604,15 @@ export async function planCorpusArtifacts(input) {
 
   return {
     artifacts: planned.result.artifacts,
+    ...(planned.result.ragRecords ? { ragRecords: planned.result.ragRecords } : {}),
     ...(manifest ? { manifest, manifestText: serializeCorpusManifest(manifest) } : {}),
     diagnostics,
     tokenizer: planned.tokenizer,
   };
 }
 
-/**
- * Match only paths that can be owned by enabled corpus topology. This is a
- * cheap preflight; the complete plan remains authoritative for derived locale
- * and chunk names.
- * @param {string} pathname
- * @param {import('../index.js').ResolvedAstroAeoConfig} config
- */
-export function isPotentialCorpusArtifactPath(pathname, config) {
-  const mode = config.i18n.indexes;
-  if (pathname === '/llms.txt') return config.corpus.index.enabled && mode !== 'locale';
-  if (pathname === '/llms-full.txt') return config.corpus.full.enabled && mode !== 'locale';
-  if (pathname === '/llms-small.txt') return config.corpus.small.enabled && mode !== 'locale';
-  if (pathname === '/llms/manifest.json') return config.corpus.manifest.enabled;
-  const topology = chunkTopology(mode);
-  if (
-    config.corpus.chunks.enabled &&
-    topology.root &&
-    /^\/llms\/[^/]+-\d{4,}\.txt$/u.test(pathname)
-  ) return true;
-  if (
-    (mode === 'locale' || mode === 'both' || mode === 'auto') &&
-    /^\/[^/]+\/llms(?:-full|-small)?\.txt$/u.test(pathname)
-  ) {
-    if (pathname.endsWith('/llms.txt')) return config.corpus.index.enabled;
-    if (pathname.endsWith('/llms-full.txt')) return config.corpus.full.enabled;
-    return config.corpus.small.enabled;
-  }
-  if (
-    config.corpus.chunks.enabled &&
-    topology.locale &&
-    /^\/[^/]+\/llms\/[^/]+-\d{4,}\.txt$/u.test(pathname)
-  ) return true;
-  if (mode === 'both' && /^\/llms(?:-full|-small)?-[^/]+\.txt$/u.test(pathname)) {
-    if (pathname.startsWith('/llms-full-')) return config.corpus.full.enabled;
-    if (pathname.startsWith('/llms-small-')) return config.corpus.small.enabled;
-    return config.corpus.index.enabled;
-  }
-  return false;
-}
-
 /** @param {any[]} pages @param {import('./locale.js').LocaleSnapshot | undefined} i18n @param {import('../index.js').ResolvedAstroAeoConfig} config */
-function localeGroups(pages, i18n, config) {
+export function localeGroups(pages, i18n, config) {
   /** @type {Map<string, { locale: string|null; language: string|null; origin?: string; pages: any[] }>} */
   const groups = new Map();
   for (const page of pages) {
@@ -592,6 +644,7 @@ function localeGroups(pages, i18n, config) {
 
 /** @param {any} page @param {import('../index.js').ResolvedAstroAeoConfig} config */
 function participatesInCorpus(page, config) {
+  if (config.corpus.rag.enabled && isRagEligible(page)) return true;
   if (config.corpus.index.enabled && isLlmsEligible(page, config)) return true;
   return (config.corpus.full.enabled || config.corpus.small.enabled || config.corpus.chunks.enabled) &&
     selectFullTxtPages([page], config).length > 0;
@@ -630,7 +683,7 @@ function planPage(page) {
     title: page.title,
     canonicalUrl: page.canonicalUrl ?? page.url,
     description: page.description,
-    markdown: page.markdown,
+    markdown: pageMarkdown(page),
   };
 }
 
@@ -682,7 +735,7 @@ const PLANNER_INFO_CODES = new Set(['small-corpus-truncated']);
 
 /** @param {CorpusTextArtifact['kind']} kind */
 function kindOrder(kind) {
-  return ({ index: 0, full: 1, small: 2, chunk: 3, alias: 4 })[kind];
+  return ({ index: 0, full: 1, small: 2, chunk: 3, alias: 4, rag: 5 })[kind];
 }
 
 /** @param {Array<{ code: string; severity: 'info'|'warning'|'error'; message: string; pathname?: string; details?: unknown }>} target @param {any[]} source @param {string|null} [locale] @param {string} [section] */

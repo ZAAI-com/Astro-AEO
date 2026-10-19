@@ -1,4 +1,5 @@
 // @ts-check
+import { pageMarkdown } from './page-markdown.js';
 import {
   groupSections,
   isLlmsEligible,
@@ -79,7 +80,7 @@ export function renderGroupedLlmsFullTxt(locales, config, siteMeta, opts = {}) {
           canonicalUrl: /** @type {any} */ (page).canonicalUrl ?? page.url,
           description: page.description,
         },
-        blocks: [page.markdown],
+        blocks: [pageMarkdown(page)],
         includeDescription: true,
       }));
     }

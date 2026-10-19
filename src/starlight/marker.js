@@ -1,11 +1,13 @@
 // @ts-check
 import { createTechArticle } from '../schema.js';
 import { starlightMarkdown } from './markdown.js';
+import { starlightVersion } from './versions.js';
 
 /**
  * @typedef {object} StarlightAeoRuntimeOptions
- * @property {{ pagination: boolean; edit: boolean }} links
+ * @property {{ pagination: boolean; edit: boolean; versions?: boolean; source?: { baseUrl: string } }} links
  * @property {boolean} techArticle
+ * @property {{ current: string; archived: { version: string; prefix: string }[] }} [versions]
  */
 
 /**
@@ -25,7 +27,8 @@ export function starlightMarker(route, options) {
   const filePath = typeof entry.filePath === 'string' ? entry.filePath : undefined;
   const mdx = filePath?.endsWith('.mdx') === true;
   const description = typeof entry.data.description === 'string' ? entry.data.description : undefined;
-  const language = typeof route.lang === 'string' ? route.lang : undefined;
+  const language = route.isFallback === true && typeof route.entryMeta?.lang === 'string'
+    ? route.entryMeta.lang : typeof route.lang === 'string' ? route.lang : undefined;
   const modified = route.lastUpdated instanceof Date && !Number.isNaN(route.lastUpdated.getTime())
     ? route.lastUpdated.toISOString()
     : undefined;
@@ -35,8 +38,13 @@ export function starlightMarker(route, options) {
     title,
     ...(description ? { description } : {}),
     ...(language ? { language } : {}),
+    ...starlightVersion(route, options.versions),
+    ...(options.links.versions === true ? { versionLinks: true } : {}),
+    ...(route.isFallback === true && typeof route.lang === 'string'
+      ? { localeFallback: { requested: route.lang, ...(language ? { source: language } : {}) } } : {}),
     ...(modified ? { lastModified: modified } : {}),
     ...(filePath ? { sourcePath: filePath, sourceKind: mdx ? 'mdx' : 'markdown' } : {}),
+    ...(typeof entry.body === 'string' ? { sourceBody: entry.body } : {}),
   };
 
   const converted = typeof entry.body === 'string' ? starlightMarkdown(entry.body, { mdx }) : { fallback: 'no-source' };
@@ -69,5 +77,17 @@ function footer(route, options) {
     }
   }
   if (options.links.edit && route.editUrl instanceof URL) links.push(`- Edit this page: <${route.editUrl.href}>`);
+  const source = sourceRepositoryUrl(route.entry?.filePath, options.links.source?.baseUrl);
+  if (source) links.push(`- Source: <${source}>`);
   return links.length > 0 ? ['', '---', '', ...links] : [];
+}
+
+/** Explicit repository base only; never expose an absolute local path.
+ * @param {unknown} pathname @param {string | undefined} base
+ */
+function sourceRepositoryUrl(pathname, base) {
+  if (!base || typeof pathname !== 'string' || pathname.startsWith('/') || /^[A-Za-z]:/.test(pathname) || pathname.includes('\\')) return null;
+  const segments = pathname.split('/');
+  if (segments.some((segment) => !segment || segment === '.' || segment === '..')) return null;
+  try { return new URL(segments.map(encodeURIComponent).join('/'), base).href; } catch { return null; }
 }

@@ -18,6 +18,8 @@
  * }} CrawlerRegistryEntry
  */
 
+export const CRAWLER_REGISTRY_VERSION = '2';
+
 const VERIFIED_AT_1_3 = '2026-08-12';
 const VERIFIED_AT_1_5_1 = '2026-09-29';
 
@@ -38,6 +40,18 @@ export const CRAWLER_REGISTRY = Object.freeze([
   entry('Meta-ExternalAgent', 'crawler', 'Meta', ['training'], 'https://developers.facebook.com/docs/sharing/webmasters/web-crawlers/', VERIFIED_AT_1_5_1),
   entry('Amazonbot', 'crawler', 'Amazon', ['training'], 'https://developer.amazon.com/amazonbot', VERIFIED_AT_1_5_1),
   entry('CCBot', 'crawler', 'Common Crawl', ['training'], 'https://commoncrawl.org/ccbot', VERIFIED_AT_1_5_1),
+]);
+
+/** Observable identities only. Policy-only tokens never classify a User-Agent.
+ * Keeping this separate preserves the default robots policy and ordering.
+ * These tokens are claims, not proof of operator identity.
+ * @type {readonly CrawlerRegistryEntry[]}
+ */
+export const ANALYTICS_CRAWLER_REGISTRY = Object.freeze([
+  ...CRAWLER_REGISTRY.filter((value) => value.kind !== 'control-token'),
+  entry('Applebot', 'crawler', 'Apple', ['search', 'training'], 'https://support.apple.com/en-us/119829', '2026-10-03'),
+  entry('Amzn-SearchBot', 'crawler', 'Amazon', ['search'], 'https://developer.amazon.com/amazonbot', '2026-10-03'),
+  entry('Amzn-User', 'user-triggered', 'Amazon', ['user-retrieval'], 'https://developer.amazon.com/amazonbot', '2026-10-03'),
 ]);
 
 /** @type {ReadonlyMap<string, CrawlerRegistryEntry>} */

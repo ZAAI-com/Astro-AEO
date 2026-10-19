@@ -21,6 +21,7 @@ const EDGE_ENTRY = fileURLToPath(new URL('../edge.js', import.meta.url));
 // Worker. It builds its descriptors with the pure content and page helpers.
 const EMDASH = fileURLToPath(new URL('../emdash/', import.meta.url));
 const CONTENT = fileURLToPath(new URL('../content.js', import.meta.url));
+const ANALYTICS = fileURLToPath(new URL('../analytics.js', import.meta.url));
 const PAGE = fileURLToPath(new URL('../page.js', import.meta.url));
 
 /** @returns {string[]} every .js file under `dir`, excluding tests. */
@@ -35,7 +36,7 @@ function sourceFiles(dir) {
 describe('src/core and src/runtime safety', () => {
   // The public schema entry is also bundled into edge/runtime consumers. It
   // lives at the package root to pair with its hand-written declaration.
-  const files = [...sourceFiles(CORE), ...sourceFiles(RUNTIME), ...sourceFiles(STARLIGHT), ...sourceFiles(EDGE), ...sourceFiles(EMDASH), EDGE_ENTRY, SCHEMA, CONTENT, PAGE];
+  const files = [...sourceFiles(CORE), ...sourceFiles(RUNTIME), ...sourceFiles(STARLIGHT), ...sourceFiles(EDGE), ...sourceFiles(EMDASH), EDGE_ENTRY, SCHEMA, CONTENT, PAGE, ANALYTICS];
 
   test('the boundary covers a real set of modules, so an empty pass means nothing', () => {
     expect(files.length).toBeGreaterThan(10);
@@ -65,7 +66,7 @@ describe('src/core and src/runtime safety', () => {
         if (!relative(STARLIGHT, target).startsWith('..')) continue;
         if (!relative(EDGE, target).startsWith('..')) continue;
         if (!relative(EMDASH, target).startsWith('..')) continue;
-        if (target === SCHEMA || target === CONTENT || target === PAGE) continue;
+        if (target === SCHEMA || target === CONTENT || target === PAGE || target === ANALYTICS) continue;
         if (target.endsWith(join('lib', 'errors.js'))) continue;
         // Pure string escaping, shared with the components.
         if (target.endsWith(join('lib', 'serialize-jsonld.js'))) continue;
@@ -89,7 +90,7 @@ describe('bare imports in bundled modules', () => {
   ];
 
   test('come only from the runtime dependency allowlist', () => {
-    const files = [...sourceFiles(CORE), ...sourceFiles(RUNTIME), ...sourceFiles(STARLIGHT), ...sourceFiles(EDGE), ...sourceFiles(EMDASH), EDGE_ENTRY, SCHEMA, CONTENT, PAGE];
+    const files = [...sourceFiles(CORE), ...sourceFiles(RUNTIME), ...sourceFiles(STARLIGHT), ...sourceFiles(EDGE), ...sourceFiles(EMDASH), EDGE_ENTRY, SCHEMA, CONTENT, PAGE, ANALYTICS];
     const offenders = [];
     for (const file of files) {
       // JSDoc `import('astro')` type references are not imports.

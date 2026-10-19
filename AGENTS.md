@@ -73,7 +73,7 @@ plain ESM with no package build step.
   unconditional pass independent of generators at build time. Collected responses are also
   stripped before conversion or forwarding, including errors and opted-out pages.
 - `components/` holds `AeoPage` and the six JSON-LD components. `cli/validate.js` and
-  `cli/report.js`, entered through `bin/astro-aeo.js`, implement the validator.
+  `cli/validate-report.js`, entered through `bin/astro-aeo.js`, implement the validator.
 - `src/audit/` is the 1.4 audit engine (Node allowed, never imported by `src/core/` or
   `src/runtime/`). `rules.js` is the immutable registry: a `ruleId` is an existing `code` verbatim,
   and its completeness test fails when any emitter gains a code the registry lacks. `site-rules.js`
@@ -89,6 +89,20 @@ plain ESM with no package build step.
   `readMarker` prefers an authored marker over an inferred one. `src/starlight/markdown.js` converts
   source line by line and returns a fallback, never partial output, for anything it would have to
   evaluate. Its fixtures are Astro 7 only and declare their dependencies so Vite bundles Starlight.
+  The native plugin declares the public `/[...slug]` docs route shape through
+  `src/lib/content-routes.js`, so its external page routes participate in corpus ownership without
+  opting unrelated integration routes in. Explicit versions use public route IDs and configured
+  prefixes, not private upstream state. Inferred route-version and fallback facts survive an
+  authored source marker; untranslated fallback pages keep companions but leave the locale corpus.
+
+- `src/analytics.js` is the node-free public observation/delivery API. Enabled analytics
+  generates a separate middleware entry through `src/build/analytics.js`; the ordinary runtime
+  projection excludes its configuration and imports. `src/runtime/analytics/` observes only
+  public GET/HEAD responses and reads only User-Agent among request headers. Internal rewrite,
+  collection and loopback state stays owned by the original middleware. Delivery never reads
+  a visitor response body or changes its identity. `src/server/analytics-node.js` enters only
+  generated Node/development/preview modules, never core/runtime import closures. Provider
+  handlers accept observers explicitly, not through integration-installed deployment handlers.
 
 - `src/emdash.js` is the EmDash integration: it registers `aeo()` itself with EmDash defaults and
   serves `virtual:astro-aeo/emdash`, the only module that imports `emdash`. That bridge resolves from
@@ -111,6 +125,13 @@ plain ESM with no package build step.
   `produce` callback the deferred writer runs after ownership resolution and before anything hashes
   it. That callback is core only: plugin envelopes keep a string body. `test/contracts/accept.js` is
   the single Accept table for the middleware, the handlers and the workerd suite (`test:edge`).
+- `src/core/rag.js` shares the indivisible Markdown planner and corpus tokenizer. RAG records
+  use published Markdown, stable canonical/locale/version IDs, measured tokens and content hashes.
+  The corpus planner completes fallback across versions before `rag:record` hooks run.
+  Custom count failure on replacement metadata restarts all families/versions and revalidates hooks.
+  Replacements enrich flat metadata only; text changes precede chunk planning in `page:transform`.
+  `src/build/rag.js` stages opt-in private content separately from sanitized snapshot/trace evidence,
+  with `0600` files and the shared build digest. Public RAG and gzip use the ordinary output writer.
 - `src/build/deployment-facts.js` stages the private `.astro/aeo-cache/deployment-v1.json` (mode
   `0o600`): output mode, adapter name, base, build format, trailing slash, negotiation mode, edge
   provider and an ownership digest. Names and modes only, never a path or an environment value.
@@ -122,6 +143,16 @@ plain ESM with no package build step.
   against (`test/contracts/accept.js` re-exports it). `cli/fix/` is a dry run unless `--write`, edits
   exactly one file, refuses anything ambiguous, malformed, symlinked or outside the project, and
   backs the original up under `.astro/aeo-backups/<UTC timestamp>/` through `commitFileTransaction`.
+- `cli/report.js` dispatches bounded, read-only data reports under `cli/reports/`; it never
+  executes consumer configuration. `cli/validate-report.js` preserves the frozen validator
+  formatting (the old module re-exports it). Shipped data contracts validate report inputs;
+  `scripts/report-schemas.mjs` owns generated report/snapshot/trace schemas. Graph HTML uses
+  inert escaped data, local DOM controls, complete no-JS tables and exact script/style CSP
+  hashes. `cli/formats/csp.js` also protects audit HTML. RAG content exports stay separate
+  from content-free evidence; missing runtime inventory must be disclosed.
+- Audit regions identify audited rendered HTML or companions, never inferred author source. Readiness-v2
+  excludes unknown/inapplicable checks. Live discovery is explicit and bounded; unvisited page targets
+  remain unknown. Action exports share one audit observation.
 - `action.yml` is a composite action that runs the project's installed CLI. Inputs reach the shell
   only as environment variables, and the exit status is reported after the SARIF upload.
   `recipes/` are complete projects outside the published folders; `test:recipes` builds each one
@@ -175,8 +206,8 @@ plain ESM with no package build step.
 - Use plain ESM JavaScript with `// @ts-check` and JSDoc. The published folders are `src`,
   `components`, `bin`, `cli`, and `schema`, so every shipped source file must run as published and
   remain installable from a git dependency.
-- Public declarations are hand-written in fourteen files: `src/index.d.ts`,
-  `components/index.d.ts`, `src/page.d.ts`, `src/extract.d.ts`,
+- Public declarations are hand-written in fifteen files: `src/index.d.ts`,
+  `components/index.d.ts`, `src/page.d.ts`, `src/extract.d.ts`, `src/analytics.d.ts`,
   `src/runtime/middleware.d.ts`, `src/schema.d.ts`, `src/adapters.d.ts`, `src/content.d.ts`,
   `src/starlight.d.ts`, `src/emdash.d.ts`, `src/edge.d.ts`, and the three provider-specific declarations under
   `src/edge/`. Provider subpaths must declare only the runtime exports they actually provide. Update declarations
@@ -231,6 +262,8 @@ pnpm run test:recipes
 pnpm run benchmark:audit
 pnpm run typecheck
 pnpm run test:types
+pnpm run test:types:js
+pnpm run benchmark:projects
 pnpm run schema:check
 pnpm run demo:dev
 pnpm run demo:build
@@ -259,3 +292,8 @@ gate additionally runs dev, SSR, adapter, package-install, bundle-baseline, and 
 - Before handoff, run checks proportional to the change, then use the quick release check for a
   broad local gate. The tag workflow adds strict tag, clean-worktree, adapter, package, and
   performance gates before npm publication.
+
+Release project benchmarks use a clean detached reconstructed `29729bb` checkout, never a
+published 1.5.4 label. The optional preparation creates an ignored worktree with the current
+comparison toolchain and removes only that worktree afterward. Preserve destination overlap
+diagnostics and transaction safety when optimizing ancestry checks.

@@ -17,6 +17,30 @@ function setup(integrations = [], options = {}) {
 }
 
 describe('starlightAeo', () => {
+  it('transports explicit prefixes and populates matching corpus versions', () => {
+    const { added } = setup([], { versions: { current: 'v2', archived: ['v1', { version: 'v0', prefix: '0.9' }] } });
+    let vite;
+    added[1].hooks['astro:config:setup']({ updateConfig: (value) => { vite = value.vite; } });
+    const options = JSON.parse(vite.plugins[0].load(vite.plugins[0].resolveId('virtual:astro-aeo/starlight-options')).replace('export default ', '').replace(/;$/, ''));
+    expect(options.versions).toEqual({ current: 'v2', archived: [{ version: 'v1', prefix: 'v1' }, { version: 'v0', prefix: '0.9' }] });
+    expect(() => setup([], { versions: { current: 'v2', archived: [] }, aeo: { corpus: { versions: { current: 'v2' } } } })).not.toThrow();
+    expect(() => setup([], { versions: { current: 'v2', archived: [] }, aeo: { corpus: { versions: { current: 'other' } } } })).toThrow(/conflicts with aeo.corpus.versions.current/);
+  });
+
+  it.each([
+    { versions: { current: '../bad', archived: [] } },
+    { versions: { current: 'v2', archived: ['v1', 'v1'] } },
+    { versions: { current: 'v2', archived: [{ version: 'v1', prefix: '../bad' }] } },
+    { versions: { current: 'v2', archived: ['v2'] } },
+    { versions: { current: 'v2', archived: [{ version: 'v1', prefix: 'old' }, { version: 'v0', prefix: 'old' }] } },
+    { versions: { current: 'v2', archived: null } },
+    { links: { versions: 'yes' } }, { links: { source: { baseUrl: 'https://user:secret@example.test/' } } },
+    { links: { source: { baseUrl: 'https://example.test/repo?token=secret' } } },
+    { links: { source: { baseUrl: 'https://example.test/repo' } } },
+  ])('rejects malformed explicit options with a Starlight path', (value) => {
+    expect(() => starlightAeo(value)).toThrow(/starlight\./);
+  });
+
   it('registers the integration, the options module and a post route middleware', () => {
     const { added, middleware } = setup();
     expect(added.map((integration) => integration.name)).toEqual(['astro-aeo', 'astro-aeo/starlight-options']);

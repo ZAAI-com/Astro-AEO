@@ -1,0 +1,1088 @@
+{
+  "version": 1,
+  "package": {
+    "packedBytes": 489712,
+    "unpackedBytes": 1876024
+  },
+  "baseline": {
+    "revision": "29729bb334b614473f4facdfdab451ed2bd3d933",
+    "kind": "reconstructed-post-fix",
+    "publishedRelease": false
+  },
+  "environment": {
+    "node": "v24.15.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "astro": "7.3.5",
+    "runnerClass": null
+  },
+  "samples": 2,
+  "timingPolicy": "Descriptive unless the declared reference runner matches; p95 uses nearest rank and small-sample uncertainty is disclosed.",
+  "outputByteCeilings": {
+    "10": 12856,
+    "1000": 1245586,
+    "10000": 12648586
+  },
+  "baselineProjectMaxPages": 0,
+  "baselineCoverage": "Complete microbenchmark baseline is archived separately; reconstructed real-project timings above this bound are not claimed.",
+  "projects": [
+    {
+      "count": 10,
+      "measurements": {
+        "control": [
+          {
+            "durationMs": 440.654625,
+            "peakRssBytes": 317784064,
+            "heapUsedBytes": 67053624,
+            "outputBytes": 3200,
+            "work": {},
+            "buildDigest": null
+          },
+          {
+            "durationMs": 362.54316600000004,
+            "peakRssBytes": 315342848,
+            "heapUsedBytes": 66992728,
+            "outputBytes": 3200,
+            "work": {},
+            "buildDigest": null
+          }
+        ],
+        "reconstructed": [],
+        "current": [
+          {
+            "durationMs": 562.0773750000001,
+            "peakRssBytes": 407224320,
+            "heapUsedBytes": 91477552,
+            "outputBytes": 12856,
+            "work": {
+              "graph-baseline:miss": 10,
+              "graph:build:miss": 10,
+              "graph:build:action:replaced": 10,
+              "normalization:miss": 10,
+              "page:discovered:action:kept": 10,
+              "page:extract:action:kept": 10,
+              "page:metadata:action:kept": 10,
+              "page:transform:action:kept": 10
+            },
+            "buildDigest": "sha256:bee2dce8a5ab2691eb88404cb90181355bfdfd20cecd652232b3145a39e51cc2"
+          },
+          {
+            "durationMs": 566.881292,
+            "peakRssBytes": 405880832,
+            "heapUsedBytes": 91309464,
+            "outputBytes": 12856,
+            "work": {
+              "graph-baseline:miss": 10,
+              "graph:build:miss": 10,
+              "graph:build:action:replaced": 10,
+              "normalization:miss": 10,
+              "page:discovered:action:kept": 10,
+              "page:extract:action:kept": 10,
+              "page:metadata:action:kept": 10,
+              "page:transform:action:kept": 10
+            },
+            "buildDigest": "sha256:bee2dce8a5ab2691eb88404cb90181355bfdfd20cecd652232b3145a39e51cc2"
+          }
+        ],
+        "warm": [
+          {
+            "durationMs": 462.796166,
+            "peakRssBytes": 356941824,
+            "heapUsedBytes": 109507264,
+            "outputBytes": 12856,
+            "work": {
+              "graph-baseline:hit": 10,
+              "graph:build:hit": 10,
+              "graph:build:action:replaced": 10,
+              "normalization:hit": 10,
+              "page:discovered:action:kept": 10,
+              "page:extract:action:kept": 10,
+              "page:metadata:action:kept": 10,
+              "page:transform:action:kept": 10
+            },
+            "buildDigest": "sha256:bee2dce8a5ab2691eb88404cb90181355bfdfd20cecd652232b3145a39e51cc2"
+          },
+          {
+            "durationMs": 471.47670800000003,
+            "peakRssBytes": 359120896,
+            "heapUsedBytes": 109488136,
+            "outputBytes": 12856,
+            "work": {
+              "graph-baseline:hit": 10,
+              "graph:build:hit": 10,
+              "graph:build:action:replaced": 10,
+              "normalization:hit": 10,
+              "page:discovered:action:kept": 10,
+              "page:extract:action:kept": 10,
+              "page:metadata:action:kept": 10,
+              "page:transform:action:kept": 10
+            },
+            "buildDigest": "sha256:bee2dce8a5ab2691eb88404cb90181355bfdfd20cecd652232b3145a39e51cc2"
+          }
+        ],
+        "edited": [
+          {
+            "durationMs": 471.12,
+            "peakRssBytes": 362119168,
+            "heapUsedBytes": 113847408,
+            "outputBytes": 12835,
+            "work": {
+              "graph-baseline:miss": 1,
+              "graph:build:miss": 1,
+              "graph:build:action:replaced": 10,
+              "normalization:miss": 1,
+              "page:discovered:action:kept": 10,
+              "page:extract:action:kept": 10,
+              "page:metadata:action:kept": 10,
+              "page:transform:action:kept": 10,
+              "graph-baseline:hit": 9,
+              "graph:build:hit": 9,
+              "normalization:hit": 9
+            },
+            "buildDigest": "sha256:cb93d3610518091d10267327ff49caf5f2a8791c60da9d7ece8d95afe281446c"
+          },
+          {
+            "durationMs": 480.51112500000005,
+            "peakRssBytes": 360562688,
+            "heapUsedBytes": 113570160,
+            "outputBytes": 12835,
+            "work": {
+              "graph-baseline:miss": 1,
+              "graph:build:miss": 1,
+              "graph:build:action:replaced": 10,
+              "normalization:miss": 1,
+              "page:discovered:action:kept": 10,
+              "page:extract:action:kept": 10,
+              "page:metadata:action:kept": 10,
+              "page:transform:action:kept": 10,
+              "graph-baseline:hit": 9,
+              "graph:build:hit": 9,
+              "normalization:hit": 9
+            },
+            "buildDigest": "sha256:cb93d3610518091d10267327ff49caf5f2a8791c60da9d7ece8d95afe281446c"
+          }
+        ]
+      },
+      "summaries": {
+        "control": {
+          "durationMs": {
+            "median": 401.5988955,
+            "p95": 440.654625,
+            "samples": [
+              440.654625,
+              362.54316600000004
+            ]
+          },
+          "peakRssBytes": {
+            "median": 316563456,
+            "p95": 317784064,
+            "samples": [
+              317784064,
+              315342848
+            ]
+          },
+          "heapUsedBytes": {
+            "median": 67023176,
+            "p95": 67053624,
+            "samples": [
+              67053624,
+              66992728
+            ]
+          },
+          "outputBytes": {
+            "median": 3200,
+            "p95": 3200,
+            "samples": [
+              3200,
+              3200
+            ]
+          }
+        },
+        "reconstructed": {
+          "durationMs": {
+            "median": null,
+            "p95": null,
+            "samples": []
+          },
+          "peakRssBytes": {
+            "median": null,
+            "p95": null,
+            "samples": []
+          },
+          "heapUsedBytes": {
+            "median": null,
+            "p95": null,
+            "samples": []
+          },
+          "outputBytes": {
+            "median": null,
+            "p95": null,
+            "samples": []
+          }
+        },
+        "current": {
+          "durationMs": {
+            "median": 564.4793335,
+            "p95": 566.881292,
+            "samples": [
+              562.0773750000001,
+              566.881292
+            ]
+          },
+          "peakRssBytes": {
+            "median": 406552576,
+            "p95": 407224320,
+            "samples": [
+              407224320,
+              405880832
+            ]
+          },
+          "heapUsedBytes": {
+            "median": 91393508,
+            "p95": 91477552,
+            "samples": [
+              91477552,
+              91309464
+            ]
+          },
+          "outputBytes": {
+            "median": 12856,
+            "p95": 12856,
+            "samples": [
+              12856,
+              12856
+            ]
+          }
+        },
+        "warm": {
+          "durationMs": {
+            "median": 467.136437,
+            "p95": 471.47670800000003,
+            "samples": [
+              462.796166,
+              471.47670800000003
+            ]
+          },
+          "peakRssBytes": {
+            "median": 358031360,
+            "p95": 359120896,
+            "samples": [
+              356941824,
+              359120896
+            ]
+          },
+          "heapUsedBytes": {
+            "median": 109497700,
+            "p95": 109507264,
+            "samples": [
+              109507264,
+              109488136
+            ]
+          },
+          "outputBytes": {
+            "median": 12856,
+            "p95": 12856,
+            "samples": [
+              12856,
+              12856
+            ]
+          }
+        },
+        "edited": {
+          "durationMs": {
+            "median": 475.81556250000006,
+            "p95": 480.51112500000005,
+            "samples": [
+              471.12,
+              480.51112500000005
+            ]
+          },
+          "peakRssBytes": {
+            "median": 361340928,
+            "p95": 362119168,
+            "samples": [
+              362119168,
+              360562688
+            ]
+          },
+          "heapUsedBytes": {
+            "median": 113708784,
+            "p95": 113847408,
+            "samples": [
+              113847408,
+              113570160
+            ]
+          },
+          "outputBytes": {
+            "median": 12835,
+            "p95": 12835,
+            "samples": [
+              12835,
+              12835
+            ]
+          }
+        }
+      }
+    },
+    {
+      "count": 1000,
+      "measurements": {
+        "control": [
+          {
+            "durationMs": 742.464541,
+            "peakRssBytes": 415760384,
+            "heapUsedBytes": 83063128,
+            "outputBytes": 327560,
+            "work": {},
+            "buildDigest": null
+          },
+          {
+            "durationMs": 778.773708,
+            "peakRssBytes": 416612352,
+            "heapUsedBytes": 83229776,
+            "outputBytes": 327560,
+            "work": {},
+            "buildDigest": null
+          }
+        ],
+        "reconstructed": [],
+        "current": [
+          {
+            "durationMs": 7407.215042,
+            "peakRssBytes": 546734080,
+            "heapUsedBytes": 109275744,
+            "outputBytes": 1245586,
+            "work": {
+              "graph-baseline:miss": 1000,
+              "graph:build:miss": 1000,
+              "graph:build:action:replaced": 1000,
+              "normalization:miss": 1000,
+              "page:discovered:action:kept": 1000,
+              "page:extract:action:kept": 1000,
+              "page:metadata:action:kept": 1000,
+              "page:transform:action:kept": 1000
+            },
+            "buildDigest": "sha256:f32a0d74ee289f70e52d4ff2a9a562526c00e25e7c21ef793edcee9fd31e93bb"
+          },
+          {
+            "durationMs": 7543.412792,
+            "peakRssBytes": 545046528,
+            "heapUsedBytes": 109225944,
+            "outputBytes": 1245586,
+            "work": {
+              "graph-baseline:miss": 1000,
+              "graph:build:miss": 1000,
+              "graph:build:action:replaced": 1000,
+              "normalization:miss": 1000,
+              "page:discovered:action:kept": 1000,
+              "page:extract:action:kept": 1000,
+              "page:metadata:action:kept": 1000,
+              "page:transform:action:kept": 1000
+            },
+            "buildDigest": "sha256:f32a0d74ee289f70e52d4ff2a9a562526c00e25e7c21ef793edcee9fd31e93bb"
+          }
+        ],
+        "warm": [
+          {
+            "durationMs": 4004.0560419999997,
+            "peakRssBytes": 506281984,
+            "heapUsedBytes": 143771368,
+            "outputBytes": 1245586,
+            "work": {
+              "graph-baseline:hit": 1000,
+              "graph:build:hit": 1000,
+              "graph:build:action:replaced": 1000,
+              "normalization:hit": 1000,
+              "page:discovered:action:kept": 1000,
+              "page:extract:action:kept": 1000,
+              "page:metadata:action:kept": 1000,
+              "page:transform:action:kept": 1000
+            },
+            "buildDigest": "sha256:f32a0d74ee289f70e52d4ff2a9a562526c00e25e7c21ef793edcee9fd31e93bb"
+          },
+          {
+            "durationMs": 4024.7618330000005,
+            "peakRssBytes": 507084800,
+            "heapUsedBytes": 144686824,
+            "outputBytes": 1245586,
+            "work": {
+              "graph-baseline:hit": 1000,
+              "graph:build:hit": 1000,
+              "graph:build:action:replaced": 1000,
+              "normalization:hit": 1000,
+              "page:discovered:action:kept": 1000,
+              "page:extract:action:kept": 1000,
+              "page:metadata:action:kept": 1000,
+              "page:transform:action:kept": 1000
+            },
+            "buildDigest": "sha256:f32a0d74ee289f70e52d4ff2a9a562526c00e25e7c21ef793edcee9fd31e93bb"
+          }
+        ],
+        "edited": [
+          {
+            "durationMs": 4024.248709,
+            "peakRssBytes": 505430016,
+            "heapUsedBytes": 143201984,
+            "outputBytes": 1245565,
+            "work": {
+              "graph-baseline:miss": 1,
+              "graph:build:miss": 1,
+              "graph:build:action:replaced": 1000,
+              "normalization:miss": 1,
+              "page:discovered:action:kept": 1000,
+              "page:extract:action:kept": 1000,
+              "page:metadata:action:kept": 1000,
+              "page:transform:action:kept": 1000,
+              "graph-baseline:hit": 999,
+              "graph:build:hit": 999,
+              "normalization:hit": 999
+            },
+            "buildDigest": "sha256:f5ed1a5042c8a39b922953c54c0bcedfa658bf3b202e64b447f2258088568cb4"
+          },
+          {
+            "durationMs": 4039.008042,
+            "peakRssBytes": 511066112,
+            "heapUsedBytes": 143238392,
+            "outputBytes": 1245565,
+            "work": {
+              "graph-baseline:miss": 1,
+              "graph:build:miss": 1,
+              "graph:build:action:replaced": 1000,
+              "normalization:miss": 1,
+              "page:discovered:action:kept": 1000,
+              "page:extract:action:kept": 1000,
+              "page:metadata:action:kept": 1000,
+              "page:transform:action:kept": 1000,
+              "graph-baseline:hit": 999,
+              "graph:build:hit": 999,
+              "normalization:hit": 999
+            },
+            "buildDigest": "sha256:f5ed1a5042c8a39b922953c54c0bcedfa658bf3b202e64b447f2258088568cb4"
+          }
+        ]
+      },
+      "summaries": {
+        "control": {
+          "durationMs": {
+            "median": 760.6191245,
+            "p95": 778.773708,
+            "samples": [
+              742.464541,
+              778.773708
+            ]
+          },
+          "peakRssBytes": {
+            "median": 416186368,
+            "p95": 416612352,
+            "samples": [
+              415760384,
+              416612352
+            ]
+          },
+          "heapUsedBytes": {
+            "median": 83146452,
+            "p95": 83229776,
+            "samples": [
+              83063128,
+              83229776
+            ]
+          },
+          "outputBytes": {
+            "median": 327560,
+            "p95": 327560,
+            "samples": [
+              327560,
+              327560
+            ]
+          }
+        },
+        "reconstructed": {
+          "durationMs": {
+            "median": null,
+            "p95": null,
+            "samples": []
+          },
+          "peakRssBytes": {
+            "median": null,
+            "p95": null,
+            "samples": []
+          },
+          "heapUsedBytes": {
+            "median": null,
+            "p95": null,
+            "samples": []
+          },
+          "outputBytes": {
+            "median": null,
+            "p95": null,
+            "samples": []
+          }
+        },
+        "current": {
+          "durationMs": {
+            "median": 7475.3139169999995,
+            "p95": 7543.412792,
+            "samples": [
+              7407.215042,
+              7543.412792
+            ]
+          },
+          "peakRssBytes": {
+            "median": 545890304,
+            "p95": 546734080,
+            "samples": [
+              546734080,
+              545046528
+            ]
+          },
+          "heapUsedBytes": {
+            "median": 109250844,
+            "p95": 109275744,
+            "samples": [
+              109275744,
+              109225944
+            ]
+          },
+          "outputBytes": {
+            "median": 1245586,
+            "p95": 1245586,
+            "samples": [
+              1245586,
+              1245586
+            ]
+          }
+        },
+        "warm": {
+          "durationMs": {
+            "median": 4014.4089375000003,
+            "p95": 4024.7618330000005,
+            "samples": [
+              4004.0560419999997,
+              4024.7618330000005
+            ]
+          },
+          "peakRssBytes": {
+            "median": 506683392,
+            "p95": 507084800,
+            "samples": [
+              506281984,
+              507084800
+            ]
+          },
+          "heapUsedBytes": {
+            "median": 144229096,
+            "p95": 144686824,
+            "samples": [
+              143771368,
+              144686824
+            ]
+          },
+          "outputBytes": {
+            "median": 1245586,
+            "p95": 1245586,
+            "samples": [
+              1245586,
+              1245586
+            ]
+          }
+        },
+        "edited": {
+          "durationMs": {
+            "median": 4031.6283755,
+            "p95": 4039.008042,
+            "samples": [
+              4024.248709,
+              4039.008042
+            ]
+          },
+          "peakRssBytes": {
+            "median": 508248064,
+            "p95": 511066112,
+            "samples": [
+              505430016,
+              511066112
+            ]
+          },
+          "heapUsedBytes": {
+            "median": 143220188,
+            "p95": 143238392,
+            "samples": [
+              143201984,
+              143238392
+            ]
+          },
+          "outputBytes": {
+            "median": 1245565,
+            "p95": 1245565,
+            "samples": [
+              1245565,
+              1245565
+            ]
+          }
+        }
+      }
+    },
+    {
+      "count": 10000,
+      "measurements": {
+        "control": [
+          {
+            "durationMs": 3681.001,
+            "peakRssBytes": 481869824,
+            "heapUsedBytes": 185720800,
+            "outputBytes": 3315560,
+            "work": {},
+            "buildDigest": null
+          },
+          {
+            "durationMs": 3716.392875,
+            "peakRssBytes": 491061248,
+            "heapUsedBytes": 195029096,
+            "outputBytes": 3315560,
+            "work": {},
+            "buildDigest": null
+          }
+        ],
+        "reconstructed": [],
+        "current": [
+          {
+            "durationMs": 97707.378834,
+            "peakRssBytes": 1352384512,
+            "heapUsedBytes": 784500800,
+            "outputBytes": 12648586,
+            "work": {
+              "graph-baseline:miss": 10000,
+              "graph:build:miss": 10000,
+              "graph:build:action:replaced": 10000,
+              "normalization:miss": 10000,
+              "page:discovered:action:kept": 10000,
+              "page:extract:action:kept": 10000,
+              "page:metadata:action:kept": 10000,
+              "page:transform:action:kept": 10000
+            },
+            "buildDigest": "sha256:214854007e15f7730f3db3223189ac5db9dbaf05ca77fa8718378254209192f9"
+          },
+          {
+            "durationMs": 94706.536875,
+            "peakRssBytes": 1432715264,
+            "heapUsedBytes": 827194520,
+            "outputBytes": 12648586,
+            "work": {
+              "graph-baseline:miss": 10000,
+              "graph:build:miss": 10000,
+              "graph:build:action:replaced": 10000,
+              "normalization:miss": 10000,
+              "page:discovered:action:kept": 10000,
+              "page:extract:action:kept": 10000,
+              "page:metadata:action:kept": 10000,
+              "page:transform:action:kept": 10000
+            },
+            "buildDigest": "sha256:214854007e15f7730f3db3223189ac5db9dbaf05ca77fa8718378254209192f9"
+          }
+        ],
+        "warm": [
+          {
+            "durationMs": 68522.148708,
+            "peakRssBytes": 956137472,
+            "heapUsedBytes": 400370440,
+            "outputBytes": 12648586,
+            "work": {
+              "graph-baseline:hit": 10000,
+              "graph:build:hit": 10000,
+              "graph:build:action:replaced": 10000,
+              "normalization:hit": 10000,
+              "page:discovered:action:kept": 10000,
+              "page:extract:action:kept": 10000,
+              "page:metadata:action:kept": 10000,
+              "page:transform:action:kept": 10000
+            },
+            "buildDigest": "sha256:214854007e15f7730f3db3223189ac5db9dbaf05ca77fa8718378254209192f9"
+          },
+          {
+            "durationMs": 63200.904833,
+            "peakRssBytes": 1345273856,
+            "heapUsedBytes": 400860752,
+            "outputBytes": 12648586,
+            "work": {
+              "graph-baseline:hit": 10000,
+              "graph:build:hit": 10000,
+              "graph:build:action:replaced": 10000,
+              "normalization:hit": 10000,
+              "page:discovered:action:kept": 10000,
+              "page:extract:action:kept": 10000,
+              "page:metadata:action:kept": 10000,
+              "page:transform:action:kept": 10000
+            },
+            "buildDigest": "sha256:214854007e15f7730f3db3223189ac5db9dbaf05ca77fa8718378254209192f9"
+          }
+        ],
+        "edited": [
+          {
+            "durationMs": 65511.030957999996,
+            "peakRssBytes": 1118732288,
+            "heapUsedBytes": 401551256,
+            "outputBytes": 12648565,
+            "work": {
+              "graph-baseline:miss": 1,
+              "graph:build:miss": 1,
+              "graph:build:action:replaced": 10000,
+              "normalization:miss": 1,
+              "page:discovered:action:kept": 10000,
+              "page:extract:action:kept": 10000,
+              "page:metadata:action:kept": 10000,
+              "page:transform:action:kept": 10000,
+              "graph-baseline:hit": 9999,
+              "graph:build:hit": 9999,
+              "normalization:hit": 9999
+            },
+            "buildDigest": "sha256:9b71ab1d9f5dd5d1defe4631d192ec03f5ab9322afe77a9f8471945b00fb316e"
+          },
+          {
+            "durationMs": 66332.085416,
+            "peakRssBytes": 1129562112,
+            "heapUsedBytes": 401522888,
+            "outputBytes": 12648565,
+            "work": {
+              "graph-baseline:miss": 1,
+              "graph:build:miss": 1,
+              "graph:build:action:replaced": 10000,
+              "normalization:miss": 1,
+              "page:discovered:action:kept": 10000,
+              "page:extract:action:kept": 10000,
+              "page:metadata:action:kept": 10000,
+              "page:transform:action:kept": 10000,
+              "graph-baseline:hit": 9999,
+              "graph:build:hit": 9999,
+              "normalization:hit": 9999
+            },
+            "buildDigest": "sha256:9b71ab1d9f5dd5d1defe4631d192ec03f5ab9322afe77a9f8471945b00fb316e"
+          }
+        ]
+      },
+      "summaries": {
+        "control": {
+          "durationMs": {
+            "median": 3698.6969375,
+            "p95": 3716.392875,
+            "samples": [
+              3681.001,
+              3716.392875
+            ]
+          },
+          "peakRssBytes": {
+            "median": 486465536,
+            "p95": 491061248,
+            "samples": [
+              481869824,
+              491061248
+            ]
+          },
+          "heapUsedBytes": {
+            "median": 190374948,
+            "p95": 195029096,
+            "samples": [
+              185720800,
+              195029096
+            ]
+          },
+          "outputBytes": {
+            "median": 3315560,
+            "p95": 3315560,
+            "samples": [
+              3315560,
+              3315560
+            ]
+          }
+        },
+        "reconstructed": {
+          "durationMs": {
+            "median": null,
+            "p95": null,
+            "samples": []
+          },
+          "peakRssBytes": {
+            "median": null,
+            "p95": null,
+            "samples": []
+          },
+          "heapUsedBytes": {
+            "median": null,
+            "p95": null,
+            "samples": []
+          },
+          "outputBytes": {
+            "median": null,
+            "p95": null,
+            "samples": []
+          }
+        },
+        "current": {
+          "durationMs": {
+            "median": 96206.95785450001,
+            "p95": 97707.378834,
+            "samples": [
+              97707.378834,
+              94706.536875
+            ]
+          },
+          "peakRssBytes": {
+            "median": 1392549888,
+            "p95": 1432715264,
+            "samples": [
+              1352384512,
+              1432715264
+            ]
+          },
+          "heapUsedBytes": {
+            "median": 805847660,
+            "p95": 827194520,
+            "samples": [
+              784500800,
+              827194520
+            ]
+          },
+          "outputBytes": {
+            "median": 12648586,
+            "p95": 12648586,
+            "samples": [
+              12648586,
+              12648586
+            ]
+          }
+        },
+        "warm": {
+          "durationMs": {
+            "median": 65861.5267705,
+            "p95": 68522.148708,
+            "samples": [
+              68522.148708,
+              63200.904833
+            ]
+          },
+          "peakRssBytes": {
+            "median": 1150705664,
+            "p95": 1345273856,
+            "samples": [
+              956137472,
+              1345273856
+            ]
+          },
+          "heapUsedBytes": {
+            "median": 400615596,
+            "p95": 400860752,
+            "samples": [
+              400370440,
+              400860752
+            ]
+          },
+          "outputBytes": {
+            "median": 12648586,
+            "p95": 12648586,
+            "samples": [
+              12648586,
+              12648586
+            ]
+          }
+        },
+        "edited": {
+          "durationMs": {
+            "median": 65921.558187,
+            "p95": 66332.085416,
+            "samples": [
+              65511.030957999996,
+              66332.085416
+            ]
+          },
+          "peakRssBytes": {
+            "median": 1124147200,
+            "p95": 1129562112,
+            "samples": [
+              1118732288,
+              1129562112
+            ]
+          },
+          "heapUsedBytes": {
+            "median": 401537072,
+            "p95": 401551256,
+            "samples": [
+              401551256,
+              401522888
+            ]
+          },
+          "outputBytes": {
+            "median": 12648565,
+            "p95": 12648565,
+            "samples": [
+              12648565,
+              12648565
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "failures": [
+    "Packed package exceeds the unchanged release ceiling.",
+    "Unpacked package exceeds the unchanged release ceiling."
+  ],
+  "candidate": {
+    "baseCommit": "bf91253",
+    "workingTree": true,
+    "packagedContentDigest": "5f44204f0fdf48039936fe61c43e612e51d7cf15ba780dd03c349187f344dd5d",
+    "status": "reviewed batch 12, not committed or release-approved"
+  },
+  "historicalProjectComparison": {
+    "scope": "Separate three-sample reconstructed runs, not paired with the final two current/control samples.",
+    "environment": {
+      "node": "v24.15.0",
+      "platform": "darwin",
+      "architecture": "arm64",
+      "astro": "7.3.5",
+      "runnerClass": null
+    },
+    "revision": "29729bb334b614473f4facdfdab451ed2bd3d933",
+    "publishedRelease": false,
+    "projects": [
+      {
+        "count": 10,
+        "measurements": [
+          {
+            "durationMs": 605.7047499999999,
+            "peakRssBytes": 410157056,
+            "heapUsedBytes": 93470656,
+            "outputBytes": 12856,
+            "work": {},
+            "buildDigest": null
+          },
+          {
+            "durationMs": 549.3362910000001,
+            "peakRssBytes": 413319168,
+            "heapUsedBytes": 93466904,
+            "outputBytes": 12856,
+            "work": {},
+            "buildDigest": null
+          },
+          {
+            "durationMs": 581.0342079999999,
+            "peakRssBytes": 412139520,
+            "heapUsedBytes": 93501480,
+            "outputBytes": 12856,
+            "work": {},
+            "buildDigest": null
+          }
+        ],
+        "summaries": {
+          "durationMs": {
+            "median": 581.0342079999999,
+            "p95": 605.7047499999999,
+            "samples": [
+              605.7047499999999,
+              549.3362910000001,
+              581.0342079999999
+            ]
+          },
+          "peakRssBytes": {
+            "median": 412139520,
+            "p95": 413319168,
+            "samples": [
+              410157056,
+              413319168,
+              412139520
+            ]
+          },
+          "heapUsedBytes": {
+            "median": 93470656,
+            "p95": 93501480,
+            "samples": [
+              93470656,
+              93466904,
+              93501480
+            ]
+          },
+          "outputBytes": {
+            "median": 12856,
+            "p95": 12856,
+            "samples": [
+              12856,
+              12856,
+              12856
+            ]
+          }
+        }
+      },
+      {
+        "count": 1000,
+        "measurements": [
+          {
+            "durationMs": 34955.102249999996,
+            "peakRssBytes": 541622272,
+            "heapUsedBytes": 152483480,
+            "outputBytes": 1245586,
+            "work": {},
+            "buildDigest": null
+          },
+          {
+            "durationMs": 34560.256292,
+            "peakRssBytes": 546226176,
+            "heapUsedBytes": 152463936,
+            "outputBytes": 1245586,
+            "work": {},
+            "buildDigest": null
+          },
+          {
+            "durationMs": 34560.302041999996,
+            "peakRssBytes": 547749888,
+            "heapUsedBytes": 152744320,
+            "outputBytes": 1245586,
+            "work": {},
+            "buildDigest": null
+          }
+        ],
+        "summaries": {
+          "durationMs": {
+            "median": 34560.302041999996,
+            "p95": 34955.102249999996,
+            "samples": [
+              34955.102249999996,
+              34560.256292,
+              34560.302041999996
+            ]
+          },
+          "peakRssBytes": {
+            "median": 546226176,
+            "p95": 547749888,
+            "samples": [
+              541622272,
+              546226176,
+              547749888
+            ]
+          },
+          "heapUsedBytes": {
+            "median": 152483480,
+            "p95": 152744320,
+            "samples": [
+              152483480,
+              152463936,
+              152744320
+            ]
+          },
+          "outputBytes": {
+            "median": 1245586,
+            "p95": 1245586,
+            "samples": [
+              1245586,
+              1245586,
+              1245586
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "evidenceNotes": [
+    "Two final current/control pairs were run after runtime source froze; nearest-rank p95 with two samples is descriptive.",
+    "Control imports the integration module but does not register it; it does not execute integration hooks.",
+    "The earlier mixed-candidate current runs are excluded. Historical runs use the clean unchanged reconstructed checkout.",
+    "No historical 10,000-page project timing or reference-runner 5% certification is claimed."
+  ]
+}
