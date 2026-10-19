@@ -1997,8 +1997,8 @@ advertised sitemaps, identity-encoded manifest artifacts, and available companio
 consumer tokenizer. Built-in token counts, identity artifact bytes, and normalized companion hashes are checked; custom counts,
 compressed wire bytes, runtime-owned build omissions, and exhausted budgets are disclosed. Artifact
 requests stay within the selected origin/base, reject credentialed/query/fragment advertisements, and
-share the crawl's redirect, timeout and 5 MiB response limit. Discovery is capped at 100 resources
-and 16 MiB of inspected text. Missing optional profile/manifest files are not errors. These checks
+share the crawl's redirect, timeout and 5 MiB response limit. Discovery is capped at 100 resources,
+16 MiB of inspected text, and 60 seconds before its last request starts. Missing optional profile/manifest files are not errors. These checks
 are live HTTP evidence, not deployed-provider certification. Without this flag, discovery/corpus
 coverage remains unknown unless findings establish an observed check.
 

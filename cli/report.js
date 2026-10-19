@@ -1,7 +1,7 @@
 // @ts-check
 import { parseArgs } from 'node:util';
 import { resolve, join, relative, sep, isAbsolute } from 'node:path';
-import { ReportInvocationError, readText, readJson, readStream, readBaseline, writeOutput, optionalJson } from './reports/io.js';
+import { ReportInvocationError, readText, readJson, readStream, readBaseline, writeOutput, optionalJson, sameFile } from './reports/io.js';
 import { trafficReport } from './reports/traffic.js';
 import { changesReport, changesFail } from './reports/changes.js';
 import { inspectReport, checkManifestEvidence } from './reports/inspect.js';
@@ -77,7 +77,8 @@ export async function runReport(args, environment = {}) {
       ...(values.manifest ? [path(values.manifest)] : []),
       ...(['inspect','rag'].includes(kind) ? [join(values.dist ? path(values.dist) : join(project,'dist'),'llms','manifest.json')] : []),
     ];
-    if (inside(cache,target) || consumed.includes(target))
+    const overwritesInput = (await Promise.all(consumed.map((file) => sameFile(file,target)))).some(Boolean);
+    if (inside(cache,target) || overwritesInput)
       throw new ReportInvocationError('Report output must not overwrite input or private build evidence.');
     // Companion discovery reads Markdown under this output root; do not replace an input companion.
     if (kind === 'rag' && target.endsWith('.md')) {

@@ -510,7 +510,10 @@ function sanitizeRuntimePage(value) {
     ...(typeof page.version === 'string' ? { version: page.version } : {}),
     ...(typeof page.versionGroup === 'string' ? { versionGroup: page.versionGroup } : {}),
     ...(page.versionLinks === true ? { versionLinks: true } : {}),
-    ...(page.localeFallback ? { localeFallback: page.localeFallback } : {}),
+    ...(typeof page.localeFallback?.requested === 'string' ? { localeFallback: {
+      requested: page.localeFallback.requested,
+      ...(typeof page.localeFallback.source === 'string' ? { source: page.localeFallback.source } : {}),
+    } } : {}),
     ...(Array.isArray(page.alternates) ? { alternates: page.alternates } : {}),
     ...(page.metadata && typeof page.metadata === 'object' ? { metadata: page.metadata } : {}),
     representations: {

@@ -46,8 +46,9 @@ export function readEdgeManifest(value) {
     if (routes.has(key)) return null;
     routes.set(key, route.markdown);
   }
-  // Direct companion requests look up their own path, so index it once here.
-  return { mode: manifest.mode, routes, markdown: new Set(routes.values()),
+  // Direct companion requests look up their own path, so index it once here,
+  // keyed like routes so an equivalent percent-encoding still matches.
+  return { mode: manifest.mode, routes, markdown: new Set([...routes.values()].map(routeKey)),
     ...(manifest.cacheControl === undefined ? {} : { cacheControl: manifest.cacheControl }) };
 }
 
@@ -68,6 +69,16 @@ export function decideEdgeRepresentation(request, manifest) {
   return manifest.mode === 'redirect'
     ? { kind: 'redirect', location: `${markdown}${url.search}` }
     : { kind: 'markdown', pathname: markdown };
+}
+
+/**
+ * Whether a direct `.md` request names a companion listed in the manifest.
+ *
+ * @param {ReturnType<typeof readEdgeManifest>} manifest
+ * @param {string} pathname
+ */
+export function isManifestMarkdown(manifest, pathname) {
+  return Boolean(manifest?.markdown.has(routeKey(pathname)));
 }
 
 /**
@@ -123,7 +134,7 @@ export function createEdgeNegotiator(host) {
     if (new URL(request.url).pathname.endsWith('.md')) {
       const manifest = await manifestFor(request, /** @type {C} */ (context));
       const response = await next();
-      if (manifest?.cacheControl === undefined || !manifest.markdown.has(new URL(request.url).pathname)) return response;
+      if (manifest?.cacheControl === undefined || !isManifestMarkdown(manifest, new URL(request.url).pathname)) return response;
       const headers = new Headers(response.headers);
       if (response.ok || response.status === 304) headers.set('cache-control', manifest.cacheControl);
       return new Response(response.body, { status: response.status, statusText: response.statusText, headers });

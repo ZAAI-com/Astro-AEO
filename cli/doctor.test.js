@@ -176,6 +176,11 @@ describe('doctor evidence and read-only advice', () => {
     expect(statuses((await runDoctor([root])).checks)['emitted-artifacts']).toBe('conflicting');
     rmSync(join(root, 'dist/index.md'));
     expect(statuses((await runDoctor([root])).checks)['emitted-artifacts']).toBe('missing');
+    // A deleted build folder is missing output, not an unread linked folder.
+    rmSync(join(root, 'dist'), { recursive: true });
+    const result = await runDoctor([root]);
+    expect(statuses(result.checks)['emitted-artifacts']).toBe('missing');
+    expect(result.exitCode).not.toBe(0);
   });
 
   test('rejects stale deployment digests and a ledger for a different output', async () => {

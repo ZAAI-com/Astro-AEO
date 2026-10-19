@@ -8,12 +8,17 @@ import { createFinding } from './finding.js';
 
 export const DISCOVERY_LIMIT = 100;
 export const DISCOVERY_BYTES = 16 * 1024 * 1024;
+/** One wall-clock budget for all discovery requests, so a slow origin cannot hold
+ * the audit for the resource limit times the per-request timeout. */
+export const DISCOVERY_DEADLINE_MS = 60_000;
 /** Anonymous discovery checks share the crawler's redirect/origin/body limits.
  * They never import a site's tokenizer or treat unvisited page targets as missing.
  * @param {string} origin @param {string} base
  * @param {(url:string,accept:string)=>Promise<{status:number;url:string;body:string;contentType:string;bodyHash?:string}|{failure:import('../index.js').Finding}>} request
- * @param {readonly import('./facts.js').PageFacts[]} pages */
-export async function auditLiveDiscovery(origin,base,request,pages) {
+ * @param {readonly import('./facts.js').PageFacts[]} pages
+ * @param {{ deadlineMs?: number; now?: () => number }} [budget] */
+export async function auditLiveDiscovery(origin,base,request,pages,{deadlineMs = DISCOVERY_DEADLINE_MS,now = Date.now} = {}) {
+  const deadline = now() + deadlineMs;
   const prefix = new URL(base,origin).pathname.replace(/\/$/,'');
   const root = origin + prefix;
   /** @type {import('../index.js').Finding[]} */
@@ -45,9 +50,9 @@ export async function auditLiveDiscovery(origin,base,request,pages) {
   /** @param {string} url @param {string} accept @param {boolean} [required] */
   async function fetchResource(url,accept,required = true) {
     if (responses.has(url)) return responses.get(url);
-    if (responses.size >= DISCOVERY_LIMIT || bytes >= DISCOVERY_BYTES) {
+    if (responses.size >= DISCOVERY_LIMIT || bytes >= DISCOVERY_BYTES || now() >= deadline) {
       complete = false;
-      if (!findings.some((item) => item.ruleId === 'live-discovery-limit')) issue('live-discovery-limit','Discovery resource or byte budget reached; remaining artifacts are unknown.',root + '/');
+      if (!findings.some((item) => item.ruleId === 'live-discovery-limit')) issue('live-discovery-limit','Discovery resource, byte or time budget reached; remaining artifacts are unknown.',root + '/');
       return null;
     }
     responses.set(url,null);

@@ -301,7 +301,11 @@ export async function buildPage({ pathname: rawPathname, html, config, site, td,
       ...(version ? { version } : {}),
       ...(versionGroup ? { versionGroup } : {}),
       ...(marker?.versionLinks === true ? { versionLinks: true } : {}),
-      ...(typeof marker?.localeFallback?.requested === 'string' ? { localeFallback: marker.localeFallback } : {}),
+      // Copy only the declared fields: the marker is authored JSON and may carry extra keys.
+      ...(typeof marker?.localeFallback?.requested === 'string' ? { localeFallback: {
+        requested: marker.localeFallback.requested,
+        ...(typeof marker.localeFallback.source === 'string' ? { source: marker.localeFallback.source } : {}),
+      } } : {}),
       ...(Array.isArray(marker?.alternates ?? authored?.alternates)
         ? { alternates: marker?.alternates ?? authored?.alternates } : {}),
       languageSources: {

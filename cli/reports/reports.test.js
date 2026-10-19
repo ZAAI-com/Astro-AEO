@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, stat, readdir } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, stat, readdir, link } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -338,6 +338,18 @@ describe('report identities and malformed contracts', () => {
     expect(result.output).not.toContain(root);
     expect(result.output).not.toContain('outputRootId');
   });
+  it('flags artifacts present only in ownership and differing byte lengths', async () => {
+    const owned = {pathname:'/guide.md',status:'emitted',owner:{name:'dotmd'},representation:{etag:'"'+'a'.repeat(64)+'"',byteLength:5}};
+    await seed('pages-v1.json',snapshot([sourcePage()],[owned]));
+    const inspect = async (/** @type {any[]} */ artifacts) => {
+      await seed('ownership-v1.json',{version:1,outputRootId:'sha256:'+'f'.repeat(64),artifacts});
+      return (await runReport(['inspect','--format','json'],{cwd:root})).warnings;
+    };
+    const mismatch = 'Snapshot and ownership artifact evidence mismatch.';
+    expect(await inspect([owned])).not.toContain(mismatch);
+    expect(await inspect([owned,{pathname:'/extra.md',status:'emitted'}])).toContain(mismatch);
+    expect(await inspect([{...owned,representation:{...owned.representation,byteLength:6}}])).toContain(mismatch);
+  });
   it('refuses arbitrary linked ancestors and invalid UTF-8 before parsing', async () => {
     await mkdir(join(root,'real')); await writeFile(join(root,'real','data'),JSON.stringify(event()));
     await symlink(join(root,'real'),join(root,'linked'));
@@ -405,6 +417,10 @@ it('refuses exports over consumed inputs and private build evidence', async () =
   const text = JSON.stringify(event()); await writeFile(join(root,'events'),text);
   await expect(runReport(['traffic','events','--output','events'],{cwd:root})).rejects.toThrow('must not overwrite input');
   await expect(runReport(['traffic','events','--output','.astro/aeo-cache/export.json'],{cwd:root})).rejects.toThrow('private build evidence');
+  await link(join(root,'events'),join(root,'events-link'));
+  await expect(runReport(['traffic','events','--output','events-link'],{cwd:root})).rejects.toThrow('must not overwrite input');
+  if (['darwin','win32'].includes(process.platform))
+    await expect(runReport(['traffic','events','--output','EVENTS'],{cwd:root})).rejects.toThrow('must not overwrite input');
   expect(await readFile(join(root,'events'),'utf8')).toBe(text);
 });
 

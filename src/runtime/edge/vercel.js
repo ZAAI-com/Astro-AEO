@@ -1,6 +1,8 @@
 // @ts-check
 import { observeEdge } from './observation.js';
-import { EDGE_MANIFEST_PATHNAME, decideEdgeRepresentation, isEdgeSubrequest, readEdgeManifest } from './handler.js';
+import { EDGE_MANIFEST_PATHNAME, decideEdgeRepresentation, isEdgeSubrequest, isManifestMarkdown, readEdgeManifest } from './handler.js';
+
+const INTERNAL_AGENT = 'astro-aeo-internal/1';
 
 /**
  * Vercel Routing Middleware. Middleware cannot read the origin response, so the
@@ -28,37 +30,47 @@ export function createVercelHandler(options) {
   /** @type {ReturnType<typeof readEdgeManifest>} */
   let cached = null;
 
+  /** An anonymous HEAD for a static asset. Fetch is injected by the host and the
+   * request never carries caller credentials.
+   * @param {string} pathname @param {Request} request */
+  async function assetOk(pathname, request) {
+    try {
+      const response = await (options.fetch ?? globalThis.fetch)(new URL(pathname, request.url), {
+        method: 'HEAD', headers: { 'user-agent': INTERNAL_AGENT }, redirect: 'manual', credentials: 'omit', signal: AbortSignal.timeout(2000),
+      });
+      void response.body?.cancel().catch(() => {});
+      return response.status === 200;
+    } catch {
+      return false;
+    }
+  }
+
   /** @param {Request} request */
   async function middleware(request) {
     const direct = new URL(request.url).pathname.endsWith('.md');
     if ((request.method !== 'GET' && request.method !== 'HEAD') || (!direct && isEdgeSubrequest(request))) return options.next();
     if (!cached) {
       try {
-        const response = await (options.fetch ?? globalThis.fetch)(new URL(manifestPathname, request.url), { headers: { 'user-agent': 'astro-aeo-internal/1' } });
+        const response = await (options.fetch ?? globalThis.fetch)(new URL(manifestPathname, request.url), { headers: { 'user-agent': INTERNAL_AGENT } });
         cached = response.ok ? readEdgeManifest(await response.json()) : null;
       } catch {
         cached = null;
       }
     }
     if (direct) {
-      return cached?.cacheControl !== undefined && cached.markdown.has(new URL(request.url).pathname)
+      // Middleware never sees the asset status, so verify it before a cache policy
+      // could make a 404 or 5xx cacheable. Our own preflight passes straight through.
+      if (cached?.cacheControl === undefined || request.headers.get('user-agent') === INTERNAL_AGENT ||
+        !isManifestMarkdown(cached, new URL(request.url).pathname)) return options.next();
+      return await assetOk(new URL(request.url).pathname, request)
         ? options.next({ headers: { 'cache-control': cached.cacheControl } }) : options.next();
     }
     const decision = decideEdgeRepresentation(request, cached);
     if (decision.kind === 'pass') return options.next();
     if (decision.kind === 'html') return options.next({ headers: { vary: 'Accept' } });
-    // Verify the companion before a rewrite or redirect. Fetch is injected by
-    // the host and this anonymous HEAD never carries caller credentials.
+    // Verify the companion before a rewrite or redirect.
     const companion = decision.kind === 'markdown' ? decision.pathname : new URL(decision.location, request.url).pathname;
-    try {
-      const response = await (options.fetch ?? globalThis.fetch)(new URL(companion, request.url), {
-        method: 'HEAD', headers: { 'user-agent': 'astro-aeo-internal/1' }, redirect: 'manual', credentials: 'omit', signal: AbortSignal.timeout(2000),
-      });
-      void response.body?.cancel().catch(() => {});
-      if (response.status !== 200) return options.next({ headers: { vary: 'Accept' } });
-    } catch {
-      return options.next({ headers: { vary: 'Accept' } });
-    }
+    if (!await assetOk(companion, request)) return options.next({ headers: { vary: 'Accept' } });
     if (decision.kind === 'redirect') {
       return new Response(null, { status: 303, headers: { location: decision.location, vary: 'Accept' } });
     }

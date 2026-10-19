@@ -38,8 +38,8 @@ export function createAnalyticsMiddleware(middleware, internal, runtime, options
     routePattern: base && !routePattern.startsWith(`${base}/`) ? `${base}${routePattern}` : routePattern,
   }));
   const artifactPatterns = corpusRoutePatterns(runtime.config);
-  // Gzip siblings exist only when the build owns a single-origin corpus; a runtime-owned one answers them 404.
-  if (runtime.config.corpus.compression.gzip && runtime.buildOwnsCorpora && (runtime.site.i18n?.origins?.length ?? 0) <= 1) artifactPatterns.push(...artifactPatterns.filter((path) => path.endsWith('.txt')).map((path) => `${path}.gz`));
+  // Gzip siblings exist only for text and RAG artifacts of a build-owned corpus; a runtime-owned one answers them 404.
+  if (runtime.buildGzipsCorpus) artifactPatterns.push(...artifactPatterns.filter((path) => /\.(?:txt|jsonl)$/.test(path)).map((path) => `${path}.gz`));
   if (runtime.config.discovery.robots.enabled) artifactPatterns.push('/robots.txt');
   if (runtime.config.site.profile.enabled) artifactPatterns.push('/.well-known/domain-profile.json');
   if (runtime.config.schema.corpus.enabled) artifactPatterns.push(runtime.config.schema.corpus.graphPath, runtime.config.schema.corpus.mapPath);

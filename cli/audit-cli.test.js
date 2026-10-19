@@ -245,6 +245,8 @@ describe('single-observation audit exports',() => {
   test('refuses duplicate outputs and symlinked destinations',async() => {
     const root=realpathSync(mkdtempSync(join(tmpdir(),'astro-aeo-audit-output-')));roots.push(root);
     await expect(runAudit([VALID,'--output','same','--github-output','same'],{cwd:root,version:'1.6.0'})).rejects.toThrow('distinct');
+    if (['darwin','win32'].includes(process.platform))
+      await expect(runAudit([VALID,'--output','report.json','--github-output','REPORT.JSON'],{cwd:root,version:'1.6.0'})).rejects.toThrow('distinct');
     writeFileSync(join(root,'original'),'unchanged');symlinkSync(join(root,'original'),join(root,'link'));
     await expect(runAudit([VALID,'--output','link'],{cwd:root,version:'1.6.0'})).rejects.toThrow('safely');
     expect(readFileSync(join(root,'original'),'utf8')).toBe('unchanged');

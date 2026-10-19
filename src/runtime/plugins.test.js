@@ -185,6 +185,16 @@ describe('runtime plugin artifacts', () => {
     expect(read).toHaveBeenCalledTimes(1);
   });
 
+  test('passes only the declared locale fallback fields to runtime hooks', async () => {
+    const [page] = createRuntimePluginPageHandles([{ pathname: '/fr/guide' }], async () => ({
+      id: '/fr/guide',
+      pathname: '/fr/guide',
+      localeFallback: { requested: 'fr', source: 'en', secret: 'private' },
+      representations: { markdown: '# Guide' },
+    }));
+    expect((await page.read()).localeFallback).toEqual({ requested: 'fr', source: 'en' });
+  });
+
   test('includes catalog descriptor identity on fixed runtime handles', () => {
     const pages = createRuntimePluginPageHandles([
       {

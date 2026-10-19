@@ -179,6 +179,10 @@ export default function aeo(userConfig = {}) {
       // removeRoute, so the fallback routes cannot be withdrawn once the project
       // turns out to be fully prerendered. The runtime declines instead.
       buildOwnsCorpora: command !== 'dev' && !hasOnDemandProjectPage,
+      // The build writes gzip siblings only for a corpus it owns, so analytics lists
+      // them from this one decision instead of re-deriving it.
+      buildGzipsCorpus: command !== 'dev' && config.corpus.compression.gzip &&
+        !runtimeOwnsCorpus(hasOnDemandProjectPage, localeSnapshot),
       // A dynamic route has no concrete pathname, so it never reaches staticPaths
       // and a live corpus would silently omit its getStaticPaths() results. Without
       // one, both answers agree and declining would only cost a working response.
@@ -623,8 +627,7 @@ export default function aeo(userConfig = {}) {
         // static file cannot be correct for every host it answers on. Astro rejects
         // prerendered routes under i18n.domains, so this only reaches a domains
         // project whose pages all come from catalogs.
-        const corpusOwnedByRuntime = hasOnDemandProjectPage ||
-          (localeSnapshot?.origins?.length ?? 0) > 1;
+        const corpusOwnedByRuntime = runtimeOwnsCorpus(hasOnDemandProjectPage, localeSnapshot);
         /** @type {import('./index.js').Diagnostic[]} */
         const routeDiagnostics = [];
         if (
@@ -767,6 +770,17 @@ export default function aeo(userConfig = {}) {
     },
   });
   return integration;
+}
+
+/**
+ * An on-demand page route puts pages outside the build's reach, and more than one
+ * configured origin cannot be answered by one static file, so either keeps the
+ * corpus with request-time middleware.
+ * @param {boolean} hasOnDemandProjectPage
+ * @param {import('./core/locale.js').LocaleSnapshot | undefined | null} localeSnapshot
+ */
+function runtimeOwnsCorpus(hasOnDemandProjectPage, localeSnapshot) {
+  return hasOnDemandProjectPage || (localeSnapshot?.origins?.length ?? 0) > 1;
 }
 
 /**

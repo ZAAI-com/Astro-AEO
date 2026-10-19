@@ -204,6 +204,14 @@ describe('shared negotiator responses', () => {
     const unknown = new Response('external', { headers: { 'cache-control': 'inherited' } });
     expect(await run(request('/unlisted.md'), async () => unknown)).toBe(unknown);
   });
+  test('direct companion policy matches an equivalent percent-encoding', async () => {
+    const site = host({ ...manifest('response'), cacheControl: 'private, max-age=17' });
+    const run = createEdgeNegotiator({ fetchAsset: (pathname) => site.asset(pathname) });
+    for (const path of ['/caf%C3%A9.md', '/caf%c3%a9.md']) {
+      const direct = await run(request(path), async () => new Response(MARKDOWN));
+      expect(direct.headers.get('cache-control')).toBe('private, max-age=17');
+    }
+  });
   test('manifest cache policy overrides the asset policy, including revalidation', async () => {
     const site = host({ ...manifest('response'), cacheControl: 'private, max-age=17' });
     const run = createEdgeNegotiator({ fetchAsset: (pathname) => site.asset(pathname) });
@@ -284,6 +292,24 @@ describe('shared negotiator responses', () => {
     const response = await createCloudflareHandler().fetch(request('/guide/'), {});
     expect(response.status).toBe(500);
   });
+});
+
+test.each([[200, 'private, max-age=17'], [404, null], [503, null]])('Vercel direct companion with asset status %s gets cache policy %s', async (status, policy) => {
+  /** @type {string[]} */
+  const heads = [];
+  const fetch = /** @type {any} */ (async (/** @type {URL} */ url, /** @type {RequestInit} */ init) => {
+    if (new URL(url).pathname.endsWith('.json')) return new Response(JSON.stringify({ ...manifest('response'), cacheControl: 'private, max-age=17' }));
+    heads.push(`${init.method} ${new URL(url).pathname}`);
+    return new Response(null, { status });
+  });
+  const handler = createVercelHandler({ fetch, next: (init) => new Response(null, { headers: init?.headers }), rewrite: () => new Response(null) });
+  const response = await handler(request('/guide.md'));
+  expect(response.headers.get('cache-control')).toBe(policy);
+  expect(heads).toEqual(['HEAD /guide.md']);
+  // The preflight itself passes through without another check.
+  heads.length = 0;
+  await handler(request('/guide.md', { 'user-agent': 'astro-aeo-internal/1' }));
+  expect(heads).toEqual([]);
 });
 
 test.each([404, 503, 'throw'])('Vercel preflight %s falls back before rewriting or redirecting', async (outcome) => {

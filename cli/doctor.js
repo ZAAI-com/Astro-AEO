@@ -315,7 +315,8 @@ function ownershipChecks(projectDir, distDir, facts, typedDist = distDir) {
   });
   const emitted = ownership.artifacts.filter((/** @type {any} */ entry) => entry.status === 'emitted');
   // A linked build folder is never read, so its artifacts are unknown, not missing.
-  if (emitted.length && !isUnlinkedDirectory(distDir)) {
+  // An absent one falls through, so every emitted artifact is reported missing.
+  if (emitted.length && existsSync(distDir) && !isUnlinkedDirectory(distDir)) {
     checks.push({ id: 'emitted-artifacts', status: 'unverified',
       message: `${emitted.length} emitted artifact(s) not checked: the build folder is reached through a symbolic link`,
       hint: 'pass the real build folder with --dist to check emitted artifacts' });

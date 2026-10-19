@@ -30,11 +30,12 @@ test('direct dynamic companions and corpus paths are bounded artifact identities
   await middleware(context('/docs/users/private.md')); await middleware(context('/docs/llms-full.txt')); await tick();
   expect(events.map((event) => [event.path, event.pathKind])).toEqual([['/docs/users/[id].md', 'artifact'], ['/docs/llms-full.txt', 'artifact']]);
 });
-test.each([[true, ['/docs/llms-full.txt.gz', 'artifact']], [undefined, ['(unlisted)', 'unlisted']]])('gzip corpus siblings are artifacts only when the build owns the corpus (%s)', async (buildOwnsCorpora, expected) => {
-  const events = []; const owned = { ...runtime(), config: resolveConfig({ corpus: { compression: { gzip: true } } }), buildOwnsCorpora };
+test.each([[true, 'artifact'], [undefined, 'unlisted']])('gzip corpus siblings are artifacts only when the build gzips the corpus (%s)', async (buildGzipsCorpus, kind) => {
+  const events = []; const owned = { ...runtime(), config: resolveConfig({ corpus: { compression: { gzip: true }, rag: { enabled: true, publish: true } } }), buildGzipsCorpus };
   const middleware = createAnalyticsMiddleware(async () => new Response('same', { headers: { 'content-type': 'text/html' } }), () => false, owned, { enabled: true }, (event) => events.push(event));
-  await middleware(context('/docs/llms-full.txt.gz')); await tick();
-  expect(events.map((event) => [event.path, event.pathKind])).toEqual([expected]);
+  await middleware(context('/docs/llms-full.txt.gz')); await middleware(context('/docs/llms/rag.jsonl.gz')); await tick();
+  const path = (/** @type {string} */ listed) => kind === 'artifact' ? listed : '(unlisted)';
+  expect(events.map((event) => [event.path, event.pathKind])).toEqual([[path('/docs/llms-full.txt.gz'), kind], [path('/docs/llms/rag.jsonl.gz'), kind]]);
 });
 const html = () => new Response('same', { headers: { 'content-type': 'text/html' } });
 test('an in-flight catalog listing never delays the response and refreshes inventory in the background', async () => {

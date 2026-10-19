@@ -94,9 +94,12 @@ async function checkPrivateIdentities(root,dist,snapshot,warnings) {
     if (!matchesOutputRootId(ownership.outputRootId,dist)) warnings.push('Ownership and selected build output digest mismatch.');
     if (deployment && deployment.ownershipDigest !== digest) warnings.push('Deployment and ownership digest mismatch.');
     const byPath = new Map(ownership.artifacts.map((/** @type {any} */ item) => [item.pathname,item]));
-    for (const artifact of snapshot.artifacts) {
+    // Both lists come from one ledger, so either side holding an extra artifact is a mismatch.
+    if (byPath.size !== snapshot.artifacts.length) warnings.push('Snapshot and ownership artifact evidence mismatch.');
+    else for (const artifact of snapshot.artifacts) {
       const entry = /** @type {any} */ (byPath.get(artifact.pathname));
-      if (!entry || entry.status !== artifact.status || (entry.representation?.etag ?? null) !== artifact.etag) {
+      const byteLength = Number.isSafeInteger(entry?.representation?.byteLength) ? entry.representation.byteLength : null;
+      if (!entry || entry.status !== artifact.status || (entry.representation?.etag ?? null) !== artifact.etag || byteLength !== artifact.byteLength) {
         warnings.push('Snapshot and ownership artifact evidence mismatch.'); break;
       }
     }

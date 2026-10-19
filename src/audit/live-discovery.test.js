@@ -35,6 +35,13 @@ describe('opt-in bounded live discovery',() => {
    expect(JSON.stringify(result)).not.toContain('secret');expect(result.complete).toBe(false);
    expect(result.findings.some((item) => item.ruleId==='live-discovery-limit')).toBe(true);
  });
+ it('stops requesting once the discovery time budget is spent',async() => {
+   let clock=0;const calls=[];
+   const request=async(/** @type {string} */ url) => {calls.push(url);clock+=40_000;return {status:200,url,contentType:'text/plain',body:url.endsWith('robots.txt')?'User-agent: *\n':text};};
+   const result=await auditLiveDiscovery(origin,'/docs',request,[],{deadlineMs:60_000,now:() => clock});
+   expect(calls).toHaveLength(2);expect(result.complete).toBe(false);
+   expect(result.findings.filter((item) => item.ruleId==='live-discovery-limit')).toHaveLength(1);
+ });
  it('rejects DTD XML and reports only sanitized parser evidence',async() => {
    const request=async(/** @type {string} */ url) => ({status:200,url,contentType:'text/plain',body:url.endsWith('robots.txt')?'Sitemap: '+origin+'/sitemap.xml':url.endsWith('.xml')?'<!DOCTYPE x [<!ENTITY secret SYSTEM "file:///private">]><urlset>&secret;</urlset>':url.endsWith('manifest.json')?'{}':url.endsWith('domain-profile.json')?JSON.stringify({url:origin+'/'}):text});
    const result=await auditLiveDiscovery(origin,'/',request,[]);

@@ -1,6 +1,6 @@
 // @ts-check
 import { constants } from 'node:fs';
-import { open, lstat, realpath, mkdir, rename, unlink } from 'node:fs/promises';
+import { open, lstat, realpath, mkdir, rename, stat, unlink } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve, relative, sep } from 'node:path';
 import { randomBytes } from 'node:crypto';
 
@@ -44,6 +44,17 @@ export async function safeFile(file, root, allowMissing = false) {
     if (part === target && !stat.isFile()) throw new ReportInvocationError('Report input must be a regular file.');
   }
   return target;
+}
+
+/** Whether two paths name one file: the same spelling up to case on a
+ * case-insensitive platform, or one existing file (which also catches hard links).
+ * @param {string} a @param {string} b */
+export async function sameFile(a, b) {
+  if (a === b) return true;
+  const fold = (/** @type {string} */ path) => path.normalize('NFC').toLowerCase();
+  if (['darwin', 'win32'].includes(process.platform) && fold(a) === fold(b)) return true;
+  const [left, right] = await Promise.all([stat(a).catch(() => null), stat(b).catch(() => null)]);
+  return Boolean(left && right && left.ino !== 0 && left.dev === right.dev && left.ino === right.ino);
 }
 
 /** @param {string} file @param {string} [root] @param {{ remaining: number }} [budget] */

@@ -977,6 +977,21 @@ describe('integration diagnostics and declarations', () => {
     );
   });
 
+  test.each([
+    ['one origin', undefined, true],
+    ['several origins', { locales: ['en', 'fr'], defaultLocale: 'en', domains: { fr: 'https://fr.example.test' } }, false],
+  ])('tells analytics the build gzips the corpus only for %s', async (_label, i18n, gzips) => {
+    const result = await runRouteLifecycle({
+      adapter: true,
+      output: 'server',
+      buildOutput: 'server',
+      userConfig: { corpus: { ...corpusConfig.corpus, compression: { gzip: true } } },
+      ...(i18n ? { i18n } : {}),
+      routes: [prerenderedHome],
+    });
+    expect(result.runtimeSource).toContain(`"buildGzipsCorpus": ${gzips}`);
+  });
+
   test('builds the corpus for a catalog-only server project with no on-demand page', async () => {
     const result = await runRouteLifecycle({
       adapter: true,
