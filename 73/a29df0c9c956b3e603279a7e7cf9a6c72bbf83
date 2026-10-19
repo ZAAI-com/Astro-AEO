@@ -1,0 +1,149 @@
+cli/audit.js
+  s_f2d126f0867da8::t_fd7e1591bc948e 126,128-130,135
+src/audit/live-discovery.test.js
+  s_f2d126f0867da8::t_4a96371462a369 60-77
+schema/rag-record-v1.schema.json
+  s_f2d126f0867da8::t_6d90aba83f8ecf 134-135,139,190-192,201-203
+cli/report.js
+  s_f2d126f0867da8::t_4e7fd1ad489e4e 3,80,85,92-96
+  s_f2d126f0867da8::t_e8f9faee52910b 97
+src/audit/report.js
+  s_f2d126f0867da8::t_d936bf8b555084 92-93
+src/lib/config-profile.js
+  s_f2d126f0867da8::t_79d095e41a06b0 30
+src/audit/applicability.js
+  s_f2d126f0867da8::t_79d095e41a06b0 10-11
+docs/DOCTOR.md
+  s_f2d126f0867da8::t_8d76b6dd222715 7-8
+src/runtime/analytics/delivery.js
+  s_f2d126f0867da8::t_79d095e41a06b0 25
+cli/reports/reports.test.js
+  s_f2d126f0867da8::t_608bec1238f8bf 14,167-172
+  s_f2d126f0867da8::t_e8b2e30b75c089 307
+  s_f2d126f0867da8::t_48e1ce86377fef 173,418-430,434-446
+  s_f2d126f0867da8::t_7530c7ff6fe313 431-433
+  s_f2d126f0867da8::t_accb0cc538df66 199-200
+  s_f2d126f0867da8::t_8034735d4ddce0 295-306,308-314
+src/audit/regions.test.js
+  s_f2d126f0867da8::t_2f7bcdf7132e2e 23-25,36-48
+schema/inspect-report-v1.schema.json
+  s_f2d126f0867da8::t_6d90aba83f8ecf 63,68,145,218,248,287
+src/core/plugin-version-validation.test.js
+  s_f2d126f0867da8::t_c31f99c018f504 12
+docs/release-evidence/1.6.0-release-preparation.md
+  s_f2d126f0867da8::t_8d76b6dd222715 127-130,135
+schema/analytics-report-v1.schema.json
+  s_f2d126f0867da8::t_6d90aba83f8ecf 162-164
+src/audit/live-discovery.js
+  s_f2d126f0867da8::t_4a96371462a369 6,37-44,83-85,132-133
+src/server/analytics-node.js
+  s_f2d126f0867da8::t_461eb12c5f5285 12,21
+  s_f2d126f0867da8::t_a7d4765a9971cb 11
+src/core/rag-plan.test.js
+  s_f2d126f0867da8::t_de498a63229f52 112-126
+schema/processing-trace-v1.schema.json
+  s_f2d126f0867da8::t_6d90aba83f8ecf 42,89,157
+src/runtime/analytics/delivery.test.js
+  s_f2d126f0867da8::t_7c3ca6225a144f 56-57
+schema/rag-report-v1.schema.json
+  s_f2d126f0867da8::t_6d90aba83f8ecf 183-184,188,239-241,250-252
+src/rag.ssr.test.js
+  s_f2d126f0867da8::t_80fd0c7ff28e83 51-52
+schema/rag-index-v1.schema.json
+  s_f2d126f0867da8::t_6d90aba83f8ecf 59
+benchmarks/README.md
+  s_f2d126f0867da8::t_49d00e91b010ce 150-151,158-160
+scripts/schema-definition.mjs
+  s_f2d126f0867da8::t_d4bc3297d96998 343-344,357,360-361
+scripts/rag-schema.mjs
+  s_f2d126f0867da8::t_904c1f5762712f 1-7,29,32-35,45
+.changeset/fix-160-review-round-two.md
+  s_f2d126f0867da8::t_27455a3db7931e 1-16
+src/analytics.ssr.test.js
+  s_f2d126f0867da8::t_4a453772885258 37-40,52,54-55,60-61,64
+cli/validate-corpus.test.js
+  s_f2d126f0867da8::t_72b1ac948d5bf1 1-40
+scripts/package-smoke.mjs
+  s_f2d126f0867da8::t_49d00e91b010ce 124-125
+src/core/extract/tabs.test.js
+  s_f2d126f0867da8::t_f2014970909b9b 121-124,126-136
+  s_f2d126f0867da8::t_ba2b089efe0e82 125
+cli/reports/io.js
+  s_f2d126f0867da8::t_1d71871cf77cc6 125
+cli/doctor.js
+  s_f2d126f0867da8::t_ece151a6ecbb64 4,82-84,130-143
+  s_f2d126f0867da8::t_53abf2520187bc 144-145
+scripts/report-schemas.mjs
+  s_f2d126f0867da8::t_904c1f5762712f 1,6,20-22,35-36,44
+cli/doctor.test.js
+  s_f2d126f0867da8::t_ece151a6ecbb64 230-238
+src/core/markdown-units.test.js
+  s_f2d126f0867da8::t_7c3ca6225a144f 16
+schema/analytics-event-v1.schema.json
+  s_f2d126f0867da8::t_6d90aba83f8ecf 145-209
+src/config.test.js
+  s_f2d126f0867da8::t_7c3ca6225a144f 14
+benchmarks/project-worker.mjs
+  s_f2d126f0867da8::t_49d00e91b010ce 1-2
+benchmarks/projects.mjs
+  s_f2d126f0867da8::t_94433de16427fa 20-74
+  s_f2d126f0867da8::t_b090d713529dc2 15-18,128-129,131
+cli/reports/rag.js
+  s_f2d126f0867da8::t_051dacea9e9d01 67-69,100
+cli/validate-corpus.js
+  s_f2d126f0867da8::t_bb1009ef3f11f3 199,209,265-266,282-283,291
+src/core/head.js
+  s_f2d126f0867da8::t_79d095e41a06b0 564
+schema/astro-aeo.schema.json
+  s_f2d126f0867da8::t_6d90aba83f8ecf 1
+src/audit/regions.js
+  s_f2d126f0867da8::t_fd7e1591bc948e 43-44,70-72
+src/core/markdown-units.js
+  s_f2d126f0867da8::t_79d095e41a06b0 25-28
+src/hooks/build-done.js
+  s_f2d126f0867da8::t_db6e24f2d2c025 882-883,886
+src/audit/report.test.js
+  s_f2d126f0867da8::t_d936bf8b555084 68-74
+src/runtime/middleware-redirect.test.js
+  s_f2d126f0867da8::t_dbb73272349e25 116-128
+src/core/extract/index.js
+  s_f2d126f0867da8::t_5fc9274b2e19af 306-309,311-322
+src/runtime/middleware.js
+  s_f2d126f0867da8::t_dbb73272349e25 492-496
+schema/changes-report-v1.schema.json
+  s_f2d126f0867da8::t_6d90aba83f8ecf 64,127
+src/core/plugin-validation.js
+  s_f2d126f0867da8::t_c31f99c018f504 342-344
+schema/page-snapshot-v1.schema.json
+  s_f2d126f0867da8::t_6d90aba83f8ecf 45,50,127
+docs/rag.md
+  s_f2d126f0867da8::t_8d76b6dd222715 20-21
+src/audit/closure.test.js
+  s_f2d126f0867da8::t_7c3ca6225a144f 36-39
+src/audit/local.js
+  s_f2d126f0867da8::t_f03d01f7e0496d 17
+  s_f2d126f0867da8::t_2ae9a0cea5ec02 94-96
+  s_f2d126f0867da8::t_86956db64fca58 18
+src/core/rag-plan.js
+  s_f2d126f0867da8::t_21b19865c11b85 21-23
+cli/reports/graph.js
+  s_f2d126f0867da8::t_d936bf8b555084 26
+scripts/analytics-schema.mjs
+  s_f2d126f0867da8::t_d4bc3297d96998 20-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "73a29df0c9c956b3e603279a7e7cf9a6c72bbf83",
+  "prompts": {},
+  "sessions": {
+    "s_f2d126f0867da8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "24709481-5f49-4cd5-a098-201f683ea158",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
