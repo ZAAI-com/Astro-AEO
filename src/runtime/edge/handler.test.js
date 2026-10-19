@@ -315,12 +315,12 @@ test.each([[200, 'private, max-age=17'], [404, null], [503, null]])('Vercel dire
 test.each([404, 503, 'throw'])('Vercel preflight %s falls back before rewriting or redirecting', async (outcome) => {
   for (const mode of ['response', 'redirect']) {
     let rewrites = 0;
+    /** @type {RequestInit[]} */
+    const preflights = [];
+    // Assertions stay outside the stub: the handler catches anything fetch throws.
     const fetch = async (url, init) => {
       if (new URL(url).pathname.endsWith('.json')) return new Response(JSON.stringify(manifest(mode)));
-      expect(init.method).toBe('HEAD');
-      expect(init.redirect).toBe('manual');
-      expect(init.credentials).toBe('omit');
-      expect(init.headers).toBeUndefined();
+      preflights.push(init);
       if (outcome === 'throw') throw new Error('private network detail');
       return new Response(null, { status: outcome });
     };
@@ -330,5 +330,9 @@ test.each([404, 503, 'throw'])('Vercel preflight %s falls back before rewriting 
     expect(response.status).toBe(200);
     expect(response.headers.get('vary')).toBe('Accept');
     expect(rewrites).toBe(0);
+    expect(preflights).toHaveLength(1);
+    expect(preflights[0]).toMatchObject({ method: 'HEAD', redirect: 'manual', credentials: 'omit' });
+    // Only the internal agent is sent: no caller credentials reach the preflight.
+    expect(preflights[0].headers).toEqual({ 'user-agent': 'astro-aeo-internal/1' });
   }
 });
