@@ -1,0 +1,72 @@
+schema/page-snapshot-v1.schema.json
+  s_f2d126f0867da8::t_294fd645e4a9b0 45,50,127
+src/index.js
+  s_f2d126f0867da8::t_65af52ce6a71b3 698
+cli/doctor.test.js
+  s_f2d126f0867da8::t_36893c39e67cfa 236-239
+src/schema-definition.test.js
+  s_f2d126f0867da8::t_33a4ec612d34cc 17-34
+schema/changes-report-v1.schema.json
+  s_f2d126f0867da8::t_294fd645e4a9b0 64,127
+cli/validate-corpus.js
+  s_f2d126f0867da8::t_f5493b897ef58a 250,276
+  s_f2d126f0867da8::t_c25fbda55c1aec 251,275,277
+docs/release-evidence/1.6.0-release-preparation.md
+  s_f2d126f0867da8::t_94f9dd1af3ef4e 128-130,135
+  s_f2d126f0867da8::t_5a8d46f93b1840 136
+cli/reports/reports.test.js
+  s_f2d126f0867da8::t_f5df6cf4c56d2a 297,306-307
+  s_f2d126f0867da8::t_7846096381b746 440
+  s_f2d126f0867da8::t_c6781697556496 173-174
+cli/validate-corpus.test.js
+  s_f2d126f0867da8::t_8cb55fa78689dc 42
+  s_f2d126f0867da8::t_c8c65642f39a64 8,24-29,31,39-40,43-65
+.github/workflows/W2-Release.yml
+  s_f2d126f0867da8::t_94f9dd1af3ef4e 23-24
+cli/reports/rag.js
+  s_f2d126f0867da8::t_65af52ce6a71b3 67-68
+schema/astro-aeo.schema.json
+  s_f2d126f0867da8::t_294fd645e4a9b0 1
+schema/rag-report-v1.schema.json
+  s_f2d126f0867da8::t_294fd645e4a9b0 188-189
+CHANGELOG.md
+  s_f2d126f0867da8::t_74ad8920b08240 71-73,78
+src/audit/report.test.js
+  s_f2d126f0867da8::t_19d42d407ea35c 75-80
+schema/rag-record-v1.schema.json
+  s_f2d126f0867da8::t_294fd645e4a9b0 139-140
+src/audit/report.js
+  s_f2d126f0867da8::t_19d42d407ea35c 85-93,101
+schema/inspect-report-v1.schema.json
+  s_f2d126f0867da8::t_294fd645e4a9b0 63,68,145,218,248,287
+cli/doctor.js
+  s_f2d126f0867da8::t_36893c39e67cfa 317-323,327
+src/hooks/build-done.js
+  s_f2d126f0867da8::t_65af52ce6a71b3 84,887
+schema/processing-trace-v1.schema.json
+  s_f2d126f0867da8::t_294fd645e4a9b0 42,89,157
+cli/reports/io.js
+  s_f2d126f0867da8::t_7b81765de3629e 125-127,130
+scripts/rag-schema.mjs
+  s_f2d126f0867da8::t_ab2d91635bca46 4,29
+scripts/schema-definition.mjs
+  s_f2d126f0867da8::t_5f72f40388322b 343-345,358
+src/audit/local.js
+  s_f2d126f0867da8::t_b8db0454c953f8 92-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e991abe59d2a14a62dfd26560fb08360a6d9e548",
+  "prompts": {},
+  "sessions": {
+    "s_f2d126f0867da8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "24709481-5f49-4cd5-a098-201f683ea158",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
