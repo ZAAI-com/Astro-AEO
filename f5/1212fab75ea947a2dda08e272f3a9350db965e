@@ -1,0 +1,68 @@
+src/index.js
+  s_36a8b807f870ac::t_a020cef9662305 182-185,630,775-783
+  s_36a8b807f870ac::t_cbb72b4e7bfa73 784-785
+cli/reports/inspect.js
+  s_36a8b807f870ac::t_c6f4bbd5b26108 97-99,101-102
+src/runtime/analytics/middleware.js
+  s_36a8b807f870ac::t_a020cef9662305 41-42
+src/runtime/plugins.js
+  s_36a8b807f870ac::t_60d4a3de372cec 513-516
+src/runtime/edge/handler.test.js
+  s_36a8b807f870ac::t_e29e9a3790b6ae 207-214,297-312
+  s_36a8b807f870ac::t_8a3e22ebf041b9 313-314
+src/core/page-model.js
+  s_36a8b807f870ac::t_60d4a3de372cec 304-308
+src/runtime/analytics/middleware.test.js
+  s_36a8b807f870ac::t_22a5a64d068623 33-34,36-38
+src/integration-hooks.test.js
+  s_36a8b807f870ac::t_6e5b6416063c05 980-994
+.changeset/pr20-review-followups.md
+  s_36a8b807f870ac::t_fd74f08164cddc 1-22
+cli/audit.js
+  s_36a8b807f870ac::t_1ec63d41e1dcf5 9,133-134
+cli/reports/reports.test.js
+  s_36a8b807f870ac::t_5afecbe84e0375 341-352
+  s_36a8b807f870ac::t_1ec63d41e1dcf5 2,420-423
+src/runtime/serve.js
+  s_36a8b807f870ac::t_a020cef9662305 53
+cli/doctor.test.js
+  s_36a8b807f870ac::t_f43319630c51b5 179-183
+src/runtime/plugins.test.js
+  s_36a8b807f870ac::t_11b72669c92cb9 188-197
+src/runtime/edge/vercel.js
+  s_36a8b807f870ac::t_786143912faec7 3-5,33-47,54,61-65,71,73
+src/runtime/edge/handler.js
+  s_36a8b807f870ac::t_786143912faec7 49-51,74-83,137
+cli/audit-cli.test.js
+  s_36a8b807f870ac::t_1ec63d41e1dcf5 248-249
+cli/report.js
+  s_36a8b807f870ac::t_1ec63d41e1dcf5 4,80-81
+cli/reports/io.js
+  s_36a8b807f870ac::t_1ec63d41e1dcf5 3,49-57
+  s_36a8b807f870ac::t_c7686816a0c2da 58-59
+README.md
+  s_36a8b807f870ac::t_dc23a56b6d0d2c 2000-2001
+src/audit/live-discovery.js
+  s_36a8b807f870ac::t_0c74363725f939 11-13,18-21,53,55
+src/audit/live-discovery.test.js
+  s_36a8b807f870ac::t_0c74363725f939 38-44
+cli/doctor.js
+  s_36a8b807f870ac::t_9147a9f517cccc 318
+  s_36a8b807f870ac::t_dc307de4b181aa 319
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f51212fab75ea947a2dda08e272f3a9350db965e",
+  "prompts": {},
+  "sessions": {
+    "s_36a8b807f870ac": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "956c9942-6976-4e4f-beef-5a7a16b14992",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
