@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## 2.0.0
+
+### Major Changes
+
+- Set the package version to 2.0.0. This version update introduces no runtime or API changes.
+
 ## 1.6.1
 
 ### Patch Changes
