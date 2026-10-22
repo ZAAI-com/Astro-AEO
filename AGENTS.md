@@ -273,11 +273,16 @@ pnpm run demo:dev
 pnpm run demo:build
 pnpm run demo:validate
 pnpm run release:check
+pnpm run compat:report
 ```
 
 `pnpm run release:check -- --quick` runs schema and migration-doc freshness, Changeset coverage,
-release metadata, both type checks, the default suite, and packed-tarball inspection. The full
-gate additionally runs dev, SSR, adapter, package-install, bundle-baseline, and performance checks.
+release metadata, both type checks, the default suite, packed-tarball inspection, and the
+compatibility check against the previous release. The full gate additionally runs dev, SSR,
+adapter, package-install, bundle-baseline, and performance checks. `scripts/compatibility-report.mjs`
+diffs exports, declarations, schema paths, CLI commands, audit rule IDs and artifact owners with
+the previous tag and fails on any removal its `EXPECTED_REMOVALS` does not list. `--compat-report`
+(or `pnpm run compat:report`) writes the report under `docs/release-evidence/`.
 
 ## Configuration, schema, and releases
 
