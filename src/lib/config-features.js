@@ -1,6 +1,6 @@
 // @ts-check
 import { AeoConfigError } from './errors.js';
-import { isPlainObject, getPath } from './config-migrate.js';
+import { isPlainObject, getPath } from './object-path.js';
 import { cloneJsonValue } from '../core/json-value.js';
 import { isPageVersion } from '../core/page-version.js';
 

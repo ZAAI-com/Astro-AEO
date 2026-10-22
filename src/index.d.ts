@@ -406,7 +406,7 @@ export interface AeoPageRecord extends AeoPage {
   aeoTokens: string[];
   source?: {
     kind: 'markdown' | 'mdx' | 'astro' | 'cms' | 'rendered' | 'custom';
-    /** @deprecated Compatibility mirror retained through 1.x. */
+    /** How the source was collected. Kept alongside `kind` for plugins written against 1.x. */
     strategy?: 'marker' | 'markdown-route' | 'rendered' | 'catalog';
     path?: string;
     body?: string;
@@ -537,159 +537,6 @@ export type EntityType =
   | 'CreativeWork'
   | 'SoftwareApplication'
   | 'Thing';
-
-export interface DotmdOptions {
-  /** Generate .md companion pages. Default: true. */
-  enabled?: boolean;
-  /**
-   * Inject <link rel="alternate" type="text/markdown"> into each page's <head>.
-   * - 'auto' (default): inject only if the page has no such link yet.
-   * - 'always': replace any existing markdown-alternate link with the canonical one.
-   * - 'never': do not touch the HTML.
-   */
-  linkTag?: 'auto' | 'always' | 'never';
-  /** Append a "Last modified" line to .md files (from git or article:modified_time). Default: true. */
-  includeLastModified?: boolean;
-  /** Prepend YAML frontmatter (title, url, description, optional lastModified) to .md files. Default: false. */
-  frontmatter?: boolean;
-  /** @deprecated Renamed to `frontmatter`. Still honored with a warning. */
-  dotmdMetadata?: boolean;
-}
-
-export interface LlmsTxtOptions {
-  /** Generate /llms.txt. Default: true. */
-  enabled?: boolean;
-  /** Ordered section rules (first match wins). Default: a single "Pages" catch-all after "Home". */
-  sections?: SectionRule[];
-  /** Section title for pages matching no rule, or false to drop them. Default: 'Pages'. */
-  defaultSection?: string | false;
-  /** Append "{title}: {description}" when a description exists. Default: true. */
-  includeDescriptions?: boolean;
-  /** Append " _(updated YYYY-MM-DD)_" per entry. Default: false. */
-  showLastmod?: boolean;
-  /**
-   * List pages that opt out of a .md companion (`<meta name="aeo" content="no-dotmd">`)
-   * in llms.txt, linking to the HTML page instead of a `.md`. Default: false
-   * (such pages are omitted, so llms.txt never links a missing `.md`).
-   */
-  includeNoDotmd?: boolean;
-}
-
-export interface LlmsFullTxtOptions {
-  /** Generate /llms-full.txt. Default: true. */
-  enabled?: boolean;
-  /** Which pages to inline. Default: 'all'. */
-  mode?: 'all' | 'index' | 'first-page-only';
-}
-
-export interface UrlMapOptions {
-  /** Generate a URL map file. Default: false. */
-  enabled?: boolean;
-  /** Path relative to the project root. Default: 'docs/Url-Map.md'. */
-  outputFilepath?: string;
-}
-
-export interface RobotsTxtOptions {
-  /** Generate /robots.txt. Default: false. */
-  enabled?: boolean;
-  /**
-   * Emit a leading "User-agent: *" + "Allow: /" group regardless of any named
-   * allow/disallow groups, so unlisted crawlers see an explicit open policy.
-   * Default: true. Suppressed automatically when "*" already appears in `allow`
-   * or `disallow`, to avoid a duplicate wildcard group.
-   */
-  universalAllow?: boolean;
-  /**
-   * User-agents to allow ("User-agent: X" + "Allow: /"). Named groups no longer
-   * suppress the universal "User-agent: *" group; that is controlled by
-   * `universalAllow`.
-   */
-  allow?: string[];
-  /**
-   * User-agents to block ("User-agent: X" + "Disallow: /"). Named groups no
-   * longer suppress the universal "User-agent: *" group; that is controlled by
-   * `universalAllow`.
-   */
-  disallow?: string[];
-  /**
-   * Control the "Sitemap:" line. When omitted, Astro-AEO emits it only when the
-   * configured sitemap path exists in the static build. Set true to force the
-   * line for runtime-only sitemaps, or false to suppress it.
-   */
-  includeSitemap?: boolean;
-  /**
-   * Sitemap path appended to the site URL. Defaults to the `@astrojs/sitemap`
-   * output name derived from `sitemap.options.filenameBase` (so '/sitemap-index.xml'
-   * by default). Automatic robots mode verifies this path exists before emitting
-   * the Sitemap line.
-   */
-  sitemapPath?: string;
-  /** Emit a "# llms.txt:" comment line. Default: true. */
-  includeLlmsTxt?: boolean;
-  /** Extra verbatim lines appended to the end. */
-  extraLines?: string[];
-}
-
-export interface SitemapOptions {
-  /**
-   * Generate a sitemap. Default: true. astro-aeo defers to the official
-   * `@astrojs/sitemap` integration: when enabled and no sitemap is already
-   * registered, it auto-adds `@astrojs/sitemap` (which requires Astro `site`).
-   * This controls auto-registration only; user-registered sitemaps remain in use
-   * when it is false.
-   */
-  enabled?: boolean;
-  /**
-   * Options forwarded verbatim to `@astrojs/sitemap` (e.g. `filter`,
-   * `changefreq`, `priority`, `lastmod`, `i18n`, `entryLimit`). When a sitemap is
-   * already registered by the user, other options are ignored but
-   * `filenameBase` remains the shared output-name hint used by the alias and
-   * robots defaults. Default: {}.
-   */
-  options?: Record<string, unknown>;
-}
-
-export interface SitemapAliasOptions {
-  /**
-   * Also emit a conventional /sitemap.xml by byte-copying the generated sitemap
-   * index, so tools that probe that path get a 200 instead of a 404. Only mirrors
-   * when the source exists, and never overwrites an existing target. Default: true.
-   */
-  enabled?: boolean;
-  /**
-   * The sitemap index filename to mirror. Default: derived from the
-   * `@astrojs/sitemap` `filenameBase` (so 'sitemap-index.xml' by default).
-   */
-  sourceFilename?: string;
-  /**
-   * The conventional filename written at the build output root when that target
-   * does not already exist. Default: 'sitemap.xml'.
-   */
-  outputFilename?: string;
-}
-
-export interface DomainProfileOptions {
-  /** Generate /.well-known/domain-profile.json. Default: false. */
-  enabled?: boolean;
-  name?: string;
-  description?: string;
-  /** Defaults to the Astro `site` URL. */
-  website?: string;
-  /**
-   * Primary contact, emitted into the schema.org profile by value shape: an
-   * http(s) URL becomes a `contactPoint` (`{ '@type': 'ContactPoint', url }`),
-   * a value containing "@" becomes `email`, and anything else becomes
-   * `telephone`.
-   */
-  email?: string;
-  /** @deprecated Renamed to `email`. Still honored with a warning. */
-  contact?: string;
-  logo?: string;
-  /** Related profile URLs (schema.org sameAs). */
-  sameAs?: string[];
-  /** schema.org @type. Default: 'Organization'. */
-  entityType?: EntityType;
-}
 
 export interface SitemapAliasCanonicalOptions {
   /**
@@ -1367,45 +1214,16 @@ export interface CanonicalAeoConfig {
 }
 
 /**
- * Options carried over from 1.0. Every one keeps working through 1.x, warns once
- * per section, and is removed in 2.0. Sections move here from `CanonicalAeoConfig`
- * one at a time as their canonical replacement lands.
+ * The options accepted by `aeo()`. The 1.0 spellings were removed in 2.0: a
+ * configuration that still uses one fails with the canonical replacement.
  */
-export interface LegacyAeoConfig {
-  /** @deprecated Moved to `pages.include`. */
-  include?: string[];
-  /** @deprecated Moved to `pages.exclude`. */
-  exclude?: string[];
-  /** @deprecated Moved to `pages.respectNoindex`. */
-  respectNoindex?: boolean;
-  /** @deprecated Moved to `pages.stripTitleSuffix`. */
-  stripTitleSuffix?: string | string[] | RegExp | false;
-  /** @deprecated Moved to `markdown`. */
-  dotmd?: DotmdOptions;
-  /** @deprecated Moved to `corpus.index`. */
-  llmsTxt?: LlmsTxtOptions;
-  /** @deprecated Moved to `corpus.full`. */
-  llmsFullTxt?: LlmsFullTxtOptions;
-  /** @deprecated Moved to `corpus.urlMap`. */
-  urlMap?: UrlMapOptions;
-  /** @deprecated Moved to `discovery.robots`. */
-  robotsTxt?: RobotsTxtOptions;
-  /** @deprecated Moved to `discovery.sitemap`. `enabled: false` maps to `mode: 'external'`. */
-  sitemap?: SitemapOptions;
-  /** @deprecated Moved to `discovery.sitemap.alias`. */
-  sitemapAlias?: SitemapAliasOptions;
-  /** @deprecated Moved to `site.profile`. */
-  domainProfile?: DomainProfileOptions;
-}
-
-export interface AstroAeoConfig extends CanonicalAeoConfig, LegacyAeoConfig {}
+export interface AstroAeoConfig extends CanonicalAeoConfig {}
 
 /**
  * Fully-defaulted config produced by `resolveConfig` and consumed by generators.
  *
  * Hand-written rather than derived from `AstroAeoConfig`. A derived
- * `DeepRequired<AstroAeoConfig>` cannot express a resolved-only field, cannot drop
- * the deprecated 1.0 tree while the public type keeps it, and collapses
+ * `DeepRequired<AstroAeoConfig>` cannot express a resolved-only field and collapses
  * `Record<string, unknown>` index signatures to `Record<string, {}>`.
  */
 export interface ResolvedAstroAeoConfig {
@@ -1475,32 +1293,6 @@ export interface ResolvedIndexNowOptions {
     key?: { source: 'env'; name: string } | { source: 'file'; path: string };
     keyLocation?: string;
   }>;
-}
-
-/**
- * The 1.0 resolved shape.
- *
- * Deliberately unreachable: `resolveConfig` is not part of the package's `exports`
- * map, so no value of this type has ever been obtainable (the repo's own consumer
- * fixture has to `declare` one). It is kept only so downstream annotations that
- * name it still compile. Do not "fix" it by exporting a producer; do not widen it
- * as the canonical shape grows. Frozen: removed in 2.0.
- * @deprecated Renamed to `ResolvedAstroAeoConfig`.
- */
-export interface ResolvedAeoConfig {
-  include: string[];
-  exclude: string[];
-  respectNoindex: boolean;
-  stripTitleSuffix: string | string[] | RegExp | false;
-  site: { name: string; description: string };
-  dotmd: Required<DotmdOptions>;
-  llmsTxt: Required<LlmsTxtOptions>;
-  llmsFullTxt: Required<LlmsFullTxtOptions>;
-  urlMap: Required<UrlMapOptions>;
-  robotsTxt: Required<RobotsTxtOptions>;
-  domainProfile: Required<DomainProfileOptions>;
-  sitemap: { enabled: boolean; options: Record<string, unknown> };
-  sitemapAlias: Required<SitemapAliasOptions>;
 }
 
 /**

@@ -1,6 +1,7 @@
 // @ts-check
 import { isIP } from 'node:net';
-import { isPlainObject, mergeLegacy, printMigration } from './lib/config-migrate.js';
+import { deepMerge, isPlainObject } from './lib/object-path.js';
+import { assertNoRemovedKeys } from './lib/config-removed.js';
 import { AeoConfigError } from './lib/errors.js';
 import { resolveSitemapPolicy } from './lib/sitemap.js';
 import { parseDocument } from './core/html-document.js';
@@ -20,22 +21,14 @@ export const DEFAULT_SECTIONS = [{ title: 'Home', match: '/' }];
  * @returns {import('./index.js').ResolvedAstroAeoConfig}
  */
 export function resolveConfig(rawConfig = {}, logger) {
+  assertNoRemovedKeys(/** @type {Record<string, any>} */ (rawConfig));
   warnUnknownKeys(/** @type {Record<string, unknown>} */ (rawConfig), CONFIG_SHAPE, logger);
 
-  const { merged, warnings } = mergeLegacy(
-    /** @type {Record<string, any>} */ (rawConfig),
-    (message) => {
-      throw new AeoConfigError(message);
-    },
+  // A copy with `undefined` keys dropped at every depth, so an explicit
+  // `undefined` falls through to the default exactly as an absent key does.
+  const userConfig = /** @type {import('./index.js').AstroAeoConfig} */ (
+    deepMerge({}, /** @type {Record<string, any>} */ (rawConfig))
   );
-  if (logger) for (const warning of warnings) logger.warn(warning);
-
-  if (logger && process.env.AEO_PRINT_MIGRATION) {
-    const migration = printMigration(/** @type {Record<string, any>} */ (rawConfig));
-    if (migration) logger.warn(migration);
-  }
-
-  const userConfig = /** @type {import('./index.js').AstroAeoConfig} */ (merged);
   validateScalarOptions(userConfig);
   validateExtractionSelectors(userConfig.markdown?.extraction);
   validateCatalogs(userConfig.pages?.catalogs);
@@ -627,10 +620,6 @@ const PASSTHROUGH = Symbol('astro-aeo.passthrough');
  * @type {Record<string, any>}
  */
 const CONFIG_SHAPE = {
-  include: null,
-  exclude: null,
-  respectNoindex: null,
-  stripTitleSuffix: null,
   pages: {
     include: null,
     exclude: null,
@@ -687,11 +676,6 @@ const CONFIG_SHAPE = {
   },
   validation: { onBuild: null, failOn: null },
   plugins: null,
-  dotmd: { enabled: null, linkTag: null, includeLastModified: null, frontmatter: null, dotmdMetadata: null },
-  llmsTxt: { enabled: null, sections: null, defaultSection: null, includeDescriptions: null, showLastmod: null, includeNoDotmd: null },
-  llmsFullTxt: { enabled: null, mode: null },
-  urlMap: { enabled: null, outputFilepath: null },
-  robotsTxt: { enabled: null, universalAllow: null, allow: null, disallow: null, includeSitemap: null, sitemapPath: null, includeLlmsTxt: null, extraLines: null },
   discovery: {
     sitemap: {
       mode: null,
@@ -720,9 +704,6 @@ const CONFIG_SHAPE = {
       origins: null,
     },
   },
-  domainProfile: { enabled: null, name: null, description: null, website: null, email: null, contact: null, logo: null, sameAs: null, entityType: null },
-  sitemap: { enabled: null, options: PASSTHROUGH },
-  sitemapAlias: { enabled: null, sourceFilename: null, outputFilename: null },
 };
 
 /**

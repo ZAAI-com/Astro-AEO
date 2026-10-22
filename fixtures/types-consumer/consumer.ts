@@ -62,7 +62,6 @@ import type {
   PageSource,
   PagesOptions,
   Representation,
-  ResolvedAeoConfig,
   ResolvedAstroAeoConfig,
   RuntimePluginPageHandle,
   SchemaEntity,
@@ -75,6 +74,10 @@ import type {
   ValidationOptions,
 } from 'astro-aeo';
 import { defineAeoPage } from 'astro-aeo/page';
+// @ts-expect-error `CatalogPage` was removed in 2.0, use `PageDescriptor`
+import type { CatalogPage as RemovedCatalogPage } from 'astro-aeo/page';
+// @ts-expect-error `ResolvedAeoConfig` was removed in 2.0, use `ResolvedAstroAeoConfig`
+import type { ResolvedAeoConfig as RemovedResolvedAeoConfig } from 'astro-aeo';
 import { DEFAULT_EXTRACTION, extractHtml } from 'astro-aeo/extract';
 import type { ExtractedDocument as ExtractedDocumentFromSubpath } from 'astro-aeo/extract';
 import {
@@ -113,7 +116,6 @@ import type {
 import type {
   AeoPageInput,
   CatalogContext,
-  CatalogPage,
   PageDescriptor as PageDescriptorFromSubpath,
 } from 'astro-aeo/page';
 import mdxRenderer from 'astro-aeo/mdx';
@@ -215,15 +217,18 @@ export const pluginStage: AstroAeoPluginStage = 'build:complete';
 
 // A config touching every top-level option group.
 export const config: AstroAeoConfig = {
-  include: ['**'],
-  exclude: ['/private/**'],
-  respectNoindex: true,
-  stripTitleSuffix: ' | Example',
+  pages: {
+    include: ['**'],
+    exclude: ['/private/**'],
+    respectNoindex: true,
+    stripTitleSuffix: ' | Example',
+  },
   site: {
     name: 'Example',
     description: 'An example site.',
     defaultLocale: 'en',
     organization: { '@type': 'Organization', name: 'Example' },
+    profile: { enabled: true, name: 'Example', entityType: 'Organization' },
   },
   artifacts: { replace: ['/llms.txt'] },
   metadata: {
@@ -253,16 +258,18 @@ export const config: AstroAeoConfig = {
   plugins: [plugin],
   i18n: { indexes: 'both', unresolvedLanguage: 'default' },
   cache: { enabled: true },
-  dotmd: { enabled: true, linkTag: 'auto', includeLastModified: true, frontmatter: true },
-  llmsTxt: { enabled: true, sections, defaultSection: 'Pages', includeDescriptions: true },
-  llmsFullTxt: { enabled: true, mode: 'index' },
-  urlMap: { enabled: false, outputFilepath: 'docs/Url-Map.md' },
-  robotsTxt: { enabled: true, allow: ['GPTBot'], disallow: ['CCBot'], extraLines: ['# hi'] },
-  domainProfile: { enabled: true, name: 'Example', entityType: 'Organization' },
-  sitemap: { enabled: true, options: { filenameBase: 'sitemap' } },
-  sitemapAlias: { enabled: true, outputFilename: 'sitemap.xml' },
-  markdown: { strategy: 'auto', renderers: [rendererDescriptor, inlineRenderer] },
+  markdown: {
+    enabled: true,
+    alternateLink: 'auto',
+    includeLastModified: true,
+    frontmatter: true,
+    strategy: 'auto',
+    renderers: [rendererDescriptor, inlineRenderer],
+  },
   corpus: {
+    index: { enabled: true, sections, defaultSection: 'Pages', includeDescriptions: true },
+    full: { enabled: true, mode: 'index' },
+    urlMap: { enabled: false, outputFilepath: 'docs/Url-Map.md' },
     small: { enabled: true, maxTokens: 20_000 },
     chunks: { enabled: true, maxTokensPerFile: 100_000, by: 'section' },
     manifest: { enabled: true },
@@ -270,7 +277,16 @@ export const config: AstroAeoConfig = {
     compression: { gzip: true },
   },
   discovery: {
+    sitemap: {
+      mode: 'auto',
+      options: { filenameBase: 'sitemap' },
+      alias: { enabled: true, outputFilename: 'sitemap.xml' },
+    },
     robots: {
+      enabled: true,
+      allow: ['GPTBot'],
+      disallow: ['CCBot'],
+      extraLines: ['# hi'],
       policy: 'search-open-training-closed',
       contentSignals: { search: true, aiInput: false, aiTrain: false },
     },
@@ -285,13 +301,6 @@ export const config: AstroAeoConfig = {
 };
 
 export const integrationName: string = aeo(config).name;
-
-// `ResolvedAeoConfig` is fully defaulted, so nested members are non-optional.
-declare const resolved: ResolvedAeoConfig;
-export const resolvedEnabled: boolean = resolved.dotmd.enabled;
-export const resolvedEntity: EntityType = resolved.domainProfile.entityType;
-// @ts-expect-error the deprecated 1.0 resolved shape remains frozen through 1.x
-export const noLegacyResolvedCache = resolved.cache;
 
 // The resolved type is hand-written, and `src/index.d.ts` is only ever compiled
 // with `skipLibCheck` (Astro's own declarations do not typecheck without it), so
@@ -401,21 +410,35 @@ export const schemaOpts: SchemaOptions = {
 };
 export const validationOpts: ValidationOptions = { onBuild: 'recommended', failOn: 'warning' };
 
-// A 1.0 block and its 1.1 replacement must both typecheck in one literal: the
-// runtime accepts the combination and only errors when the two values disagree.
-export const mixedEras: AstroAeoConfig = {
-  domainProfile: { enabled: true },
+// 2.0 removed every 1.0 spelling: each is an unknown key now.
+// @ts-expect-error removed in 2.0, use pages.include
+export const removedInclude: AstroAeoConfig = { include: ['**'] };
+// @ts-expect-error removed in 2.0, use pages.exclude
+export const removedExclude: AstroAeoConfig = { exclude: ['/private/**'] };
+// @ts-expect-error removed in 2.0, use pages.respectNoindex
+export const removedRespectNoindex: AstroAeoConfig = { respectNoindex: true };
+// @ts-expect-error removed in 2.0, use pages.stripTitleSuffix
+export const removedStripTitleSuffix: AstroAeoConfig = { stripTitleSuffix: ' | Example' };
+// @ts-expect-error removed in 2.0, use markdown
+export const removedDotmd: AstroAeoConfig = { dotmd: { frontmatter: true } };
+// @ts-expect-error removed in 2.0, use corpus.index
+export const removedLlmsTxt: AstroAeoConfig = { llmsTxt: { enabled: true } };
+// @ts-expect-error removed in 2.0, use corpus.full
+export const removedLlmsFullTxt: AstroAeoConfig = { llmsFullTxt: { enabled: true } };
+// @ts-expect-error removed in 2.0, use corpus.urlMap
+export const removedUrlMap: AstroAeoConfig = { urlMap: { enabled: true } };
+// @ts-expect-error removed in 2.0, use discovery.robots
+export const removedRobotsTxt: AstroAeoConfig = { robotsTxt: { enabled: true } };
+// @ts-expect-error removed in 2.0, use discovery.sitemap
+export const removedSitemap: AstroAeoConfig = { sitemap: { enabled: false } };
+// @ts-expect-error removed in 2.0, use discovery.sitemap.alias
+export const removedSitemapAlias: AstroAeoConfig = { sitemapAlias: { enabled: true } };
+// @ts-expect-error removed in 2.0, use site.profile
+export const removedDomainProfile: AstroAeoConfig = { domainProfile: { enabled: true } };
+export const profileOrigins: AstroAeoConfig = {
   site: { profile: { name: 'Example', entityType: 'Organization',
     origins: { 'https://fr.example.test': { name: 'Exemple', entityType: 'Organization', sameAs: [] } },
   } },
-  exclude: ['/private/**'],
-  pages: { respectNoindex: true },
-  dotmd: { includeLastModified: true },
-  markdown: { frontmatter: true },
-  llmsFullTxt: { enabled: true },
-  corpus: { index: { includeDescriptions: true } },
-  robotsTxt: { universalAllow: true },
-  discovery: { robots: { enabled: true } },
 };
 
 // Component prop types are exported and structurally usable.
@@ -500,7 +523,8 @@ export const head: AeoHeadProps = {
   infer: ['website', 'webpage'],
 };
 export const explicitHeadWithoutInference: AeoHeadProps = { graph: createGraph([]), infer: false };
-export const legacyHeadAuthor: AeoHeadProps = { author: 'Ada' };
+// @ts-expect-error `author` was removed in 2.0, use `authors`
+export const removedHeadAuthor: AeoHeadProps = { author: 'Ada' };
 export const inferredHeadProps: ComponentProps<typeof AeoHead> = head;
 
 export const mdxOptions: MdxRendererOptions = {
@@ -564,7 +588,7 @@ export const descriptor: PageDescriptor = {
 export const descriptorFromSubpath: PageDescriptorFromSubpath = descriptor;
 export const catalog: PageCatalog = {
   name: 'blog',
-  listPages(context: CatalogContext): CatalogPage[] {
+  listPages(context: CatalogContext): PageDescriptorFromSubpath[] {
     void context.siteUrl;
     return [{ pathname: '/blog/hello', lastModified: '2026-01-01T00:00:00.000Z' }];
   },
@@ -858,10 +882,6 @@ export const unknownOption: AstroAeoConfig = {
 };
 // @ts-expect-error entityType is a closed union
 export const badEntity: EntityType = 'Spaceship';
-// @ts-expect-error llmsFullTxt.mode is a closed union
-export const badMode: AstroAeoConfig = { llmsFullTxt: { mode: 'everything' } };
-// @ts-expect-error dotmd.linkTag is a closed union
-export const badLinkTag: AstroAeoConfig = { dotmd: { linkTag: 'sometimes' } };
 // @ts-expect-error site.profile.entityType is a closed union
 export const badProfileEntity: AstroAeoConfig = { site: { profile: { entityType: 'Spaceship' } } };
 // @ts-expect-error `contact` was not carried into the canonical profile, only `email`

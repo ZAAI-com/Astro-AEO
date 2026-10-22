@@ -18,8 +18,7 @@ export interface EmDashAeoOptions {
    * `pages.exclude` gains `/_emdash/**` and `/404`, `pages.catalogs` gains the EmDash
    * catalog, `markdown.negotiation` is `'response'`, and `discovery.robots.enabled` is
    * `false` and `discovery.sitemap.mode` is `'disabled'` because EmDash serves its own
-   * `robots.txt` and sitemaps. Use the current option names: legacy 1.0 spellings are
-   * rejected here. IndexNow cannot be enabled.
+   * `robots.txt` and sitemaps. IndexNow cannot be enabled.
    */
   aeo?: AstroAeoConfig;
   /**

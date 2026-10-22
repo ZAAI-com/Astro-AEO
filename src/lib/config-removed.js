@@ -1,102 +1,14 @@
 // @ts-check
-
-/**
- * @param {unknown} v
- * @returns {v is Record<string, any>}
- */
-export function isPlainObject(v) {
-  if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
-  const proto = Object.getPrototypeOf(v);
-  return proto === Object.prototype || proto === null;
-}
-
-/**
- * @param {Record<string, any> | undefined} obj
- * @param {string} path
- * @returns {any}
- */
-export function getPath(obj, path) {
-  let cur = /** @type {any} */ (obj);
-  for (const key of path.split('.')) {
-    if (!isPlainObject(cur)) return undefined;
-    cur = cur[key];
-  }
-  return cur;
-}
-
-/**
- * @param {Record<string, any>} obj
- * @param {string} path
- * @param {any} value
- * @returns {void}
- */
-export function setPath(obj, path, value) {
-  const keys = path.split('.');
-  const last = /** @type {string} */ (keys.pop());
-  let cur = obj;
-  for (const key of keys) {
-    if (!isPlainObject(cur[key])) cur[key] = {};
-    cur = cur[key];
-  }
-  cur[last] = value;
-}
-
-/**
- * @param {any} a
- * @param {any} b
- * @returns {boolean}
- */
-export function configEqual(a, b) {
-  if (Object.is(a, b)) return true;
-  if (a instanceof RegExp && b instanceof RegExp) return a.source === b.source && a.flags === b.flags;
-  if (a instanceof Date && b instanceof Date) return a.getTime() === b.getTime();
-  if (Array.isArray(a) || Array.isArray(b)) {
-    return (
-      Array.isArray(a) &&
-      Array.isArray(b) &&
-      a.length === b.length &&
-      a.every((v, i) => configEqual(v, b[i]))
-    );
-  }
-  if (isPlainObject(a) && isPlainObject(b)) {
-    const ka = Object.keys(a);
-    return ka.length === Object.keys(b).length && ka.every((k) => k in b && configEqual(a[k], b[k]));
-  }
-  return false;
-}
-
-/**
- * @param {any} v
- * @returns {string}
- */
-export function describeValue(v) {
-  if (typeof v === 'function') return v.name ? `[Function: ${v.name}]` : '[Function (anonymous)]';
-  if (v instanceof RegExp) return String(v);
-  if (v instanceof Date) return v.toISOString();
-  if (Array.isArray(v)) return `[${v.map(describeValue).join(', ')}]`;
-  if (isPlainObject(v)) {
-    return `{ ${Object.keys(v)
-      .map((k) => `${k}: ${describeValue(v[k])}`)
-      .join(', ')} }`;
-  }
-  const json = JSON.stringify(v);
-  return json === undefined ? String(v) : json;
-}
-
-/**
- * @param {string} s
- * @param {number} [max]
- * @returns {string}
- */
-export function truncate(s, max = 120) {
-  return s.length <= max ? s : `${s.slice(0, max - 3)}...`;
-}
+// The 1.0 configuration spelling, removed in 2.0. The table stays so a 1.0 config
+// fails with the exact canonical replacement instead of being silently ignored.
+import { AeoConfigError } from './errors.js';
+import { getPath, isPlainObject, setPath } from './object-path.js';
 
 /**
  * @typedef {object} LegacyMove
  * @property {string} from            Dotted path in the 1.0 config.
- * @property {string} to              Dotted path in the canonical 1.1 config.
- * @property {string} section         Canonical section, used to dedupe warnings.
+ * @property {string} to              Dotted path in the canonical config.
+ * @property {string} section         Canonical section the key belongs to.
  * @property {string} group           1.0 block name, or '' for the top-level scalars.
  * @property {(v: any) => any} [map]  Value conversion when the shape changed, not just the name.
  * @property {string} [supersededBy]  A 1.0 alias that wins over this one when both are set.
@@ -155,11 +67,6 @@ export const LEGACY_MOVES = [
   { from: 'domainProfile.entityType', to: 'site.profile.entityType', section: 'site.profile', group: 'domainProfile' },
 ];
 
-/** @param {string} section @returns {string} */
-function canonicalLabel(section) {
-  return section;
-}
-
 /**
  * @typedef {object} LiftResult
  * @property {Record<string, any>} lifted                 1.0 values rewritten onto canonical paths.
@@ -190,69 +97,67 @@ export function liftLegacy(userConfig) {
   return { lifted, movesBySection };
 }
 
-/**
- * @typedef {object} MergeResult
- * @property {Record<string, any>} merged   Canonical input, with lifted 1.0 values filling the gaps.
- * @property {string[]} warnings           Deprecation and migration warnings, at most one per section.
- */
+/** 1.0 top-level names. Each one is removed, whatever it contains. */
+export const REMOVED_TOP_LEVEL = [...new Set(LEGACY_MOVES.map((move) => move.from.split('.')[0]))];
+
+/** Where each removed 1.0 block now lives, for a block with no recognized key inside. */
+const BLOCK_DESTINATIONS = new Map(
+  LEGACY_MOVES.filter((move) => move.group).map((move) => [
+    move.group,
+    move.group === 'sitemap' ? 'discovery.sitemap' : move.to.split('.').slice(0, -1).join('.'),
+  ]),
+);
+
+export const MIGRATION_GUIDE =
+  'See "Migrating to 2.0" in the astro-aeo README: https://github.com/ZAAI-com/Astro-AEO#migrating-to-20';
 
 /**
+ * Throws when the configuration still uses a key removed in 2.0. The message names
+ * every removed path with its canonical path and prints the replacement block.
+ * Keys set to `undefined` are ignored.
+ *
  * @param {Record<string, any>} userConfig
- * @param {(message: string) => never} onConflict  Called with the assembled error text.
- * @returns {MergeResult}
+ * @returns {void}
  */
-export function mergeLegacy(userConfig, onConflict) {
-  const { lifted, movesBySection } = liftLegacy(userConfig);
+export function assertNoRemovedKeys(userConfig) {
+  if (!isPlainObject(userConfig)) return;
   /** @type {string[]} */
-  const warnings = [];
-  /** @type {string[]} */
-  const conflicts = [];
-
-  for (const [section, moves] of movesBySection) {
-    /** @type {LegacyMove[]} */
-    const overridden = [];
-    for (const move of moves) {
-      const canonical = getPath(userConfig, move.to);
-      if (canonical === undefined) continue;
-      const legacy = getPath(lifted, move.to);
-      if (configEqual(legacy, canonical)) {
-        overridden.push(move);
-        continue;
-      }
-      const rawLegacy = getPath(userConfig, move.from);
-      const mapped = move.map ? ` (maps to ${move.to}: ${truncate(describeValue(legacy))})` : '';
-      conflicts.push(
-        `  ${move.from}: ${truncate(describeValue(rawLegacy))}${mapped} vs ${move.to}: ${truncate(describeValue(canonical))}`,
-      );
-    }
-
-    if (conflicts.length) continue;
-
-    const groups = [...new Set(moves.map((m) => m.group).filter(Boolean))];
-    const blocks = groups.length ? groups.map((g) => `\`${g}\``).join(', ') : 'the top-level page options';
-    const verb = groups.length === 1 ? 'is' : 'are';
-    const pairs = moves.map((m) => `${m.from} -> ${m.to}`).join(', ');
-
-    if (overridden.length === moves.length) {
-      warnings.push(
-        `astro-aeo: ${blocks} and \`${canonicalLabel(section)}\` ${verb} both set to the same values, so \`${canonicalLabel(section)}\` is used. Remove the 1.0 block (it is removed in 2.0).`,
-      );
-    } else {
-      warnings.push(
-        `astro-aeo: ${blocks} ${verb} deprecated, use \`${canonicalLabel(section)}\` (${pairs}). The 1.0 keys still work in 1.x and are removed in 2.0.`,
-      );
-    }
-  }
-
-  if (conflicts.length) {
-    onConflict(
-      'astro-aeo: conflicting configuration, the 1.0 keys and their 1.1 replacements disagree:\n' +
-        `${conflicts.join('\n')}\n` +
-        'Keep the 1.1 keys and delete the 1.0 ones, or keep the 1.0 ones and delete the 1.1 keys.',
+  const lines = [];
+  for (const name of REMOVED_TOP_LEVEL) {
+    if (userConfig[name] === undefined) continue;
+    const moves = LEGACY_MOVES.filter(
+      (move) => (move.from === name || move.from.startsWith(`${name}.`)) && getPath(userConfig, move.from) !== undefined,
     );
+    if (moves.length === 0) {
+      lines.push(`  ${name} -> ${BLOCK_DESTINATIONS.get(name) ?? name}`);
+      continue;
+    }
+    for (const move of moves) {
+      const mapped = move.map ? ` (${describeMapped(move, getPath(userConfig, move.from))})` : '';
+      lines.push(`  ${move.from} -> ${move.to}${mapped}`);
+    }
   }
+  if (lines.length === 0) return;
 
-  return { merged: deepMerge(lifted, userConfig), warnings };
+  const replacement = renderReplacement(userConfig);
+  throw new AeoConfigError(
+    [
+      'astro-aeo: these 1.0 configuration keys were removed in 2.0:',
+      ...lines,
+      ...(replacement ? ['Replace them with:', '', replacement] : []),
+      MIGRATION_GUIDE,
+    ].join('\n'),
+  );
+}
+
+/**
+ * @param {LegacyMove} move
+ * @param {any} value
+ * @returns {string}
+ */
+function describeMapped(move, value) {
+  const mapped = /** @type {(v: any) => any} */ (move.map)(value);
+  return `${JSON.stringify(value) ?? String(value)} becomes ${JSON.stringify(mapped) ?? String(mapped)}`;
 }
 
 /**
@@ -260,14 +165,21 @@ export function mergeLegacy(userConfig, onConflict) {
  * @returns {string | null}  null when there is nothing to migrate.
  */
 export function printMigration(userConfig) {
+  const replacement = renderReplacement(userConfig);
+  return replacement ? `astro-aeo: canonical replacement for your 1.0 keys:\n\n${replacement}` : null;
+}
+
+/**
+ * @param {Record<string, any>} userConfig
+ * @returns {string | null}
+ */
+function renderReplacement(userConfig) {
   const { lifted, movesBySection } = liftLegacy(userConfig);
   if (movesBySection.size === 0) return null;
 
   const state = { hasFunction: false };
   const body = renderBlock(lifted, 1, state);
   return [
-    'astro-aeo: canonical replacement for your 1.0 keys:',
-    '',
     body,
     '',
     state.hasFunction
@@ -335,25 +247,10 @@ function renderMigrationValue(value, depth, state) {
     return `[${value.map((entry) => renderMigrationValue(entry, depth, state)).join(', ')}]`;
   }
   if (isPlainObject(value)) {
+    if (Object.keys(value).length === 0) return '{}';
     const pad = '  '.repeat(depth);
     return `{\n${renderBlock(value, depth + 1, state)}\n${pad}}`;
   }
   const json = JSON.stringify(value);
   return json === undefined ? 'undefined' : json;
-}
-
-/**
- * @param {Record<string, any>} base
- * @param {Record<string, any>} over
- * @returns {Record<string, any>}
- */
-export function deepMerge(base, over) {
-  /** @type {Record<string, any>} */
-  const out = { ...base };
-  for (const key of Object.keys(over)) {
-    const next = over[key];
-    if (next === undefined) continue;
-    out[key] = isPlainObject(next) && isPlainObject(out[key]) ? deepMerge(out[key], next) : next;
-  }
-  return out;
 }

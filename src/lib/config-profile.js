@@ -1,6 +1,6 @@
 // @ts-check
 import { AeoConfigError } from './errors.js';
-import { isPlainObject } from './config-migrate.js';
+import { isPlainObject } from './object-path.js';
 
 /** Per-origin profile values inherit the shared profile, never its enablement.
  * @param {unknown} input

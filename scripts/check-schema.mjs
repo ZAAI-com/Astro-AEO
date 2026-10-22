@@ -70,7 +70,6 @@ function assertDefaults(resolved, schema, path, errors) {
   }
   if (!isPlainObject(schema.properties)) return;
   for (const [key, childSchema] of Object.entries(schema.properties)) {
-    if (!(key in resolved) && path === '') continue; // Skip deprecated top-level aliases.
     const dotted = path ? `${path}.${key}` : key;
     assertDefaults(resolved, childSchema, dotted, errors);
   }

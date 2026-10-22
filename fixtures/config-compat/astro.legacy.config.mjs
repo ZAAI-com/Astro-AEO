@@ -1,9 +1,9 @@
 import { defineConfig } from 'astro/config';
 import aeo from '../../src/index.js';
 
-// Half of the 1.0 -> 1.1 compatibility proof: every option spelled the 1.0 way.
-// Its twin, astro.canonical.config.mjs, spells the same site the 1.1 way, and the
-// e2e diffs the two builds file by file. Keep the two in lockstep.
+// The same site as astro.canonical.config.mjs, spelled with every 1.0 key. 2.0
+// removed those keys, so this build must fail and name each one. Keep the two in
+// lockstep so the printed replacement is the canonical config.
 export default defineConfig({
   site: 'https://compat.example.com',
   trailingSlash: 'always',
@@ -36,7 +36,7 @@ export default defineConfig({
       domainProfile: {
         enabled: true,
         name: 'Compat Site',
-        description: 'Proves the 1.0 keys still work.',
+        description: 'Proves 2.0 builds what 1.6 built.',
         contact: 'hello@compat.example.com',
         sameAs: ['https://github.com/example'],
         entityType: 'Organization',

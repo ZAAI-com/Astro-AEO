@@ -1,6 +1,7 @@
 // @ts-check
 import { describe, expect, it } from 'vitest';
 import starlightAeo, { starlightDefaults } from './starlight.js';
+import { resolveConfig } from './config.js';
 
 /** @param {unknown[]} integrations */
 function setup(integrations = [], options = {}) {
@@ -86,10 +87,9 @@ describe('starlightDefaults', () => {
     });
   });
 
-  it('adds no canonical key next to its deprecated spelling', () => {
-    const resolved = /** @type {any} */ (starlightDefaults(/** @type {any} */ ({ exclude: ['/x'], sitemap: { enabled: true } })));
-    expect(resolved.pages).toBeUndefined();
-    expect(resolved.discovery).toBeUndefined();
-    expect(resolved.exclude).toEqual(['/x']);
+  it('passes a removed 1.0 key through, so resolution names it', () => {
+    const defaults = starlightDefaults(/** @type {any} */ ({ exclude: ['/x'], sitemap: { enabled: true } }));
+    expect(/** @type {any} */ (defaults).exclude).toEqual(['/x']);
+    expect(() => resolveConfig(defaults)).toThrow(/exclude -> pages\.exclude[\s\S]*sitemap\.enabled -> discovery\.sitemap\.mode/);
   });
 });

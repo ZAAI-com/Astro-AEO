@@ -28,7 +28,8 @@ because Vitest runs files concurrently and two Astro builds cannot safely share 
 - Use plain ESM JavaScript with `// @ts-check` and JSDoc.
 - Keep runtime and core modules free of `node:` imports.
 - Update public declarations in the same change as their implementation.
-- Preserve the 1.0 configuration aliases throughout 1.x.
+- Keep configuration changes additive within a major. A rename keeps the old key working with
+  a warning until the next major, which removes it with a named error.
 - Add or update a golden fixture for generated-output changes.
 - Do not add a runtime dependency without explaining why the existing browser APIs and three
   dependencies cannot provide the capability.

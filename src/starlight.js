@@ -123,13 +123,10 @@ function validateStarlightOptions(options) {
  */
 export function starlightDefaults(config = {}) {
   const input = /** @type {any} */ (config);
-  const legacySitemap = input.sitemap !== undefined;
   return {
     ...input,
     // Starlight always renders a 404 page. It is not documentation.
-    ...(input.exclude === undefined
-      ? { pages: { ...input.pages, exclude: [...(input.pages?.exclude ?? []), '/404'] } }
-      : {}),
+    pages: { ...input.pages, exclude: [...(input.pages?.exclude ?? []), '/404'] },
     markdown: {
       ...input.markdown,
       extraction: {
@@ -139,13 +136,9 @@ export function starlightDefaults(config = {}) {
         ...input.markdown?.extraction,
       },
     },
-    ...(legacySitemap
-      ? {}
-      : {
-          discovery: {
-            ...input.discovery,
-            sitemap: { mode: 'external', ...input.discovery?.sitemap },
-          },
-        }),
+    discovery: {
+      ...input.discovery,
+      sitemap: { mode: 'external', ...input.discovery?.sitemap },
+    },
   };
 }

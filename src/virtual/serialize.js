@@ -1,5 +1,5 @@
 // @ts-check
-import { isPlainObject } from '../lib/config-migrate.js';
+import { isPlainObject } from '../lib/object-path.js';
 
 /**
  * Keep build-only sitemap callbacks out of the runtime snapshot without

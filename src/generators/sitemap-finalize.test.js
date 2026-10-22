@@ -55,12 +55,12 @@ describe('finalizeSitemapOutputs', () => {
    * }} [options]
    */
   function finalize(userConfig = {}, options = {}) {
-    const { robotsTxt, ...otherConfig } = userConfig;
+    const discovery = userConfig.discovery ?? {};
     return finalizeSitemapOutputs(
       distDir,
       resolveConfig({
-        ...otherConfig,
-        robotsTxt: { enabled: true, ...robotsTxt },
+        ...userConfig,
+        discovery: { ...discovery, robots: { enabled: true, ...discovery.robots } },
       }),
       {
         siteUrl: 'https://example.com',
@@ -96,7 +96,7 @@ describe('finalizeSitemapOutputs', () => {
       failOn: 'error',
     });
     const result = finalize(
-      { robotsTxt: { enabled: true, sitemapPath: '/sitemap.xml' } },
+      { discovery: { robots: { enabled: true, sitemapPath: '/sitemap.xml' } } },
       { sitemapExpected: true, writer },
     );
 
@@ -141,7 +141,7 @@ describe('finalizeSitemapOutputs', () => {
 
   test('explicit always policy advertises a runtime sitemap without a static file', () => {
     const result = finalize(
-      { robotsTxt: { enabled: true, includeSitemap: true, sitemapPath: '/runtime-sitemap.xml' } },
+      { discovery: { robots: { enabled: true, includeSitemap: true, sitemapPath: '/runtime-sitemap.xml' } } },
       { sitemapPolicy: 'always' },
     );
 
@@ -154,7 +154,7 @@ describe('finalizeSitemapOutputs', () => {
   test('never policy suppresses an existing sitemap', () => {
     writeFileSync(join(dir, 'sitemap-index.xml'), VALID_SITEMAP);
     const result = finalize(
-      { robotsTxt: { enabled: true, includeSitemap: false } },
+      { discovery: { robots: { enabled: true, includeSitemap: false } } },
       { sitemapPolicy: 'never', sitemapExpected: true },
     );
 
@@ -188,8 +188,7 @@ describe('finalizeSitemapOutputs', () => {
   test('a hand-authored sitemap is auto-detected without an official integration', () => {
     writeFileSync(join(dir, 'sitemap.xml'), VALID_SITEMAP);
     const result = finalize({
-      sitemap: { enabled: false },
-      robotsTxt: { enabled: true, sitemapPath: '/sitemap.xml' },
+      discovery: { sitemap: { mode: 'external' }, robots: { enabled: true, sitemapPath: '/sitemap.xml' } },
     });
 
     expect(result).toEqual({ aliasEmitted: false, sitemapAdvertised: true });
@@ -203,7 +202,7 @@ describe('finalizeSitemapOutputs', () => {
     writeFileSync(join(dir, 'sitemap-index.xml'), VALID_SITEMAP);
     writeFileSync(join(dir, 'sitemap.xml'), EXISTING_SITEMAP);
     const result = finalize(
-      { robotsTxt: { enabled: true, sitemapPath: '/sitemap.xml' } },
+      { discovery: { robots: { enabled: true, sitemapPath: '/sitemap.xml' } } },
       { sitemapExpected: true },
     );
 
@@ -311,7 +310,7 @@ describe('finalizeSitemapOutputs', () => {
     const diagnostics = [];
     const result = finalizeSitemapOutputs(
       distDir,
-      resolveConfig({ robotsTxt: { enabled: true } }),
+      resolveConfig({ discovery: { robots: { enabled: true } } }),
       {
         siteUrl: 'https://example.com',
         base: '',
@@ -339,8 +338,10 @@ describe('finalizeSitemapOutputs', () => {
     const result = finalizeSitemapOutputs(
       distDir,
       resolveConfig({
-        robotsTxt: { enabled: true },
-        discovery: { sitemap: { options: { customPages: ['https://example.com/custom/page'] } } },
+        discovery: {
+          robots: { enabled: true },
+          sitemap: { options: { customPages: ['https://example.com/custom/page'] } },
+        },
       }),
       {
         siteUrl: 'https://example.com',
@@ -360,7 +361,7 @@ describe('finalizeSitemapOutputs', () => {
   test('does not advertise root llms.txt under locale-only indexes', () => {
     const result = finalize({
       i18n: { indexes: 'locale' },
-      robotsTxt: { enabled: true, includeSitemap: false },
+      discovery: { robots: { enabled: true, includeSitemap: false } },
     });
     expect(result.sitemapAdvertised).toBe(false);
     expect(readFileSync(join(dir, 'robots.txt'), 'utf8')).not.toContain('# llms.txt:');

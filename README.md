@@ -377,6 +377,80 @@ The 1.4 `audit` command and its SARIF, JUnit, HTML, Markdown, and GitHub report 
   anchor and hreflang rules need the rendered site and run only in `astro-aeo audit`.
 - `'off'`: nothing optional. Artifact integrity errors that would corrupt output still stop the build.
 
+<a id="migrating-from-10"></a>
+
+### Migrating to 2.0
+
+2.0 removes the 1.0 configuration keys that 1.x accepted with a deprecation warning, and raises the
+floors to Astro 6 and Node 22.12.0. Nothing else changes: canonical keys, defaults, generated
+output, subpath exports, the plugin API (`apiVersion: 1`), CLI commands and components are the same
+as 1.6. A canonical configuration builds the same bytes on 2.0 as on 1.6.
+
+**Upgrade in two steps.** On 1.6.x, build once with the printer on:
+
+```bash
+AEO_PRINT_MIGRATION=1 astro build
+```
+
+It prints a paste-ready canonical block derived from the keys you actually set. Replace your 1.0
+keys with it, check that the build is unchanged, then upgrade. If you upgrade first, the 2.0 build
+stops with the same block:
+
+```text
+astro-aeo: these 1.0 configuration keys were removed in 2.0:
+  exclude -> pages.exclude
+  domainProfile.contact -> site.profile.email
+Replace them with:
+
+  pages: {
+    exclude: ["/private/**"],
+  },
+  site: {
+    profile: {
+      email: "hello@example.com",
+    },
+  },
+```
+
+Merge the printed blocks into any canonical blocks you already have (for example an existing `site`
+key). Dates and regular expressions keep executable constructors. Functions appear as `undefined`
+TODO placeholders, so copy those callbacks by hand. A key set to `undefined` is ignored, as before.
+
+| Removed in 2.0 | Canonical |
+| --- | --- |
+| `include`, `exclude`, `respectNoindex`, `stripTitleSuffix` | `pages.*` |
+| `dotmd.enabled`, `dotmd.includeLastModified`, `dotmd.frontmatter` | `markdown.*` |
+| `dotmd.linkTag` | `markdown.alternateLink` |
+| `dotmd.dotmdMetadata` | `markdown.frontmatter` |
+| `llmsTxt.*` | `corpus.index.*` |
+| `llmsTxt.showLastmod` | `corpus.index.showLastModified` |
+| `llmsTxt.includeNoDotmd` | `corpus.index.includeHtmlOnly` |
+| `llmsFullTxt.*` | `corpus.full.*` |
+| `urlMap.*` | `corpus.urlMap.*` |
+| `sitemap.enabled: true` / `false` | `discovery.sitemap.mode: 'auto'` / `'external'` |
+| `sitemap.options` | `discovery.sitemap.options` |
+| `sitemapAlias.*` | `discovery.sitemap.alias.*` |
+| `robotsTxt.*` | `discovery.robots.*` |
+| `domainProfile.*` | `site.profile.*` |
+| `domainProfile.contact` | `site.profile.email` |
+
+`sitemap.enabled: false` maps to `mode: 'external'`, not `'disabled'`. It never meant "no sitemap",
+only "do not auto-register `@astrojs/sitemap`"; a sitemap you register yourself stays in use.
+
+Also removed:
+
+- The `AeoHead` `author` prop. Use `authors`, which takes the same values. A leftover `author` is
+  ignored and reported as the `aeo-head-author-removed` warning.
+- The `CatalogPage` type (use `PageDescriptor`), and the `ResolvedAeoConfig`, `LegacyAeoConfig`,
+  `DotmdOptions`, `LlmsTxtOptions`, `LlmsFullTxtOptions`, `UrlMapOptions`, `RobotsTxtOptions`,
+  `SitemapOptions`, `SitemapAliasOptions` and `DomainProfileOptions` types. Use
+  `ResolvedAstroAeoConfig` and the canonical option types.
+- Astro 5 and Node 20. Stay on 1.6.x until you can move to Astro 6 or newer on Node 22.12.0 or
+  newer.
+
+Kept: the flat `AeoPageRecord` fields (`url`, `mdHref`, `title`, `description`, `markdown`,
+`lastModified`, `aeoTokens`) and `source.strategy` are stable and are not deprecated.
+
 ### Migrating to 1.4
 
 1.4 adds features and changes no configuration key. A project that uses none of them emits the same
@@ -433,8 +507,8 @@ Version 1.2 deliberately changes three defaults or public contracts:
 - `AeoPageRecord` is now the shared rich page model. It adds route identity, nested metadata,
   source and representation records, dates, authors, entities, directives, extraction details,
   and diagnostics. The existing flat `url`, `mdHref`, `title`, `description`, `markdown`,
-  `lastModified`, and `aeoTokens` fields remain as deprecated runtime and type mirrors through
-  1.x. The smaller `AeoPage` used by section match predicates is unchanged.
+  `lastModified`, and `aeoTokens` fields remain as runtime and type mirrors (still present in
+  2.0). The smaller `AeoPage` used by section match predicates is unchanged.
 - Project routes and `public/` files now own their served path by default. Astro-AEO will not
   overwrite them unless the exact normalized served pathname appears in `artifacts.replace`.
   Globs are rejected, and duplicate generated claims emit neither claimant. Version 1.2.0 also
@@ -451,53 +525,6 @@ aeo({
   schema: { autoInject: false },
 });
 ```
-
-### Migrating from 1.0
-
-Every 1.0 key still works and produces the same output as its canonical replacement. Using one emits a
-single deprecation warning per section; the 1.0 keys are removed in 2.0.
-
-| 1.0 | Canonical 1.x |
-| --- | --- |
-| `include`, `exclude`, `respectNoindex`, `stripTitleSuffix` | `pages.*` |
-| `dotmd.enabled`, `dotmd.includeLastModified`, `dotmd.frontmatter` | `markdown.*` |
-| `dotmd.linkTag` | `markdown.alternateLink` |
-| `dotmd.dotmdMetadata` | `markdown.frontmatter` |
-| `llmsTxt.*` | `corpus.index.*` |
-| `llmsTxt.showLastmod` | `corpus.index.showLastModified` |
-| `llmsTxt.includeNoDotmd` | `corpus.index.includeHtmlOnly` |
-| `llmsFullTxt.*` | `corpus.full.*` |
-| `urlMap.*` | `corpus.urlMap.*` |
-| `sitemap.enabled: true` / `false` | `discovery.sitemap.mode: 'auto'` / `'external'` |
-| `sitemap.options` | `discovery.sitemap.options` |
-| `sitemapAlias.*` | `discovery.sitemap.alias.*` |
-| `robotsTxt.*` | `discovery.robots.*` |
-| `domainProfile.*` | `site.profile.*` |
-| `domainProfile.contact` | `site.profile.email` |
-
-To see the canonical replacement for your own config, build once with the printer on:
-
-```bash
-AEO_PRINT_MIGRATION=1 astro build
-```
-
-It prints a paste-ready block derived from the keys you actually set. Dates and regular
-expressions retain executable constructors. Functions appear as `undefined` TODO
-placeholders, so copy those callbacks by hand.
-
-Two rules are worth knowing:
-
-- You can mix eras as long as they address different settings. Setting a 1.0 key and
-  its canonical replacement to **different** values is a build-stopping error naming both
-  paths, because silently picking one could publish the wrong `robots.txt` policy.
-- Values compare structurally, but callbacks compare by reference. Pasting the same
-  `match` function into both `llmsTxt.sections` and `corpus.index.sections` is
-  reported as a conflict: delete one.
-
-`sitemap.enabled: false` maps to `mode: 'external'`, not `'disabled'`. It never meant
-"no sitemap", only "do not auto-register `@astrojs/sitemap`"; a sitemap you register
-yourself stayed in use. The new `disabled` mode, which has no 1.0 equivalent, opts out
-of sitemap handling entirely.
 
 ### Sitemap
 
@@ -1263,7 +1290,7 @@ changes the French host's profile without changing another host. Credentials, pa
 fragments, duplicate normalized origins, and unknown override keys are rejected. Build and runtime
 use the same renderer, and an authored `website` still takes precedence over the active origin.
 
-`site.profile.email` is routed into the schema.org profile by value shape: an `http(s)` URL becomes a `contactPoint` (`{ '@type': 'ContactPoint', url }`), a value containing `@` becomes `email`, and anything else becomes `telephone`. The old `domainProfile.contact` key is a deprecated alias; it still works but emits a deprecation warning.
+`site.profile.email` is routed into the schema.org profile by value shape: an `http(s)` URL becomes a `contactPoint` (`{ '@type': 'ContactPoint', url }`), a value containing `@` becomes `email`, and anything else becomes `telephone`.
 
 ### Serving .md companions
 
@@ -2038,8 +2065,9 @@ requests and tagged publication also run real pinned Node servers on Astro 5.18,
 
 Tests are colocated next to the source they cover as `*.test.js`. The frozen
 `fixtures/golden-1.0` output proves static byte compatibility with the actual 1.0
-implementation, while `fixtures/config-compat` compares legacy and canonical option
-spellings. The package is authored as plain ESM JavaScript with JSDoc types and a
+implementation (its configuration is translated into canonical keys), while
+`fixtures/config-compat` proves that 1.0 keys are rejected and that a canonical build
+matches the bytes 1.6.1 produced. The package is authored as plain ESM JavaScript with JSDoc types and a
 hand-written `index.d.ts`, so it needs no build step and installs cleanly as a git dependency.
 
 Working on this repo with an AI agent? See [`AGENTS.md`](AGENTS.md) for the architecture, conventions, and test workflow. Notable changes are tracked in [`CHANGELOG.md`](CHANGELOG.md).

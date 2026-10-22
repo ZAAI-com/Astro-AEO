@@ -258,6 +258,10 @@ Severity: warning. Raised by: build.
 
 ## Category: metadata
 
+### aeo-head-author-removed
+
+Severity: warning. Raised by: build.
+
 ### aeo-head-invalid
 
 Severity: error. Raised by: build.

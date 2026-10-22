@@ -5,8 +5,10 @@ export default defineConfig({
   site: 'https://filtered.example.com',
   integrations: [
     aeo({
-      sitemap: { options: { filter: () => false } },
-      robotsTxt: { enabled: true },
+      discovery: {
+        sitemap: { options: { filter: () => false } },
+        robots: { enabled: true },
+      },
     }),
   ],
 });

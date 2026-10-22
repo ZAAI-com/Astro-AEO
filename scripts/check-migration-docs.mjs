@@ -2,19 +2,20 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { LEGACY_MOVES } from '../src/lib/config-migrate.js';
+import { LEGACY_MOVES } from '../src/lib/config-removed.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const readme = await readFile(resolve(root, 'README.md'), 'utf8');
-const start = readme.indexOf('### Migrating from 1.0');
+const start = readme.indexOf('### Migrating to 2.0');
 const end = readme.indexOf('\n### ', start + 4);
 
 if (start < 0) {
-  console.error('README.md is missing the "Migrating from 1.0" section.');
+  console.error('README.md is missing the "Migrating to 2.0" section.');
   process.exit(1);
 }
 
-const migration = readme.slice(start, end < 0 ? undefined : end);
+// Fenced examples hold their own backticks, which would pair with the table's spans.
+const migration = readme.slice(start, end < 0 ? undefined : end).replace(/^```[\s\S]*?^```$/gm, '');
 const codeSpans = [...migration.matchAll(/`([^`]+)`/g)]
   .flatMap((match) => match[1].split(/\s*,\s*|\s+\/\s+/))
   .map((value) => value.replace(/:\s*.*$/, '').trim());
@@ -38,5 +39,5 @@ if (missing.length > 0) {
   for (const path of [...new Set(missing)].sort()) console.error(`  - ${path}`);
   process.exitCode = 1;
 } else {
-  console.log(`README migration table covers all ${LEGACY_MOVES.length} compatibility moves.`);
+  console.log(`README migration table covers all ${LEGACY_MOVES.length} removed 1.0 keys.`);
 }

@@ -87,9 +87,6 @@ export interface PageDescriptor {
   extraction?: ExtractionDiagnostics;
 }
 
-/** @deprecated Use PageDescriptor. */
-export type CatalogPage = PageDescriptor;
-
 export interface CatalogContext {
   command: 'dev' | 'build' | 'preview';
   siteUrl: string;

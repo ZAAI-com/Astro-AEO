@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import emdashAeo, { emdashDefaults } from './emdash.js';
+import { resolveConfig } from './config.js';
 
 const EMDASH = { name: 'emdash', hooks: {} };
 const roots = [];
@@ -157,9 +158,13 @@ describe('emdashDefaults', () => {
     ]);
   });
 
-  it('rejects legacy option names and IndexNow', () => {
-    expect(() => emdashDefaults({ aeo: /** @type {any} */ ({ exclude: ['/x'] }) })).toThrow(/Replace exclude/);
-    expect(() => emdashDefaults({ aeo: /** @type {any} */ ({ llmsTxt: {}, robotsTxt: {} }) })).toThrow(/llmsTxt, robotsTxt/);
+  it('rejects removed 1.0 option names through resolution, and IndexNow', () => {
+    expect(() => resolveConfig(emdashDefaults({ aeo: /** @type {any} */ ({ exclude: ['/x'] }) }))).toThrow(
+      /exclude -> pages\.exclude/,
+    );
+    expect(() => resolveConfig(emdashDefaults({ aeo: /** @type {any} */ ({ llmsTxt: {}, robotsTxt: {} }) }))).toThrow(
+      /llmsTxt -> corpus\.index[\s\S]*robotsTxt -> discovery\.robots/,
+    );
     expect(() => emdashDefaults({ aeo: { discovery: { indexNow: { enabled: true } } } })).toThrow(/IndexNow/);
   });
 });

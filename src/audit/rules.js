@@ -199,7 +199,7 @@ const RULE_LIST = Object.freeze([
     'aeo-head-invalid', 'aeo-head-multiple',
   ]),
   ...rules('metadata', 'warning', ['build'], [
-    'canonical-conflict', 'canonical-invalid', 'managed-head-missing',
+    'aeo-head-author-removed', 'canonical-conflict', 'canonical-invalid', 'managed-head-missing',
   ]),
   ...rules('metadata', 'warning', ['offline'], [
     'og-description-length', 'og-image-missing', 'og-image-relative', 'og-title-length',
