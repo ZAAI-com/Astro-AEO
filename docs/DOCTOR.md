@@ -39,6 +39,14 @@ Astro-AEO already detects explicit registration. Advice asks users to choose
 ownership only where appropriate; installing a package alone never causes a
 `conflicting` result. Other packages are not inferred from their names.
 
+A `removed-config:<key>` check is a low-confidence hint that a standard Astro config
+file mentions a 1.0 key that 2.0 removed (`dotmd`, `llmsTxt`, `llmsFullTxt`,
+`sitemapAlias`, `robotsTxt`, `domainProfile`, or the 1.0-only `dotmdMetadata`,
+`linkTag`, `showLastmod` and `includeNoDotmd`). It is textual and always
+`unverified`; the build itself names every removed key it actually receives. Keys
+that the canonical configuration also uses, such as `exclude` or `sitemap`, are
+not reported.
+
 Evidence reads are bounded and do not follow symlinked files or directories.
 A project path that passes through a symlinked parent folder (a symlinked home
 directory, or macOS `/tmp`) is resolved to its real location first; a project

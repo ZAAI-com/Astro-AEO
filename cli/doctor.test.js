@@ -138,6 +138,30 @@ describe('doctor evidence and read-only advice', () => {
     expect((await runDoctor([root, '--print'])).output).toContain('evidence (low): package.json:');
   });
 
+  test('hints at removed 1.0 keys from config text without executing it', async () => {
+    const sentinel = join(tmpdir(), `astro-aeo-doctor-removed-never-execute-${process.pid}`);
+    const config = `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(sentinel)}, 'executed');\n` +
+      `export default { integrations: [aeo({ robotsTxt: { enabled: true }, 'domainProfile': {}, pages: { exclude: [] } })] };\n`;
+    const root = project({ 'package.json': '{}', 'astro.config.mjs': config });
+    const result = await runDoctor([root, '--print', '--json']);
+    const report = JSON.parse(result.output);
+    const ids = result.checks.filter((check) => check.id.startsWith('removed-config:')).map((check) => check.id);
+    expect(ids).toEqual(['removed-config:robotsTxt', 'removed-config:domainProfile']);
+    expect(result.checks.find((check) => check.id === 'removed-config:robotsTxt')).toMatchObject({
+      status: 'unverified',
+      evidence: [{ source: 'astro.config.mjs', confidence: 'low' }],
+    });
+    expect(report.advice.find((/** @type {any} */ entry) => entry.id === 'removed-config:robotsTxt').message).toContain('Migrating to 2.0');
+    expect(existsSync(sentinel)).toBe(false);
+  });
+
+  test('does not hint at removed keys for a canonical config', async () => {
+    const config = `export default { integrations: [aeo({ pages: { exclude: [] }, corpus: { urlMap: { enabled: true } }, discovery: { robots: {}, sitemap: {} } })] };\n// robotsTxt was the 1.0 name\n`;
+    const root = project({ 'package.json': '{}', 'astro.config.mjs': config });
+    const result = await runDoctor([root, '--json']);
+    expect(result.checks.some((check) => check.id.startsWith('removed-config:'))).toBe(false);
+  });
+
   test('does not treat transitive packages or generic server files as provider evidence', async () => {
     const root = project({ 'pnpm-lock.yaml': 'astro-robots-txt: 1\n', 'server.ts': 'export const answer = 42;', 'package.json': '{}' });
     const result = await runDoctor([root, '--print']);
