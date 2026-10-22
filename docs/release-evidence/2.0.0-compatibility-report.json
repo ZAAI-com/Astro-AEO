@@ -1,0 +1,260 @@
+{
+  "version": "2.0.0",
+  "base": "1.6.1",
+  "head": "c6d88ee",
+  "surfaces": {
+    "artifactOwners": {
+      "before": 8,
+      "after": 8,
+      "removed": [],
+      "added": [],
+      "changed": [],
+      "unexpected": []
+    },
+    "auditRules": {
+      "before": 257,
+      "after": 258,
+      "removed": [],
+      "added": [
+        "aeo-head-author-removed"
+      ],
+      "changed": [],
+      "unexpected": []
+    },
+    "cli": {
+      "before": 7,
+      "after": 7,
+      "removed": [],
+      "added": [],
+      "changed": [],
+      "unexpected": []
+    },
+    "declarations": {
+      "before": 328,
+      "after": 317,
+      "removed": [
+        "src/index.d.ts#DomainProfileOptions",
+        "src/index.d.ts#DotmdOptions",
+        "src/index.d.ts#LegacyAeoConfig",
+        "src/index.d.ts#LlmsFullTxtOptions",
+        "src/index.d.ts#LlmsTxtOptions",
+        "src/index.d.ts#ResolvedAeoConfig",
+        "src/index.d.ts#RobotsTxtOptions",
+        "src/index.d.ts#SitemapAliasOptions",
+        "src/index.d.ts#SitemapOptions",
+        "src/index.d.ts#UrlMapOptions",
+        "src/page.d.ts#CatalogPage"
+      ],
+      "added": [],
+      "changed": [],
+      "unexpected": []
+    },
+    "dependencies": {
+      "before": 5,
+      "after": 5,
+      "removed": [],
+      "added": [],
+      "changed": [],
+      "unexpected": []
+    },
+    "engines": {
+      "before": 1,
+      "after": 1,
+      "removed": [],
+      "added": [],
+      "changed": [
+        "node: >=20.19.5 -> >=22.12.0"
+      ],
+      "unexpected": []
+    },
+    "exports": {
+      "before": 31,
+      "after": 31,
+      "removed": [],
+      "added": [],
+      "changed": [],
+      "unexpected": []
+    },
+    "peerDependencies": {
+      "before": 6,
+      "after": 6,
+      "removed": [],
+      "added": [],
+      "changed": [
+        "astro: >=5.0.0 -> >=6.0.0"
+      ],
+      "unexpected": []
+    },
+    "schema": {
+      "before": 184,
+      "after": 142,
+      "removed": [
+        "domainProfile",
+        "domainProfile.contact",
+        "domainProfile.description",
+        "domainProfile.email",
+        "domainProfile.enabled",
+        "domainProfile.entityType",
+        "domainProfile.logo",
+        "domainProfile.name",
+        "domainProfile.sameAs",
+        "domainProfile.website",
+        "dotmd",
+        "dotmd.dotmdMetadata",
+        "dotmd.enabled",
+        "dotmd.frontmatter",
+        "dotmd.includeLastModified",
+        "dotmd.linkTag",
+        "exclude",
+        "include",
+        "llmsFullTxt",
+        "llmsTxt",
+        "llmsTxt.defaultSection",
+        "llmsTxt.enabled",
+        "llmsTxt.includeDescriptions",
+        "llmsTxt.includeNoDotmd",
+        "llmsTxt.sections",
+        "llmsTxt.showLastmod",
+        "respectNoindex",
+        "robotsTxt",
+        "robotsTxt.allow",
+        "robotsTxt.disallow",
+        "robotsTxt.enabled",
+        "robotsTxt.extraLines",
+        "robotsTxt.includeLlmsTxt",
+        "robotsTxt.includeSitemap",
+        "robotsTxt.sitemapPath",
+        "robotsTxt.universalAllow",
+        "sitemap",
+        "sitemap.enabled",
+        "sitemap.options",
+        "sitemapAlias",
+        "stripTitleSuffix",
+        "urlMap"
+      ],
+      "added": [],
+      "changed": [],
+      "unexpected": []
+    }
+  },
+  "parity": [
+    {
+      "test": "src/golden-output.e2e.test.js",
+      "status": "passed (release:check default suite)",
+      "astro": "7.3.5"
+    },
+    {
+      "test": "src/config-compat.e2e.test.js",
+      "status": "passed (release:check default suite)",
+      "astro": "7.3.5"
+    }
+  ],
+  "gates": [
+    {
+      "name": "Configuration schema freshness",
+      "status": "passed"
+    },
+    {
+      "name": "Migration documentation freshness",
+      "status": "passed"
+    },
+    {
+      "name": "Changeset coverage",
+      "status": "passed"
+    },
+    {
+      "name": "Release metadata",
+      "status": "passed"
+    },
+    {
+      "name": "Current TypeScript declarations",
+      "status": "passed"
+    },
+    {
+      "name": "Oldest supported TypeScript consumer",
+      "status": "passed"
+    },
+    {
+      "name": "JavaScript/JSDoc consumer",
+      "status": "passed"
+    },
+    {
+      "name": "Unit, CLI, and static build tests",
+      "status": "passed"
+    },
+    {
+      "name": "Development-server contract",
+      "status": "passed"
+    },
+    {
+      "name": "Node adapter contract",
+      "status": "passed"
+    },
+    {
+      "name": "Base-path trailing-slash matrix",
+      "status": "passed"
+    },
+    {
+      "name": "Adapter build matrix",
+      "status": "passed"
+    },
+    {
+      "name": "Adapter local-runtime matrix",
+      "status": "passed"
+    },
+    {
+      "name": "Static edge handler in workerd",
+      "status": "passed"
+    },
+    {
+      "name": "Recipes build and audit clean",
+      "status": "passed"
+    },
+    {
+      "name": "Offline audit of 10,000 pages",
+      "status": "passed"
+    },
+    {
+      "name": "Adapter bundle baselines",
+      "status": "passed"
+    },
+    {
+      "name": "Packed tarball install and Astro build",
+      "status": "passed"
+    },
+    {
+      "name": "Git dependency install and Astro build",
+      "status": "not run on the candidate (installs the committed HEAD, which predates these changes)"
+    },
+    {
+      "name": "IndexNow live transport smoke",
+      "status": "passed (run separately)"
+    },
+    {
+      "name": "Paired project and warm-cache evidence",
+      "status": "passed on rerun (first run: one intermittent cold-cache edit at 10,000 pages)"
+    },
+    {
+      "name": "Performance safety ceilings",
+      "status": "passed (run separately)"
+    }
+  ],
+  "sizes": {
+    "current": {
+      "packed": 495180,
+      "unpacked": 1885806,
+      "files": 234
+    },
+    "base": {
+      "unpacked": 1896582,
+      "files": 233
+    }
+  },
+  "toolchain": {
+    "node": "24.15.0",
+    "pnpm": "11.17.0",
+    "astro": "7.3.5",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11"
+  }
+}

@@ -4,9 +4,43 @@ All notable changes to this project are documented here. This project follows [S
 
 ## 2.0.0
 
+The compatibility-cleanup release that closes the 1.x roadmap. It removes the 1.0 configuration
+aliases that 1.x accepted with a deprecation warning and raises the floors to Astro 6 and Node
+22.12.0. Canonical configuration, defaults, generated output, subpath exports, the plugin API
+(`apiVersion: 1`), CLI commands and components are unchanged: a canonical configuration builds the
+same bytes on 2.0.0 as on 1.6.1. See "Migrating to 2.0" in the README.
+
+### Behavior changes worth reading before upgrading
+
+- A configuration that still uses a 1.0 key (`include`, `exclude`, `respectNoindex`,
+  `stripTitleSuffix`, or the `dotmd`, `llmsTxt`, `llmsFullTxt`, `urlMap`, `sitemap`,
+  `sitemapAlias`, `robotsTxt` and `domainProfile` blocks, including `dotmd.dotmdMetadata` and
+  `domainProfile.contact`) stops the build. The error names every removed path with its canonical
+  path and prints a paste-ready canonical block. `AEO_PRINT_MIGRATION=1 astro build` on 1.6.x prints
+  the same block before you upgrade. `starlightAeo()` and `emdashAeo()` report these keys through
+  the same error.
+- Astro 5 and Node 20 are no longer supported. `peerDependencies.astro` is `>=6.0.0` and
+  `engines.node` is `>=22.12.0`. Stay on 1.6.x until you can move.
+- The `AeoHead` `author` prop is removed; use `authors`. A leftover `author` is ignored and reported
+  as the new `aeo-head-author-removed` build warning instead of rendering author tags.
+- The first build after upgrading extracts every page again and logs the processing cache reset
+  once, because the cache producer records the astro-aeo version.
+
 ### Major Changes
 
-- Set the package version to 2.0.0. This version update introduces no runtime or API changes.
+- Remove the 1.0 configuration aliases and `AEO_PRINT_MIGRATION` from 2.0. Using a removed key is a
+  build-stopping `AeoConfigError` that lists every removed path, its canonical path and the
+  replacement block; a key set to `undefined` is still ignored. The published JSON schema drops
+  the 12 deprecated top-level properties.
+- Remove the `LegacyAeoConfig`, `ResolvedAeoConfig`, `DotmdOptions`, `LlmsTxtOptions`,
+  `LlmsFullTxtOptions`, `UrlMapOptions`, `RobotsTxtOptions`, `SitemapOptions`,
+  `SitemapAliasOptions`, `DomainProfileOptions` and `CatalogPage` declarations and the
+  `AeoHeadProps.author` prop. `AstroAeoConfig` is now exactly the canonical configuration.
+- Require Astro 6 or newer and Node 22.12.0 or newer. The Astro 5 request-pipeline branch is
+  removed; Astro 6.0 through 6.2 keep failing closed with `503` for request-time corpora.
+- The flat `AeoPageRecord` fields (`url`, `mdHref`, `title`, `description`, `markdown`,
+  `lastModified`, `aeoTokens`) and `source.strategy` are retained as stable fields and are no
+  longer marked deprecated.
 
 ## 1.6.1
 

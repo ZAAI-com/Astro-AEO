@@ -3,12 +3,15 @@
 ## Supported versions
 
 Security fixes are provided for the latest published minor release. When practical, a fix that
-does not require a breaking API change is also backported to the preceding minor release.
+does not require a breaking API change is also backported to the preceding minor release. The last
+1.x line, 1.6.x, receives security fixes for six months after 2.0.0 is published, for projects
+that cannot yet leave Astro 5 or Node 20.
 
 | Version | Supported |
 | --- | --- |
-| Latest 1.x minor | Yes |
-| Previous 1.x minor | Best effort |
+| Latest 2.x minor | Yes |
+| Previous 2.x minor | Best effort |
+| 1.6.x | Security fixes for six months after 2.0.0 |
 | Older releases | No |
 
 ## Reporting a vulnerability
