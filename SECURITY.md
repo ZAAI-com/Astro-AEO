@@ -85,7 +85,7 @@ the [1.2 semantic validation record](docs/release-evidence/1.2.0-semantic-valida
   authentication continue to apply. The response preserves the application's status, redirects,
   cookies, and relevant representation headers.
 - Live corpora fan out through trusted in-process rewrites without network self-fetch. Caller
-  credentials and request state are not reused. Astro 5 and Astro 6.0 through 6.2 fail closed with
+  credentials and request state are not reused. Astro 6.0 through 6.2 fail closed with
   `503` and `Cache-Control: no-store`; secure full request-time corpora require Astro 6.3 or newer.
 - One development-only exception: under `astro dev`, when an in-process rewrite has already failed
   (overlapping dynamic routes), Astro-AEO re-requests that one page for the corpus or its `.md`

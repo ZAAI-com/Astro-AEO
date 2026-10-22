@@ -42,7 +42,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        astro: ['5', '6', '7']
+        astro: ['6', '7']
     steps:
       - uses: actions/checkout@v7
         with:
@@ -60,16 +60,11 @@ jobs:
         run: node scripts/check-changesets.mjs --since "origin/${{ github.base_ref }}"
       # Astro 6 requires Vite 7 and says so at startup, but the lockfile resolves
       # Vite 8 for Astro 7. Pin the pair so this leg tests a combination users have.
-      # The Astro 5 leg deliberately gets no Vite pin. Astro declares vite as a normal
-      # dependency, not a peer, so pnpm installs each Astro's own Vite nested under it
-      # and this repo has no root vite devDependency for a pin to move. Astro 6 is the
-      # exception only because it asserts on the root-resolved Vite at startup.
       - name: Pin Astro version for this leg
         if: matrix.astro != '7'
-        run: pnpm add -D astro@${{ matrix.astro }} ${{ matrix.astro == '6' && 'vite@7' || '' }}
+        run: pnpm add -D astro@${{ matrix.astro }} vite@7
       # Print the pairing this leg actually resolved rather than reasoning about it
-      # from the lockfile. Astro 5 is expected to report its own nested Vite 6 here,
-      # not the root-level Vite that the Astro 7 leg locks.
+      # from the lockfile.
       - name: Report the Astro and Vite pairing under test
         run: |
           node -e "
@@ -90,8 +85,7 @@ jobs:
         run: pnpm run test:types && pnpm run test:types:js
       - name: Unit, CLI and build e2e tests
         run: pnpm test
-      - name: Dev-server e2e (astro 6 and 7 legs)
-        if: matrix.astro != '5'
+      - name: Dev-server e2e
         run: pnpm run test:dev
       # The on-demand contract needs a real adapter, so it cannot run against a
       # static build or the dev server. Keep this adapter-backed suite on newest Astro.
@@ -218,15 +212,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['20.19.5', '22', '24']
+        node: ['22.12.0', '24', '26']
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: pnpm/action-setup@v6
       # Install with a pnpm-capable Node: pnpm@11 needs Node >=22.13 (node:sqlite)
-      # and cannot run on the Node 20 leg. Install here, then switch to the matrix
-      # Node below to exercise the published artifact on that runtime.
+      # and cannot run on the 22.12.0 floor leg. Install here, then switch to the
+      # matrix Node below to exercise the published artifact on that runtime.
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
@@ -247,14 +241,12 @@ jobs:
       # the fixtures instead, which import them the way a project does.
       - name: Smoke import the published JavaScript subpaths
         run: node --input-type=module -e "await Promise.all(['astro-aeo', 'astro-aeo/page', 'astro-aeo/extract', 'astro-aeo/schema', 'astro-aeo/content', 'astro-aeo/starlight', 'astro-aeo/emdash', 'astro-aeo/emdash/catalog', 'astro-aeo/analytics', 'astro-aeo/edge', 'astro-aeo/edge/cloudflare', 'astro-aeo/edge/netlify', 'astro-aeo/edge/vercel', 'astro-aeo/mdx', 'astro-aeo/defuddle'].map((s) => import(s)))"
-      # Unit tests only. The e2e suites shell out to `astro build`, and the Astro
-      # devDependency installed here is 7, whose own engines.node is >=22.12.0, so
-      # they cannot run on the 20.19.5 leg. That combination is also one no user
-      # has: a real Node 20 user is on Astro 5 or 6, whose Node floors are lower.
-      # This job's purpose is to prove the published artifact runs on each
-      # supported Node, which the remaining steps do.
-      - name: Core test suite under Node ${{ matrix.node }}
-        run: node node_modules/vitest/vitest.mjs run --exclude '**/*.e2e.test.js' --exclude '**/node_modules/**'
+      # The whole default suite, build e2e included: the installed Astro 7's own
+      # engines.node floor is 22.12.0, the same as this package's. Run it through
+      # pnpm's bin shim rather than vitest.mjs: the shim sets NODE_PATH, which the
+      # Starlight fixture's bundled native Markdown binding needs to resolve.
+      - name: Default test suite under Node ${{ matrix.node }}
+        run: node_modules/.bin/vitest run
       - name: Current TypeScript under Node ${{ matrix.node }}
         run: node node_modules/typescript/bin/tsc --noEmit
       - name: TypeScript 5.5 consumer under Node ${{ matrix.node }}

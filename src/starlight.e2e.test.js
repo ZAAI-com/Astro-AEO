@@ -10,7 +10,7 @@ const DIST = join(FIXTURE, 'dist');
 const astroDir = join(REPO, 'node_modules', 'astro');
 const astroPackage = JSON.parse(readFileSync(join(astroDir, 'package.json'), 'utf8'));
 const astroBinField = astroPackage.bin;
-// The pinned Starlight needs Astro 7, so the Astro 5 and 6 matrix jobs skip this file.
+// The pinned Starlight needs Astro 7, so the Astro 6 matrix job skips this file.
 const SUPPORTED = Number(astroPackage.version.split('.')[0]) >= 7;
 const astroBin = join(astroDir, typeof astroBinField === 'string' ? astroBinField : astroBinField.astro);
 const read = (file) => readFileSync(join(DIST, file), 'utf8');

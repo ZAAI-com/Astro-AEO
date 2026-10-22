@@ -85,7 +85,7 @@ export async function preloadCatalogModules(
       reportCatalogDiagnostic(diagnostics, logger, {
         code: 'catalog-unsupported-module-format',
         message:
-          `astro-aeo: the page catalog "${catalog.module}" uses ${extension}, but catalogs are loaded directly by Node and must be compiled to .js, .mjs, or .cjs so they work on Node 20.19.5; it contributed nothing.`,
+          `astro-aeo: the page catalog "${catalog.module}" uses ${extension}, but catalogs are loaded directly by Node and must be compiled to .js, .mjs, or .cjs so they work on every supported Node version; it contributed nothing.`,
         sourcePath: catalog.module,
       });
       continue;

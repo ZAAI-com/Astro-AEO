@@ -107,8 +107,8 @@ describe('isForbiddenPrerenderedRewriteError', () => {
     );
     expect(errorsData).toContain('name: "ForbiddenRewrite"');
     expect(errorsData).toContain('title: "Forbidden rewrite to a static route."');
-    // The module, not the `astro/errors` entrypoint: Astro 5 exports only
-    // `AstroError` from there, and this pin has to hold on every supported major.
+    // The module, not the `astro/errors` entrypoint, so this pin reads the same
+    // definition on every supported major.
     const { ForbiddenRewrite } = await import(
       '../../node_modules/astro/dist/core/errors/errors-data.js'
     );

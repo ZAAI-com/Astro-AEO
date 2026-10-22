@@ -27,17 +27,17 @@ third-party benchmark or hosted verification was performed.
 
 ## Supported surfaces
 
-The published floors remain Node **20.19.5** and Astro **5**. Contributor tooling requires
-Node **22.13** and pnpm **11**; the installed Astro version may require a higher Node version.
-A real Node 20 server must use a compatible Astro/adapter pair, not Astro 7.
+The published floors are Node **22.12.0** and Astro **6** since 2.0.0 (1.6.x supports Node
+20.19.5 and Astro 5). Contributor tooling requires Node **22.13** and pnpm **11**. 2.0.0 also
+removed the 1.0 configuration aliases; a configuration that still uses one fails with the
+canonical replacement.
 
 | Matrix | Contract |
 | --- | --- |
-| Astro 5.18.2 + Node adapter 9.5.5 + Node 20.19.5 | Direct authenticated Markdown and build output supported; live inventory corpora fail closed with 503. |
-| Astro 6.2.2 + Node adapter 10.0.6 + Node 22.13.1 | Same live-corpus restriction. |
-| Astro 6.3.0 + Node adapter 10.1.0 + Node 22.13.1 | Disposable rewrite state enables serial anonymous live corpora for rewriteable pages. |
+| Astro 6.2.2 + Node adapter 10.0.6 + Node 22.12.0 | Direct authenticated Markdown and build output supported; live inventory corpora fail closed with 503. |
+| Astro 6.3.0 + Node adapter 10.1.0 + Node 22.12.0 | Disposable rewrite state enables serial anonymous live corpora for rewriteable pages. |
 | Astro 7.2.0 + Node adapter 11.1.0, and Astro 7.3.1 + Node adapter 11.1.5 + Node 24 | Pinned request-state boundaries in CI. |
-| Astro 5, 6, 7 | Default output and declaration consumers in CI; Node 20.19.5, 22, 24 exercise plain public imports and non-build unit tests. |
+| Astro 6, 7 | Default output and declaration consumers in CI; Node 22.12.0, 24, 26 run plain public imports and the default suite, build e2e included. |
 | Node, workerd, Deno | Local request contracts. Deno is pinned exactly in `.tool-versions`; a different installed version fails the contract. |
 | Vercel and Netlify | Local emitted-handler contracts and build/artifact checks, not deployed certification. |
 | Git and tarball dependencies | Plain ESM source, Astro builds, optional-peer isolation, TypeScript 5.5 and JS/JSDoc consumers. Git evidence names the tested committed revision. |
@@ -46,7 +46,7 @@ A hybrid inventory containing a prerendered page that Astro cannot rewrite retur
 than an incomplete corpus. The build-time companion remains available. This is an in-process
 rewrite limitation, not permission to fall back to production loopback or caller credentials.
 
-The local 6.x evidence uses Node 22.14.0, not the exact CI 22.13.1 pin. CI matrices describe
+The local 6.x evidence uses Node 22.14.0, not the exact CI 22.12.0 pin. CI matrices describe
 required coverage, not a claim that hosted jobs ran in this workspace. Optional peers remain
 optional. Analytics does not install provider handlers; edge observation requires explicit injection.
 

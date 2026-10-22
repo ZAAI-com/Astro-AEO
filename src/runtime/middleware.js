@@ -81,12 +81,11 @@ const CORPUS_PURPOSE = 'corpus';
 // version, so this must not assert which version the caller is running.
 const UNRECOGNIZED_CORPUS_STATE =
   'astro-aeo: the Astro request state was not recognized, so request-time corpora cannot render ' +
-  'each page in a disposable state. Astro 5 and Astro 6.0-6.2 do not expose one and should use ' +
+  'each page in a disposable state. Astro 6.0-6.2 does not expose one and should use ' +
   'build output; on Astro 6.3 or newer this is an astro-aeo compatibility gap.\n';
 /** @type {WeakMap<object, { collect: boolean; corpus: boolean }>} */
 const INTERNAL_REWRITES = new WeakMap();
 const ASTRO_FETCH_STATE = Symbol.for('astro.fetchState');
-const ASTRO_5_PIPELINE = Symbol.for('context.routes');
 const ASTRO_6_LEGACY_PIPELINE = Symbol.for('astro.pipeline');
 
 /** Collection exclusions shared only with the enabled generated wrapper.
@@ -866,7 +865,7 @@ function htmlFetcher(context, next, opts = {}) {
 
     if (corpus) {
       // Never run an anonymous corpus render through a shared RenderContext.
-      // Astro 5 and Astro 6.0-6.2 do not expose the closure-held caller IP,
+      // Astro 6.0-6.2 does not expose the closure-held caller IP,
       // cookies, or session for safe replacement. The public artifact handler
       // fails closed before reaching this defense-in-depth guard.
       //
@@ -1267,15 +1266,14 @@ async function prepareRewriteState(
 }
 
 /**
- * Astro 5 and Astro 6.0-6.2 expose the pipeline through different symbols.
- * Astro 6.3 moved to FetchState, which is handled before this compatibility
- * path even though its API context may still retain `astro.pipeline`.
+ * Astro 6.0-6.2 exposes the pipeline through `astro.pipeline`. Astro 6.3 moved
+ * to FetchState, which is handled before this compatibility path even though
+ * its API context may still retain the symbol.
  * @param {import('astro').APIContext} context
  * @returns {any}
  */
 function legacyPipelineFor(context) {
-  return /** @type {any} */ (context)[ASTRO_5_PIPELINE] ??
-    /** @type {any} */ (context)[ASTRO_6_LEGACY_PIPELINE];
+  return /** @type {any} */ (context)[ASTRO_6_LEGACY_PIPELINE];
 }
 
 /**

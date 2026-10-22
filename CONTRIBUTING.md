@@ -5,7 +5,7 @@ step, so changes must work directly from a git dependency as well as from the np
 
 ## Development setup
 
-The published package supports Node 20.19.5 or newer. Contributors need Node 22.13 or
+The published package supports Node 22.12.0 or newer. Contributors need Node 22.13 or
 newer to run pnpm 11; Node 24 is recommended and matches the primary CI environment.
 
 ```bash

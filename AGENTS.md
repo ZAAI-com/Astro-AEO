@@ -66,7 +66,7 @@ plain ESM with no package build step.
   and relevant representation headers, and never fall through after a direct rewrite.
 - Live corpora render known pages serially through trusted in-process rewrites with caller
   credentials removed. They are anonymous fan-out requests, bounded by `corpus.runtime.maxPages`,
-  and require Astro 6.3 or newer for disposable per-page request state. Astro 5 and 6.0 through
+  and require Astro 6.3 or newer for disposable per-page request state. Astro 6.0 through
   6.2 must fail closed with `503`; build corpora and direct authenticated `.md` requests remain
   supported. Their shared inventory merges concrete paths, automatically discovered development
   paths, then catalog overlays. Dynamic discovery is aggregate-corpus-only, never cached between
@@ -224,8 +224,8 @@ plain ESM with no package build step.
   comparably strong reason.
 - House style forbids em dashes. Use a colon, comma, or parentheses.
 - Contributor tooling uses pnpm 11 and requires Node 22.13 or newer. The published package must
-  continue to run on Node 20.19.5 or newer and Astro 5 or newer. CI installs dependencies with a
-  newer Node before switching down for the Node 20 compatibility checks.
+  continue to run on Node 22.12.0 or newer and Astro 6 or newer. CI installs dependencies with a
+  newer Node before switching down for the Node 22.12.0 floor checks.
 
 ## Tests and compatibility
 
@@ -234,10 +234,8 @@ plain ESM with no package build step.
 - Every Vitest config runs `test/setup/clear-processing-caches.js` first. Fixture and recipe builds
   import the working tree, but the processing cache keys on the package version, so a warm cache
   would hide extractor edits. It deletes only `processing-v1`, never the rest of `aeo-cache`.
-- A test selected by the default configuration that shells out to `astro build` must use
-  `*.e2e.test.js`. The Node compatibility job excludes that suffix because its installed Astro 7
-  cannot run on Node 20. This naming rule does not apply to the separately selected server and
-  adapter suites.
+- Name a default-configuration test that shells out to `astro build` `*.e2e.test.js`, so the
+  slow build suites stay recognizable. The Node compatibility job runs them on every Node leg.
 - `*.dev.test.js` belongs to `pnpm run test:dev`; `*.ssr.test.js` belongs to
   `pnpm run test:ssr`. Adapter tests live under `test/adapters/` and use their dedicated build and
   runtime configs. Any build-spawning test must own its fixture root because files run in parallel.

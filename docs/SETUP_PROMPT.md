@@ -6,7 +6,7 @@ Copy the prompt below into your AI coding assistant (Claude Code, Cursor, Codex,
 
 You are setting up the `astro-aeo` integration in this Astro project. Do the following:
 
-1. Confirm this is an Astro 5+ project by reading `package.json` and `astro.config.mjs` (or `.ts`/`.cjs`). If there is no `astro.config`, stop and tell me.
+1. Confirm this is an Astro 6+ project by reading `package.json` and `astro.config.mjs` (or `.ts`/`.cjs`). If there is no `astro.config`, stop and tell me.
 
 2. Install the package with the project's package manager:
    - Bun: `bun add astro-aeo`

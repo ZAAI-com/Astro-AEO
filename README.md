@@ -48,7 +48,7 @@ bun add astro-aeo
 # npm install astro-aeo
 ```
 
-Astro-AEO requires Astro 5 or newer and Node 20.19.5+. It ships as plain ESM with no build step, so it also works as a git dependency:
+Astro-AEO requires Astro 6 or newer and Node 22.12.0+ (Astro 5 and Node 20 projects can stay on 1.6.x). It ships as plain ESM with no build step, so it also works as a git dependency:
 
 ```jsonc
 // package.json
@@ -876,8 +876,8 @@ Catalog entrypoints must be JavaScript that Node's native module loader can exec
 version. Catalog logic may be authored in TypeScript, but it must be compiled to a
 JavaScript entrypoint before Astro loads the integration. Source `.ts`, `.tsx`, `.mts`,
 `.cts`, `.jsx`, and `.astro` catalog entrypoints warn and contribute nothing. Node's
-built-in TypeScript support is not a portable substitute: it is unavailable on Node 20,
-handles only erasable syntax by default, and ignores `tsconfig.json` behavior. See the
+built-in TypeScript support is not a portable substitute: it is not enabled by default on
+Node 22.12, handles only erasable syntax, and ignores `tsconfig.json` behavior. See the
 [Node TypeScript documentation](https://nodejs.org/api/typescript.html).
 
 Request-time middleware owns `llms.txt` and `llms-full.txt` when at least one project page
@@ -911,7 +911,7 @@ shorter text or schema corpus. This includes rendering, transport and body-read 
 server errors and partial or unusably encoded HTML. GET and HEAD share the
 failure status. Anonymous authorization denials, redirects, missing routes, non-HTML routes
 and explicit page opt-outs remain valid exclusions; plugin and semantic errors retain `500`.
-Astro 5 and Astro 6.0-6.2 receive `503` for request-time corpora because those
+Astro 6.0-6.2 receives `503` for request-time corpora because those
 versions do not expose a disposable request state. Their closure-held client address,
 cookies, and session cannot be replaced securely for an anonymous corpus render. The
 response reports an unrecognized request state rather than an Astro version, because the
@@ -1345,7 +1345,7 @@ Origin-scoped runtime artifacts (`llms.txt`, `llms-full.txt`, the corpus paths, 
 `/.well-known/domain-profile.json`) are served only when the request origin matches the configured
 `site` or one of the configured i18n domains. `astro dev` and `astro preview` additionally accept
 their loopback origin; a deployed server does not, so a spoofed `Host: localhost` cannot claim the
-configured site. On Astro 5 and Astro 6 the Node adapter rewrites the request host to `localhost`
+configured site. On Astro 6 the Node adapter rewrites the request host to `localhost`
 unless the domain is allowed, so those projects need Astro's own host trust for the artifacts to be
 reachable:
 
@@ -1538,7 +1538,7 @@ fragment, glob, dot segment, encoded separator, ambiguous encoding, duplicate sl
 slash. Cross-page reference validation is scoped to the configured Astro site and `base` path.
 
 Runtime schema corpora use the same anonymous, serial, in-process renderer as the text corpora,
-including `GET`, `HEAD`, ETags, and conditional requests. Astro 5 and Astro 6.0 through 6.2 return
+including `GET`, `HEAD`, ETags, and conditional requests. Astro 6.0 through 6.2 return
 `503` with `Cache-Control: no-store` for full request-time corpora, reported as an unrecognized
 request state. Astro 6.3 or newer is required for disposable per-page request state.
 
@@ -2061,7 +2061,7 @@ pnpm run release:check # schema, compatibility, tarball, adapters, and benchmark
 
 Tag publication adds `--require-clean`, checks that the numeric tag equals the package and changelog
 version, and refuses a dirty checkout before the packed-tarball and provider gates run. Both pull
-requests and tagged publication also run real pinned Node servers on Astro 5.18, 6.2, 6.3, and 7.
+requests and tagged publication also run real pinned Node servers on Astro 6.2, 6.3, and 7.
 
 Tests are colocated next to the source they cover as `*.test.js`. The frozen
 `fixtures/golden-1.0` output proves static byte compatibility with the actual 1.0
