@@ -1,0 +1,32 @@
+docs/release-evidence/2.0.0-roadmap-closure.md
+  s_d324be6e3b4f9f::t_5f966fa4600f8b 1-80
+SECURITY.md
+  s_d324be6e3b4f9f::t_5f966fa4600f8b 6-8,12-14
+docs/release-evidence/2.0.0-compatibility-report.json
+  s_d324be6e3b4f9f::t_5f966fa4600f8b 1-260
+docs/release-evidence/2.0.0-compatibility-report.md
+  s_d324be6e3b4f9f::t_5f966fa4600f8b 1-153
+CHANGELOG.md
+  s_d324be6e3b4f9f::t_5f966fa4600f8b 7-28,31-43
+docs/release-evidence/2.0.0-semantic-validation.md
+  s_d324be6e3b4f9f::t_5deacbaf3bb864 69
+  s_d324be6e3b4f9f::t_5f966fa4600f8b 1-68
+docs/release-evidence/2.0.0-decisions.md
+  s_d324be6e3b4f9f::t_5f966fa4600f8b 1-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "194a997229103c0d61611577480bfc490d5a0e1f",
+  "prompts": {},
+  "sessions": {
+    "s_d324be6e3b4f9f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "802c8017-f01b-48f7-ab17-79f72bcc2bd6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
