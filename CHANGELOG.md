@@ -25,6 +25,11 @@ same bytes on 2.0.0 as on 1.6.1. See "Migrating to 2.0" in the README.
   as the new `aeo-head-author-removed` build warning instead of rendering author tags.
 - The first build after upgrading extracts every page again and logs the processing cache reset
   once, because the cache producer records the astro-aeo version.
+- Private-state locks now release by their captured nonce and PID even if the local hostname
+  changes during a build, preventing intermittent cold processing-cache builds. Foreign-host
+  locks are still never reclaimed based on a local PID check. Cache lock warnings include
+  sanitized failure causes and lock facts, and failed removals are reported without exposing
+  paths, PIDs, hostnames or nonces.
 
 ### Major Changes
 

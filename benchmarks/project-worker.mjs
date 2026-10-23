@@ -26,6 +26,17 @@ for (const event of trace?.stages ?? []) {
   const key = `${event.stage}:${event.outcome}`;
   work[key] = (work[key] ?? 0) + 1;
 }
+// Why the cache missed (read-only, key-missing, blob-invalid, ...) and any
+// processing-cache diagnostic, so an intermittent cold run can be explained.
+let diagnosticCodes = [];
+let diagnosticMessages = [];
+try {
+  const manifest = JSON.parse(await readFile(join(project, '.astro/aeo-cache/diagnostics-v1.json'), 'utf8'));
+  diagnosticCodes = [...new Set((manifest?.diagnostics ?? []).map((entry) => entry.code))].sort();
+  diagnosticMessages = [...new Set((manifest?.diagnostics ?? [])
+    .filter((entry) => entry.code.startsWith('processing-cache-')).map((entry) => entry.message))].sort();
+} catch (error) { if (error.code !== 'ENOENT') throw error; }
 await writeFile(destination, JSON.stringify({ durationMs, peakRssBytes: process.resourceUsage().maxRSS * 1024,
   heapUsedBytes: process.memoryUsage().heapUsed, outputBytes: await bytes(join(project, 'dist')),
-  work, buildDigest: trace?.buildDigest ?? null }), { mode: 0o600 });
+  work, buildDigest: trace?.buildDigest ?? null, cacheReasons: trace?.cacheReasons ?? null,
+  diagnosticCodes, diagnosticMessages }), { mode: 0o600 });
