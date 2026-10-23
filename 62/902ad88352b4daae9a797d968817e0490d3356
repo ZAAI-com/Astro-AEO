@@ -1,0 +1,61 @@
+src/build/private-lock.test.js
+  s_c83f2dc6b4e274::t_bb03944d29d8e5 3,12,34-44
+  s_c83f2dc6b4e274::t_49dd269da51b17 57-83
+  s_c83f2dc6b4e274::t_59bc23c80a1008 45-56,236-255
+  s_c83f2dc6b4e274::t_108910e9e9c8ef 13,84,88
+  s_c83f2dc6b4e274::t_c90a825bce83b9 1-2,9-11,85-87,89-98,180-235,256
+  s_c83f2dc6b4e274::t_d95ee379c6990e 257
+src/build/processing-cache.test.js
+  s_c83f2dc6b4e274::t_49dd269da51b17 136-151
+  s_c83f2dc6b4e274::t_c90a825bce83b9 15-16,21-22,25,111,117-135,152-175
+benchmarks/project-worker.mjs
+  s_c83f2dc6b4e274::t_6f831d39dc9b2f 32,36-37,41-42
+  s_d12ee8097c37e8::t_72eedc4953313e 29-31,33-35,38
+CHANGELOG.md
+  s_c83f2dc6b4e274::t_1372a34827a93b 28-32
+src/build/private-lock.js
+  s_c83f2dc6b4e274::t_1372a34827a93b 28,31,64-66,70-72
+  s_c83f2dc6b4e274::t_6f831d39dc9b2f 90,92,146-169
+  s_c83f2dc6b4e274::t_c90a825bce83b9 6,125,129-131,141-142
+  s_69950710d8f11b::t_8d534dd50a727d 170
+src/build/processing-cache.js
+  s_c83f2dc6b4e274::t_6f831d39dc9b2f 10,15-19,229,231-235,280-288
+  s_c83f2dc6b4e274::t_1372a34827a93b 269-272
+  s_69950710d8f11b::t_f361980b3af2bd 289-290
+fixtures/golden-1.0/README.md
+  s_d12ee8097c37e8::t_cd05891b782e6e 4-12,15-17
+benchmarks/2.0.0-projects.json
+  s_c83f2dc6b4e274::t_207334164aaea4 1-456
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "62902ad88352b4daae9a797d968817e0490d3356",
+  "prompts": {},
+  "sessions": {
+    "s_69950710d8f11b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16996-fc6d-7300-ab5d-0eb3f6055759",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_c83f2dc6b4e274": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a163cc-e352-7e02-8c3c-591a06a00330",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    },
+    "s_d12ee8097c37e8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2b0ca3b7-dfa0-4d23-959e-c44d6229d8c3",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
