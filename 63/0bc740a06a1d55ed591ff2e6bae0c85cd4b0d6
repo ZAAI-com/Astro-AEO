@@ -1,0 +1,24 @@
+docs/release-evidence/2.0.0-semantic-validation.md
+  s_c83f2dc6b4e274::t_a58327e062a040 7-9,16-19,22,50-54,56-57,59-103,107-108,110
+  s_c83f2dc6b4e274::t_2bbe5ed291973a 23-24,111-112
+docs/release-evidence/2.0.0-compatibility-report.json
+  s_c83f2dc6b4e274::t_6e2da62c646011 4,227,231,235,239,244-245
+docs/release-evidence/2.0.0-compatibility-report.md
+  s_c83f2dc6b4e274::t_29edb0373d568c 4,133-136,145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "630bc740a06a1d55ed591ff2e6bae0c85cd4b0d6",
+  "prompts": {},
+  "sessions": {
+    "s_c83f2dc6b4e274": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a163cc-e352-7e02-8c3c-591a06a00330",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
