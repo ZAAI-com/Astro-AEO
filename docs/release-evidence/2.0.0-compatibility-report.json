@@ -1,7 +1,7 @@
 {
   "version": "2.0.0",
   "base": "1.6.1",
-  "head": "c6d88ee",
+  "head": "62902ad",
   "surfaces": {
     "artifactOwners": {
       "before": 8,
@@ -224,25 +224,25 @@
     },
     {
       "name": "Git dependency install and Astro build",
-      "status": "not run on the candidate (installs the committed HEAD, which predates these changes)"
+      "status": "passed"
     },
     {
       "name": "IndexNow live transport smoke",
-      "status": "passed (run separately)"
+      "status": "passed"
     },
     {
       "name": "Paired project and warm-cache evidence",
-      "status": "passed on rerun (first run: one intermittent cold-cache edit at 10,000 pages)"
+      "status": "passed"
     },
     {
       "name": "Performance safety ceilings",
-      "status": "passed (run separately)"
+      "status": "passed"
     }
   ],
   "sizes": {
     "current": {
-      "packed": 495180,
-      "unpacked": 1885806,
+      "packed": 495899,
+      "unpacked": 1888255,
       "files": 234
     },
     "base": {
