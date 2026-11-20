@@ -43,6 +43,14 @@ const OVERLAPPING_PACKAGES = Object.freeze({
   'astro-llms-txt': { feature: 'llms.txt', advice: 'Choose one llms.txt producer. If the other integration owns it, disable corpus.index.enabled in Astro-AEO after reviewing its output.' },
 });
 
+// 1.0 key names that no canonical option reuses, so a textual match is worth a hint.
+// Names the canonical config also uses (`include`, `exclude`, `sitemap`, `urlMap`)
+// cannot be told apart without evaluating the config, which doctor never does.
+const REMOVED_CONFIG_KEYS = Object.freeze([
+  'dotmd', 'dotmdMetadata', 'linkTag', 'llmsTxt', 'showLastmod', 'includeNoDotmd', 'llmsFullTxt',
+  'sitemapAlias', 'robotsTxt', 'domainProfile',
+]);
+
 /**
  * @param {string[]} args
  * @param {{ cwd?: string; fetch?: typeof globalThis.fetch }} [context]
@@ -92,6 +100,7 @@ export async function runDoctor(args, context = {}) {
     ...providerEvidence(projectDir, facts),
     ...ownershipChecks(projectDir, distDir, facts, typedDist),
     ...packageOverlapChecks(projectDir),
+    ...removedConfigChecks(projectDir),
   ];
 
   if (parsed.values.url) {
@@ -371,6 +380,29 @@ function packageOverlapChecks(projectDir) {
     });
   }
   return checks;
+}
+
+/** A textual hint only: comments, strings and unrelated objects can match, and nothing is evaluated.
+ * @param {string} projectDir @returns {DoctorCheck[]}
+ */
+function removedConfigChecks(projectDir) {
+  /** @type {Map<string, DoctorEvidence[]>} */
+  const found = new Map();
+  for (const name of CONFIG_FILES) {
+    const text = readLocalText(projectDir, join(projectDir, name));
+    if (!text) continue;
+    for (const key of REMOVED_CONFIG_KEYS) {
+      if (!new RegExp(`(?:^|[\\s{,'"])${key}['"]?\\s*:`, 'm').test(text)) continue;
+      const evidence = found.get(key) ?? [];
+      evidence.push({ source: name, confidence: 'low', detail: `${key} appears as an object key; comments and unrelated objects may also match` });
+      found.set(key, evidence);
+    }
+  }
+  return [...found].map(([key, evidence]) => ({
+    id: `removed-config:${key}`, status: 'unverified', evidence,
+    message: `${key} looks like a 1.0 configuration key, which 2.0 removed; a build that uses it stops with the canonical replacement`,
+    hint: 'See "Migrating to 2.0" in the astro-aeo README for the canonical key, or run astro build to print the replacement block.',
+  }));
 }
 
 /** @param {DoctorCheck[]} checks @returns {DoctorAdvice[]} */

@@ -13,6 +13,9 @@ const tagIndex = args.indexOf('--tag');
 const tag = tagIndex >= 0 ? args[tagIndex + 1] : undefined;
 const requireTag = args.includes('--require-tag');
 const requireClean = args.includes('--require-clean');
+// Writes docs/release-evidence/<version>-compatibility-report.{md,json} with this run's
+// step results instead of only checking the surface diff.
+const writeCompatReport = args.includes('--compat-report');
 
 if (requireClean) {
   const worktree = spawnSync('git', ['status', '--porcelain', '--untracked-files=all'], {
@@ -82,19 +85,27 @@ if (!quick) {
 } else {
   steps.push(['Packed tarball contents', 'node', ['scripts/package-smoke.mjs', '--inspect-only']]);
 }
+steps.push([
+  'Compatibility report against the previous release',
+  'node',
+  ['scripts/compatibility-report.mjs', ...(writeCompatReport ? ['--sizes'] : ['--check'])],
+]);
 
 const started = Date.now();
+/** @type {{ name: string; status: string }[]} */
+const completed = [];
 for (const [name, command, commandArgs] of steps) {
   console.log(`\n==> ${name}`);
   const result = spawnSync(command, commandArgs, {
     cwd: root,
     stdio: 'inherit',
-    env: process.env,
+    env: { ...process.env, ASTRO_AEO_RELEASE_STEPS: JSON.stringify(completed) },
   });
   if (result.status !== 0) {
     console.error(`\nRelease check stopped at: ${name}`);
     process.exit(result.status ?? 1);
   }
+  completed.push({ name, status: 'passed' });
 }
 
 console.log(`\nRelease check passed in ${Math.round((Date.now() - started) / 1000)} seconds.`);

@@ -7,11 +7,16 @@ import {
   readFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { acquirePrivateLock } from './private-lock.js';
+import { acquirePrivateLock, inspectPrivateLock } from './private-lock.js';
 import { extractionProducer } from './package-version.js';
 
 export const PROCESSING_CACHE_VERSION = 1;
 export const PROCESSING_CACHE_DIRECTORY = 'processing-v1';
+const LOCK_MESSAGES = {
+  busy: 'processing cache is locked',
+  unsafe: 'processing cache lock is unsafe',
+  changed: 'processing cache lock changed during inspection',
+};
 
 /**
  * @typedef {{ blob: string; dependencies?: string[] }} CacheEntry
@@ -221,9 +226,13 @@ export function openProcessingCache(projectRoot, options) {
   try {
     mkdirSync(blobsRoot, { recursive: true, mode: 0o700 });
     acquireLock();
-  } catch {
+  } catch (error) {
     readOnly = true;
-    report('processing-cache-lock-unavailable', 'The processing cache is locked or unavailable; this build is cold and cache state is read-only.');
+    const facts = inspectPrivateLock(lockPath);
+    report('processing-cache-lock-unavailable',
+      'The processing cache is locked or unavailable; this build is cold and cache state is read-only. ' +
+      `Cause: ${lockFailureCause(error)}; lock present: ${facts.present}; mutex present: ${facts.mutexPresent}; ` +
+      `pid alive: ${facts.record?.pidAlive ?? 'unknown'}; same host: ${facts.record?.sameHost ?? 'unknown'}.`);
   }
 
   if (!readOnly && fileExists(statePath)) {
@@ -257,15 +266,26 @@ export function openProcessingCache(projectRoot, options) {
 
   /** Acquire or safely reclaim a same-host dead-process lock. */
   function acquireLock() {
-    releaseLock = acquirePrivateLock(lockPath, {
-      busy: 'processing cache is locked',
-      unsafe: 'processing cache lock is unsafe',
-      changed: 'processing cache lock changed during inspection',
+    releaseLock = acquirePrivateLock(lockPath, LOCK_MESSAGES, (error) => {
+      report('processing-cache-lock-unavailable',
+        'The processing cache lock could not be released; a later build may be cold and read-only. ' +
+        `Cause: ${lockFailureCause(error)}.`);
     });
     lockOwned = true;
   }
 
   return api;
+}
+
+/** Only known lock reasons and bounded filesystem codes may enter diagnostics.
+ * @param {unknown} error */
+function lockFailureCause(error) {
+  const value = /** @type {{ message?: unknown; code?: unknown } | null} */ (error);
+  for (const [key, message] of Object.entries(LOCK_MESSAGES)) {
+    if (value?.message === message) return key === 'busy' ? 'locked' : key;
+  }
+  return typeof value?.code === 'string' && /^E[A-Z0-9]{1,31}$/u.test(value.code)
+    ? `filesystem:${value.code}` : 'unknown';
 }
 
 /** @param {unknown} value */

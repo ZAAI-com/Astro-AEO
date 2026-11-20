@@ -51,12 +51,6 @@ const object = (properties, description) => ({
   additionalProperties: false,
 });
 
-const deprecated = (schema, replacement) => ({
-  ...schema,
-  deprecated: true,
-  description: `${schema.description} Deprecated: use ${replacement}.`,
-});
-
 const sectionRule = {
   type: 'object',
   required: ['title', 'match'],
@@ -97,11 +91,6 @@ const profileProperties = {
     enum: entityTypes,
     default: 'Organization',
   },
-};
-
-const legacyProfileProperties = {
-  ...profileProperties,
-  contact: deprecated(string('Legacy contact value.', ''), 'domainProfile.email'),
 };
 
 const indexProperties = {
@@ -293,25 +282,6 @@ const markdownProperties = {
     default: 'off',
   },
   extraction: object(extractionProperties, 'Rendered HTML extraction settings.'),
-};
-
-const legacyDotmdProperties = {
-  enabled: deprecated(boolean('Generate .md companion pages.', true), 'markdown.enabled'),
-  linkTag: deprecated(
-    {
-      type: 'string',
-      description: 'How Markdown alternate links are injected.',
-      enum: ['auto', 'always', 'never'],
-      default: 'auto',
-    },
-    'markdown.alternateLink',
-  ),
-  includeLastModified: deprecated(
-    boolean('Append the last-modified date to Markdown.', true),
-    'markdown.includeLastModified',
-  ),
-  frontmatter: deprecated(boolean('Prepend YAML frontmatter to Markdown.', false), 'markdown.frontmatter'),
-  dotmdMetadata: deprecated(boolean('Prepend YAML frontmatter to Markdown.', false), 'markdown.frontmatter'),
 };
 
 const stripTitleSuffix = {
@@ -632,71 +602,15 @@ const canonicalProperties = {
   },
 };
 
-const legacyProperties = {
-  include: deprecated(stringArray('Path globs to include.', ['**']), 'pages.include'),
-  exclude: deprecated(stringArray('Path globs to exclude.', []), 'pages.exclude'),
-  respectNoindex: deprecated(boolean('Exclude pages marked noindex.', true), 'pages.respectNoindex'),
-  stripTitleSuffix: deprecated(stripTitleSuffix, 'pages.stripTitleSuffix'),
-  dotmd: deprecated(object(legacyDotmdProperties, 'Legacy Markdown settings.'), 'markdown'),
-  llmsTxt: deprecated(
-    object(
-      {
-        enabled: boolean('Generate /llms.txt.', true),
-        sections: {
-          type: 'array',
-          description: 'Ordered llms.txt section rules. First match wins.',
-          items: sectionRule,
-          default: [{ title: 'Home', match: '/' }],
-        },
-        defaultSection: {
-          description: 'Section for unmatched pages, or false to drop them.',
-          anyOf: [{ type: 'string' }, { const: false }],
-          default: 'Pages',
-        },
-        includeDescriptions: boolean('Include page descriptions.', true),
-        showLastmod: deprecated(boolean('Show page modification dates.', false), 'corpus.index.showLastModified'),
-        includeNoDotmd: deprecated(
-          boolean('List pages without Markdown companions using their HTML URLs.', false),
-          'corpus.index.includeHtmlOnly',
-        ),
-      },
-      'Legacy llms.txt settings.',
-    ),
-    'corpus.index',
-  ),
-  llmsFullTxt: deprecated(object(fullProperties, 'Legacy llms-full.txt settings.'), 'corpus.full'),
-  urlMap: deprecated(object(urlMapProperties, 'Legacy URL-map settings.'), 'corpus.urlMap'),
-  robotsTxt: deprecated(object(robotsProperties, 'Legacy robots.txt settings.'), 'discovery.robots'),
-  sitemap: deprecated(
-    object(
-      {
-        enabled: boolean('Auto-register @astrojs/sitemap.', true),
-        options: {
-          type: 'object',
-          description: 'Options forwarded to @astrojs/sitemap.',
-          additionalProperties: true,
-        },
-      },
-      'Legacy sitemap settings.',
-    ),
-    'discovery.sitemap',
-  ),
-  sitemapAlias: deprecated(
-    object(sitemapAliasProperties, 'Legacy sitemap alias settings.'),
-    'discovery.sitemap.alias',
-  ),
-  domainProfile: deprecated(object(legacyProfileProperties, 'Legacy domain profile settings.'), 'site.profile'),
-};
-
 export function buildSchema() {
   return {
     $schema: 'https://json-schema.org/draft/2020-12/schema',
     $id: 'https://raw.githubusercontent.com/ZAAI-com/Astro-AEO/main/schema/astro-aeo.schema.json',
     title: 'Astro-AEO configuration',
     description:
-      'Configuration passed to the astro-aeo integration. Canonical 1.3 settings and deprecated 1.0 aliases are accepted.',
+      'Configuration passed to the astro-aeo integration. The 1.0 aliases were removed in 2.0.',
     type: 'object',
-    properties: { ...canonicalProperties, ...legacyProperties },
+    properties: canonicalProperties,
     additionalProperties: false,
   };
 }
@@ -704,9 +618,7 @@ export function buildSchema() {
 export function serializeSchema() {
   // The generator source is the human-readable definition. Keep the published
   // artifact compact so shipping editor support does not consume the package's
-  // 10 percent size budget. Deprecated subtrees duplicate the canonical option
-  // descriptions, so the artifact keeps their validation and `deprecated`
-  // markers while the README remains the migration guidance.
+  // 10 percent size budget.
   return `${JSON.stringify(buildPublishedSchema())}\n`;
 }
 
@@ -716,42 +628,9 @@ function buildPublishedSchema() {
     'site', 'pages', 'markdown', 'corpus', 'i18n', 'cache', 'discovery', 'artifacts', 'metadata',
     'schema', 'validation', 'plugins', 'analytics',
   ];
-  const legacyNames = [
-    'include',
-    'exclude',
-    'respectNoindex',
-    'stripTitleSuffix',
-    'dotmd',
-    'llmsTxt',
-    'llmsFullTxt',
-    'urlMap',
-    'robotsTxt',
-    'sitemap',
-    'sitemapAlias',
-    'domainProfile',
-  ];
   const properties = Object.fromEntries(
     canonicalNames.map((name) => [name, compactPublishedSchema(source.properties[name])]),
   );
-  for (const name of legacyNames) {
-    properties[name] = compactPublishedSchema(source.properties[name]);
-  }
-
-  // These legacy blocks have exactly the same validation shape as their
-  // canonical targets. A reference keeps the deprecated marker without
-  // publishing the same schema twice.
-  properties.llmsFullTxt = legacyReference('#/properties/corpus/properties/full');
-  properties.urlMap = legacyReference('#/properties/corpus/properties/urlMap');
-  properties.sitemapAlias = legacyReference(
-    '#/properties/discovery/properties/sitemap/properties/alias',
-  );
-  // Renamed legacy blocks cannot reference their canonical object wholesale
-  // because several child keys changed. Retain their exact accepted key sets
-  // and unknown-key rejection, while canonical options carry the detailed value
-  // schemas and editor documentation.
-  for (const name of ['dotmd', 'llmsTxt', 'robotsTxt', 'sitemap', 'domainProfile']) {
-    properties[name] = compactLegacyObject(source.properties[name]);
-  }
 
   return {
     $schema: source.$schema,
@@ -762,43 +641,15 @@ function buildPublishedSchema() {
   };
 }
 
-function legacyReference($ref) {
-  return { $ref, deprecated: true };
-}
-
-function compactLegacyObject(schema) {
-  return {
-    type: 'object',
-    deprecated: true,
-    properties: Object.fromEntries(
-      Object.entries(schema.properties).map(([key, child]) => [
-        key,
-        compactPublishedSchema(child, true),
-      ]),
-    ),
-    additionalProperties: false,
-  };
-}
-
-function compactPublishedSchema(value, insideDeprecated = false, propertyMap = false) {
+function compactPublishedSchema(value, propertyMap = false) {
   if (Array.isArray(value)) {
-    return value.map((item) => compactPublishedSchema(item, insideDeprecated));
+    return value.map((item) => compactPublishedSchema(item));
   }
   if (typeof value !== 'object' || value === null) return value;
 
-  const deprecatedTree = insideDeprecated || value.deprecated === true;
   return Object.fromEntries(
     Object.entries(value)
-      .filter(
-        ([key]) =>
-          propertyMap ||
-          (key !== 'description' &&
-            key !== 'default' &&
-            !(insideDeprecated && key === 'deprecated')),
-      )
-      .map(([key, child]) => [
-        key,
-        compactPublishedSchema(child, deprecatedTree, key === 'properties'),
-      ]),
+      .filter(([key]) => propertyMap || (key !== 'description' && key !== 'default'))
+      .map(([key, child]) => [key, compactPublishedSchema(child, key === 'properties')]),
   );
 }

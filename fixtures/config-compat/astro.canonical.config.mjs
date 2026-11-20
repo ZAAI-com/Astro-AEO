@@ -1,8 +1,9 @@
 import { defineConfig } from 'astro/config';
 import aeo from '../../src/index.js';
 
-// The 1.1 spelling of astro.legacy.config.mjs. Both builds must emit byte-identical
-// output; that equivalence is the compatibility guarantee for the config rename.
+// The canonical spelling of astro.legacy.config.mjs. Its build must stay
+// byte-identical to the one the published 1.6.1 release produced (expected-1.6.json).
+// Every page carries an explicit modified time, so no output depends on git history.
 export default defineConfig({
   site: 'https://compat.example.com',
   trailingSlash: 'always',
@@ -45,7 +46,7 @@ export default defineConfig({
         profile: {
           enabled: true,
           name: 'Compat Site',
-          description: 'Proves the 1.0 keys still work.',
+          description: 'Proves 2.0 builds what 1.6 built.',
           email: 'hello@compat.example.com',
           sameAs: ['https://github.com/example'],
           entityType: 'Organization',

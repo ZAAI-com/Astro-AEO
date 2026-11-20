@@ -1,22 +1,23 @@
 import { test, expect, describe, beforeAll } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { LEGACY_MOVES } from './lib/config-removed.js';
 
-// The compatibility guarantee for the 1.0 -> 1.1 config rename, asserted the only
-// way that actually proves it: build the same site twice, once with every 1.0 key
-// and once with every canonical key, and diff the two outputs byte for byte. Unit
-// tests on `resolveConfig` can only show the two resolve alike; this shows they
-// also *generate* alike, through every generator.
+// The 2.0 compatibility guarantee, asserted by building the same site twice:
+//
+// - with every 1.0 key, which 2.0 removed: the build must stop and name each key;
+// - with the canonical keys: the output must be byte-identical to what the
+//   published 1.6.1 release built from the same configuration (expected-1.6.json).
 //
 // This uses its own fixture root rather than the demo, because vitest runs test
 // files in parallel and two `astro build` runs against one root clobber each
 // other's output directory.
 const REPO = fileURLToPath(new URL('..', import.meta.url));
 const FIXTURE = join(REPO, 'fixtures/config-compat');
-const LEGACY_DIST = join(FIXTURE, 'dist-legacy');
 const CANONICAL_DIST = join(FIXTURE, 'dist-canonical');
+const EXPECTED = JSON.parse(readFileSync(join(FIXTURE, 'expected-1.6.json'), 'utf8'));
 
 const astroPkg = JSON.parse(readFileSync(join(REPO, 'node_modules/astro/package.json'), 'utf8'));
 const astroBin = join(
@@ -25,58 +26,77 @@ const astroBin = join(
   typeof astroPkg.bin === 'string' ? astroPkg.bin : astroPkg.bin.astro,
 );
 
-/** Every file under `dir`, as paths relative to it. */
+// expected-1.6.json holds Astro 7's rendering; other majors render HTML differently.
+const EXPECTED_ASTRO_MAJOR = 7;
+const installedAstroMajor = Number.parseInt(astroPkg.version, 10);
+
+/** Every file under `dir`, as forward-slash paths relative to it. */
 function walk(dir, base = dir) {
   return readdirSync(dir).flatMap((entry) => {
     const full = join(dir, entry);
-    return statSync(full).isDirectory() ? walk(full, base) : [relative(base, full)];
+    return statSync(full).isDirectory() ? walk(full, base) : [relative(base, full).split(sep).join('/')];
   });
 }
 
-describe('1.0 and 1.1 configurations produce identical output', () => {
+describe('a 1.0 configuration is rejected', () => {
+  /** @type {import('node:child_process').SpawnSyncReturns<string>} */
+  let legacy;
   beforeAll(() => {
-    for (const config of ['astro.legacy.config.mjs', 'astro.canonical.config.mjs']) {
-      execFileSync('node', [astroBin, 'build', '--root', FIXTURE, '--config', config], {
-        cwd: REPO,
-        stdio: 'ignore',
-      });
-    }
+    legacy = spawnSync('node', [astroBin, 'build', '--root', FIXTURE, '--config', 'astro.legacy.config.mjs'], {
+      cwd: REPO,
+      encoding: 'utf8',
+    });
   });
 
-  test('both builds emit exactly the same set of files', () => {
-    expect(walk(CANONICAL_DIST).sort()).toEqual(walk(LEGACY_DIST).sort());
+  test('the build exits non-zero', () => {
+    expect(legacy.status).not.toBe(0);
   });
 
-  test('every emitted file is byte-identical', () => {
-    const differing = walk(LEGACY_DIST).filter(
-      (rel) =>
-        Buffer.compare(
-          readFileSync(join(LEGACY_DIST, rel)),
-          readFileSync(join(CANONICAL_DIST, rel)),
-        ) !== 0,
-    );
+  test('the error names every removed key the config uses', () => {
+    const output = `${legacy.stdout}\n${legacy.stderr}`;
+    expect(output).toContain('these 1.0 configuration keys were removed in 2.0:');
+    // Every 1.0 path astro.legacy.config.mjs sets, listed by hand so a lost key fails here.
+    const used = [
+      'stripTitleSuffix', 'exclude', 'respectNoindex',
+      'llmsTxt.showLastmod', 'llmsTxt.includeNoDotmd', 'llmsTxt.sections', 'llmsTxt.defaultSection',
+      'llmsFullTxt.mode', 'dotmd.frontmatter', 'dotmd.linkTag', 'urlMap.enabled',
+      'sitemap.enabled', 'sitemap.options', 'sitemapAlias.enabled',
+      'robotsTxt.enabled', 'robotsTxt.allow', 'robotsTxt.disallow', 'robotsTxt.extraLines',
+      'domainProfile.enabled', 'domainProfile.name', 'domainProfile.description', 'domainProfile.contact',
+      'domainProfile.sameAs', 'domainProfile.entityType',
+    ].map((from) => {
+      const move = LEGACY_MOVES.find((candidate) => candidate.from === from);
+      expect(move, from).toBeDefined();
+      return /** @type {import('./lib/config-removed.js').LegacyMove} */ (move);
+    });
+    for (const move of used) expect(output, move.from).toContain(`${move.from} -> ${move.to}`);
+  });
+});
+
+describe('a canonical configuration builds what 1.6 built', () => {
+  beforeAll(() => {
+    execFileSync('node', [astroBin, 'build', '--root', FIXTURE, '--config', 'astro.canonical.config.mjs'], {
+      cwd: REPO,
+      stdio: 'ignore',
+    });
+  });
+
+  test('emits exactly the 1.6 file set', () => {
+    expect(walk(CANONICAL_DIST).sort()).toEqual(Object.keys(EXPECTED).sort());
+  });
+
+  const byteCheck = installedAstroMajor === EXPECTED_ASTRO_MAJOR ? test : test.skip;
+  byteCheck(`every emitted file is byte-identical to 1.6 (Astro ${EXPECTED_ASTRO_MAJOR})`, () => {
+    const differing = Object.entries(EXPECTED)
+      .filter(([path, encoded]) => Buffer.compare(Buffer.from(encoded, 'base64'), readFileSync(join(CANONICAL_DIST, path))) !== 0)
+      .map(([path]) => path);
     expect(differing).toEqual([]);
   });
 
-  test('the artifacts under test are present, so an empty diff means something', () => {
-    // Without this, deleting every generator would also make the diff empty.
-    const files = walk(LEGACY_DIST);
-    for (const expected of [
-      'llms.txt',
-      'llms-full.txt',
-      'robots.txt',
-      'sitemap.xml',
-      'compat-index.xml',
-      'index.md',
-      join('blog', 'post.md'),
-      join('.well-known', 'domain-profile.json'),
-    ]) {
-      expect(files, expected).toContain(expected);
-    }
-  });
-
   test('the fixture actually exercises the options it configures', () => {
-    const llms = readFileSync(join(LEGACY_DIST, 'llms.txt'), 'utf8');
+    // Without this, a build that dropped every generator could still match a
+    // snapshot that was regenerated carelessly.
+    const llms = readFileSync(join(CANONICAL_DIST, 'llms.txt'), 'utf8');
     // stripTitleSuffix, sections, defaultSection, showLastModified, includeHtmlOnly.
     expect(llms).toContain('## Home');
     expect(llms).toContain('## Blog');
@@ -89,10 +109,9 @@ describe('1.0 and 1.1 configurations produce identical output', () => {
     expect(llms).not.toContain('Secret');
 
     // markdown.frontmatter, and the sitemap filenameBase tracked into robots.txt.
-    expect(readFileSync(join(LEGACY_DIST, 'index.md'), 'utf8')).toMatch(/^---\n/);
-    expect(readFileSync(join(LEGACY_DIST, 'robots.txt'), 'utf8')).toContain('/compat-index.xml');
-    // domainProfile.contact is a two-hop alias: contact -> email -> site.profile.email.
-    expect(readFileSync(join(LEGACY_DIST, '.well-known/domain-profile.json'), 'utf8')).toContain(
+    expect(readFileSync(join(CANONICAL_DIST, 'index.md'), 'utf8')).toMatch(/^---\n/);
+    expect(readFileSync(join(CANONICAL_DIST, 'robots.txt'), 'utf8')).toContain('/compat-index.xml');
+    expect(readFileSync(join(CANONICAL_DIST, '.well-known/domain-profile.json'), 'utf8')).toContain(
       'hello@compat.example.com',
     );
   });

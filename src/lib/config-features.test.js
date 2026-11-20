@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { resolveConfig } from '../config.js';
 import { AeoConfigError } from './errors.js';
-import { setPath } from './config-migrate.js';
+import { setPath } from './object-path.js';
 import { runtimeConfigProjection, toSource } from '../virtual/serialize.js';
 
 describe('1.6 configuration contracts', () => {

@@ -52,6 +52,10 @@ export function enrichHtmlHead({
     diagnostics.push(diagnostic('aeo-head-multiple', 'error', 'Only one AeoHead may own a page; the first valid instance was used.', page.pathname));
   }
   const head = markers.values[0];
+  if (head && /** @type {any} */ (head).author !== undefined) {
+    // The singular prop was removed in 2.0. Say so instead of silently dropping the author tags.
+    diagnostics.push(diagnostic('aeo-head-author-removed', 'warning', 'AeoHead `author` was removed in 2.0 and is ignored; use `authors`.', page.pathname));
+  }
   const hasHead = hasHtmlHead(output);
   if (!hasHead) {
     if (explicit || (allowGlobal && config.schema.autoInject)) {
@@ -361,7 +365,7 @@ function applyExplicitMetadata(html, head, canonical, site, diagnostics, pathnam
       if (entry && typeof entry.color === 'string') tags.push(`<meta name="theme-color" content="${escapeAttribute(entry.color)}"${entry.media ? ` media="${escapeAttribute(entry.media)}"` : ''}>`);
     }
   }
-  const authoredPeople = head.authors ?? head.author;
+  const authoredPeople = head.authors;
   if (authoredPeople !== undefined) {
     output = removeVoidTags(output, 'meta', (tag) => attr(tag, 'name')?.toLowerCase() === 'author');
     output = removeVoidTags(output, 'link', (tag) => hasRel(tag, 'author'));

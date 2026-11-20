@@ -44,13 +44,13 @@ describe('the current static pipeline preserves genuine 1.0 output', () => {
   // Byte comparison only against the Astro major the bytes came from.
   //
   // The frozen `.html` files are Astro's own rendering, which changes between
-  // majors, so on Astro 5 and 6 all five differ. `llms-full.txt` differs there
+  // majors, so on Astro 6 all five differ. `llms-full.txt` differs there
   // too, and that is the same cause rather than an exception: the fixture's
   // `no-md` page carries `no-dotmd`, so it has no `.md` companion and its
   // converted content reaches exactly one artifact. Our artifacts are derived
   // from Astro's HTML, so they inherit its version sensitivity.
   //
-  // Running this on Astro 5 would therefore be asking whether Astro 5 renders
+  // Running this on Astro 6 would therefore be asking whether Astro 6 renders
   // like Astro 7. It never will, and there is no astro-aeo regression it could
   // catch there that it does not already catch here.
   const byteCheck = installedAstroMajor === GOLDEN_ASTRO_MAJOR ? test : test.skip;

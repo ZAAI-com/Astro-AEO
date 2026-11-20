@@ -9,7 +9,6 @@ const BRIDGE_MODULE = 'virtual:astro-aeo/emdash';
 const RESOLVED_BRIDGE_MODULE = `\0${BRIDGE_MODULE}`;
 const CATALOG_MODULE = 'astro-aeo/emdash/catalog';
 const DEFAULT_REVALIDATE = 10;
-const LEGACY_KEYS = ['exclude', 'llmsTxt', 'sitemap', 'robotsTxt'];
 
 /**
  * EmDash integration. It registers the Astro-AEO integration itself with
@@ -71,13 +70,8 @@ export default function emdashAeo(options = {}) {
  */
 export function emdashDefaults(options = {}, facts = {}) {
   const input = /** @type {any} */ (options.aeo ?? {});
-  const legacy = LEGACY_KEYS.filter((key) => input[key] !== undefined);
-  if (legacy.length > 0) {
-    throw new Error(
-      `astro-aeo: emdashAeo() merges its defaults into the current option names. Replace ${legacy.join(', ')} ` +
-      'with pages.exclude, corpus.index, and discovery (see "Migrating from 1.0" in the README).',
-    );
-  }
+  // A 1.0 key passes through untouched, so aeo() rejects it with the shared
+  // removed-key error instead of the defaults merging around it.
   if (input.discovery?.indexNow?.enabled === true) {
     throw new Error(
       'astro-aeo: emdashAeo() cannot enable IndexNow. An EmDash site lists its pages at request time, ' +

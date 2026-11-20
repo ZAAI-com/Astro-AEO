@@ -7,34 +7,40 @@ export default defineConfig({
   trailingSlash: 'always',
   integrations: [
     aeo({
-      stripTitleSuffix: 'Demo Site',
-      exclude: ['/private/**'],
-      llmsTxt: {
-        showLastmod: true,
-        sections: [
-          { title: 'Home', match: '/' },
-          { title: 'Blog', match: '/blog/**' },
-        ],
-        defaultSection: 'Pages',
+      pages: {
+        stripTitleSuffix: 'Demo Site',
+        exclude: ['/private/**'],
       },
+      markdown: { frontmatter: true },
       corpus: {
+        index: {
+          showLastModified: true,
+          sections: [
+            { title: 'Home', match: '/' },
+            { title: 'Blog', match: '/blog/**' },
+          ],
+          defaultSection: 'Pages',
+        },
         urlMap: {
           enabled: true,
           outputFilepath: '.astro/test-url-map.md',
         },
       },
-      dotmd: { frontmatter: true },
-      robotsTxt: {
-        enabled: true,
-        allow: ['Googlebot', 'OAI-SearchBot', 'Claude-SearchBot'],
-        disallow: ['GPTBot', 'ClaudeBot'],
+      discovery: {
+        robots: {
+          enabled: true,
+          allow: ['Googlebot', 'OAI-SearchBot', 'Claude-SearchBot'],
+          disallow: ['GPTBot', 'ClaudeBot'],
+        },
       },
-      domainProfile: {
-        enabled: true,
-        name: 'Astro-AEO Demo',
-        description: 'A tiny site that exercises astro-aeo.',
-        email: 'hello@example.com',
-        entityType: 'Organization',
+      site: {
+        profile: {
+          enabled: true,
+          name: 'Astro-AEO Demo',
+          description: 'A tiny site that exercises astro-aeo.',
+          email: 'hello@example.com',
+          entityType: 'Organization',
+        },
       },
     }),
   ],

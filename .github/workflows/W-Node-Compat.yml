@@ -11,17 +11,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - astro: 5.18.2
-            adapter: 9.5.5
-            node: 20.19.5
           - astro: 6.2.2
             adapter: 10.0.6
-            node: 22.13.1
+            node: 22.12.0
           # Pin the actual 6.3 boundary pair. Later 10.1 adapter patches use
           # Node entrypoint exports introduced after Astro 6.3.x.
           - astro: 6.3.0
             adapter: 10.1.0
-            node: 22.13.1
+            node: 22.12.0
           # Pin the one-argument FetchState boundary that 7.2 introduced.
           - astro: 7.2.0
             adapter: 11.1.0

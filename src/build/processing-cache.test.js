@@ -12,13 +12,17 @@ import {
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
+import * as privateLock from './private-lock.js';
 import { extractionProducer } from './package-version.js';
 import { canonicalStringify, describeProcessingCacheReset, openProcessingCache } from './processing-cache.js';
 import { cachedStage } from './stage-cache.js';
 
+vi.mock('./private-lock.js', { spy: true });
+
 const roots = [];
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
@@ -104,12 +108,71 @@ describe('processing cache', () => {
     const root = project();
     const cacheRoot = join(root, '.astro', 'aeo-cache', 'processing-v1');
     mkdirSync(join(cacheRoot, 'blobs'), { recursive: true });
-    writeFileSync(join(cacheRoot, 'lock'), `${JSON.stringify({ version: 1, hostname: hostname(), pid: process.pid, nonce: 'held' })}\n`);
+    writeFileSync(join(cacheRoot, 'lock'), `${JSON.stringify({ version: 1, hostname: hostname(), pid: process.pid, nonce: 'held-nonce-0001' })}\n`);
     const diagnostics = [];
     const cache = openProcessingCache(root, { enabled: true, diagnostics });
     expect(cache.readOnly).toBe(true);
     expect(cache.get('x:y')).toBeUndefined();
     expect(diagnostics).toEqual([expect.objectContaining({ code: 'processing-cache-lock-unavailable' })]);
+    expect(diagnostics[0].message).toContain('Cause: locked; lock present: true; mutex present: false; pid alive: true; same host: true.');
+    cache.close();
+  });
+
+  test('names a retained reclaim mutex without modifying the lock', () => {
+    const root = project();
+    const cacheRoot = join(root, '.astro', 'aeo-cache', 'processing-v1');
+    mkdirSync(cacheRoot, { recursive: true });
+    const record = JSON.stringify({ version: 1, hostname: hostname(), pid: process.pid, nonce: 'held-nonce-0001' });
+    writeFileSync(join(cacheRoot, 'lock'), record);
+    writeFileSync(join(cacheRoot, 'lock.reclaim'), '');
+    const diagnostics = [];
+    const cache = openProcessingCache(root, { enabled: true, diagnostics });
+    expect(cache.readOnly).toBe(true);
+    expect(diagnostics[0].message).toContain('Cause: locked; lock present: true; mutex present: true;');
+    expect(readFileSync(join(cacheRoot, 'lock'), 'utf8')).toBe(record);
+    cache.close();
+  });
+
+  test('surfaces sanitized release failures to diagnostics and the logger', () => {
+    vi.spyOn(privateLock, 'acquirePrivateLock').mockImplementationOnce((_path, _messages, onReleaseError) =>
+      () => onReleaseError(Object.assign(new Error('private filesystem details'), { code: 'EACCES' })));
+    const diagnostics = [];
+    const logger = { warn: vi.fn() };
+    const cache = openProcessingCache(project(), { enabled: true, diagnostics, logger });
+    cache.close();
+    cache.close();
+    expect(diagnostics).toEqual([expect.objectContaining({
+      code: 'processing-cache-lock-unavailable',
+      message: 'The processing cache lock could not be released; a later build may be cold and read-only. Cause: filesystem:EACCES.',
+    })]);
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn.mock.calls[0][0]).not.toContain('private filesystem details');
+  });
+
+  test('reports a filesystem code when the cache root cannot be created', () => {
+    const root = project();
+    writeFileSync(join(root, '.astro'), 'not a directory');
+    const diagnostics = [];
+    const cache = openProcessingCache(root, { enabled: true, diagnostics });
+    expect(cache.readOnly).toBe(true);
+    expect(diagnostics[0].message).toMatch(/Cause: filesystem:E(?:NOTDIR|EXIST);/u);
+    expect(diagnostics[0].message).not.toContain(root);
+    cache.close();
+  });
+
+  test.each([
+    [new Error('processing cache lock is unsafe'), 'unsafe'],
+    [new Error('processing cache lock changed during inspection'), 'changed'],
+    [Object.assign(new Error('secret path /private/source'), { code: 'EACCES' }), 'filesystem:EACCES'],
+    [Object.assign(new Error('secret path /private/source'), { code: 'EACCES secret' }), 'unknown'],
+    [new Error('secret path /private/source'), 'unknown'],
+  ])('sanitizes acquisition failures (%s)', (error, cause) => {
+    vi.spyOn(privateLock, 'acquirePrivateLock').mockImplementationOnce(() => { throw error; });
+    const diagnostics = [];
+    const cache = openProcessingCache(project(), { enabled: true, diagnostics });
+    expect(cache.readOnly).toBe(true);
+    expect(diagnostics[0].message).toContain(`Cause: ${cause}; lock present: false; mutex present: false; pid alive: unknown; same host: unknown.`);
+    expect(diagnostics[0].message).not.toMatch(/secret|\/private\/source/u);
     cache.close();
   });
 

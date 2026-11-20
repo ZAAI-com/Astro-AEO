@@ -7,13 +7,15 @@ export default defineConfig({
   integrations: [
     sitemap({ filenameBase: 'custom' }),
     aeo({
-      sitemap: {
-        enabled: false,
-        // With a user-registered integration, filenameBase is the shared output
-        // hint that keeps the alias source and robots path aligned.
-        options: { filenameBase: 'custom' },
+      discovery: {
+        sitemap: {
+          mode: 'external',
+          // With a user-registered integration, filenameBase is the shared output
+          // hint that keeps the alias source and robots path aligned.
+          options: { filenameBase: 'custom' },
+        },
+        robots: { enabled: true },
       },
-      robotsTxt: { enabled: true },
     }),
   ],
 });

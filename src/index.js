@@ -613,10 +613,10 @@ export default function aeo(userConfig = {}) {
       },
 
       'astro:build:done': async (options) => {
-        // Astro 5 resolves routes before config:done, while newer versions run
-        // these hooks in the opposite order. Merge here, after catalog preflight
-        // is guaranteed to have completed, and keep the route array catalog-free
-        // so the newer hook order cannot add the same diagnostics twice.
+        // Merge here, after catalog preflight is guaranteed to have completed,
+        // so the result does not depend on the order Astro runs config:done and
+        // routes:resolved in. Keeping the route array catalog-free means neither
+        // order can add the same diagnostics twice.
 
         // An on-demand page route is the only thing that puts pages outside the
         // build's reach. Adapter presence is not evidence: injectRuntimeFallbackRoutes

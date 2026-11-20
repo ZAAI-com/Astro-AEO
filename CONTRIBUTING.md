@@ -5,7 +5,7 @@ step, so changes must work directly from a git dependency as well as from the np
 
 ## Development setup
 
-The published package supports Node 20.19.5 or newer. Contributors need Node 22.13 or
+The published package supports Node 22.12.0 or newer. Contributors need Node 22.13 or
 newer to run pnpm 11; Node 24 is recommended and matches the primary CI environment.
 
 ```bash
@@ -28,7 +28,8 @@ because Vitest runs files concurrently and two Astro builds cannot safely share 
 - Use plain ESM JavaScript with `// @ts-check` and JSDoc.
 - Keep runtime and core modules free of `node:` imports.
 - Update public declarations in the same change as their implementation.
-- Preserve the 1.0 configuration aliases throughout 1.x.
+- Keep configuration changes additive within a major. A rename keeps the old key working with
+  a warning until the next major, which removes it with a named error.
 - Add or update a golden fixture for generated-output changes.
 - Do not add a runtime dependency without explaining why the existing browser APIs and three
   dependencies cannot provide the capability.

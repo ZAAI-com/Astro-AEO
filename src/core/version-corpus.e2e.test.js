@@ -25,9 +25,7 @@ import { defineConfig } from 'astro/config';
 import aeo from 'astro-aeo';
 export default defineConfig({
   site: 'https://versions.example.test', base: '/docs',
-  // Astro 6+ defaults redirectToDefaultLocale to false; Astro 5 defaults it to
-  // true and then requires a root index page this fixture deliberately lacks.
-  i18n: { locales: ['en', 'fr'], defaultLocale: 'en', routing: { prefixDefaultLocale: true, redirectToDefaultLocale: false } },
+  i18n: { locales: ['en', 'fr'], defaultLocale: 'en', routing: { prefixDefaultLocale: true } },
   integrations: [aeo({
     markdown: { includeLastModified: false }, i18n: { indexes: 'both' },
     corpus: { versions: { current: 'v2', order: ['v1'] }, manifest: { enabled: true },
