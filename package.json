@@ -141,10 +141,10 @@
   "peerDependencies": {
     "@astrojs/starlight": ">=0.32.0",
     "@mdx-js/mdx": "^3.1.1",
+    "@opentelemetry/api": "^1.9.0",
     "astro": ">=6.0.0",
     "defuddle": "^0.19.2",
-    "emdash": ">=1.0.1",
-    "@opentelemetry/api": "^1.9.0"
+    "emdash": ">=1.0.1"
   },
   "peerDependenciesMeta": {
     "@astrojs/starlight": {
@@ -164,36 +164,36 @@
     }
   },
   "dependencies": {
-    "@astrojs/sitemap": "^3.7.5",
+    "@astrojs/sitemap": "^3.7.6",
     "linkedom": "^0.18.15",
     "schema-dts": "^2.1.0",
     "turndown": "^7.2.5",
     "yaml": "^2.9.1"
   },
   "devDependencies": {
-    "@astrojs/cloudflare": "14.4.8",
+    "@astrojs/cloudflare": "14.4.9",
     "@astrojs/netlify": "8.2.14",
-    "@astrojs/node": "^11.1.13",
-    "@astrojs/react": "^6.0.6",
+    "@astrojs/node": "^11.1.14",
+    "@astrojs/react": "^7.1.9",
     "@astrojs/starlight": "0.43.1",
     "@astrojs/vercel": "11.0.22",
-    "@changesets/cli": "^2.31.1",
+    "@changesets/cli": "^3.0.3",
     "@deno/astro-adapter": "0.6.0",
     "@emdash-cms/cloudflare": "1.5.0",
     "@mdx-js/mdx": "^3.1.1",
     "@types/node": "^26.6.6",
     "@types/turndown": "^5.0.6",
-    "astro": "^7.4.12",
+    "astro": "^7.4.13",
     "astro-aeo": "link:.",
-    "defuddle": "^0.19.6",
+    "defuddle": "^0.19.8",
     "emdash": "1.5.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "tslib": "^2.9.1",
     "typescript": "^7.0.2",
     "typescript-floor": "npm:typescript@5.5.4",
-    "vitest": "^4.1.11",
-    "wrangler": "^4.162.0"
+    "vitest": "^5.1.1",
+    "wrangler": "^4.165.0"
   },
   "scripts": {
     "test": "vitest run",

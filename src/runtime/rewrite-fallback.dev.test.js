@@ -176,7 +176,7 @@ afterAll(async () => {
   for (const root of roots) rmSync(root, { recursive: true, force: true });
 });
 
-describe.sequential('development rewrite fallback for overlapping dynamic routes', () => {
+describe('development rewrite fallback for overlapping dynamic routes', { sequential: true }, () => {
   test('aggregate corpora and companions still cover the shadowed routes', async () => {
     const root = createFixture();
     const running = await startServer(root);

@@ -3,5 +3,5 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "dependencies": { "astro": "^7.4.12", "@astrojs/node": "^11.1.13" }
+  "dependencies": { "astro": "^7.4.13", "@astrojs/node": "^11.1.14" }
 }

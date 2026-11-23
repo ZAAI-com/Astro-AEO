@@ -8,8 +8,8 @@
     "audit": "astro-aeo audit dist"
   },
   "dependencies": {
-    "astro": "^7.4.12",
+    "astro": "^7.4.13",
     "astro-aeo": "^1.4.0",
-    "@astrojs/node": "^11.1.13"
+    "@astrojs/node": "^11.1.14"
   }
 }

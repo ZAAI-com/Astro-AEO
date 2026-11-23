@@ -4,8 +4,8 @@
   "type": "module",
   "dependencies": {
     "@astrojs/starlight": "0.43.1",
-    "astro": "^7.4.12",
-    "@astrojs/node": "^11.1.13"
+    "astro": "^7.4.13",
+    "@astrojs/node": "^11.1.14"
   },
   "version": "0.0.0"
 }
