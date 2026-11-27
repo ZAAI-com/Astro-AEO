@@ -7,6 +7,9 @@ import emdashAeo from 'astro-aeo/emdash';
 
 export default defineConfig({
   site: 'https://recipe.example.com',
+  // The Node adapter builds the request URL from `Host` only for allowed domains;
+  // without this, llms.txt and llms-full.txt see a localhost origin and return 404.
+  security: { allowedDomains: [{ hostname: 'recipe.example.com' }] },
   output: 'server',
   adapter: node({ mode: 'standalone' }),
   integrations: [

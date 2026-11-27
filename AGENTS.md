@@ -195,8 +195,10 @@ plain ESM with no package build step.
   flight, and re-merges (and re-warns) only when a listing changed. A revalidating catalog whose
   first listing fails retries on its next use; one whose refresh fails keeps its last listing and
   retries after another window. Refreshing a listing that once succeeded never blocks a request:
-  the last inventory is served until the fresh one merges. Keep the one-entry, last-origin cache
-  for catalogs without `revalidate`.
+  the last inventory is served until the fresh one merges. `pendingRuntimeCatalogRefresh` exposes
+  that background refresh, and the middleware hands it to `locals.cfContext.waitUntil`, because
+  workerd cancels a finished request's leftover work and the refresh would never settle. Keep the
+  one-entry, last-origin cache for catalogs without `revalidate`.
 - Runtime configuration must remain serializable. Function options apply during builds but cannot
   cross the virtual-module boundary; keep warnings and fallbacks explicit.
 - Development dynamic-route records carry only route mechanics and lazy module imports. Never

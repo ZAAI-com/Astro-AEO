@@ -48,6 +48,7 @@ curl -H "Host: recipe.example.com" http://127.0.0.1:4321/llms.txt
 curl http://127.0.0.1:4321/customers/aeo-field-guide.md
 ```
 
-Aggregate files are answered for the configured `site` origin, hence the `Host` header. EmDash
-stamps seeded posts with the time of seeding, so their dated URLs carry the current year and month.
+Aggregate files are answered for the configured `site` origin, hence the `Host` header. The Node
+adapter keeps that header only because `astro.config.mjs` lists the host in `security.allowedDomains`.
+EmDash stamps seeded posts with the time of seeding, so their dated URLs carry the current year and month.
 To use the admin, complete EmDash's one-time setup wizard (passkey registration) in the browser.

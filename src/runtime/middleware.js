@@ -41,6 +41,7 @@ import {
   runtimeArtifactOrigin,
   RuntimeCorpusPlanError,
   runtimeCatalogPagesFor,
+  pendingRuntimeCatalogRefresh,
   RuntimeCorpusLimitError,
   RuntimeCorpusCollectionError,
   RuntimePageLifecycleError,
@@ -102,6 +103,41 @@ export function isInternalAeoRequest(context) {
  * @returns {Promise<Response>}
  */
 export const onRequest = async (context, next) => {
+  try {
+    return await handleRequest(context, next);
+  } finally {
+    keepCatalogRefreshAlive(context);
+  }
+};
+
+/**
+ * A revalidating catalog refreshes in the background while this request is
+ * answered from the last inventory. Cloudflare Workers cancel whatever a finished
+ * request left running, so without `waitUntil` the refresh never settles and the
+ * stale inventory stays for the life of the isolate. Other runtimes keep the
+ * process alive and need nothing. Only `locals.cfContext` is read: the adapter's
+ * removed `locals.runtime` throws when touched.
+ * @param {import('astro').APIContext} context
+ */
+function keepCatalogRefreshAlive(context) {
+  const pending = pendingRuntimeCatalogRefresh(RUNTIME);
+  if (!pending) return;
+  const cfContext = /** @type {{ cfContext?: { waitUntil?: unknown } } | undefined} */ (context.locals)?.cfContext;
+  const waitUntil = cfContext?.waitUntil;
+  if (typeof waitUntil !== 'function') return;
+  try {
+    waitUntil.call(cfContext, pending);
+  } catch {
+    // A platform that refuses the promise leaves the refresh as it was.
+  }
+}
+
+/**
+ * @param {import('astro').APIContext} context
+ * @param {import('astro').MiddlewareNext} next
+ * @returns {Promise<Response>}
+ */
+async function handleRequest(context, next) {
   if (RUNTIME.command === 'build' && context.isPrerendered) {
     return withCollectionFlag(context, true, async () => {
       const response = await next();
@@ -577,7 +613,7 @@ export const onRequest = async (context, next) => {
     changed,
     requestHeadersAvailable,
   });
-};
+}
 
 /**
  * Enumerated, zero-argument handles are the only page access runtime plugins

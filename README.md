@@ -869,6 +869,9 @@ on every use of the inventory, and `false` (or omitting it) keeps the first list
 catalog's first listing fails, it is retried on its next use instead of staying empty; if a later
 refresh fails, the last listing stays in place and the refresh is retried after another window.
 A refresh never holds up a request: the last inventory is served until the fresh one is ready.
+On Cloudflare the middleware hands that background refresh to `locals.cfContext.waitUntil`, because
+a Worker cancels work a finished request left running; the stock adapter and its `fetch` and `hono`
+handlers set `cfContext`.
 Development always lists afresh, and a build lists once.
 
 Catalog entrypoints must be JavaScript that Node's native module loader can execute:
@@ -1331,7 +1334,7 @@ Release gates build Node, Cloudflare, Deno, Vercel, and Netlify fixtures. The fu
 contract runs locally for Node, Cloudflare in workerd, and Deno. The emitted Vercel and Netlify
 handlers run in process against a smaller set: `.md` `GET`, `HEAD` and `304`, the runtime
 artifacts, `robots.txt` passthrough, and the Markdown `404` for an unknown `.md`. Separate
-assertions verify that Vercel routes runtime artifacts to `_render` before its status-404 fallback
+assertions verify that Vercel routes runtime artifacts to `_render` before its catch-all 404 fallback
 and that Netlify does not short-circuit `.md` through bundled custom-404 content.
 
 The stock `@astrojs/cloudflare()` adapter needs no extra wiring. If you replace its worker
@@ -1345,9 +1348,9 @@ Origin-scoped runtime artifacts (`llms.txt`, `llms-full.txt`, the corpus paths, 
 `/.well-known/domain-profile.json`) are served only when the request origin matches the configured
 `site` or one of the configured i18n domains. `astro dev` and `astro preview` additionally accept
 their loopback origin; a deployed server does not, so a spoofed `Host: localhost` cannot claim the
-configured site. On Astro 6 the Node adapter rewrites the request host to `localhost`
-unless the domain is allowed, so those projects need Astro's own host trust for the artifacts to be
-reachable:
+configured site. On Astro 6, and again from Astro 7.4, the Node adapter rewrites the request host to
+`localhost` unless the domain is allowed, so those projects need Astro's own host trust for the
+artifacts to be reachable:
 
 ```js
 export default defineConfig({
@@ -1356,7 +1359,10 @@ export default defineConfig({
 });
 ```
 
-Astro 7 keeps the request `Host` header without that setting.
+List every i18n domain too. A Node build whose corpus is served at request time warns and names
+each missing hostname. Astro 7.0 through 7.3 keep the request `Host` header without the setting.
+Allowed domains also let Astro trust matching `X-Forwarded-Host` values, so list only hosts your
+proxy actually serves.
 
 On static hosting the companions are plain files, and many hosts serve unknown
 extensions as `text/plain`, `application/octet-stream`, or a download. To keep answer

@@ -6,6 +6,10 @@ import aeo from '../../src/index.js';
 // Astro does not expose request headers to a prerendered route.
 export default defineConfig({
   site: 'https://ssr.example.com',
+  // Astro 6 and 7.4+ rebuild the Node adapter's request URL from `Host` only when
+  // it matches allowedDomains; otherwise the origin is localhost and origin-scoped
+  // artifacts such as llms.txt correctly decline it.
+  security: { allowedDomains: [{ hostname: 'ssr.example.com' }] },
   output: 'server',
   adapter: node({ mode: 'standalone' }),
   integrations: [

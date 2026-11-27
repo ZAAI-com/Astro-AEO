@@ -33,6 +33,7 @@ import { exactPathnameIdentity } from './core/artifact-path.js';
 import { absoluteUrl } from './core/page-model.js';
 import { corpusRoutePatterns } from './core/corpus-topology.js';
 import { contentRoutesFor } from './lib/content-routes.js';
+import { allowedDomainsWarning, hostnamesMissingFromAllowedDomains } from './lib/allowed-domains.js';
 import { createLocaleSnapshot } from './core/locale.js';
 import {
   preloadCorpusTokenizer,
@@ -447,6 +448,21 @@ export default function aeo(userConfig = {}) {
             `astro-aeo: markdown.negotiation is "${config.markdown.negotiation}" but this project has no adapter, so every route is prerendered and none can negotiate. ` +
               'Astro does not expose request headers to a prerendered route. Add an adapter and mark the routes that should negotiate with `export const prerender = false`, or set markdown.negotiation to "off". The .md companions are unaffected.',
           );
+        }
+        // The Node adapter rebuilds a request's URL from Host only for allowed domains,
+        // so a runtime-owned corpus would see localhost and answer 404 in production.
+        if (
+          command === 'build' &&
+          adapterName === '@astrojs/node' &&
+          siteUrl &&
+          (config.corpus.index.enabled || config.corpus.full.enabled) &&
+          runtimeOwnsCorpus(hasOnDemandProjectPage, localeSnapshot)
+        ) {
+          const missing = hostnamesMissingFromAllowedDomains(
+            [siteUrl, ...(localeSnapshot?.origins ?? [])],
+            astroConfig.security?.allowedDomains,
+          );
+          if (missing.length > 0) logger.warn(allowedDomainsWarning(missing));
         }
         sitemapState.siteUrl = siteUrl;
         sitemapState.base = base;
@@ -889,7 +905,7 @@ function redirectOwnsNotFound(astroConfig) {
 
 /**
  * Give the router concrete manifest routes that reach pre-middleware before the
- * provider's status-404 fallback in an adapter build, and before the development
+ * provider's catch-all 404 fallback in an adapter build, and before the development
  * server's redirect and 404 routing in `astro dev`. The endpoint itself succeeds at
  * nothing: it returns 404 only after Astro-AEO declines the request.
  *

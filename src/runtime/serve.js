@@ -133,6 +133,8 @@ async function loadCorpusPage(runtime, fetchHtml, target) {
 const runtimeTurndown = new WeakMap();
 /** @type {WeakMap<Runtime, { loaders: RuntimeCatalogLoader[]; siteUrl: string; listings: Promise<RuntimeCatalogListing>[]; pages: Promise<import('../page.js').PageDescriptor[]> }>} */
 const runtimeCatalogPages = new WeakMap();
+/** @type {WeakMap<Runtime, Promise<void>>} */
+const pendingCatalogRefreshes = new WeakMap();
 
 /**
  * @param {string} pathname
@@ -983,15 +985,32 @@ export function runtimeCatalogPagesFor(loaders, runtime, origin, now = Date.now)
     // Later requests share the refresh in flight and keep the last inventory until it merges.
     const entry = { loaders, siteUrl, listings, pages: cached.pages };
     runtimeCatalogPages.set(runtime, entry);
-    pages.then(() => {
+    const pending = pages.then(() => {
       if (runtimeCatalogPages.get(runtime) === entry) entry.pages = pages;
-    }, () => {});
+    }, () => {}).finally(() => {
+      if (pendingCatalogRefreshes.get(runtime) === pending) pendingCatalogRefreshes.delete(runtime);
+    });
+    pendingCatalogRefreshes.set(runtime, pending);
     return cached.pages;
   }
   const listings = loaders.map((loader) => listRuntimeCatalog(loader, context, now));
   const pages = mergeRuntimeCatalogListings(listings, runtime, siteUrl);
   runtimeCatalogPages.set(runtime, { loaders, siteUrl, listings, pages });
   return pages;
+}
+
+/**
+ * The background catalog refresh still running for this runtime, if any. The
+ * request that started it does not wait for it, and Cloudflare Workers cancel
+ * work a finished request left behind, which would leave the refresh unsettled
+ * and the stale inventory in place for the life of the isolate. The middleware
+ * hands this promise to the platform's `waitUntil` so the refresh can finish.
+ * It never rejects.
+ * @param {Runtime} runtime
+ * @returns {Promise<void> | undefined}
+ */
+export function pendingRuntimeCatalogRefresh(runtime) {
+  return pendingCatalogRefreshes.get(runtime);
 }
 
 /** Read only the last existing inventory, never trigger discovery for analytics.

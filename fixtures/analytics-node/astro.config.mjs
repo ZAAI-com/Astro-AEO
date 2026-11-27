@@ -4,6 +4,7 @@ import aeo from '../../src/index.js';
 const mode = process.env.AEO_ANALYTICS_MODE;
 export default defineConfig({
   site: 'https://analytics.example.test', base: '/docs', output: 'server', adapter: node({ mode: 'standalone' }),
+  security: { allowedDomains: [{ hostname: 'analytics.example.test' }] },
   integrations: [aeo({
     analytics: mode === 'absent' ? undefined : { enabled: mode !== 'disabled', scope: 'all',
       adapter: mode === 'jsonl' ? { type: 'jsonl', path: '.astro/events-v1.jsonl' } : mode === 'module' ? { type: 'module', module: './sink.mjs', options: { expected: true } } : { type: 'console' } },

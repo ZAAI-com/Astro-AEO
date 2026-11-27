@@ -57,6 +57,8 @@ async function runtimeConfigSource(options = {}) {
  *   buildOutput?: 'static'|'server';
  *   output?: 'static'|'server';
  *   adapter?: boolean;
+ *   adapterName?: string;
+ *   security?: any;
  *   base?: string;
  *   declaredContentRoutes?: string[];
  *   configFirst?: boolean;
@@ -102,7 +104,7 @@ async function runRouteLifecycle(options = {}) {
         base: options.base ?? '/',
         root: rootUrl,
         site: new URL('https://example.test'),
-        ...(options.adapter ? { adapter: { name: 'test-adapter' } } : {}),
+        ...(options.adapter ? { adapter: { name: options.adapterName ?? 'test-adapter' } } : {}),
       },
       command: options.command ?? 'build',
       addMiddleware() {},
@@ -121,7 +123,8 @@ async function runRouteLifecycle(options = {}) {
         publicDir: pathToFileURL(`${publicRoot}/`),
         output: options.output ?? 'static',
         ...(options.i18n ? { i18n: options.i18n } : {}),
-        ...(options.adapter ? { adapter: { name: 'test-adapter' } } : {}),
+        ...(options.security ? { security: options.security } : {}),
+        ...(options.adapter ? { adapter: { name: options.adapterName ?? 'test-adapter' } } : {}),
       },
       logger,
       injectTypes() {},
@@ -1273,5 +1276,56 @@ describe('integration diagnostics and declarations', () => {
       ],
     })).toContain('"sitemapAvailable": true');
     expect(await runtimeConfigSource()).toContain('"sitemapAvailable": false');
+  });
+});
+
+describe('Node adapter allowedDomains warning', () => {
+  const onDemandPage = {
+    type: 'page',
+    origin: 'project',
+    pathname: '/live',
+    entrypoint: 'src/pages/live.astro',
+    pattern: '/live',
+    isPrerendered: false,
+  };
+  /** @param {Parameters<typeof runRouteLifecycle>[0]} [overrides] */
+  const lifecycle = async (overrides = {}) => {
+    const { warningsBeforeBuildDone } = await runRouteLifecycle({
+      adapter: true,
+      adapterName: '@astrojs/node',
+      output: 'server',
+      buildOutput: 'server',
+      configFirst: false,
+      routes: [onDemandPage],
+      userConfig: { corpus: { index: { enabled: true }, full: { enabled: true } } },
+      ...overrides,
+    });
+    return warningsBeforeBuildDone.filter((message) => String(message).includes('security.allowedDomains'));
+  };
+
+  test('names the site host and gives a paste-ready block when it is not allowed', async () => {
+    const warnings = await lifecycle();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('example.test is not listed');
+    expect(warnings[0]).toContain("security: { allowedDomains: [{ hostname: 'example.test' }] },");
+  });
+
+  test.each([
+    ['an exact hostname', [{ hostname: 'example.test' }]],
+    ['an entry without a hostname', [{ protocol: 'https' }]],
+  ])('stays silent when %s covers the site', async (_label, allowedDomains) => {
+    expect(await lifecycle({ security: { allowedDomains } })).toEqual([]);
+  });
+
+  test('stays silent for other adapters, astro dev and a disabled corpus', async () => {
+    expect(await lifecycle({ adapterName: '@astrojs/cloudflare' })).toEqual([]);
+    expect(await lifecycle({ command: 'dev' })).toEqual([]);
+    expect(await lifecycle({
+      userConfig: { corpus: { index: { enabled: false }, full: { enabled: false } } },
+    })).toEqual([]);
+  });
+
+  test('stays silent when every page is prerendered, because the build owns the corpus', async () => {
+    expect(await lifecycle({ routes: [{ ...onDemandPage, isPrerendered: true }] })).toEqual([]);
   });
 });

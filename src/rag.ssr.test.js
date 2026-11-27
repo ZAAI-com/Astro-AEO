@@ -30,7 +30,7 @@ test('Node middleware serves complete locale/version RAG, HEAD and validated run
     if(process.env.AEO_RAG_INVALID==='1')return {action:'replace',value:{...value,text:'forged'}};
     return {action:'replace',value:{...value,metadata:{...value.metadata,category:'runtime'}}};});}};`);
   write('astro.config.mjs',`import {defineConfig} from 'astro/config';import node from '@astrojs/node';import aeo from 'astro-aeo';
-    export default defineConfig({site:'https://rag.example.test',base:'/docs',output:'server',adapter:node({mode:'standalone'}),
+    export default defineConfig({site:'https://rag.example.test',base:'/docs',output:'server',adapter:node({mode:'standalone'}),security:{allowedDomains:[{hostname:'rag.example.test'}]},
       integrations:[aeo({markdown:{includeLastModified:false},i18n:{indexes:'both'},
         pages:{catalogs:[{module:'./catalog.mjs'}]},
         corpus:{versions:{current:'v2',order:['v1']},rag:{enabled:true,publish:true,maxTokens:20},manifest:{enabled:true}},
