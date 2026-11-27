@@ -1,0 +1,82 @@
+src/integration-hooks.test.js
+  s_9c46ff2fbfe6eb::t_9e2e848e61235a 60-61,107,126-127
+  s_9c46ff2fbfe6eb::t_18440d5f79165c 1281-1331
+recipes/emdash-marketing/astro.config.mjs
+  s_9c46ff2fbfe6eb::t_ed61d9d580af7f 10-12
+recipes/emdash-portfolio/astro.config.mjs
+  s_9c46ff2fbfe6eb::t_ed61d9d580af7f 10-12
+fixtures/ssr-node/astro.config.mjs
+  s_9c46ff2fbfe6eb::t_092acbb26dd876 9-12
+.changeset/astro-74-host-and-worker-refresh.md
+  s_9c46ff2fbfe6eb::t_b1d56cfa209cac 1-8
+test/adapters/build.test.js
+  s_9c46ff2fbfe6eb::t_d0fdbfc79ae7ec 166
+  s_9c46ff2fbfe6eb::t_bd766f71f2798b 144-151
+fixtures/ssr-mixed/astro.config.mjs
+  s_9c46ff2fbfe6eb::t_092acbb26dd876 7-10
+AGENTS.md
+  s_9c46ff2fbfe6eb::t_da9dbf9d366076 198-200
+  s_9c46ff2fbfe6eb::t_928e1a80362cd5 201
+src/lib/allowed-domains.js
+  s_9c46ff2fbfe6eb::t_55de9e7a30c3ad 1-91
+recipes/emdash-blog/astro.config.mjs
+  s_9c46ff2fbfe6eb::t_ed61d9d580af7f 10-12
+src/runtime/middleware-catalog-refresh.test.js
+  s_9c46ff2fbfe6eb::t_8d7d7c438939d2 1-5,12-14,20-81,85,87-92,95-110
+  s_9c46ff2fbfe6eb::t_294ad55a92d8b2 6-11,15-19,82-84,86,93-94
+src/index.js
+  s_9c46ff2fbfe6eb::t_b21a159426d458 36,452-465
+  s_9c46ff2fbfe6eb::t_d0fdbfc79ae7ec 908
+  s_9c46ff2fbfe6eb::t_49604e62a528c3 466
+recipes/emdash-portfolio/README.md
+  s_9c46ff2fbfe6eb::t_da9dbf9d366076 42-43
+recipes/emdash-blog/README.md
+  s_9c46ff2fbfe6eb::t_da9dbf9d366076 47-48
+src/runtime/serve.js
+  s_9c46ff2fbfe6eb::t_a77470bfb32fe3 136-137,988,990-993,1002-1013
+  s_9c46ff2fbfe6eb::t_0c02bc39bb4cdb 1014-1015
+recipes/emdash-starter/README.md
+  s_9c46ff2fbfe6eb::t_da9dbf9d366076 45-46
+README.md
+  s_9c46ff2fbfe6eb::t_da9dbf9d366076 872-874,1351-1353,1362-1365
+  s_9c46ff2fbfe6eb::t_d0fdbfc79ae7ec 1337
+recipes/emdash/README.md
+  s_9c46ff2fbfe6eb::t_da9dbf9d366076 51-53
+recipes/emdash/astro.config.mjs
+  s_9c46ff2fbfe6eb::t_ed61d9d580af7f 10-12
+src/rag.ssr.test.js
+  s_9c46ff2fbfe6eb::t_092acbb26dd876 33
+recipes/emdash-starter/astro.config.mjs
+  s_9c46ff2fbfe6eb::t_ed61d9d580af7f 10-12
+src/lib/allowed-domains.test.js
+  s_9c46ff2fbfe6eb::t_fd4f0000ce9e7d 78
+  s_9c46ff2fbfe6eb::t_05ad3d5f0466b9 1-77,79-84
+src/runtime/serve.test.js
+  s_9c46ff2fbfe6eb::t_183625f4367f94 14,1482-1532
+  s_9c46ff2fbfe6eb::t_c4cd4e7ed64e70 1533
+src/runtime/middleware.js
+  s_9c46ff2fbfe6eb::t_3c76b90e5ed3ef 616
+  s_9c46ff2fbfe6eb::t_966a40f5d7514e 44,106-140
+fixtures/analytics-node/astro.config.mjs
+  s_9c46ff2fbfe6eb::t_092acbb26dd876 7
+fixtures/starlight-versions-node/astro.config.mjs
+  s_9c46ff2fbfe6eb::t_092acbb26dd876 9
+recipes/emdash-marketing/README.md
+  s_9c46ff2fbfe6eb::t_da9dbf9d366076 41-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6d1cfea279ebdd08f57578ab455d1609b7f44ce8",
+  "prompts": {},
+  "sessions": {
+    "s_9c46ff2fbfe6eb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6a1ad138-efaf-46e9-be28-0d03884b6b31",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Manuel <m@manuelgruber.com>"
+    }
+  }
+}
