@@ -223,7 +223,7 @@ afterAll(async () => {
   for (const root of roots) rmSync(root, { recursive: true, force: true });
 });
 
-describe.sequential('development dynamic-route discovery', () => {
+describe('development dynamic-route discovery', { sequential: true }, () => {
   test('startup refreshes existing route data and requires restart for new route files', async () => {
     const root = createFixture('startup');
     let running = await startServer(root);

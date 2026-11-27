@@ -6,6 +6,7 @@ import node from '@astrojs/node';
 export default defineConfig({
   site: 'https://starlight-versions.example.test', base: '/docs',
   output: 'server', adapter: node({ mode: 'standalone' }),
+  security: { allowedDomains: [{ hostname: 'starlight-versions.example.test' }] },
   integrations: [starlight({
     title: 'Versioned Docs', pagefind: false,
     prerender: false,

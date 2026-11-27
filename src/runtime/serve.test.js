@@ -11,6 +11,7 @@ import {
   RuntimeCorpusPlanError,
   runtimeArtifactOrigin,
   runtimeCatalogPagesFor,
+  pendingRuntimeCatalogRefresh,
   serveCorpusArtifact,
   RuntimeSchemaCorpusError,
   serveLlmsIndex,
@@ -1476,6 +1477,58 @@ describe('serveMarkdown', () => {
     finish([{ pathname: '/new' }]);
     await settle();
     expect(await paths()).toEqual(['/new']);
+  });
+
+  test('exposes a background refresh until it settles, so a Worker can keep it alive', async () => {
+    const requestRuntime = runtime();
+    requestRuntime.command = 'build';
+    /** @type {(pages: { pathname: string }[]) => void} */
+    let finish = () => {};
+    let calls = 0;
+    const listPages = vi.fn(() => (++calls === 1
+      ? [{ pathname: '/old' }]
+      : new Promise((resolve) => { finish = resolve; })));
+    const loaders = [{ ...catalogLoader({ listPages }), revalidate: 10 }];
+    let clock = 0;
+    const list = () => runtimeCatalogPagesFor(loaders, requestRuntime, undefined, () => clock);
+
+    // The first listing is awaited in the request, so nothing is left running.
+    await list();
+    expect(pendingRuntimeCatalogRefresh(requestRuntime)).toBeUndefined();
+    clock = 10_000;
+    await list();
+    const pending = pendingRuntimeCatalogRefresh(requestRuntime);
+    expect(pending).toBeInstanceOf(Promise);
+    // A request during the refresh shares it rather than starting another.
+    await list();
+    expect(pendingRuntimeCatalogRefresh(requestRuntime)).toBe(pending);
+    finish([{ pathname: '/new' }]);
+    await expect(pending).resolves.toBeUndefined();
+    expect(pendingRuntimeCatalogRefresh(requestRuntime)).toBeUndefined();
+    expect((await list()).map((page) => page.pathname)).toEqual(['/new']);
+  });
+
+  test('a failed background refresh still settles its pending promise', async () => {
+    const requestRuntime = runtime();
+    requestRuntime.command = 'build';
+    let fail = false;
+    const listPages = vi.fn(() => {
+      if (fail) throw new Error('database unavailable');
+      return [{ pathname: '/kept' }];
+    });
+    const loaders = [{ ...catalogLoader({ listPages }), revalidate: 10 }];
+    let clock = 0;
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await runtimeCatalogPagesFor(loaders, requestRuntime, undefined, () => clock);
+      fail = true;
+      clock = 10_000;
+      await runtimeCatalogPagesFor(loaders, requestRuntime, undefined, () => clock);
+      await expect(pendingRuntimeCatalogRefresh(requestRuntime)).resolves.toBeUndefined();
+      expect(pendingRuntimeCatalogRefresh(requestRuntime)).toBeUndefined();
+    } finally {
+      warning.mockRestore();
+    }
   });
 
   test('caches a rejected runtime catalog loader and warns once', async () => {

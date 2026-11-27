@@ -45,7 +45,7 @@ describe('emitUrlMap', () => {
         contents: 'earlier',
         onConflict: 'overwrite',
       });
-      const config = resolveConfig({ urlMap: { enabled: true } });
+      const config = resolveConfig({ corpus: { urlMap: { enabled: true } } });
 
       expect(
         emitUrlMap(
@@ -90,7 +90,7 @@ describe('emitUrlMap', () => {
       diagnostics: [],
       failOn: 'error',
     });
-    const config = resolveConfig({ urlMap: { enabled: true } });
+    const config = resolveConfig({ corpus: { urlMap: { enabled: true } } });
 
     try {
       expect(
@@ -127,7 +127,7 @@ describe('emitUrlMap', () => {
   test('validates root confinement before invoking the registry', () => {
     const writer = { write: vi.fn() };
     const config = resolveConfig({
-      urlMap: { enabled: true, outputFilepath: '../outside.md' },
+      corpus: { urlMap: { enabled: true, outputFilepath: '../outside.md' } },
     });
 
     expect(() =>
@@ -162,7 +162,7 @@ describe('emitUrlMap', () => {
       },
     });
     const config = resolveConfig({
-      urlMap: { enabled: true, outputFilepath: 'public/Url-Map.md' },
+      corpus: { urlMap: { enabled: true, outputFilepath: 'public/Url-Map.md' } },
     });
 
     try {

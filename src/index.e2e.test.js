@@ -14,7 +14,7 @@ let buildOutput = '';
 const read = (p) => readFileSync(join(DIST, p), 'utf8');
 
 // Resolve Astro's CLI entry from its own bin field so this works across major
-// versions (Astro 5 ships astro.js, Astro 7 ships bin/astro.mjs).
+// versions instead of hard-coding one release's bin path.
 const astroDir = join(REPO, 'node_modules', 'astro');
 const astroBinField = JSON.parse(readFileSync(join(astroDir, 'package.json'), 'utf8')).bin;
 const astroBin = join(astroDir, typeof astroBinField === 'string' ? astroBinField : astroBinField.astro);

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import {
   closeSync,
   constants,
+  fstatSync,
   linkSync,
   lstatSync,
   openSync,
@@ -24,9 +25,10 @@ import { hostname } from 'node:os';
  *
  * @param {string} path
  * @param {{ busy: string; unsafe: string; changed: string }} messages
+ * @param {(error: unknown) => void} [onReleaseError]
  * @returns {() => void} release
  */
-export function acquirePrivateLock(path, messages) {
+export function acquirePrivateLock(path, messages, onReleaseError) {
   const nonce = randomUUID();
   const record = { version: 1, hostname: hostname(), pid: process.pid, nonce };
   const temporary = `${path}.${process.pid}.${nonce}.tmp`;
@@ -59,12 +61,15 @@ export function acquirePrivateLock(path, messages) {
     held = false;
     try {
       const current = readPrivateLock(path);
-      if (current?.nonce === nonce && current.pid === process.pid && current.hostname === hostname()) {
+      // A hostname can change during a long build. The captured nonce and PID
+      // prove ownership; consulting the current hostname would strand our lock.
+      if (current?.nonce === nonce && current.pid === record.pid) {
         const stat = lstatSync(path);
         if (stat.isFile() && !stat.isSymbolicLink()) rmSync(path, { force: true });
       }
-    } catch {
-      // A retained or replaced lock fails closed for the next session.
+    } catch (error) {
+      // A retained lock fails closed next time, but the owner can diagnose it.
+      try { onReleaseError?.(error); } catch {}
     }
   };
 }
@@ -82,8 +87,9 @@ function reclaimStaleLock(path, mutex, claim, messages) {
   let fd;
   try {
     fd = openSync(mutex, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600);
-  } catch {
+  } catch (error) {
     // Another contender owns the critical section; fail closed.
+    if (/** @type {any} */ (error)?.code !== 'EEXIST') throw error;
     throw new Error(messages.busy);
   }
   try {
@@ -116,10 +122,13 @@ function reclaimStaleLock(path, mutex, claim, messages) {
  * @param {string} path
  */
 export function readPrivateLock(path) {
+  let fd;
   try {
     const stat = lstatSync(path);
     if (!stat.isFile() || stat.isSymbolicLink()) return null;
-    const value = JSON.parse(readFileSync(path, 'utf8'));
+    fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    if (!fstatSync(fd).isFile()) return null;
+    const value = JSON.parse(readFileSync(fd, 'utf8'));
     return value?.version === 1 &&
       typeof value.hostname === 'string' && value.hostname &&
       Number.isSafeInteger(value.pid) && value.pid > 0 &&
@@ -129,7 +138,34 @@ export function readPrivateLock(path) {
       : null;
   } catch {
     return null;
+  } finally {
+    if (fd !== undefined) { try { closeSync(fd); } catch {} }
   }
+}
+
+/**
+ * Best-effort, read-only lock facts for diagnostics. A missing or unreadable
+ * record grants no ownership or reclamation authority. Never expose its values.
+ * @param {string} path
+ * @returns {{ present: boolean; mutexPresent: boolean; record: { pidAlive: boolean; sameHost: boolean } | null }}
+ */
+export function inspectPrivateLock(path) {
+  const present = presentEntry(path);
+  const mutexPresent = presentEntry(`${path}.reclaim`);
+  try {
+    const record = readPrivateLock(path);
+    return { present, mutexPresent, record: record
+      ? { pidAlive: processExists(record.pid), sameHost: record.hostname === hostname() }
+      : null };
+  } catch {
+    return { present, mutexPresent, record: null };
+  }
+}
+
+/** @param {string} path */
+function presentEntry(path) {
+  try { lstatSync(path); return true; }
+  catch { return false; }
 }
 
 /**

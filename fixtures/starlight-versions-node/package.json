@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@astrojs/starlight": "0.42.4",
-    "astro": "^7.3.5",
-    "@astrojs/node": "^11.1.6"
+    "@astrojs/starlight": "0.43.1",
+    "astro": "^7.4.13",
+    "@astrojs/node": "^11.1.14"
   },
   "version": "0.0.0"
 }

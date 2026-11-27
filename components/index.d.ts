@@ -74,8 +74,6 @@ export interface AeoHeadProps {
   themeColor?: string | { color: string; media?: string } | readonly { color: string; media?: string }[];
   /** Preferred plural spelling. */
   authors?: string | { name: string; url?: AeoHeadUrl } | readonly (string | { name: string; url?: AeoHeadUrl })[];
-  /** @deprecated Use `authors`; retained through 1.x. */
-  author?: string | { name: string; url?: AeoHeadUrl } | readonly (string | { name: string; url?: AeoHeadUrl })[];
   graph?: GraphInput;
   /** Undefined inherits schema.infer; false disables inference for this page. */
   infer?: false | readonly ('website' | 'webpage' | 'breadcrumbs')[];

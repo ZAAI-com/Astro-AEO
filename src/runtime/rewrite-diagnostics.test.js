@@ -101,17 +101,25 @@ describe('isForbiddenPrerenderedRewriteError', () => {
   // silently turning the development companion fallback into a 404.
   test('recognizes the error Astro throws for a rewrite to a prerendered route', async () => {
     const { readFileSync } = await import('node:fs');
-    const errorsData = readFileSync(
-      new URL('../../node_modules/astro/dist/core/errors/errors-data.js', import.meta.url),
-      'utf8',
-    );
+    // Astro 7.4 moved its error table into `@astrojs/runtime`; earlier releases keep it
+    // in `astro/dist`. Resolve from Astro itself so the pin follows the installed copy.
+    const { createRequire } = await import('node:module');
+    const { existsSync } = await import('node:fs');
+    const { pathToFileURL } = await import('node:url');
+    const legacy = new URL('../../node_modules/astro/dist/core/errors/errors-data.js', import.meta.url);
+    const errorsUrl = existsSync(legacy)
+      ? legacy
+      : pathToFileURL(
+          createRequire(createRequire(import.meta.url).resolve('astro/package.json')).resolve(
+            '@astrojs/runtime/_internal/core/errors/errors-data.js',
+          ),
+        );
+    const errorsData = readFileSync(errorsUrl, 'utf8');
     expect(errorsData).toContain('name: "ForbiddenRewrite"');
     expect(errorsData).toContain('title: "Forbidden rewrite to a static route."');
-    // The module, not the `astro/errors` entrypoint: Astro 5 exports only
-    // `AstroError` from there, and this pin has to hold on every supported major.
-    const { ForbiddenRewrite } = await import(
-      '../../node_modules/astro/dist/core/errors/errors-data.js'
-    );
+    // The module, not the `astro/errors` entrypoint, so this pin reads the same
+    // definition on every supported major.
+    const { ForbiddenRewrite } = await import(errorsUrl.href);
 
     const error = new Error(
       "You tried to rewrite the on-demand route '/about.md' with the static route " +
@@ -169,7 +177,7 @@ describe('isForbiddenPrerenderedRewriteError', () => {
     // And the query string dropped, so the loopback's preserved query cannot make
     // the loopback render see more than the in-process render would have.
     const request = read('request.js');
-    expect(request).toContain('const headersObj = isPrerendered ? void 0');
+    expect(request).toMatch(/const headersObj = isPrerendered \? (?:void 0|undefined) /);
     expect(request).toContain('url.search = ""');
   });
 

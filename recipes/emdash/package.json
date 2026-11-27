@@ -15,12 +15,12 @@
     "audit": "astro-aeo audit dist/client"
   },
   "dependencies": {
-    "@astrojs/node": "^11.1.6",
-    "@astrojs/react": "^6.0.6",
-    "astro": "^7.3.5",
+    "@astrojs/node": "^11.1.14",
+    "@astrojs/react": "^7.1.9",
+    "astro": "^7.4.13",
     "astro-aeo": "^1.5.0",
-    "emdash": "1.0.1",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "emdash": "1.5.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
   }
 }

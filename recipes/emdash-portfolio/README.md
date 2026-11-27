@@ -39,4 +39,5 @@ curl http://127.0.0.1:4321/work/volta-web.md
 ```
 
 Requires Node 22.16 or newer (EmDash's requirement). Aggregate files are answered for the configured
-`site` origin, hence the `Host` header.
+`site` origin, hence the `Host` header. The Node adapter keeps that header only because
+`astro.config.mjs` lists the host in `security.allowedDomains`.

@@ -214,7 +214,7 @@ afterAll(async () => {
   for (const root of roots) rmSync(root, { recursive: true, force: true });
 });
 
-describe.sequential('development artifacts survive a redirect-owned 404', () => {
+describe('development artifacts survive a redirect-owned 404', { sequential: true }, () => {
   test('archive fallback routes serve only their version and share manifest chunk paths', async () => {
     const running = await startServer(createFixture({ versioned: true }));
     const archive = await request(`${running.base}/v1/llms-full.txt`);

@@ -1,0 +1,456 @@
+{
+  "version": 1,
+  "package": {
+    "packedBytes": 495899,
+    "unpackedBytes": 1888255
+  },
+  "baseline": {
+    "revision": "b7d76f0e1ea259b8fb42e7938ceb21e3b8befaf8",
+    "tag": "1.6.0",
+    "kind": "published-release",
+    "publishedRelease": true
+  },
+  "environment": {
+    "node": "v24.15.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "astro": "7.3.5",
+    "runnerClass": null
+  },
+  "samples": 3,
+  "timingPolicy": "Descriptive unless the declared reference runner matches; p95 uses nearest rank and small-sample uncertainty is disclosed.",
+  "outputByteCeilings": {
+    "10": 12856,
+    "1000": 1245586,
+    "10000": 12648586
+  },
+  "baselineProjectMaxPages": 1000,
+  "baselineCoverage": "Complete microbenchmark baseline is archived separately; published 1.6.0 real-project timings above this bound are not claimed.",
+  "projects": [
+    {
+      "count": 10000,
+      "measurements": {
+        "control": [
+          {
+            "durationMs": 3712.284125,
+            "peakRssBytes": 492568576,
+            "heapUsedBytes": 195541128,
+            "outputBytes": 3315560,
+            "work": {},
+            "buildDigest": null,
+            "cacheReasons": null,
+            "diagnosticCodes": [],
+            "diagnosticMessages": []
+          },
+          {
+            "durationMs": 3803.8590830000003,
+            "peakRssBytes": 493912064,
+            "heapUsedBytes": 175393568,
+            "outputBytes": 3315560,
+            "work": {},
+            "buildDigest": null,
+            "cacheReasons": null,
+            "diagnosticCodes": [],
+            "diagnosticMessages": []
+          },
+          {
+            "durationMs": 3574.782375,
+            "peakRssBytes": 483950592,
+            "heapUsedBytes": 175663376,
+            "outputBytes": 3315560,
+            "work": {},
+            "buildDigest": null,
+            "cacheReasons": null,
+            "diagnosticCodes": [],
+            "diagnosticMessages": []
+          }
+        ],
+        "baseline": [],
+        "current": [
+          {
+            "durationMs": 93564.872084,
+            "peakRssBytes": 1398636544,
+            "heapUsedBytes": 853551176,
+            "outputBytes": 12648586,
+            "work": {
+              "graph-baseline:miss": 10000,
+              "graph:build:miss": 10000,
+              "graph:build:action:replaced": 10000,
+              "normalization:miss": 10000,
+              "page:discovered:action:kept": 10000,
+              "page:extract:action:kept": 10000,
+              "page:metadata:action:kept": 10000,
+              "page:transform:action:kept": 10000
+            },
+            "buildDigest": "sha256:214854007e15f7730f3db3223189ac5db9dbaf05ca77fa8718378254209192f9",
+            "cacheReasons": {
+              "key-missing": 60004
+            },
+            "diagnosticCodes": [],
+            "diagnosticMessages": []
+          },
+          {
+            "durationMs": 94555.560458,
+            "peakRssBytes": 1240104960,
+            "heapUsedBytes": 707558040,
+            "outputBytes": 12648586,
+            "work": {
+              "graph-baseline:miss": 10000,
+              "graph:build:miss": 10000,
+              "graph:build:action:replaced": 10000,
+              "normalization:miss": 10000,
+              "page:discovered:action:kept": 10000,
+              "page:extract:action:kept": 10000,
+              "page:metadata:action:kept": 10000,
+              "page:transform:action:kept": 10000
+            },
+            "buildDigest": "sha256:214854007e15f7730f3db3223189ac5db9dbaf05ca77fa8718378254209192f9",
+            "cacheReasons": {
+              "key-missing": 60004
+            },
+            "diagnosticCodes": [],
+            "diagnosticMessages": []
+          },
+          {
+            "durationMs": 93879.750834,
+            "peakRssBytes": 1054932992,
+            "heapUsedBytes": 705891992,
+            "outputBytes": 12648586,
+            "work": {
+              "graph-baseline:miss": 10000,
+              "graph:build:miss": 10000,
+              "graph:build:action:replaced": 10000,
+              "normalization:miss": 10000,
+              "page:discovered:action:kept": 10000,
+              "page:extract:action:kept": 10000,
+              "page:metadata:action:kept": 10000,
+              "page:transform:action:kept": 10000
+            },
+            "buildDigest": "sha256:214854007e15f7730f3db3223189ac5db9dbaf05ca77fa8718378254209192f9",
+            "cacheReasons": {
+              "key-missing": 60004
+            },
+            "diagnosticCodes": [],
+            "diagnosticMessages": []
+          }
+        ],
+        "warm": [
+          {
+            "durationMs": 61776.902416000004,
+            "peakRssBytes": 1097547776,
+            "heapUsedBytes": 408130592,
+            "outputBytes": 12648586,
+            "work": {
+              "graph-baseline:hit": 10000,
+              "graph:build:hit": 10000,
+              "graph:build:action:replaced": 10000,
+              "normalization:hit": 10000,
+              "page:discovered:action:kept": 10000,
+              "page:extract:action:kept": 10000,
+              "page:metadata:action:kept": 10000,
+              "page:transform:action:kept": 10000
+            },
+            "buildDigest": "sha256:214854007e15f7730f3db3223189ac5db9dbaf05ca77fa8718378254209192f9",
+            "cacheReasons": {},
+            "diagnosticCodes": [],
+            "diagnosticMessages": []
+          },
+          {
+            "durationMs": 64722.90562500001,
+            "peakRssBytes": 908886016,
+            "heapUsedBytes": 407707424,
+            "outputBytes": 12648586,
+            "work": {
+              "graph-baseline:hit": 10000,
+              "graph:build:hit": 10000,
+              "graph:build:action:replaced": 10000,
+              "normalization:hit": 10000,
+              "page:discovered:action:kept": 10000,
+              "page:extract:action:kept": 10000,
+              "page:metadata:action:kept": 10000,
+              "page:transform:action:kept": 10000
+            },
+            "buildDigest": "sha256:214854007e15f7730f3db3223189ac5db9dbaf05ca77fa8718378254209192f9",
+            "cacheReasons": {},
+            "diagnosticCodes": [],
+            "diagnosticMessages": []
+          },
+          {
+            "durationMs": 63241.617416999994,
+            "peakRssBytes": 913293312,
+            "heapUsedBytes": 407119600,
+            "outputBytes": 12648586,
+            "work": {
+              "graph-baseline:hit": 10000,
+              "graph:build:hit": 10000,
+              "graph:build:action:replaced": 10000,
+              "normalization:hit": 10000,
+              "page:discovered:action:kept": 10000,
+              "page:extract:action:kept": 10000,
+              "page:metadata:action:kept": 10000,
+              "page:transform:action:kept": 10000
+            },
+            "buildDigest": "sha256:214854007e15f7730f3db3223189ac5db9dbaf05ca77fa8718378254209192f9",
+            "cacheReasons": {},
+            "diagnosticCodes": [],
+            "diagnosticMessages": []
+          }
+        ],
+        "edited": [
+          {
+            "durationMs": 62488.083958,
+            "peakRssBytes": 1173553152,
+            "heapUsedBytes": 409570320,
+            "outputBytes": 12648565,
+            "work": {
+              "graph-baseline:miss": 1,
+              "graph:build:miss": 1,
+              "graph:build:action:replaced": 10000,
+              "normalization:miss": 1,
+              "page:discovered:action:kept": 10000,
+              "page:extract:action:kept": 10000,
+              "page:metadata:action:kept": 10000,
+              "page:transform:action:kept": 10000,
+              "graph-baseline:hit": 9999,
+              "graph:build:hit": 9999,
+              "normalization:hit": 9999
+            },
+            "buildDigest": "sha256:9b71ab1d9f5dd5d1defe4631d192ec03f5ab9322afe77a9f8471945b00fb316e",
+            "cacheReasons": {
+              "key-missing": 8
+            },
+            "diagnosticCodes": [],
+            "diagnosticMessages": []
+          },
+          {
+            "durationMs": 65965.613291,
+            "peakRssBytes": 941588480,
+            "heapUsedBytes": 411433576,
+            "outputBytes": 12648565,
+            "work": {
+              "graph-baseline:miss": 1,
+              "graph:build:miss": 1,
+              "graph:build:action:replaced": 10000,
+              "normalization:miss": 1,
+              "page:discovered:action:kept": 10000,
+              "page:extract:action:kept": 10000,
+              "page:metadata:action:kept": 10000,
+              "page:transform:action:kept": 10000,
+              "graph-baseline:hit": 9999,
+              "graph:build:hit": 9999,
+              "normalization:hit": 9999
+            },
+            "buildDigest": "sha256:9b71ab1d9f5dd5d1defe4631d192ec03f5ab9322afe77a9f8471945b00fb316e",
+            "cacheReasons": {
+              "key-missing": 8
+            },
+            "diagnosticCodes": [],
+            "diagnosticMessages": []
+          },
+          {
+            "durationMs": 63047.064125,
+            "peakRssBytes": 940392448,
+            "heapUsedBytes": 407626736,
+            "outputBytes": 12648565,
+            "work": {
+              "graph-baseline:miss": 1,
+              "graph:build:miss": 1,
+              "graph:build:action:replaced": 10000,
+              "normalization:miss": 1,
+              "page:discovered:action:kept": 10000,
+              "page:extract:action:kept": 10000,
+              "page:metadata:action:kept": 10000,
+              "page:transform:action:kept": 10000,
+              "graph-baseline:hit": 9999,
+              "graph:build:hit": 9999,
+              "normalization:hit": 9999
+            },
+            "buildDigest": "sha256:9b71ab1d9f5dd5d1defe4631d192ec03f5ab9322afe77a9f8471945b00fb316e",
+            "cacheReasons": {
+              "key-missing": 8
+            },
+            "diagnosticCodes": [],
+            "diagnosticMessages": []
+          }
+        ]
+      },
+      "summaries": {
+        "control": {
+          "durationMs": {
+            "median": 3712.284125,
+            "p95": 3803.8590830000003,
+            "samples": [
+              3712.284125,
+              3803.8590830000003,
+              3574.782375
+            ]
+          },
+          "peakRssBytes": {
+            "median": 492568576,
+            "p95": 493912064,
+            "samples": [
+              492568576,
+              493912064,
+              483950592
+            ]
+          },
+          "heapUsedBytes": {
+            "median": 175663376,
+            "p95": 195541128,
+            "samples": [
+              195541128,
+              175393568,
+              175663376
+            ]
+          },
+          "outputBytes": {
+            "median": 3315560,
+            "p95": 3315560,
+            "samples": [
+              3315560,
+              3315560,
+              3315560
+            ]
+          }
+        },
+        "baseline": {
+          "durationMs": {
+            "median": null,
+            "p95": null,
+            "samples": []
+          },
+          "peakRssBytes": {
+            "median": null,
+            "p95": null,
+            "samples": []
+          },
+          "heapUsedBytes": {
+            "median": null,
+            "p95": null,
+            "samples": []
+          },
+          "outputBytes": {
+            "median": null,
+            "p95": null,
+            "samples": []
+          }
+        },
+        "current": {
+          "durationMs": {
+            "median": 93879.750834,
+            "p95": 94555.560458,
+            "samples": [
+              93564.872084,
+              94555.560458,
+              93879.750834
+            ]
+          },
+          "peakRssBytes": {
+            "median": 1240104960,
+            "p95": 1398636544,
+            "samples": [
+              1398636544,
+              1240104960,
+              1054932992
+            ]
+          },
+          "heapUsedBytes": {
+            "median": 707558040,
+            "p95": 853551176,
+            "samples": [
+              853551176,
+              707558040,
+              705891992
+            ]
+          },
+          "outputBytes": {
+            "median": 12648586,
+            "p95": 12648586,
+            "samples": [
+              12648586,
+              12648586,
+              12648586
+            ]
+          }
+        },
+        "warm": {
+          "durationMs": {
+            "median": 63241.617416999994,
+            "p95": 64722.90562500001,
+            "samples": [
+              61776.902416000004,
+              64722.90562500001,
+              63241.617416999994
+            ]
+          },
+          "peakRssBytes": {
+            "median": 913293312,
+            "p95": 1097547776,
+            "samples": [
+              1097547776,
+              908886016,
+              913293312
+            ]
+          },
+          "heapUsedBytes": {
+            "median": 407707424,
+            "p95": 408130592,
+            "samples": [
+              408130592,
+              407707424,
+              407119600
+            ]
+          },
+          "outputBytes": {
+            "median": 12648586,
+            "p95": 12648586,
+            "samples": [
+              12648586,
+              12648586,
+              12648586
+            ]
+          }
+        },
+        "edited": {
+          "durationMs": {
+            "median": 63047.064125,
+            "p95": 65965.613291,
+            "samples": [
+              62488.083958,
+              65965.613291,
+              63047.064125
+            ]
+          },
+          "peakRssBytes": {
+            "median": 941588480,
+            "p95": 1173553152,
+            "samples": [
+              1173553152,
+              941588480,
+              940392448
+            ]
+          },
+          "heapUsedBytes": {
+            "median": 409570320,
+            "p95": 411433576,
+            "samples": [
+              409570320,
+              411433576,
+              407626736
+            ]
+          },
+          "outputBytes": {
+            "median": 12648565,
+            "p95": 12648565,
+            "samples": [
+              12648565,
+              12648565,
+              12648565
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "failures": []
+}

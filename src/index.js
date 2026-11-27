@@ -33,6 +33,7 @@ import { exactPathnameIdentity } from './core/artifact-path.js';
 import { absoluteUrl } from './core/page-model.js';
 import { corpusRoutePatterns } from './core/corpus-topology.js';
 import { contentRoutesFor } from './lib/content-routes.js';
+import { allowedDomainsWarning, hostnamesMissingFromAllowedDomains } from './lib/allowed-domains.js';
 import { createLocaleSnapshot } from './core/locale.js';
 import {
   preloadCorpusTokenizer,
@@ -448,6 +449,21 @@ export default function aeo(userConfig = {}) {
               'Astro does not expose request headers to a prerendered route. Add an adapter and mark the routes that should negotiate with `export const prerender = false`, or set markdown.negotiation to "off". The .md companions are unaffected.',
           );
         }
+        // The Node adapter rebuilds a request's URL from Host only for allowed domains,
+        // so a runtime-owned corpus would see localhost and answer 404 in production.
+        if (
+          command === 'build' &&
+          adapterName === '@astrojs/node' &&
+          siteUrl &&
+          (config.corpus.index.enabled || config.corpus.full.enabled) &&
+          runtimeOwnsCorpus(hasOnDemandProjectPage, localeSnapshot)
+        ) {
+          const missing = hostnamesMissingFromAllowedDomains(
+            [siteUrl, ...(localeSnapshot?.origins ?? [])],
+            astroConfig.security?.allowedDomains,
+          );
+          if (missing.length > 0) logger.warn(allowedDomainsWarning(missing));
+        }
         sitemapState.siteUrl = siteUrl;
         sitemapState.base = base;
       },
@@ -613,10 +629,10 @@ export default function aeo(userConfig = {}) {
       },
 
       'astro:build:done': async (options) => {
-        // Astro 5 resolves routes before config:done, while newer versions run
-        // these hooks in the opposite order. Merge here, after catalog preflight
-        // is guaranteed to have completed, and keep the route array catalog-free
-        // so the newer hook order cannot add the same diagnostics twice.
+        // Merge here, after catalog preflight is guaranteed to have completed,
+        // so the result does not depend on the order Astro runs config:done and
+        // routes:resolved in. Keeping the route array catalog-free means neither
+        // order can add the same diagnostics twice.
 
         // An on-demand page route is the only thing that puts pages outside the
         // build's reach. Adapter presence is not evidence: injectRuntimeFallbackRoutes
@@ -889,7 +905,7 @@ function redirectOwnsNotFound(astroConfig) {
 
 /**
  * Give the router concrete manifest routes that reach pre-middleware before the
- * provider's status-404 fallback in an adapter build, and before the development
+ * provider's catch-all 404 fallback in an adapter build, and before the development
  * server's redirect and 404 routing in `astro dev`. The endpoint itself succeeds at
  * nothing: it returns 404 only after Astro-AEO declines the request.
  *

@@ -48,7 +48,7 @@ bun add astro-aeo
 # npm install astro-aeo
 ```
 
-Astro-AEO requires Astro 5 or newer and Node 20.19.5+. It ships as plain ESM with no build step, so it also works as a git dependency:
+Astro-AEO requires Astro 6 or newer and Node 22.12.0+ (Astro 5 and Node 20 projects can stay on 1.6.x). It ships as plain ESM with no build step, so it also works as a git dependency:
 
 ```jsonc
 // package.json
@@ -377,6 +377,80 @@ The 1.4 `audit` command and its SARIF, JUnit, HTML, Markdown, and GitHub report 
   anchor and hreflang rules need the rendered site and run only in `astro-aeo audit`.
 - `'off'`: nothing optional. Artifact integrity errors that would corrupt output still stop the build.
 
+<a id="migrating-from-10"></a>
+
+### Migrating to 2.0
+
+2.0 removes the 1.0 configuration keys that 1.x accepted with a deprecation warning, and raises the
+floors to Astro 6 and Node 22.12.0. Nothing else changes: canonical keys, defaults, generated
+output, subpath exports, the plugin API (`apiVersion: 1`), CLI commands and components are the same
+as 1.6. A canonical configuration builds the same bytes on 2.0 as on 1.6.
+
+**Upgrade in two steps.** On 1.6.x, build once with the printer on:
+
+```bash
+AEO_PRINT_MIGRATION=1 astro build
+```
+
+It prints a paste-ready canonical block derived from the keys you actually set. Replace your 1.0
+keys with it, check that the build is unchanged, then upgrade. If you upgrade first, the 2.0 build
+stops with the same block:
+
+```text
+astro-aeo: these 1.0 configuration keys were removed in 2.0:
+  exclude -> pages.exclude
+  domainProfile.contact -> site.profile.email
+Replace them with:
+
+  pages: {
+    exclude: ["/private/**"],
+  },
+  site: {
+    profile: {
+      email: "hello@example.com",
+    },
+  },
+```
+
+Merge the printed blocks into any canonical blocks you already have (for example an existing `site`
+key). Dates and regular expressions keep executable constructors. Functions appear as `undefined`
+TODO placeholders, so copy those callbacks by hand. A key set to `undefined` is ignored, as before.
+
+| Removed in 2.0 | Canonical |
+| --- | --- |
+| `include`, `exclude`, `respectNoindex`, `stripTitleSuffix` | `pages.*` |
+| `dotmd.enabled`, `dotmd.includeLastModified`, `dotmd.frontmatter` | `markdown.*` |
+| `dotmd.linkTag` | `markdown.alternateLink` |
+| `dotmd.dotmdMetadata` | `markdown.frontmatter` |
+| `llmsTxt.*` | `corpus.index.*` |
+| `llmsTxt.showLastmod` | `corpus.index.showLastModified` |
+| `llmsTxt.includeNoDotmd` | `corpus.index.includeHtmlOnly` |
+| `llmsFullTxt.*` | `corpus.full.*` |
+| `urlMap.*` | `corpus.urlMap.*` |
+| `sitemap.enabled: true` / `false` | `discovery.sitemap.mode: 'auto'` / `'external'` |
+| `sitemap.options` | `discovery.sitemap.options` |
+| `sitemapAlias.*` | `discovery.sitemap.alias.*` |
+| `robotsTxt.*` | `discovery.robots.*` |
+| `domainProfile.*` | `site.profile.*` |
+| `domainProfile.contact` | `site.profile.email` |
+
+`sitemap.enabled: false` maps to `mode: 'external'`, not `'disabled'`. It never meant "no sitemap",
+only "do not auto-register `@astrojs/sitemap`"; a sitemap you register yourself stays in use.
+
+Also removed:
+
+- The `AeoHead` `author` prop. Use `authors`, which takes the same values. A leftover `author` is
+  ignored and reported as the `aeo-head-author-removed` warning.
+- The `CatalogPage` type (use `PageDescriptor`), and the `ResolvedAeoConfig`, `LegacyAeoConfig`,
+  `DotmdOptions`, `LlmsTxtOptions`, `LlmsFullTxtOptions`, `UrlMapOptions`, `RobotsTxtOptions`,
+  `SitemapOptions`, `SitemapAliasOptions` and `DomainProfileOptions` types. Use
+  `ResolvedAstroAeoConfig` and the canonical option types.
+- Astro 5 and Node 20. Stay on 1.6.x until you can move to Astro 6 or newer on Node 22.12.0 or
+  newer.
+
+Kept: the flat `AeoPageRecord` fields (`url`, `mdHref`, `title`, `description`, `markdown`,
+`lastModified`, `aeoTokens`) and `source.strategy` are stable and are not deprecated.
+
 ### Migrating to 1.4
 
 1.4 adds features and changes no configuration key. A project that uses none of them emits the same
@@ -433,8 +507,8 @@ Version 1.2 deliberately changes three defaults or public contracts:
 - `AeoPageRecord` is now the shared rich page model. It adds route identity, nested metadata,
   source and representation records, dates, authors, entities, directives, extraction details,
   and diagnostics. The existing flat `url`, `mdHref`, `title`, `description`, `markdown`,
-  `lastModified`, and `aeoTokens` fields remain as deprecated runtime and type mirrors through
-  1.x. The smaller `AeoPage` used by section match predicates is unchanged.
+  `lastModified`, and `aeoTokens` fields remain as runtime and type mirrors (still present in
+  2.0). The smaller `AeoPage` used by section match predicates is unchanged.
 - Project routes and `public/` files now own their served path by default. Astro-AEO will not
   overwrite them unless the exact normalized served pathname appears in `artifacts.replace`.
   Globs are rejected, and duplicate generated claims emit neither claimant. Version 1.2.0 also
@@ -451,53 +525,6 @@ aeo({
   schema: { autoInject: false },
 });
 ```
-
-### Migrating from 1.0
-
-Every 1.0 key still works and produces the same output as its canonical replacement. Using one emits a
-single deprecation warning per section; the 1.0 keys are removed in 2.0.
-
-| 1.0 | Canonical 1.x |
-| --- | --- |
-| `include`, `exclude`, `respectNoindex`, `stripTitleSuffix` | `pages.*` |
-| `dotmd.enabled`, `dotmd.includeLastModified`, `dotmd.frontmatter` | `markdown.*` |
-| `dotmd.linkTag` | `markdown.alternateLink` |
-| `dotmd.dotmdMetadata` | `markdown.frontmatter` |
-| `llmsTxt.*` | `corpus.index.*` |
-| `llmsTxt.showLastmod` | `corpus.index.showLastModified` |
-| `llmsTxt.includeNoDotmd` | `corpus.index.includeHtmlOnly` |
-| `llmsFullTxt.*` | `corpus.full.*` |
-| `urlMap.*` | `corpus.urlMap.*` |
-| `sitemap.enabled: true` / `false` | `discovery.sitemap.mode: 'auto'` / `'external'` |
-| `sitemap.options` | `discovery.sitemap.options` |
-| `sitemapAlias.*` | `discovery.sitemap.alias.*` |
-| `robotsTxt.*` | `discovery.robots.*` |
-| `domainProfile.*` | `site.profile.*` |
-| `domainProfile.contact` | `site.profile.email` |
-
-To see the canonical replacement for your own config, build once with the printer on:
-
-```bash
-AEO_PRINT_MIGRATION=1 astro build
-```
-
-It prints a paste-ready block derived from the keys you actually set. Dates and regular
-expressions retain executable constructors. Functions appear as `undefined` TODO
-placeholders, so copy those callbacks by hand.
-
-Two rules are worth knowing:
-
-- You can mix eras as long as they address different settings. Setting a 1.0 key and
-  its canonical replacement to **different** values is a build-stopping error naming both
-  paths, because silently picking one could publish the wrong `robots.txt` policy.
-- Values compare structurally, but callbacks compare by reference. Pasting the same
-  `match` function into both `llmsTxt.sections` and `corpus.index.sections` is
-  reported as a conflict: delete one.
-
-`sitemap.enabled: false` maps to `mode: 'external'`, not `'disabled'`. It never meant
-"no sitemap", only "do not auto-register `@astrojs/sitemap`"; a sitemap you register
-yourself stayed in use. The new `disabled` mode, which has no 1.0 equivalent, opts out
-of sitemap handling entirely.
 
 ### Sitemap
 
@@ -842,6 +869,9 @@ on every use of the inventory, and `false` (or omitting it) keeps the first list
 catalog's first listing fails, it is retried on its next use instead of staying empty; if a later
 refresh fails, the last listing stays in place and the refresh is retried after another window.
 A refresh never holds up a request: the last inventory is served until the fresh one is ready.
+On Cloudflare the middleware hands that background refresh to `locals.cfContext.waitUntil`, because
+a Worker cancels work a finished request left running; the stock adapter and its `fetch` and `hono`
+handlers set `cfContext`.
 Development always lists afresh, and a build lists once.
 
 Catalog entrypoints must be JavaScript that Node's native module loader can execute:
@@ -849,8 +879,8 @@ Catalog entrypoints must be JavaScript that Node's native module loader can exec
 version. Catalog logic may be authored in TypeScript, but it must be compiled to a
 JavaScript entrypoint before Astro loads the integration. Source `.ts`, `.tsx`, `.mts`,
 `.cts`, `.jsx`, and `.astro` catalog entrypoints warn and contribute nothing. Node's
-built-in TypeScript support is not a portable substitute: it is unavailable on Node 20,
-handles only erasable syntax by default, and ignores `tsconfig.json` behavior. See the
+built-in TypeScript support is not a portable substitute: it is not enabled by default on
+Node 22.12, handles only erasable syntax, and ignores `tsconfig.json` behavior. See the
 [Node TypeScript documentation](https://nodejs.org/api/typescript.html).
 
 Request-time middleware owns `llms.txt` and `llms-full.txt` when at least one project page
@@ -884,7 +914,7 @@ shorter text or schema corpus. This includes rendering, transport and body-read 
 server errors and partial or unusably encoded HTML. GET and HEAD share the
 failure status. Anonymous authorization denials, redirects, missing routes, non-HTML routes
 and explicit page opt-outs remain valid exclusions; plugin and semantic errors retain `500`.
-Astro 5 and Astro 6.0-6.2 receive `503` for request-time corpora because those
+Astro 6.0-6.2 receives `503` for request-time corpora because those
 versions do not expose a disposable request state. Their closure-held client address,
 cookies, and session cannot be replaced securely for an anonymous corpus render. The
 response reports an unrecognized request state rather than an Astro version, because the
@@ -1263,7 +1293,7 @@ changes the French host's profile without changing another host. Credentials, pa
 fragments, duplicate normalized origins, and unknown override keys are rejected. Build and runtime
 use the same renderer, and an authored `website` still takes precedence over the active origin.
 
-`site.profile.email` is routed into the schema.org profile by value shape: an `http(s)` URL becomes a `contactPoint` (`{ '@type': 'ContactPoint', url }`), a value containing `@` becomes `email`, and anything else becomes `telephone`. The old `domainProfile.contact` key is a deprecated alias; it still works but emits a deprecation warning.
+`site.profile.email` is routed into the schema.org profile by value shape: an `http(s)` URL becomes a `contactPoint` (`{ '@type': 'ContactPoint', url }`), a value containing `@` becomes `email`, and anything else becomes `telephone`.
 
 ### Serving .md companions
 
@@ -1304,7 +1334,7 @@ Release gates build Node, Cloudflare, Deno, Vercel, and Netlify fixtures. The fu
 contract runs locally for Node, Cloudflare in workerd, and Deno. The emitted Vercel and Netlify
 handlers run in process against a smaller set: `.md` `GET`, `HEAD` and `304`, the runtime
 artifacts, `robots.txt` passthrough, and the Markdown `404` for an unknown `.md`. Separate
-assertions verify that Vercel routes runtime artifacts to `_render` before its status-404 fallback
+assertions verify that Vercel routes runtime artifacts to `_render` before its catch-all 404 fallback
 and that Netlify does not short-circuit `.md` through bundled custom-404 content.
 
 The stock `@astrojs/cloudflare()` adapter needs no extra wiring. If you replace its worker
@@ -1318,9 +1348,9 @@ Origin-scoped runtime artifacts (`llms.txt`, `llms-full.txt`, the corpus paths, 
 `/.well-known/domain-profile.json`) are served only when the request origin matches the configured
 `site` or one of the configured i18n domains. `astro dev` and `astro preview` additionally accept
 their loopback origin; a deployed server does not, so a spoofed `Host: localhost` cannot claim the
-configured site. On Astro 5 and Astro 6 the Node adapter rewrites the request host to `localhost`
-unless the domain is allowed, so those projects need Astro's own host trust for the artifacts to be
-reachable:
+configured site. On Astro 6, and again from Astro 7.4, the Node adapter rewrites the request host to
+`localhost` unless the domain is allowed, so those projects need Astro's own host trust for the
+artifacts to be reachable:
 
 ```js
 export default defineConfig({
@@ -1329,7 +1359,10 @@ export default defineConfig({
 });
 ```
 
-Astro 7 keeps the request `Host` header without that setting.
+List every i18n domain too. A Node build whose corpus is served at request time warns and names
+each missing hostname. Astro 7.0 through 7.3 keep the request `Host` header without the setting.
+Allowed domains also let Astro trust matching `X-Forwarded-Host` values, so list only hosts your
+proxy actually serves.
 
 On static hosting the companions are plain files, and many hosts serve unknown
 extensions as `text/plain`, `application/octet-stream`, or a download. To keep answer
@@ -1511,7 +1544,7 @@ fragment, glob, dot segment, encoded separator, ambiguous encoding, duplicate sl
 slash. Cross-page reference validation is scoped to the configured Astro site and `base` path.
 
 Runtime schema corpora use the same anonymous, serial, in-process renderer as the text corpora,
-including `GET`, `HEAD`, ETags, and conditional requests. Astro 5 and Astro 6.0 through 6.2 return
+including `GET`, `HEAD`, ETags, and conditional requests. Astro 6.0 through 6.2 return
 `503` with `Cache-Control: no-store` for full request-time corpora, reported as an unrecognized
 request state. Astro 6.3 or newer is required for disposable per-page request state.
 
@@ -1710,7 +1743,7 @@ permissions:
 steps:
   - uses: actions/checkout@v4
   - run: npm ci && npm run build
-  - uses: ZAAI-com/Astro-AEO@1.6.1
+  - uses: ZAAI-com/Astro-AEO@2.0.0
     with:
       target: dist            # or a deployed URL
       fail-on: error          # error, warning or none
@@ -2034,12 +2067,13 @@ pnpm run release:check # schema, compatibility, tarball, adapters, and benchmark
 
 Tag publication adds `--require-clean`, checks that the numeric tag equals the package and changelog
 version, and refuses a dirty checkout before the packed-tarball and provider gates run. Both pull
-requests and tagged publication also run real pinned Node servers on Astro 5.18, 6.2, 6.3, and 7.
+requests and tagged publication also run real pinned Node servers on Astro 6.2, 6.3, and 7.
 
 Tests are colocated next to the source they cover as `*.test.js`. The frozen
 `fixtures/golden-1.0` output proves static byte compatibility with the actual 1.0
-implementation, while `fixtures/config-compat` compares legacy and canonical option
-spellings. The package is authored as plain ESM JavaScript with JSDoc types and a
+implementation (its configuration is translated into canonical keys), while
+`fixtures/config-compat` proves that 1.0 keys are rejected and that a canonical build
+matches the bytes 1.6.1 produced. The package is authored as plain ESM JavaScript with JSDoc types and a
 hand-written `index.d.ts`, so it needs no build step and installs cleanly as a git dependency.
 
 Working on this repo with an AI agent? See [`AGENTS.md`](AGENTS.md) for the architecture, conventions, and test workflow. Notable changes are tracked in [`CHANGELOG.md`](CHANGELOG.md).

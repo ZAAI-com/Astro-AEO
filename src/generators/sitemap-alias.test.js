@@ -31,8 +31,8 @@ describe('emitSitemapAlias', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  /** @param {Partial<import('../index.js').SitemapAliasOptions>} [sitemapAlias] */
-  const cfg = (sitemapAlias) => resolveConfig({ sitemapAlias });
+  /** @param {Partial<import('../index.js').SitemapAliasCanonicalOptions>} [alias] */
+  const cfg = (alias) => resolveConfig({ discovery: { sitemap: { alias } } });
 
   test('disabled: returns false, writes nothing, no warning', () => {
     writeFileSync(join(dir, 'sitemap-index.xml'), RAW);

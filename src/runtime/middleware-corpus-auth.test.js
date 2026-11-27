@@ -498,7 +498,6 @@ describe('runtime corpus subrequests', () => {
   });
 
   test.each([
-    ['Astro 5', Symbol.for('context.routes')],
     ['Astro 6.0-6.2', Symbol.for('astro.pipeline')],
   ])('fails closed for %s before caller-bound state can render', async (_version, pipelineSymbol) => {
     const url = new URL('https://example.test/llms-full.txt');

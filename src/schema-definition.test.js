@@ -116,38 +116,25 @@ describe('published configuration schema', () => {
     expect(replace.pattern).toBe(corpus.mapPath.pattern);
   });
 
-  test('deprecated object aliases retain their value constraints', () => {
-    expect(
-      conforms({
-        dotmd: { enabled: false, linkTag: 'always' },
-        llmsTxt: {
-          sections: [{ title: 'Docs', match: '/docs/**' }],
-          defaultSection: false,
-          includeDescriptions: true,
-        },
-        llmsFullTxt: { mode: 'index' },
-        urlMap: { enabled: true },
-        robotsTxt: { allow: ['GPTBot'] },
-        sitemap: { enabled: false },
-        sitemapAlias: { outputFilename: 'sitemap.xml' },
-        domainProfile: { entityType: 'Organization', sameAs: ['https://example.com'] },
-      }),
-    ).toBe(true);
-
-    for (const invalid of [
-      { dotmd: { enabled: 'yes' } },
-      { dotmd: { linkTag: 'sometimes' } },
-      { llmsTxt: { includeDescriptions: 'yes' } },
-      { llmsFullTxt: { mode: 'some' } },
-      { urlMap: { enabled: 'yes' } },
-      { robotsTxt: { allow: 'GPTBot' } },
-      { sitemap: { enabled: 'yes' } },
-      { sitemapAlias: { outputFilename: false } },
-      { domainProfile: { entityType: 'Unknown' } },
-      { domainProfile: { sameAs: 'https://example.com' } },
+  test('rejects every 1.0 alias removed in 2.0', () => {
+    for (const removed of [
+      { include: ['**'] },
+      { exclude: [] },
+      { respectNoindex: true },
+      { stripTitleSuffix: false },
+      { dotmd: { enabled: false } },
+      { dotmd: { dotmdMetadata: true } },
+      { llmsTxt: { defaultSection: false } },
+      { llmsFullTxt: { mode: 'index' } },
+      { urlMap: { enabled: true } },
+      { robotsTxt: { allow: ['GPTBot'] } },
+      { sitemap: { enabled: false } },
+      { sitemapAlias: { outputFilename: 'sitemap.xml' } },
+      { domainProfile: { contact: 'team@example.com' } },
     ]) {
-      expect(conforms(invalid), JSON.stringify(invalid)).toBe(false);
+      expect(conforms(removed), JSON.stringify(removed)).toBe(false);
     }
+    expect(JSON.stringify(buildSchema())).not.toContain('"deprecated"');
   });
 
   test('publishes the 1.3 corpus, locale, cache, crawler, and IndexNow contracts', () => {

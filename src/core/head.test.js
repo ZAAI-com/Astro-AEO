@@ -294,6 +294,18 @@ describe('managed page head', () => {
     ]) expect(result.html).toContain(expected);
   });
 
+  test('ignores the removed singular author prop with a warning, keeping authored tags', () => {
+    const result = enrichHtmlHead({
+      html: document(`<meta name="author" content="Authored">${marker({ author: 'Ada' })}`),
+      page: page(), config: resolveConfig(), site,
+    });
+    expect(result.html).toContain('name="author" content="Authored"');
+    expect(result.html).not.toContain('content="Ada"');
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'aeo-head-author-removed', severity: 'warning' }),
+    );
+  });
+
   test('treats a null Markdown alternate as absent metadata', () => {
     const result = enrichHtmlHead({
       html: document(`<link rel="alternate" type="text/markdown" href="/authored.md">${marker({

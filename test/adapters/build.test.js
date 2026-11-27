@@ -141,7 +141,14 @@ describe('adapter build gates', () => {
     const functionConfig = readJson(join(functionRoot, '.vc-config.json'));
     expect(config.version).toBe(3);
     expect(config.routes).toEqual(expect.arrayContaining([expect.objectContaining({ dest: '_render' })]));
-    const status404Fallback = config.routes.findIndex((route) => route.status === 404);
+    // Vercel ends the table with a catch-all 404 fallback. A prerendered 404 (and
+    // adapters before 11.0.22) forces `status: 404`; an on-demand 404 forwards to
+    // `_render` without one so middleware rewrites can still answer 200.
+    const status404Fallback = config.routes.findLastIndex(
+      (route) =>
+        (route.src === '/.*' || route.src === '^/.*$') &&
+        (route.status === 404 || route.dest === '_render'),
+    );
     expect(status404Fallback).toBeGreaterThan(-1);
     for (const routeMarker of [
       '\\.md',
@@ -156,7 +163,7 @@ describe('adapter build gates', () => {
         (route) => route.dest === '_render' && route.src?.includes(routeMarker),
       );
       expect(routeIndex, `missing Vercel _render route for ${routeMarker}`).toBeGreaterThan(-1);
-      expect(routeIndex, `${routeMarker} must precede Vercel's status-404 fallback`)
+      expect(routeIndex, `${routeMarker} must precede Vercel's catch-all 404 fallback`)
         .toBeLessThan(status404Fallback);
     }
     for (const artifact of providerRuntimeArtifacts) {

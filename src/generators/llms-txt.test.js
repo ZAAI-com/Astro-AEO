@@ -62,7 +62,7 @@ describe('groupSections', () => {
 
 describe('isLlmsEligible / llmsEntryHref', () => {
   const base = resolveConfig({});
-  const withNoDotmd = resolveConfig({ llmsTxt: { includeNoDotmd: true } });
+  const withNoDotmd = resolveConfig({ corpus: { index: { includeHtmlOnly: true } } });
 
   test('no-llms pages are never eligible', () => {
     expect(isLlmsEligible(page('/x', { aeoTokens: ['no-llms'] }), base)).toBe(false);

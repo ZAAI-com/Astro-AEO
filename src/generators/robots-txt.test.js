@@ -5,7 +5,7 @@ import { resolveConfig } from '../config.js';
 describe('buildRobotsTxt', () => {
   test('allow then disallow, with sitemap and llms hints', () => {
     const config = resolveConfig({
-      robotsTxt: { enabled: true, allow: ['Googlebot'], disallow: ['GPTBot'] },
+      discovery: { robots: { enabled: true, allow: ['Googlebot'], disallow: ['GPTBot'] } },
     });
     const out = buildRobotsTxt(config, 'https://x.com');
     expect(out).toContain('User-agent: Googlebot\nAllow: /');
@@ -16,14 +16,14 @@ describe('buildRobotsTxt', () => {
   });
 
   test('wildcard fallback when no bots configured', () => {
-    const config = resolveConfig({ robotsTxt: { enabled: true } });
+    const config = resolveConfig({ discovery: { robots: { enabled: true } } });
     const out = buildRobotsTxt(config, 'https://x.com');
     expect(out).toContain('User-agent: *\nAllow: /');
   });
 
   test('custom sitemapPath and extraLines', () => {
     const config = resolveConfig({
-      robotsTxt: { enabled: true, sitemapPath: '/sitemap.xml', extraLines: ['# custom'] },
+      discovery: { robots: { enabled: true, sitemapPath: '/sitemap.xml', extraLines: ['# custom'] } },
     });
     const out = buildRobotsTxt(config, 'https://x.com');
     expect(out).toContain('Sitemap: https://x.com/sitemap.xml');
@@ -31,7 +31,7 @@ describe('buildRobotsTxt', () => {
   });
 
   test('base path is prefixed onto the sitemap and llms.txt urls', () => {
-    const config = resolveConfig({ robotsTxt: { enabled: true } });
+    const config = resolveConfig({ discovery: { robots: { enabled: true } } });
     const out = buildRobotsTxt(config, 'https://x.com', '/docs');
     expect(out).toContain('Sitemap: https://x.com/docs/sitemap-index.xml');
     expect(out).toContain('# llms.txt: https://x.com/docs/llms.txt');
@@ -41,14 +41,14 @@ describe('buildRobotsTxt', () => {
   });
 
   test('empty base leaves the urls unprefixed', () => {
-    const config = resolveConfig({ robotsTxt: { enabled: true } });
+    const config = resolveConfig({ discovery: { robots: { enabled: true } } });
     const out = buildRobotsTxt(config, 'https://x.com', '');
     expect(out).toContain('Sitemap: https://x.com/sitemap-index.xml');
     expect(out).toContain('# llms.txt: https://x.com/llms.txt');
   });
 
   test('universal group leads named allows and appears exactly once (default)', () => {
-    const config = resolveConfig({ robotsTxt: { enabled: true, allow: ['Googlebot'] } });
+    const config = resolveConfig({ discovery: { robots: { enabled: true, allow: ['Googlebot'] } } });
     const out = buildRobotsTxt(config, 'https://x.com');
     expect(out).toContain('User-agent: *\nAllow: /');
     expect(out.indexOf('User-agent: *')).toBeLessThan(out.indexOf('User-agent: Googlebot'));
@@ -56,34 +56,34 @@ describe('buildRobotsTxt', () => {
   });
 
   test('universalAllow: false drops the wildcard group but keeps named allows', () => {
-    const config = resolveConfig({ robotsTxt: { enabled: true, universalAllow: false, allow: ['Googlebot'] } });
+    const config = resolveConfig({ discovery: { robots: { enabled: true, universalAllow: false, allow: ['Googlebot'] } } });
     const out = buildRobotsTxt(config, 'https://x.com');
     expect(out).not.toContain('User-agent: *');
     expect(out).toContain('User-agent: Googlebot\nAllow: /');
   });
 
   test('a "*" already in allow suppresses the duplicate universal group', () => {
-    const config = resolveConfig({ robotsTxt: { enabled: true, allow: ['*'] } });
+    const config = resolveConfig({ discovery: { robots: { enabled: true, allow: ['*'] } } });
     const out = buildRobotsTxt(config, 'https://x.com');
     expect(out.match(/User-agent: \*/g)).toHaveLength(1);
   });
 
   test('a "User-agent: *" in extraLines suppresses the duplicate universal group', () => {
     const config = resolveConfig({
-      robotsTxt: { enabled: true, allow: ['Googlebot'], extraLines: ['User-agent: *', 'Disallow: /private'] },
+      discovery: { robots: { enabled: true, allow: ['Googlebot'], extraLines: ['User-agent: *', 'Disallow: /private'] } },
     });
     const out = buildRobotsTxt(config, 'https://x.com');
     expect(out.match(/User-agent: \*/g)).toHaveLength(1);
   });
 
   test('sitemap line is present when a sitemap is available (default)', () => {
-    const config = resolveConfig({ robotsTxt: { enabled: true } });
+    const config = resolveConfig({ discovery: { robots: { enabled: true } } });
     const out = buildRobotsTxt(config, 'https://x.com', '', true);
     expect(out).toContain('Sitemap: https://x.com/sitemap-index.xml');
   });
 
   test('sitemap line is omitted when no sitemap is available', () => {
-    const config = resolveConfig({ robotsTxt: { enabled: true } });
+    const config = resolveConfig({ discovery: { robots: { enabled: true } } });
     const out = buildRobotsTxt(config, 'https://x.com', '', false);
     expect(out).not.toContain('Sitemap:');
     // the rest of robots.txt is unaffected
@@ -92,7 +92,7 @@ describe('buildRobotsTxt', () => {
   });
 
   test('universal allow coexists with a named disallow', () => {
-    const config = resolveConfig({ robotsTxt: { enabled: true, disallow: ['GPTBot'] } });
+    const config = resolveConfig({ discovery: { robots: { enabled: true, disallow: ['GPTBot'] } } });
     const out = buildRobotsTxt(config, 'https://x.com');
     expect(out).toContain('User-agent: *\nAllow: /');
     expect(out).toContain('User-agent: GPTBot\nDisallow: /');
@@ -234,13 +234,13 @@ describe('buildRobotsTxt', () => {
   });
 
   test('uses accepted root llms claims rather than the raw config flag', () => {
-    const config = resolveConfig({ robotsTxt: { enabled: true } });
+    const config = resolveConfig({ discovery: { robots: { enabled: true } } });
     expect(buildRobotsTxt(config, 'https://x.com', '', true, false)).not.toContain('# llms.txt:');
   });
 
   test('does not advertise root llms.txt under locale-only indexes', () => {
     const config = resolveConfig({
-      robotsTxt: { enabled: true, includeSitemap: false },
+      discovery: { robots: { enabled: true, includeSitemap: false } },
       i18n: { indexes: 'locale' },
     });
     expect(buildRobotsTxt(config, 'https://x.com')).not.toContain('# llms.txt:');
